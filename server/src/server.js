@@ -149,6 +149,7 @@ function generateReport(run) {
       .filter((e) => e.type === 'step')
       .map((e) => ({
         step: e.step,
+        elapsed: e.elapsed,
         next_goal: e.next_goal,
         evaluation: e.evaluation,
         url: e.url,

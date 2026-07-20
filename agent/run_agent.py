@@ -144,11 +144,11 @@ async def main() -> int:
 
     run_id = os.environ.get("QA_RUN_ID")
     artifacts_dir = os.environ.get("ARTIFACTS_DIR")
+    run_started = time.monotonic()
 
     async def on_step(browser_state, agent_output, step_number):
         try:
-            page_info = getattr(browser_state, "page_info", None)
-            url = getattr(page_info, "url", None) if page_info is not None else None
+            url = getattr(browser_state, "url", None)
 
             # Save a durable per-step screenshot for the PDF report (separate
             # from the ephemeral live screencast frames).
@@ -167,6 +167,7 @@ async def main() -> int:
             emit({
                 "type": "step",
                 "step": step_number,
+                "elapsed": round(time.monotonic() - run_started, 1),
                 "url": url,
                 "evaluation": getattr(agent_output, "evaluation_previous_goal", None),
                 "next_goal": getattr(agent_output, "next_goal", None),
