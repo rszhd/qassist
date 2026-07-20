@@ -10,6 +10,7 @@ import { WebSocketServer } from 'ws';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -21,8 +22,11 @@ const MAX_CONCURRENT = parseInt(process.env.MAX_CONCURRENT_SESSIONS || '4', 10);
 const DEFAULT_MAX_STEPS = parseInt(process.env.MAX_STEPS || '60', 10);
 const RUN_TTL_MS = parseInt(process.env.RUN_TTL_SECONDS || '3600', 10) * 1000;
 const PYTHON_BIN = process.env.PYTHON_BIN || 'python3';
-const AGENT_SCRIPT =
-  process.env.AGENT_SCRIPT || path.join(__dirname, '..', '..', 'agent', 'run_agent.py');
+const AGENT_DIR = process.env.AGENT_DIR || path.join(__dirname, '..', '..', 'agent');
+const AGENT_SCRIPT = process.env.AGENT_SCRIPT || path.join(AGENT_DIR, 'run_agent.py');
+const REPORT_SCRIPT = process.env.REPORT_SCRIPT || path.join(AGENT_DIR, 'make_report.py');
+const ARTIFACTS_DIR = process.env.ARTIFACTS_DIR || path.join(__dirname, '..', '..', 'runs');
+const MODEL = process.env.BROWSER_USE_MODEL || 'gpt-4.1';
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 
 // --- in-memory run registry (worker is stateless across restarts) ---
@@ -66,6 +70,8 @@ function startRun(runId) {
       QA_GOAL: run.goal,
       QA_START_URL: run.start_url,
       QA_MAX_STEPS: String(run.max_steps),
+      QA_RUN_ID: run.id,
+      ARTIFACTS_DIR,
     },
   });
   run.child = child;
@@ -87,9 +93,11 @@ function startRun(runId) {
       if (evt.type === 'done') {
         run.result = evt;
         run.status = evt.success === true ? 'passed' : evt.success === false ? 'failed' : 'completed';
+        generateReport(run);
       } else if (evt.type === 'error') {
         run.result = evt;
         run.status = 'error';
+        generateReport(run);
       }
       broadcast(run, evt);
     }
@@ -110,6 +118,54 @@ function startRun(runId) {
 
 function startNext() {
   while (active < MAX_CONCURRENT && queue.length) startRun(queue.shift());
+}
+
+// Build the run's data JSON and render it to a PDF via the Python renderer
+// (which reuses the installed Chromium). Runs once per finished run.
+function generateReport(run) {
+  if (run.reportStatus === 'generating' || run.reportStatus === 'ready') return;
+  run.reportStatus = 'generating';
+  const runDir = path.join(ARTIFACTS_DIR, run.id);
+  try {
+    fs.mkdirSync(runDir, { recursive: true });
+  } catch {
+    /* dir may already exist from screenshots */
+  }
+  const res = run.result || {};
+  const data = {
+    runId: run.id,
+    goal: run.goal,
+    start_url: run.start_url,
+    model: MODEL,
+    status: run.status,
+    success: res.success ?? null,
+    duration_seconds: res.duration_seconds ?? null,
+    steps_count: res.steps ?? run.events.filter((e) => e.type === 'step').length,
+    final_result: res.final_result ?? res.message ?? null,
+    errors: res.errors ?? (res.message ? [res.message] : []),
+    recording_url: null, // wired up when recordings are hosted
+    generated_at: new Date().toISOString(),
+    steps: run.events
+      .filter((e) => e.type === 'step')
+      .map((e) => ({
+        step: e.step,
+        next_goal: e.next_goal,
+        evaluation: e.evaluation,
+        url: e.url,
+        screenshot_file: e.screenshot_file,
+      })),
+  };
+  const dataPath = path.join(runDir, 'report_data.json');
+  const pdfPath = path.join(runDir, 'report.pdf');
+  fs.writeFileSync(dataPath, JSON.stringify(data, null, 2));
+
+  const child = spawn(PYTHON_BIN, [REPORT_SCRIPT, dataPath, pdfPath]);
+  child.stderr.on('data', (d) => process.stderr.write(`[report ${run.id.slice(0, 8)}] ${d}`));
+  child.on('close', (code) => {
+    run.reportStatus = code === 0 && fs.existsSync(pdfPath) ? 'ready' : 'error';
+    run.reportPath = pdfPath;
+    console.log(`report ${run.id.slice(0, 8)}: ${run.reportStatus}`);
+  });
 }
 
 // --- HTTP ---
@@ -159,6 +215,20 @@ app.get('/api/runs/:id', checkToken, (req, res) => {
     result: run.result,
     eventCount: run.events.length,
   });
+});
+
+app.get('/api/runs/:id/report.pdf', checkToken, (req, res) => {
+  const run = runs.get(req.params.id);
+  if (!run) return res.status(404).json({ error: 'not found' });
+  const pdfPath = run.reportPath || path.join(ARTIFACTS_DIR, run.id, 'report.pdf');
+  if (run.reportStatus === 'ready' && fs.existsSync(pdfPath)) {
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="qagent-report-${run.id.slice(0, 8)}.pdf"`);
+    return res.sendFile(pdfPath);
+  }
+  if (run.reportStatus === 'generating') return res.status(202).json({ status: 'generating' });
+  if (run.reportStatus === 'error') return res.status(500).json({ error: 'report generation failed' });
+  return res.status(404).json({ error: 'no report (run not finished?)' });
 });
 
 app.use(express.static(PUBLIC_DIR));

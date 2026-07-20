@@ -5,6 +5,11 @@ services:
     ports:
       - "8080:8080"
     env_file: .env
+    environment:
+      ARTIFACTS_DIR: /app/runs
+    # Per-run screenshots, report data, and PDFs persist across restarts.
+    volumes:
+      - ./runs:/app/runs
     # Chromium needs shared memory; without this it crashes on heavy pages.
     shm_size: "1gb"
     restart: unless-stopped

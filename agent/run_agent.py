@@ -14,6 +14,7 @@ Inputs come from environment variables:
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import os
 import sys
@@ -141,10 +142,28 @@ async def main() -> int:
         f"When finished, clearly state whether the goal succeeded or failed and why."
     )
 
+    run_id = os.environ.get("QA_RUN_ID")
+    artifacts_dir = os.environ.get("ARTIFACTS_DIR")
+
     async def on_step(browser_state, agent_output, step_number):
         try:
             page_info = getattr(browser_state, "page_info", None)
             url = getattr(page_info, "url", None) if page_info is not None else None
+
+            # Save a durable per-step screenshot for the PDF report (separate
+            # from the ephemeral live screencast frames).
+            screenshot_file = None
+            shot_b64 = getattr(browser_state, "screenshot", None)
+            if shot_b64 and run_id and artifacts_dir:
+                try:
+                    run_dir = os.path.join(artifacts_dir, run_id)
+                    os.makedirs(run_dir, exist_ok=True)
+                    screenshot_file = f"step_{step_number}.png"
+                    with open(os.path.join(run_dir, screenshot_file), "wb") as f:
+                        f.write(base64.b64decode(shot_b64))
+                except Exception:
+                    screenshot_file = None
+
             emit({
                 "type": "step",
                 "step": step_number,
@@ -152,6 +171,7 @@ async def main() -> int:
                 "evaluation": getattr(agent_output, "evaluation_previous_goal", None),
                 "next_goal": getattr(agent_output, "next_goal", None),
                 "thinking": getattr(agent_output, "thinking", None),
+                "screenshot_file": screenshot_file,
             })
         except Exception as e:
             emit({"type": "warn", "message": f"step callback error: {e}"})

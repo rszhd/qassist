@@ -14,7 +14,10 @@ FROM node:22-bookworm-slim AS runtime
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
     PYTHONUNBUFFERED=1 \
     PYTHON_BIN=/opt/venv/bin/python \
+    AGENT_DIR=/app/agent \
     AGENT_SCRIPT=/app/agent/run_agent.py \
+    REPORT_SCRIPT=/app/agent/make_report.py \
+    ARTIFACTS_DIR=/app/runs \
     PORT=8080
 WORKDIR /app
 

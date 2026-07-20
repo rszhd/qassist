@@ -90,6 +90,13 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 .result dt { color: var(--muted); }
 .final { font-size: 13px; color: var(--text); margin: 10px 0 0; line-height: 1.45; }
 .errs { margin: 8px 0 0; padding-left: 18px; color: #fca5a5; font-size: 12px; }
+.report-btn {
+  margin-top: 12px; width: 100%; background: transparent; color: var(--text);
+  border: 1px solid var(--accent); border-radius: 8px; padding: 9px;
+  font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.report-btn:hover:not(:disabled) { background: var(--accent); color: #fff; }
+.report-btn:disabled { opacity: .55; cursor: not-allowed; }
 
 .viewer { display: flex; flex-direction: column; gap: 12px; min-height: 480px; }
 .screen {
