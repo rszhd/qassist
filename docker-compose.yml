@@ -1,0 +1,10 @@
+services:
+  qagent:
+    build: .
+    image: qagent:latest
+    ports:
+      - "8080:8080"
+    env_file: .env
+    # Chromium needs shared memory; without this it crashes on heavy pages.
+    shm_size: "1gb"
+    restart: unless-stopped
