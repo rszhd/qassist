@@ -219,13 +219,25 @@ async def main() -> int:
         )
         async def get_email_code(timeout_seconds: int = 90) -> str:
             timeout = max(10, min(int(timeout_seconds), 180))
+            # Wait in chunks so the viewer sees live progress during the poll.
+            emit({"type": "progress", "message": f"Waiting for confirmation email to {test_address} (up to {timeout}s)…"})
+            conf = None
+            waited = 0
             try:
-                conf = await asyncio.to_thread(
-                    mailbox.wait_for_confirmation, test_address, mail_since, timeout
-                )
+                while waited < timeout:
+                    chunk = min(15, timeout - waited)
+                    conf = await asyncio.to_thread(
+                        mailbox.wait_for_confirmation, test_address, mail_since, chunk
+                    )
+                    waited += chunk
+                    if conf is not None:
+                        break
+                    emit({"type": "progress", "message": f"Still waiting for confirmation email… ({waited}s)"})
             except Exception as e:
+                emit({"type": "progress", "message": f"Mailbox error: {type(e).__name__}"})
                 return f"Mailbox error ({type(e).__name__}) — cannot fetch the email. Report the goal as blocked."
             if conf is None:
+                emit({"type": "progress", "message": f"No confirmation email after {timeout}s"})
                 return (
                     f"No confirmation email arrived for {test_address} within {timeout}s. "
                     "Check the address was submitted correctly, or try once more."
@@ -237,12 +249,16 @@ async def main() -> int:
             if conf.link:
                 sensitive["email_link"] = conf.link
                 got.append("a confirmation link — navigate to <secret>email_link</secret>")
+            # Scrub the subject: it may literally contain the code ("123456 is
+            # your code"), which must not reach the LLM or the event feed.
+            subject = scrub(conf.subject)
+            emit({"type": "progress", "message": f'Confirmation email received: "{subject}"'})
             if not got:
                 return (
-                    f'Email arrived (subject: "{conf.subject}") but no code or confirmation '
+                    f'Email arrived (subject: "{subject}") but no code or confirmation '
                     "link could be extracted from it."
                 )
-            return f'Confirmation email received (subject: "{conf.subject}"). It contains ' + " and ".join(got) + "."
+            return f'Confirmation email received (subject: "{subject}"). It contains ' + " and ".join(got) + "."
 
         task += (
             "\n\nEmail confirmation support: if the flow asks for an email address, use exactly "

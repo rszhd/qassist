@@ -50,6 +50,11 @@ export default function App() {
         setCurrentAction(evt.next_goal || evt.thinking || evt.evaluation || 'Thinking…');
         setSteps((s) => [...s, evt]);
         break;
+      case 'progress':
+        // Long-running tool activity (e.g. waiting for a confirmation email).
+        setCurrentAction(evt.message);
+        setSteps((s) => [...s, evt]);
+        break;
       case 'done':
         setResult(evt);
         setCurrentAction(null);
@@ -235,13 +240,20 @@ export default function App() {
             </div>
           )}
           <div className="log" ref={logRef}>
-            {steps.map((s) => (
-              <div className="log-item" key={s.step}>
-                <span className="step-n">#{s.step}</span>
-                <span className="step-goal">{s.next_goal || s.thinking || s.evaluation || '…'}</span>
-                {s.url && <span className="step-url">{s.url}</span>}
-              </div>
-            ))}
+            {steps.map((s, i) =>
+              s.type === 'progress' ? (
+                <div className="log-item progress" key={i}>
+                  <span className="step-n">✉</span>
+                  <span className="step-goal">{s.message}</span>
+                </div>
+              ) : (
+                <div className="log-item" key={i}>
+                  <span className="step-n">#{s.step}</span>
+                  <span className="step-goal">{s.next_goal || s.thinking || s.evaluation || '…'}</span>
+                  {s.url && <span className="step-url">{s.url}</span>}
+                </div>
+              )
+            )}
           </div>
         </section>
       </div>
