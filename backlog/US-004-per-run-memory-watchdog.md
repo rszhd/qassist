@@ -2,7 +2,7 @@
 
 **As a** platform operator, **I want** a runaway test killed automatically when it exceeds a memory limit, **so that** one heavy/leaky page can never starve the other users' runs on the same server.
 
-- **Status:** 📋 Planned
+- **Status:** ✅ Done (2026-07-21)
 - **Priority:** P2
 - **Estimate:** ~1 h
 - **Depends on:** —
@@ -27,7 +27,23 @@ Backstops / later hardening:
 
 ## Acceptance criteria
 
-- [ ] A run exceeding the limit is killed within ~10 s and reported as failed
+- [x] A run exceeding the limit is killed within ~10 s and reported as failed
       with a clear reason (API + UI + PDF)
-- [ ] Other concurrent runs are unaffected
-- [ ] Normal runs (≤1 GB peak) never trip it
+- [x] Other concurrent runs are unaffected
+- [x] Normal runs (≤1 GB peak) never trip it
+
+## Results (2026-07-21)
+
+Implemented in `server/src/server.js`: no new dependency — walks `/proc`
+(sums RSS over the child's descendant tree, 3 s poll), agent now spawned
+`detached: true` so the whole process group can be SIGKILLed; the `/proc`
+pid list is killed too as a backstop. On trip: status → `failed`,
+`result.message` = `resource limit exceeded: run used N MB (limit M MB)`,
+an `error` event goes to subscribers (UI shows the banner), report is still
+generated, and the normal `close` path emits `end` + starts the next queued
+run. Env: `MAX_RUN_MEMORY_MB` (default 1200).
+
+Verified locally with a stub agent (300 MB cap): single-process hog killed
+in ~4 s at 310 MB; multi-process hog (parent + 2 allocating grandchildren)
+killed at 390 MB summed across 3 pids, no orphans; a concurrent normal run
+was unaffected and finished `passed`; killed run's `report.pdf` served 200.

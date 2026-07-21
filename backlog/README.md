@@ -8,7 +8,7 @@ overview (keep it in sync when a story changes state).
 | [US-001](US-001-chromium-memory-flags.md) | Reduce per-session Chromium memory | ✅ Done | P1 | — |
 | [US-002](US-002-viewer-gated-screencast.md) | Viewer-gated live screencast | ✅ Done | P1 | — |
 | [US-003](US-003-drop-per-step-screenshots.md) | Stop saving unused per-step screenshots | 📋 Planned | P2 | — |
-| [US-004](US-004-per-run-memory-watchdog.md) | Per-run memory watchdog | 📋 Planned | P2 | — |
+| [US-004](US-004-per-run-memory-watchdog.md) | Per-run memory watchdog | ✅ Done | P2 | — |
 | [US-005](US-005-byok-user-api-keys.md) | Bring-your-own OpenAI key (BYOK) | 📋 Planned | P1 | — |
 | [US-006](US-006-session-recording.md) | Session recording (record by default) | 📋 Planned | P2 | US-003 |
 | [US-007](US-007-https-reverse-proxy.md) | Public HTTPS via reverse proxy | 📋 Planned | P1 | domain |

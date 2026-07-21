@@ -97,6 +97,7 @@ Set in `.env` (see `.env.example`):
 | `BROWSER_USE_MODEL` | `gpt-4.1` | OpenAI model |
 | `MAX_CONCURRENT_SESSIONS` | `4` | Concurrent browser cap — the real throttle. Rule: `floor((RAM_GB − 1.5) / 1)` |
 | `MAX_STEPS` | `60` | Safety ceiling on agent steps per run |
+| `MAX_RUN_MEMORY_MB` | `1200` | Per-run process-tree RSS cap; over it the run is killed and marked failed |
 | `PORT` | `8080` | Express listen port |
 
 Per-run artifacts (screenshots, `report_data.json`, `report.pdf`) are written to

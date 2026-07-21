@@ -21,6 +21,8 @@ const API_TOKEN = process.env.WORKER_API_TOKEN || '';
 const MAX_CONCURRENT = parseInt(process.env.MAX_CONCURRENT_SESSIONS || '4', 10);
 const DEFAULT_MAX_STEPS = parseInt(process.env.MAX_STEPS || '60', 10);
 const RUN_TTL_MS = parseInt(process.env.RUN_TTL_SECONDS || '3600', 10) * 1000;
+const MAX_RUN_MEMORY_MB = parseInt(process.env.MAX_RUN_MEMORY_MB || '1200', 10);
+const MEM_POLL_MS = 3000;
 const PYTHON_BIN = process.env.PYTHON_BIN || 'python3';
 const AGENT_DIR = process.env.AGENT_DIR || path.join(__dirname, '..', '..', 'agent');
 const AGENT_SCRIPT = process.env.AGENT_SCRIPT || path.join(AGENT_DIR, 'run_agent.py');
@@ -65,6 +67,62 @@ function setScreencast(run, on) {
   }
 }
 
+// A run is one Python parent plus a dozen-odd Chromium processes, so memory
+// accounting must cover the whole tree. Walk /proc (Linux-only, like our
+// Docker base image) and sum RSS over the root pid's descendants; the pid
+// list doubles as the kill list.
+function processTree(rootPid) {
+  const procs = new Map(); // pid -> { ppid, rssPages }
+  let names;
+  try {
+    names = fs.readdirSync('/proc');
+  } catch {
+    return { rssBytes: 0, pids: [] };
+  }
+  for (const name of names) {
+    if (!/^\d+$/.test(name)) continue;
+    try {
+      const stat = fs.readFileSync(`/proc/${name}/stat`, 'utf8');
+      // comm (field 2) may contain spaces/parens; parse after the last ')'.
+      const rest = stat.slice(stat.lastIndexOf(')') + 2).split(' ');
+      procs.set(Number(name), { ppid: Number(rest[1]), rssPages: Number(rest[21]) });
+    } catch {
+      /* process exited mid-scan */
+    }
+  }
+  const pids = [];
+  let rssPages = 0;
+  const stack = [rootPid];
+  while (stack.length) {
+    const pid = stack.pop();
+    const p = procs.get(pid);
+    if (!p) continue;
+    pids.push(pid);
+    rssPages += p.rssPages;
+    for (const [childPid, c] of procs) {
+      if (c.ppid === pid) stack.push(childPid);
+    }
+  }
+  return { rssBytes: rssPages * 4096, pids };
+}
+
+function killRunTree(child, pids) {
+  // Group kill first (child is its own group leader via detached), then each
+  // known pid in case anything escaped the group.
+  try {
+    process.kill(-child.pid, 'SIGKILL');
+  } catch {
+    /* group already gone */
+  }
+  for (const pid of pids) {
+    try {
+      process.kill(pid, 'SIGKILL');
+    } catch {
+      /* already dead */
+    }
+  }
+}
+
 function startRun(runId) {
   const run = runs.get(runId);
   if (!run) return;
@@ -74,6 +132,7 @@ function startRun(runId) {
   broadcast(run, { type: 'status', status: 'running' });
 
   const child = spawn(PYTHON_BIN, [AGENT_SCRIPT], {
+    detached: true, // own process group, so the watchdog can kill the whole tree
     env: {
       ...process.env,
       QA_GOAL: run.goal,
@@ -86,6 +145,23 @@ function startRun(runId) {
   run.child = child;
   // Viewer may have attached while the run sat in the queue.
   if (run.subscribers.size > 0) setScreencast(run, true);
+
+  // Memory watchdog: a leaky page can never starve the other runs on this
+  // box. Over the cap => kill the tree; the normal 'close' path then emits
+  // 'end' and starts the next queued run.
+  run.memWatch = setInterval(() => {
+    const { rssBytes, pids } = processTree(child.pid);
+    const mb = Math.round(rssBytes / (1024 * 1024));
+    if (mb <= MAX_RUN_MEMORY_MB) return;
+    clearInterval(run.memWatch);
+    const msg = `resource limit exceeded: run used ${mb} MB (limit ${MAX_RUN_MEMORY_MB} MB)`;
+    console.error(`[watchdog ${runId.slice(0, 8)}] ${msg} — killing ${pids.length} processes`);
+    run.status = 'failed';
+    run.result = { success: false, message: msg };
+    broadcast(run, { type: 'error', message: msg });
+    generateReport(run);
+    killRunTree(child, pids);
+  }, MEM_POLL_MS);
 
   let buf = '';
   child.stdout.on('data', (chunk) => {
@@ -120,6 +196,7 @@ function startRun(runId) {
 
   child.on('close', (code) => {
     active--;
+    clearInterval(run.memWatch);
     if (!TERMINAL.has(run.status)) run.status = code === 0 ? 'completed' : 'error';
     broadcast(run, { type: 'end', status: run.status, code });
     startNext();
