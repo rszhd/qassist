@@ -252,9 +252,21 @@ async def main() -> int:
             "open <secret>email_link</secret> as instructed by its result. Never guess codes."
         )
 
+    # Secret values can leak into emitted events through side channels the
+    # <secret> substitution doesn't cover — e.g. after navigating to a fetched
+    # confirmation link, the browser URL *is* the secret. Scrub known values
+    # from everything we emit.
+    def scrub(text):
+        if not isinstance(text, str) or not sensitive:
+            return text
+        for name, value in sensitive.items():
+            if value and value in text:
+                text = text.replace(value, f"<redacted:{name}>")
+        return text
+
     async def on_step(browser_state, agent_output, step_number):
         try:
-            url = getattr(browser_state, "url", None)
+            url = scrub(getattr(browser_state, "url", None))
 
             # Save a durable per-step screenshot for the PDF report (separate
             # from the ephemeral live screencast frames).
@@ -275,9 +287,9 @@ async def main() -> int:
                 "step": step_number,
                 "elapsed": round(time.monotonic() - run_started, 1),
                 "url": url,
-                "evaluation": getattr(agent_output, "evaluation_previous_goal", None),
-                "next_goal": getattr(agent_output, "next_goal", None),
-                "thinking": getattr(agent_output, "thinking", None),
+                "evaluation": scrub(getattr(agent_output, "evaluation_previous_goal", None)),
+                "next_goal": scrub(getattr(agent_output, "next_goal", None)),
+                "thinking": scrub(getattr(agent_output, "thinking", None)),
                 "screenshot_file": screenshot_file,
             })
         except Exception as e:
@@ -337,9 +349,9 @@ async def main() -> int:
         "success": safe(history.is_successful),
         "steps": safe(history.number_of_steps),
         "duration_seconds": safe(history.total_duration_seconds),
-        "final_result": safe(history.final_result),
-        "urls": safe(history.urls, []),
-        "errors": [e for e in safe(history.errors, []) or [] if e],
+        "final_result": scrub(safe(history.final_result)),
+        "urls": [scrub(str(u)) for u in safe(history.urls, []) or []],
+        "errors": [scrub(str(e)) for e in safe(history.errors, []) or [] if e],
     })
     return 0
 

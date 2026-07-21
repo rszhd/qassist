@@ -2,7 +2,7 @@
 
 **As a** user, **I want** the agent to complete signups that require confirmation codes, **so that** I can test my registration funnel end-to-end, not just up to the "check your email" wall.
 
-- **Status:** 🚧 In progress — tier 1 (email) implemented 2026-07-21, pending live e2e validation
+- **Status:** ✅ Tier 1 (email) done — validated e2e 2026-07-21; tiers 2 (SMS) and 3 (social) not started
 - **Priority:** P3
 - **Estimate:** email tier ~2–3 days; SMS and social each ~1–2 days more
 - **Depends on:** — (secrets handling via browser-use `sensitive_data`)
@@ -67,5 +67,38 @@ later upgrade.
 
 ## Acceptance criteria (tier 1)
 
-- [ ] Agent completes a real signup requiring an emailed code, end-to-end
-- [ ] Credentials/codes absent from logs, events, and report
+- [x] Agent completes a real signup requiring an emailed code, end-to-end
+- [x] Credentials/codes absent from logs, events, and report
+
+## Tier 1 validation results (2026-07-21)
+
+Live e2e against https://try.discourse.org (Discourse sandbox, activation-link
+flow), deployed on the VPS:
+
+- Run 1 (`1cf9b49b`): flow completed (signup → confirmation email fetched →
+  account activated → logged in, 12 steps / 130 s) but verdict came back
+  `failed` — the agent couldn't *visually* confirm the username in the
+  profile UI. Goal wording must state the success condition explicitly.
+  Also exposed a leak: after navigating to the activation link, the browser
+  URL (containing the token) reached step events / `history.urls` / report.
+- Fix: `run_agent.py` now scrubs known secret values from every emitted
+  field (step url/evaluation/next_goal/thinking, done final_result/urls/
+  errors), replacing them with `<redacted:name>`.
+- Run 2 (`ec90023a`): **passed** (12 steps / 120 s). LLM used the
+  `email_link` placeholder for navigation; activation token absent from
+  report_data.json; `<redacted:email_link>` appears instead; PDF generated.
+
+Known caveats:
+
+- browser-use's own INFO logging (child stderr → server console only, never
+  user-facing events/report) still prints navigated URLs, including the
+  activation link. Acceptable for now; could be silenced by raising the
+  browser-use log level.
+- Cloudflare catch-all currently forwards to the user's personal Gmail;
+  the IMAP app password in `.env` can read that whole mailbox. Recommend a
+  dedicated destination account.
+- Discourse's welcome email lands after activation; unrelated mail in the
+  inbox is ignored thanks to exact per-run address matching.
+- Mail infra: Cloudflare Email Routing catch-all on `arang.space` → Gmail;
+  `QA_IMAP_FOLDERS=INBOX,[Gmail]/Spam` handles forwarded mail that Gmail
+  spam-filters (a Gmail "never spam" filter couldn't be saved).
