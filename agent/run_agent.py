@@ -5,8 +5,14 @@ line to the browser over a WebSocket. One JSON object per line, flushed
 immediately so the UI updates live.
 
 Two kinds of visual events are emitted:
-  - {"type":"frame", "data": <jpeg-b64>}   continuous CDP screencast (~6 fps)
+  - {"type":"frame", "data": <jpeg-b64>}   CDP screencast (~6 fps), only while
+                                            a viewer is attached (see below)
   - {"type":"step",  ...}                   one per agent reasoning step
+
+Express also writes control commands to our stdin, one JSON object per line:
+  {"cmd": "screencast", "on": true|false}   viewer attached / last viewer left
+The screencast is only captured while "on" — unwatched runs skip the JPEG
+encoding entirely.
 
 Inputs come from environment variables:
   QA_GOAL, QA_START_URL, QA_MAX_STEPS, BROWSER_USE_MODEL, OPENAI_API_KEY
@@ -43,12 +49,39 @@ def safe(fn, default=None):
         return default
 
 
-async def screencast(session, stop_event: asyncio.Event) -> None:
-    """Continuously stream CDP screencast frames until stop_event is set.
+async def stdin_control(watch_event: asyncio.Event, stop_event: asyncio.Event) -> None:
+    """Apply {"cmd":"screencast","on":bool} control lines from Express."""
+    loop = asyncio.get_running_loop()
+    reader = asyncio.StreamReader()
+    try:
+        await loop.connect_read_pipe(lambda: asyncio.StreamReaderProtocol(reader), sys.stdin)
+    except Exception:
+        return
+    while not stop_event.is_set():
+        try:
+            line = await reader.readline()
+        except Exception:
+            return
+        if not line:
+            return  # stdin closed — parent is gone
+        try:
+            msg = json.loads(line)
+        except Exception:
+            continue
+        if msg.get("cmd") == "screencast":
+            if msg.get("on"):
+                watch_event.set()
+            else:
+                watch_event.clear()
+
+
+async def screencast(session, watch_event: asyncio.Event, stop_event: asyncio.Event) -> None:
+    """Stream CDP screencast frames while a viewer is attached (watch_event set).
 
     Mirrors browser-use's own recording watchdog: register a frame handler,
     start the screencast on the focused target, ack every frame, and re-target
-    when the agent switches tabs.
+    when the agent switches tabs. While no viewer is attached the screencast
+    stays stopped, so Chromium does no frame encoding at all.
     """
     registered = False
     current_sid = None
@@ -67,6 +100,8 @@ async def screencast(session, stop_event: asyncio.Event) -> None:
         try:
             # Ack keeps Chromium sending frames; do it for every frame.
             asyncio.create_task(ack(event, session_id))
+            if not watch_event.is_set():
+                return  # stragglers after stopScreencast
             now = time.monotonic()
             if now - last_emit >= FRAME_MIN_INTERVAL:
                 last_emit = now
@@ -82,7 +117,24 @@ async def screencast(session, stop_event: asyncio.Event) -> None:
         "everyNthFrame": 1,
     }
 
+    async def stop_current():
+        nonlocal current_sid
+        if current_sid:
+            try:
+                await session.cdp_client.send.Page.stopScreencast(session_id=current_sid)
+            except Exception:
+                pass
+            current_sid = None
+
     while not stop_event.is_set():
+        if not watch_event.is_set():
+            await stop_current()
+            try:
+                await asyncio.wait_for(watch_event.wait(), timeout=1.0)
+            except asyncio.TimeoutError:
+                pass  # re-check stop_event each second
+            continue
+
         try:
             # focus=False so polling never steals focus from the agent.
             cdp_session = await session.get_or_create_cdp_session(target_id=None, focus=False)
@@ -99,11 +151,7 @@ async def screencast(session, stop_event: asyncio.Event) -> None:
                 continue
 
         if cdp_session.session_id != current_sid:
-            if current_sid:
-                try:
-                    await session.cdp_client.send.Page.stopScreencast(session_id=current_sid)
-                except Exception:
-                    pass
+            await stop_current()
             current_sid = cdp_session.session_id
             try:
                 await cdp_session.cdp_client.send.Page.startScreencast(
@@ -115,13 +163,9 @@ async def screencast(session, stop_event: asyncio.Event) -> None:
         try:
             await asyncio.wait_for(stop_event.wait(), timeout=1.0)
         except asyncio.TimeoutError:
-            pass  # re-check focused target each second
+            pass  # re-check focused target (and watch state) each second
 
-    if current_sid:
-        try:
-            await session.cdp_client.send.Page.stopScreencast(session_id=current_sid)
-        except Exception:
-            pass
+    await stop_current()
 
 
 async def main() -> int:
@@ -180,7 +224,20 @@ async def main() -> int:
     profile = BrowserProfile(
         headless=True,
         chromium_sandbox=False,
-        args=["--no-sandbox", "--disable-dev-shm-usage"],
+        args=[
+            "--no-sandbox",
+            "--disable-dev-shm-usage",
+            # Memory-reduction flags: test sessions are ephemeral, so trade
+            # site-isolation/crash-resilience for fewer, smaller processes.
+            "--disable-gpu",
+            "--process-per-site",
+            "--renderer-process-limit=3",
+            "--js-flags=--max-old-space-size=256",
+            "--disable-extensions",
+            "--mute-audio",
+            "--disable-background-networking",
+            "--disable-features=Translate,BackForwardCache,AcceptCHFrame",
+        ],
     )
 
     agent = Agent(
@@ -193,7 +250,9 @@ async def main() -> int:
     emit({"type": "start", "goal": goal, "start_url": start_url, "model": model})
 
     stop_event = asyncio.Event()
-    sc_task = asyncio.create_task(screencast(agent.browser_session, stop_event))
+    watch_event = asyncio.Event()  # set while at least one viewer is attached
+    ctl_task = asyncio.create_task(stdin_control(watch_event, stop_event))
+    sc_task = asyncio.create_task(screencast(agent.browser_session, watch_event, stop_event))
     try:
         history = await agent.run(max_steps=max_steps)
     except Exception as e:
@@ -201,6 +260,7 @@ async def main() -> int:
         return 1
     finally:
         stop_event.set()
+        ctl_task.cancel()
         try:
             await asyncio.wait_for(sc_task, timeout=5)
         except Exception:

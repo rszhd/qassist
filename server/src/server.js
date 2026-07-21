@@ -56,6 +56,15 @@ function broadcast(run, evt) {
 
 const TERMINAL = new Set(['passed', 'failed', 'completed', 'error']);
 
+// Tell the agent whether anyone is watching: it only captures screencast
+// frames while a viewer is attached (saves Chromium encode CPU otherwise).
+function setScreencast(run, on) {
+  const stdin = run.child?.stdin;
+  if (stdin && stdin.writable) {
+    stdin.write(JSON.stringify({ cmd: 'screencast', on }) + '\n');
+  }
+}
+
 function startRun(runId) {
   const run = runs.get(runId);
   if (!run) return;
@@ -75,6 +84,8 @@ function startRun(runId) {
     },
   });
   run.child = child;
+  // Viewer may have attached while the run sat in the queue.
+  if (run.subscribers.size > 0) setScreencast(run, true);
 
   let buf = '';
   child.stdout.on('data', (chunk) => {
@@ -261,11 +272,15 @@ server.on('upgrade', (req, socket, head) => {
   }
   wss.handleUpgrade(req, socket, head, (ws) => {
     run.subscribers.add(ws);
+    if (run.subscribers.size === 1) setScreencast(run, true);
     // Replay durable events, then the latest frame, then live updates follow.
     for (const evt of run.events) ws.send(JSON.stringify(evt));
     if (run.lastFrame) ws.send(JSON.stringify(run.lastFrame));
     if (TERMINAL.has(run.status)) ws.send(JSON.stringify({ type: 'end', status: run.status }));
-    ws.on('close', () => run.subscribers.delete(ws));
+    ws.on('close', () => {
+      run.subscribers.delete(ws);
+      if (run.subscribers.size === 0) setScreencast(run, false);
+    });
   });
 });
 
