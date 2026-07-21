@@ -52,10 +52,13 @@ streams the session live, decides pass/fail, and produces a shareable PDF report
 ```
 
 Express spawns `agent/run_agent.py` as a child process per run. The script prints
-newline-delimited JSON to stdout — continuous `frame` events (JPEG screencast,
-~6 fps) plus `step`/`done` events — which Express relays over the WebSocket. On
-completion the server calls `agent/make_report.py` to render the PDF. The worker
-holds no durable state between runs.
+newline-delimited JSON to stdout — `frame` events (JPEG screencast, ~6 fps) plus
+`step`/`done` events — which Express relays over the WebSocket. The screencast is
+viewer-gated: Express tells the agent over stdin when the first viewer attaches
+and the last one leaves, and frames are only captured in between, so unwatched
+runs (e.g. CI-triggered) skip the encode cost entirely. On completion the server
+calls `agent/make_report.py` to render the PDF. The worker holds no durable
+state between runs.
 
 ## Project layout
 
@@ -145,12 +148,23 @@ Fronting it with HTTPS (Caddy on 443) for public/API access is a [roadmap](#road
 
 ## Roadmap
 
-- **Recording hosting** — store the session video and light up the report's
-  "View recording" button (currently a placeholder).
-- **HTTPS + reverse proxy** — Caddy on 443 so the UI/API are reachable without a
-  tunnel.
-- **Control plane** (needs Postgres): save & reuse tests, scheduled runs, run
-  history, email reports.
+Planned work lives in [`backlog/`](backlog/README.md) — one file per user
+story, with status, priorities, dependencies, and acceptance criteria.
+Highlights:
+
+- **Session recording** — store an MP4 per run and light up the report's
+  "View recording" button ([US-006](backlog/US-006-session-recording.md)).
+- **Public HTTPS** — Caddy on 443, no more SSH tunnel; unblocks CI/CD
+  ([US-007](backlog/US-007-https-reverse-proxy.md)).
+- **Bring-your-own OpenAI key** ([US-005](backlog/US-005-byok-user-api-keys.md)).
+- **CI/CD integration** — GitHub/GitLab, from a curl step up to PR status
+  checks ([US-008](backlog/US-008-cicd-integration.md)).
+- **Control plane** (Postgres) — saved tests, scheduling, history, email
+  reports ([US-009](backlog/US-009-control-plane-saved-tests.md)–US-012).
+- **Registration-flow verification** — email/SMS codes, social logins
+  ([US-013](backlog/US-013-registration-flow-verification.md)).
+- **Scaling to ~100 concurrent sessions**
+  ([US-015](backlog/US-015-horizontal-scaling-100-concurrent.md)).
 
 ## Notes
 
