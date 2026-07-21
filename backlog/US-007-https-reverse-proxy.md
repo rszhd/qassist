@@ -5,7 +5,9 @@
 - **Status:** 📋 Planned
 - **Priority:** P1 — unblocks US-008 (CI/CD) and any external users
 - **Estimate:** ~2 h (plus domain/DNS)
-- **Depends on:** a domain name pointed at the VPS
+- **Depends on:** a domain name pointed at the VPS — user confirmed
+  (2026-07-21) they already own one; it's also being used for US-013's
+  catch-all test mail via Cloudflare Email Routing
 
 ## Details
 

@@ -16,6 +16,8 @@ encoding entirely.
 
 Inputs come from environment variables:
   QA_GOAL, QA_START_URL, QA_MAX_STEPS, BROWSER_USE_MODEL, OPENAI_API_KEY
+  QA_IMAP_* / QA_MAILBOX_DOMAIN (optional — enables email confirmation, see
+  email_codes.py)
 """
 from __future__ import annotations
 
@@ -23,11 +25,14 @@ import asyncio
 import base64
 import json
 import os
+import secrets as pysecrets
 import sys
 import time
 
-from browser_use import Agent, ChatOpenAI
+from browser_use import Agent, ChatOpenAI, Tools
 from browser_use.browser.profile import BrowserProfile
+
+from email_codes import ImapMailbox
 
 # Screencast tuning — keep bandwidth modest so stdout never backs up.
 FRAME_FORMAT = "jpeg"
@@ -190,6 +195,63 @@ async def main() -> int:
     artifacts_dir = os.environ.get("ARTIFACTS_DIR")
     run_started = time.monotonic()
 
+    # --- email confirmation (US-013 tier 1), enabled when a mailbox is configured ---
+    # Secrets (generated password, fetched code/link) go through browser-use
+    # sensitive_data: the LLM only ever sees <secret>name</secret> placeholders,
+    # so real values never appear in steps, logs, or the report. get_email_code
+    # adds the fetched code/link to `sensitive` at runtime — browser-use re-reads
+    # the same dict on every action, so later steps can substitute them.
+    mailbox = ImapMailbox.from_env(os.environ)
+    tools = None
+    sensitive: dict[str, str] | None = None
+    if mailbox:
+        tools = Tools()
+        tag = (run_id or pysecrets.token_hex(4)).replace("-", "")[:10]
+        test_address = mailbox.generate_address(tag)
+        sensitive = {"qa_password": "Qa1!" + pysecrets.token_urlsafe(9)}
+        mail_since = time.time() - 60  # small clock-skew allowance
+
+        @tools.action(
+            "Fetch the confirmation email sent to the run's test email address and "
+            "extract its verification code or confirmation link. Call this right after "
+            "submitting a form that triggers a confirmation email; it waits up to "
+            "timeout_seconds for the email to arrive."
+        )
+        async def get_email_code(timeout_seconds: int = 90) -> str:
+            timeout = max(10, min(int(timeout_seconds), 180))
+            try:
+                conf = await asyncio.to_thread(
+                    mailbox.wait_for_confirmation, test_address, mail_since, timeout
+                )
+            except Exception as e:
+                return f"Mailbox error ({type(e).__name__}) — cannot fetch the email. Report the goal as blocked."
+            if conf is None:
+                return (
+                    f"No confirmation email arrived for {test_address} within {timeout}s. "
+                    "Check the address was submitted correctly, or try once more."
+                )
+            got = []
+            if conf.code:
+                sensitive["email_code"] = conf.code
+                got.append("a verification code — type <secret>email_code</secret> into the code field")
+            if conf.link:
+                sensitive["email_link"] = conf.link
+                got.append("a confirmation link — navigate to <secret>email_link</secret>")
+            if not got:
+                return (
+                    f'Email arrived (subject: "{conf.subject}") but no code or confirmation '
+                    "link could be extracted from it."
+                )
+            return f'Confirmation email received (subject: "{conf.subject}"). It contains ' + " and ".join(got) + "."
+
+        task += (
+            "\n\nEmail confirmation support: if the flow asks for an email address, use exactly "
+            f"{test_address} — do not invent another. If asked to create a password, enter "
+            "<secret>qa_password</secret>. After submitting a step that sends a confirmation "
+            "email, use the get_email_code action, then enter <secret>email_code</secret> or "
+            "open <secret>email_link</secret> as instructed by its result. Never guess codes."
+        )
+
     async def on_step(browser_state, agent_output, step_number):
         try:
             url = getattr(browser_state, "url", None)
@@ -245,9 +307,13 @@ async def main() -> int:
         llm=llm,
         browser_profile=profile,
         register_new_step_callback=on_step,
+        tools=tools,
+        sensitive_data=sensitive,
     )
 
     emit({"type": "start", "goal": goal, "start_url": start_url, "model": model})
+    if mailbox:
+        emit({"type": "log", "message": f"email confirmation enabled, test address: {test_address}"})
 
     stop_event = asyncio.Event()
     watch_event = asyncio.Event()  # set while at least one viewer is attached

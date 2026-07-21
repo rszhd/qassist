@@ -17,7 +17,7 @@ overview (keep it in sync when a story changes state).
 | [US-010](US-010-scheduled-runs.md) | Scheduled runs | 📋 Planned | P3 | US-009 |
 | [US-011](US-011-run-history.md) | Run history | 📋 Planned | P3 | US-009 |
 | [US-012](US-012-email-reports.md) | Email reports | 📋 Planned | P3 | US-009 |
-| [US-013](US-013-registration-flow-verification.md) | Registration-flow verification | 📋 Planned | P3 | — |
+| [US-013](US-013-registration-flow-verification.md) | Registration-flow verification | 🚧 Tier 1 in validation | P3 | — |
 | [US-014](US-014-block-heavy-resources.md) | Block heavy page resources | 📋 Planned | P3 | — |
 | [US-015](US-015-horizontal-scaling-100-concurrent.md) | Horizontal scaling to ~100 concurrent | 📋 Planned | P3 | US-005, US-009 |
 
