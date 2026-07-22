@@ -111,21 +111,31 @@ export function Stat({ label, value, tone = '' }) {
  */
 export function Modal({ title, description, onClose, footer, wide, children }) {
   const panelRef = useRef(null);
+  // Read through a ref so the effect below can run on open and close only. A
+  // caller's `onClose` is usually a fresh closure each render, and re-running
+  // the effect on every keystroke would drag focus back out of the field.
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
 
   useEffect(() => {
     const previous = document.activeElement;
-    const onKey = (e) => e.key === 'Escape' && onClose();
+    const onKey = (e) => e.key === 'Escape' && closeRef.current();
     document.addEventListener('keydown', onKey);
     document.body.style.overflow = 'hidden';
-    // First field, or the panel itself when the dialog is only a confirmation.
-    const first = panelRef.current?.querySelector('input, textarea, select, button');
+    // The first field — never the close button, which is what a plain
+    // document-order query finds first since it sits up in the head.
+    const panel = panelRef.current;
+    const first =
+      panel?.querySelector('.modal-body input, .modal-body textarea, .modal-body select') ||
+      panel?.querySelector('.modal-foot button') ||
+      panel?.querySelector('button');
     first?.focus();
     return () => {
       document.removeEventListener('keydown', onKey);
       document.body.style.overflow = '';
       if (previous instanceof HTMLElement) previous.focus();
     };
-  }, [onClose]);
+  }, []);
 
   return (
     <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
