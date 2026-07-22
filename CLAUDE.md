@@ -11,7 +11,12 @@ tier planned at qassist.run.
 React viewer (`frontend/`) → Express REST + WS relay (`server/src/server.js`)
 → spawns `agent/run_agent.py` per run (NDJSON on stdout: `frame`/`step`/`done`
 events, relayed to WS) → on completion `agent/make_report.py` renders the PDF.
-Artifacts land in `runs/<runId>/`. One Docker image, `docker compose up`.
+Artifacts land in `runs/<runId>/`. `docker compose up` builds one app image
+plus a `db` (Postgres) service.
+
+`server/src/` splits as: `server.js` (wiring only), `config.js` (env, read at
+import time), `db.js` (pool, migrations, boot seed/recovery), `runs.js` (run
+engine + persistence), `routes/{tests,suites,helpers}.js`.
 
 ## Design principles
 
@@ -51,7 +56,8 @@ Artifacts land in `runs/<runId>/`. One Docker image, `docker compose up`.
 
 - Full stack: `cp .env.example .env` then `docker compose up --build` → :8080.
 - Dev: `cd server && npm run dev` (hot reload on :8081; loads `../.env`,
-  points `PYTHON_BIN` at `agent/.venv`); `cd frontend && npm run dev` (Vite
+  points `PYTHON_BIN` at `agent/.venv`, auto-starts the compose `db` service
+  and defaults `DATABASE_URL` to it on :5433); `cd frontend && npm run dev` (Vite
   proxies /api and /ws to :8081). Setup steps: README "Local development". API examples: README.md.
 - **Verify server changes:** `cd server && npm test` (node --test + supertest,
   in-process app with stubbed agent/report — no Python/browser needed) and

@@ -78,13 +78,31 @@ docker-compose.yml
 
 ## Run it
 
+**Docker is the only thing you need installed** — Node, Python and Chromium all
+live inside the image. Clone the repo, then:
+
 ```bash
-cp .env.example .env      # set WORKER_API_TOKEN and OPENAI_API_KEY
+cp .env.example .env      # add your OPENAI_API_KEY
 docker compose up --build
 ```
 
-Open `http://<host>:8080`, paste your `WORKER_API_TOKEN`, enter a URL + goal, and
-watch it run. Finished runs expose a **Download PDF report** button.
+The first build takes a few minutes (it downloads Chromium). Then open
+`http://localhost:8080`, enter a URL + goal, and watch it run. Finished runs
+expose a **Download PDF report** button.
+
+Two things worth knowing on a fresh clone:
+
+- **`OPENAI_API_KEY` is the one value you must supply.** The agent is
+  bring-your-own-key. Without it the app still starts and the UI loads, but
+  starting a run answers `503` telling you the key is missing — set it in
+  `.env` and `docker compose up -d` to pick it up.
+- **`WORKER_API_TOKEN` is optional for local use.** Leave it unset and the API
+  needs no token, so there's nothing to paste into the UI. The server logs a
+  warning at startup because this leaves the port open to your network — set a
+  token before exposing it beyond localhost.
+
+Everything else, including the Postgres control plane, is wired up by
+`docker compose`; there is nothing else to configure.
 
 ## Configuration
 
@@ -99,9 +117,12 @@ Set in `.env` (see `.env.example`):
 | `MAX_STEPS` | `60` | Safety ceiling on agent steps per run |
 | `MAX_RUN_MEMORY_MB` | `1200` | Per-run process-tree RSS cap; over it the run is killed and marked failed |
 | `PORT` | `8080` | Express listen port |
+| `DATABASE_URL` | — | Postgres control plane (saved tests, suites, run history). Set for you in both paths — `docker compose` points it at its own `db` service, `npm run dev` at the same container on `localhost:5433`. Unset = in-memory mode: ad-hoc runs still work, saved tests/suites answer 503 |
 
 Per-run artifacts (screenshots, `report_data.json`, `report.pdf`) are written to
-`runs/<runId>/` and persisted via the `./runs` volume.
+`runs/<runId>/` and persisted via the `./runs` volume. Durable metadata —
+saved tests, suites, run verdicts — lives in Postgres (`pgdata` volume);
+schema and rationale in [`db/README.md`](db/README.md).
 
 ## API
 
@@ -127,6 +148,13 @@ curl http://<host>:8080/api/health
 
 ## Local development
 
+This section is for working *on* QAssist. To just run it, see
+[Run it](#run-it) above — that path needs Docker only.
+
+Developing needs Node 22+ and Python 3.11+ on the host, plus Docker: the dev
+server starts the Postgres control plane as a container for you (see below),
+so Docker has to be running even when you aren't using the full stack.
+
 One-time setup:
 
 ```bash
@@ -144,7 +172,8 @@ cd ../frontend && npm install
 Then run both dev servers, each with hot reload and logs in the foreground:
 
 ```bash
-# terminal 1 — API on :8081 (node --watch; loads ../.env, uses agent/.venv)
+# terminal 1 — API on :8081 (node --watch; loads ../.env, uses agent/.venv;
+# auto-starts the compose Postgres on 127.0.0.1:5433 and connects to it)
 cd server && npm run dev
 # terminal 2 — frontend on :5173 (Vite HMR; proxies /api and /ws to :8081)
 cd frontend && npm run dev
@@ -154,6 +183,24 @@ Open `http://localhost:5173` and paste your `WORKER_API_TOKEN`. Dev defaults to
 port 8081 so it can't collide with the Docker stack on 8080; override with
 `PORT=<p> npm run dev` (server) and `API_PORT=<p> npm run dev` (frontend),
 keeping the two in sync.
+
+### The dev database
+
+`npm run dev` runs `docker compose up -d --wait db` first, so Postgres is
+already healthy by the time the server boots; pending migrations in
+`db/migrations/` are then applied automatically. You don't set `DATABASE_URL`
+— the dev script defaults it to the container on `127.0.0.1:5433`. Startup
+logs `db=on` when the control plane is live (`db=off` means it fell back to
+in-memory mode, where saved tests and suites answer 503).
+
+- **Port 5433 already taken?** It's mapped that way to avoid colliding with a
+  local Postgres on 5432. To use a different database entirely, pass the URL
+  in the shell — `DATABASE_URL=postgres://… npm run dev` — not via `.env`,
+  since the script's default is applied after `.env` is read.
+- **Reset the data:** `docker compose down -v` drops the `pgdata` volume;
+  the next `npm run dev` recreates the schema from scratch.
+- `npm test` needs none of this — the control-plane tests run the real
+  migrations against an in-memory Postgres (pg-mem).
 
 ## Deployment
 

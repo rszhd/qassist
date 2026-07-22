@@ -22,6 +22,7 @@ before(async () => {
   artifactsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'qassist-test-'));
   // Config is read at import time, so env must be set before importing the app.
   process.env.WORKER_API_TOKEN = TOKEN;
+  process.env.OPENAI_API_KEY = 'sk-test-not-a-real-key'; // gates run creation
   process.env.PYTHON_BIN = process.execPath; // stubs are .js, run them with node
   process.env.AGENT_SCRIPT = path.join(__dirname, 'stubs', 'fake_agent.js');
   process.env.REPORT_SCRIPT = path.join(__dirname, 'stubs', 'fake_report.js');
@@ -61,6 +62,14 @@ test('rejects a run without goal or start_url', async () => {
 
 test('unknown run id is 404', async () => {
   await request(app).get('/api/runs/does-not-exist').set(auth).expect(404);
+});
+
+test('saved tests/suites answer 503 without DATABASE_URL (legacy mode)', async () => {
+  const res = await request(app).get('/api/tests').set(auth).expect(503);
+  assert.match(res.body.error, /DATABASE_URL/);
+  await request(app).post('/api/suites').set(auth).send({ name: 'x' }).expect(503);
+  const health = await request(app).get('/api/health').expect(200);
+  assert.equal(health.body.db, false);
 });
 
 test('full lifecycle: run passes and serves a PDF report', async () => {

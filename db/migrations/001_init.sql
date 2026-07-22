@@ -65,6 +65,30 @@ create index tests_due_idx on tests (next_run_at)
   where schedule_enabled and schedule_cron is not null;
 
 -- ---------------------------------------------------------------------------
+-- suites — named groups of tests for one-shot triggering (US-009; consumed by
+-- US-008 CI: POST /api/suites/:id/run). Running a suite creates one run per
+-- member test — there is no suite_runs table; callers poll the returned run
+-- ids.
+-- ---------------------------------------------------------------------------
+
+create table suites (
+  id         uuid primary key default gen_random_uuid(),
+  user_id    uuid not null references users(id) on delete cascade,
+  name       text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index suites_user_idx on suites (user_id);
+
+create table suite_tests (
+  suite_id uuid not null references suites(id) on delete cascade,
+  test_id  uuid not null references tests(id) on delete cascade,
+  position int  not null default 0,
+  primary key (suite_id, test_id)
+);
+
+-- ---------------------------------------------------------------------------
 -- runs — replaces the in-memory Map as the source of truth for finished runs
 -- (the live relay stays in memory). goal/start_url/max_steps are denormalized
 -- from the test at enqueue time so history stays accurate after a test is

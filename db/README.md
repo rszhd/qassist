@@ -23,6 +23,9 @@ live in [`migrations/`](migrations/), numbered SQL files applied in order —
 erDiagram
   users ||--o{ api_keys : has
   users ||--o{ tests : owns
+  users ||--o{ suites : owns
+  suites ||--o{ suite_tests : contains
+  tests ||--o{ suite_tests : "member of"
   tests ||--o{ runs : "produced (nullable — ad-hoc runs have no test)"
   runs  ||--o{ notifications : "emailed as"
 ```
@@ -32,6 +35,7 @@ erDiagram
 | `users` | identity + encrypted OpenAI key (BYOK) | US-005/009 |
 | `api_keys` | hashed bearer tokens, revocable — replaces the single `WORKER_API_TOKEN` | US-009 |
 | `tests` | saved goal+URL+settings, per-test schedule, per-test notify prefs | US-009/010/012 |
+| `suites` + `suite_tests` | named test groups for one-shot triggering (US-008 CI) | US-009 |
 | `runs` | durable run history — replaces the in-memory Map for finished runs | US-009/011 |
 | `notifications` | per-recipient email delivery log (idempotent sends) | US-012 |
 
@@ -40,6 +44,9 @@ erDiagram
 - **Runs denormalize `goal`/`start_url`/`max_steps`/`model`** at enqueue time.
   Editing or deleting a test must not rewrite history; `test_id` is
   `on delete set null` so ad-hoc and orphaned runs are the same shape.
+- **No `suite_runs` table.** Running a suite creates one `runs` row per member
+  test and returns the ids; US-008 CI polls each run. A grouping row buys
+  nothing until something needs a suite-level verdict — add it then.
 - **Schedule is columns on `tests`, not a table.** US-010 is one schedule per
   test; a join table adds nothing. `next_run_at` is precomputed so the
   scheduler is a cheap poll (`tests_due_idx` is a partial index over enabled

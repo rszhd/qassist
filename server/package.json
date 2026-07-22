@@ -6,12 +6,14 @@
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
-    "dev": "PORT=\"${PORT:-8081}\" PYTHON_BIN=\"${PYTHON_BIN:-$PWD/../agent/.venv/bin/python}\" node --watch --env-file=../.env src/server.js",
+    "predev": "docker compose -f ../docker-compose.yml up -d --wait db",
+    "dev": "PORT=\"${PORT:-8081}\" PYTHON_BIN=\"${PYTHON_BIN:-$PWD/../agent/.venv/bin/python}\" DATABASE_URL=\"${DATABASE_URL:-postgres://qassist:qassist@localhost:5433/qassist}\" node --watch --env-file=../.env src/server.js",
     "test": "node --test 'test/**/*.test.js'",
     "check": "tsc -p jsconfig.json"
   },
   "dependencies": {
     "express": "^4.21.2",
+    "pg": "^8.22.0",
     "ws": "^8.18.0"
   },
   "devDependencies": {
@@ -19,6 +21,7 @@
     "@types/node": "^26.1.1",
     "@types/supertest": "^7.2.1",
     "@types/ws": "^8.18.1",
+    "pg-mem": "^3.0.14",
     "supertest": "^7.2.2",
     "typescript": "^7.0.2"
   }

@@ -4,12 +4,45 @@ services:
     image: qassist:latest
     ports:
       - "8080:8080"
-    env_file: .env
+    # Optional so a fresh clone starts with `docker compose up` and no setup:
+    # the app then reports what's missing in the UI instead of compose dying
+    # with a parse error. Copy .env.example to .env to configure it.
+    env_file:
+      - path: .env
+        required: false
     environment:
       ARTIFACTS_DIR: /app/runs
+      DATABASE_URL: postgres://qassist:qassist@db:5432/qassist
     # Per-run screenshots, report data, and PDFs persist across restarts.
     volumes:
       - ./runs:/app/runs
     # Chromium needs shared memory; without this it crashes on heavy pages.
     shm_size: "1gb"
     restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # Control plane (US-009): saved tests, suites, durable run history.
+  # Not exposed on the host; the fixed credentials never leave the compose
+  # network. For `npm run dev` against it: docker compose up -d db, then set
+  # DATABASE_URL=postgres://qassist:qassist@localhost:5433/qassist in .env.
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: qassist
+      POSTGRES_PASSWORD: qassist
+      POSTGRES_DB: qassist
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U qassist -d qassist"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  pgdata:

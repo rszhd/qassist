@@ -36,8 +36,10 @@ RUN python3 -m venv /opt/venv \
 COPY server/package.json /app/server/package.json
 RUN cd /app/server && npm install --omit=dev
 
-# App code + built frontend
+# App code + built frontend (db/ carries the control-plane migrations the
+# server applies at boot)
 COPY agent/ /app/agent/
+COPY db/ /app/db/
 COPY server/ /app/server/
 COPY --from=frontend /fe/dist /app/server/public
 
