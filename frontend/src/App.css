@@ -478,6 +478,10 @@ select {
   padding: var(--s3) var(--s4); border-top: 1px solid var(--border); background: var(--sunken);
   border-radius: 0 0 var(--r-xl) var(--r-xl);
 }
+/* A destructive action in a footer is not part of the cancel/confirm pair and
+   is never the button you reach for by muscle memory, so it sits at the far
+   end, away from both. */
+.modal-foot .btn-danger { margin-right: auto; }
 
 @keyframes fade { from { opacity: 0; } }
 @keyframes rise { from { opacity: 0; transform: translateY(4px); } }

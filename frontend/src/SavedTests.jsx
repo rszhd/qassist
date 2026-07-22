@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FileText, PanelLeftClose, Pencil, Play, Plus, Terminal, Trash2 } from 'lucide-react';
+import { FileText, PanelLeftClose, Pencil, Play, Plus, Terminal } from 'lucide-react';
 import { CardHead, EmptyState, IconButton } from './ui.jsx';
 import CiCommand from './CiCommand.jsx';
 
@@ -20,7 +20,6 @@ export default function SavedTests({
   running,
   onRun,
   onEdit,
-  onDelete,
   onNew,
   onRunModule,
   suites,
@@ -40,7 +39,6 @@ export default function SavedTests({
       running={running}
       onRun={onRun}
       onEdit={onEdit}
-      onDelete={onDelete}
       onCi={() => setCiTarget({ kind: 'test', name: t.name, id: t.id })}
     />
   );
@@ -138,7 +136,7 @@ export default function SavedTests({
   );
 }
 
-function TestRow({ test: t, active, running, onRun, onEdit, onDelete, onCi }) {
+function TestRow({ test: t, active, running, onRun, onEdit, onCi }) {
   return (
     <li className={active ? 'active' : ''}>
       <span className="row-main" title={t.goal}>
@@ -146,11 +144,11 @@ function TestRow({ test: t, active, running, onRun, onEdit, onDelete, onCi }) {
         <span className="row-sub">{t.start_url}</span>
       </span>
       {/* Run stays visible — it is why the list exists. The rest are
-          hover/focus actions so the rail reads as content, not a toolbar. */}
+          hover/focus actions so the rail reads as content, not a toolbar;
+          delete is rarer still and lives in the edit dialog. */}
       <span className="row-actions">
         <IconButton icon={Terminal} label="Run from CI" onClick={onCi} />
         <IconButton icon={Pencil} label="Edit" onClick={() => onEdit(t)} />
-        <IconButton icon={Trash2} variant="danger" label="Delete" onClick={() => onDelete(t)} />
       </span>
       <IconButton
         icon={Play}

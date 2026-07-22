@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Activity, AlertTriangle, Check, Download, KeyRound, Monitor, PanelLeftOpen, Play, Plus,
-  Undo2, X,
+  Trash2, Undo2, X,
 } from 'lucide-react';
 import { api, openReport } from './api.js';
 import SavedTests from './SavedTests.jsx';
@@ -414,7 +414,6 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
               running={running}
               onRun={runSavedTest}
               onEdit={editTest}
-              onDelete={deleteTest}
               onNew={newTest}
               onRunModule={(m, n) => runBatch('module', m, n)}
               onRunSuite={(s) => runBatch('suite', s, s.test_ids.length)}
@@ -574,6 +573,7 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
           onClose={closeDialog}
           onRun={startRun}
           onSave={saveTest}
+          onDelete={deleteTest}
           onSwitchToSave={() => {
             setEditing({ name: '', project_id: filterProjectId, module_id: null });
             setDialog('create');
@@ -597,7 +597,7 @@ function stepText(s) {
  */
 function TestDialog({
   mode, goal, setGoal, startUrl, setStartUrl, editing, setEditing,
-  projects, modules, hasDb, saving, onClose, onRun, onSave, onSwitchToSave,
+  projects, modules, hasDb, saving, onClose, onRun, onSave, onDelete, onSwitchToSave,
 }) {
   const isRun = mode === 'run';
   const ready = startUrl.trim() && goal.trim() && (isRun || editing?.name.trim());
@@ -617,6 +617,11 @@ function TestDialog({
       onClose={onClose}
       footer={
         <>
+          {mode === 'edit' && (
+            <Button variant="danger" icon={Trash2} onClick={() => onDelete(editing)}>
+              Delete
+            </Button>
+          )}
           {isRun && hasDb && (
             <Button variant="ghost" icon={Plus} onClick={onSwitchToSave} disabled={!ready}>
               Save as test
