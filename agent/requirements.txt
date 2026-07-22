@@ -1,2 +1,4 @@
-browser-use==0.13.6
+# [video] = imageio[ffmpeg] + numpy, the encoder behind session recording
+# (US-006). It ships its own ffmpeg binary, so no system package is needed.
+browser-use[video]==0.13.6
 playwright==1.61.0

@@ -19,6 +19,7 @@ import {
   ARTIFACTS_DIR,
   PUBLIC_DIR,
   OPENAI_API_KEY,
+  RECORDING_FILENAME,
 } from './config.js';
 import { db, initDb, isUuid } from './db.js';
 import { createRun, getRun, counts, attachViewer } from './runs.js';
@@ -37,6 +38,18 @@ app.use(express.json({ limit: '1mb' }));
 function checkToken(req, res, next) {
   if (!API_TOKEN) return next(); // no token configured => open (dev only)
   if (req.headers.authorization === `Bearer ${API_TOKEN}`) return next();
+  res.status(401).json({ error: 'unauthorized' });
+}
+
+/** @type {import('express').RequestHandler} */
+// For media the browser loads by URL: a <video> element can't send headers, so
+// the token may also arrive as ?token=, exactly as the /ws upgrade accepts it.
+// Deliberately not the default — query tokens leak into access logs, browser
+// history and Referer headers.
+function checkTokenOrQuery(req, res, next) {
+  if (!API_TOKEN) return next();
+  if (req.headers.authorization === `Bearer ${API_TOKEN}`) return next();
+  if (req.query.token === API_TOKEN) return next();
   res.status(401).json({ error: 'unauthorized' });
 }
 
@@ -77,6 +90,7 @@ app.get(
         testId: run.test_id,
         result: run.result,
         eventCount: run.events.length,
+        hasRecording: !!run.recordingFile,
       });
     }
     // Fallback: finished runs outlive the in-memory relay in the DB.
@@ -96,7 +110,25 @@ app.get(
           : { success: row.success, final_result: row.final_result },
       error: row.error,
       reportStatus: row.report_status,
+      hasRecording: row.has_recording && !row.artifacts_deleted_at,
     });
+  })
+);
+
+// Session recording (US-006). The file on disk is the source of truth — a run
+// whose artifacts were pruned simply 404s. sendFile handles Range requests,
+// so browsers can seek without downloading the whole video (which is why this
+// is a plain <video src> with a query token, not a fetched blob).
+app.get(
+  '/api/runs/:id/recording',
+  checkTokenOrQuery,
+  h(async (req, res) => {
+    if (!isUuid(req.params.id)) return res.status(404).json({ error: 'not found' });
+    const file = path.join(ARTIFACTS_DIR, req.params.id, RECORDING_FILENAME);
+    if (!fs.existsSync(file)) return res.status(404).json({ error: 'no recording' });
+    res.setHeader('Content-Type', 'video/mp4');
+    res.setHeader('Content-Disposition', `inline; filename="qassist-${req.params.id.slice(0, 8)}.mp4"`);
+    res.sendFile(file);
   })
 );
 

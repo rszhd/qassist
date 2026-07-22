@@ -35,7 +35,7 @@ until real cloud-only infra exists; the full repo/boundary rules live in
 |---|---|---|---|
 | [US-009](release-1/US-009-control-plane-saved-tests.md) | Control plane: save & reuse tests | ✅ Done (2026-07-22) | — |
 | [US-023](release-1/US-023-projects-and-modules.md) | Projects & modules (organize saved tests) | ✅ Done (2026-07-22) | US-009 |
-| [US-006](release-1/US-006-session-recording.md) | Session recording (record by default) | 📋 Planned | — |
+| [US-006](release-1/US-006-session-recording.md) | Session recording (record by default) | 🚧 Backend done (2026-07-22), frontend pending | — |
 | [US-020](release-1/US-020-report-v2-screenshots-recording.md) | Report v2: step screenshots + recording | 📋 Planned | US-006 |
 | [US-011](release-1/US-011-run-history.md) | Run history | 📋 Planned (persistence done in US-009) | US-009 |
 | [US-010](release-1/US-010-scheduled-runs.md) | Scheduled runs | 📋 Planned | US-009 |

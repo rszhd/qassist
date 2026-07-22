@@ -9,13 +9,20 @@ Two kinds of visual events are emitted:
                                             a viewer is attached (see below)
   - {"type":"step",  ...}                   one per agent reasoning step
 
+Every run is also recorded to <ARTIFACTS_DIR>/<runId>/recording.mp4 off the
+same frame stream (US-006); a {"type":"recording"} event announces the file
+just before the run's done/error event.
+
 Express also writes control commands to our stdin, one JSON object per line:
   {"cmd": "screencast", "on": true|false}   viewer attached / last viewer left
-The screencast is only captured while "on" — unwatched runs skip the JPEG
-encoding entirely.
+Frames are only emitted while "on". Without recording the screencast itself is
+stopped too, so an unwatched run skips the JPEG encoding entirely; a recorded
+run needs the frames regardless and only gates the emitting.
 
 Inputs come from environment variables:
   QA_GOAL, QA_START_URL, QA_MAX_STEPS, BROWSER_USE_MODEL, OPENAI_API_KEY
+  QA_RUN_ID, ARTIFACTS_DIR (recording + step screenshots)
+  QA_RECORD=0 disables recording (US-002's viewer gating then applies again)
   QA_IMAP_* / QA_MAILBOX_DOMAIN (optional — enables email confirmation, see
   email_codes.py)
 """
@@ -23,14 +30,18 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import io
 import json
 import os
 import secrets as pysecrets
 import sys
 import time
+from pathlib import Path
 
 from browser_use import Agent, ChatOpenAI, Tools
-from browser_use.browser.profile import BrowserProfile
+from browser_use.browser.profile import BrowserProfile, ViewportSize
+from browser_use.browser.video_recorder import VideoRecorderService
+from PIL import Image
 
 from email_codes import ImapMailbox
 
@@ -40,6 +51,15 @@ FRAME_QUALITY = 55
 FRAME_MAX_W = 1024
 FRAME_MAX_H = 720
 FRAME_MIN_INTERVAL = 1 / 6  # cap emitted frames to ~6 fps
+
+# Recording (US-006). Chromium allows one screencast per target and US-002's
+# viewer gating already owns it, so we encode the recording off the same frame
+# stream rather than setting BrowserProfile.record_video_dir — browser-use's
+# RecordingWatchdog would otherwise fight us over start/stopScreencast. Only
+# its encoder service is reused.
+RECORD_FILENAME = "recording.mp4"
+RECORD_FPS = 3  # sample rate and video framerate — reviewable, cheap to encode
+RECORD_MIN_INTERVAL = 1 / RECORD_FPS
 
 
 def emit(obj: dict) -> None:
@@ -52,6 +72,62 @@ def safe(fn, default=None):
         return fn()
     except Exception:
         return default
+
+
+class SessionRecorder:
+    """Encodes sampled screencast frames into <run dir>/recording.mp4.
+
+    Sized from the first frame, so the video keeps the browser's aspect ratio
+    without a per-frame resize. Chromium only emits a screencast frame when
+    the page repaints, so the result is a condensed replay of the session, not
+    a wall-clock one. Encoding is synchronous (as in browser-use's own
+    watchdog) — at RECORD_FPS that costs a few ms per frame.
+    """
+
+    def __init__(self, output_path: str) -> None:
+        self.output_path = output_path
+        self._svc: VideoRecorderService | None = None
+        self._tried_start = False
+        self._closed = False
+        self._last_add = 0.0
+        self.frames = 0
+
+    def add(self, frame_b64: str) -> None:
+        now = time.monotonic()
+        if self._closed or now - self._last_add < RECORD_MIN_INTERVAL:
+            return
+        self._last_add = now
+        if not self._tried_start:
+            self._tried_start = True
+            self._svc = self._start(frame_b64)
+        if self._svc is None:
+            return
+        self._svc.add_frame(frame_b64)
+        self.frames += 1
+
+    def _start(self, frame_b64: str) -> VideoRecorderService | None:
+        try:
+            with Image.open(io.BytesIO(base64.b64decode(frame_b64))) as img:
+                size = ViewportSize(width=img.width, height=img.height)
+            os.makedirs(os.path.dirname(self.output_path), exist_ok=True)
+            svc = VideoRecorderService(Path(self.output_path), size=size, framerate=RECORD_FPS)
+            svc.start()
+        except Exception as e:
+            emit({"type": "warn", "message": f"recording unavailable: {type(e).__name__}: {e}"})
+            return None
+        if not svc._is_active:  # optional video deps missing (browser-use[video])
+            emit({"type": "warn", "message": "recording unavailable: video deps missing"})
+            return None
+        return svc
+
+    def stop(self) -> bool:
+        """Finalize the file. Blocking — call via asyncio.to_thread."""
+        self._closed = True  # stragglers after stopScreencast must not reopen it
+        if self._svc is None:
+            return False
+        self._svc.stop_and_save()
+        self._svc = None
+        return self.frames > 0 and os.path.exists(self.output_path)
 
 
 async def stdin_control(watch_event: asyncio.Event, stop_event: asyncio.Event) -> None:
@@ -80,13 +156,22 @@ async def stdin_control(watch_event: asyncio.Event, stop_event: asyncio.Event) -
                 watch_event.clear()
 
 
-async def screencast(session, watch_event: asyncio.Event, stop_event: asyncio.Event) -> None:
+async def screencast(
+    session,
+    watch_event: asyncio.Event,
+    stop_event: asyncio.Event,
+    recorder: SessionRecorder | None = None,
+) -> None:
     """Stream CDP screencast frames while a viewer is attached (watch_event set).
 
     Mirrors browser-use's own recording watchdog: register a frame handler,
     start the screencast on the focused target, ack every frame, and re-target
-    when the agent switches tabs. While no viewer is attached the screencast
-    stays stopped, so Chromium does no frame encoding at all.
+    when the agent switches tabs.
+
+    Without a recorder the screencast stays stopped while no viewer is attached,
+    so Chromium does no frame encoding at all (US-002). A recorder needs the
+    frames either way, so it keeps the screencast running for the whole run and
+    only the emitting is gated.
     """
     registered = False
     current_sid = None
@@ -105,8 +190,10 @@ async def screencast(session, watch_event: asyncio.Event, stop_event: asyncio.Ev
         try:
             # Ack keeps Chromium sending frames; do it for every frame.
             asyncio.create_task(ack(event, session_id))
+            if recorder is not None:
+                recorder.add(event["data"])
             if not watch_event.is_set():
-                return  # stragglers after stopScreencast
+                return  # stragglers after stopScreencast, or nobody watching
             now = time.monotonic()
             if now - last_emit >= FRAME_MIN_INTERVAL:
                 last_emit = now
@@ -132,7 +219,7 @@ async def screencast(session, watch_event: asyncio.Event, stop_event: asyncio.Ev
             current_sid = None
 
     while not stop_event.is_set():
-        if not watch_event.is_set():
+        if not watch_event.is_set() and recorder is None:
             await stop_current()
             try:
                 await asyncio.wait_for(watch_event.wait(), timeout=1.0)
@@ -194,6 +281,11 @@ async def main() -> int:
     run_id = os.environ.get("QA_RUN_ID")
     artifacts_dir = os.environ.get("ARTIFACTS_DIR")
     run_started = time.monotonic()
+
+    # Record every run by default: the recording is part of the deliverable.
+    recorder = None
+    if run_id and artifacts_dir and os.environ.get("QA_RECORD", "1") != "0":
+        recorder = SessionRecorder(os.path.join(artifacts_dir, run_id, RECORD_FILENAME))
 
     # --- email confirmation (US-013 tier 1), enabled when a mailbox is configured ---
     # Secrets (generated password, fetched code/link) go through browser-use
@@ -346,12 +438,14 @@ async def main() -> int:
     stop_event = asyncio.Event()
     watch_event = asyncio.Event()  # set while at least one viewer is attached
     ctl_task = asyncio.create_task(stdin_control(watch_event, stop_event))
-    sc_task = asyncio.create_task(screencast(agent.browser_session, watch_event, stop_event))
+    sc_task = asyncio.create_task(screencast(agent.browser_session, watch_event, stop_event, recorder))
+    # The failure is reported after cleanup, so the recording event always
+    # reaches Express before done/error — the report is built off those.
+    failure = None
     try:
         history = await agent.run(max_steps=max_steps)
     except Exception as e:
-        emit({"type": "error", "message": f"{type(e).__name__}: {e}"})
-        return 1
+        failure = f"{type(e).__name__}: {e}"
     finally:
         stop_event.set()
         ctl_task.cancel()
@@ -359,6 +453,14 @@ async def main() -> int:
             await asyncio.wait_for(sc_task, timeout=5)
         except Exception:
             pass
+        if recorder is not None:
+            saved = await asyncio.to_thread(recorder.stop)
+            if saved:
+                emit({"type": "recording", "file": RECORD_FILENAME, "frames": recorder.frames})
+
+    if failure is not None:
+        emit({"type": "error", "message": failure})
+        return 1
 
     emit({
         "type": "done",

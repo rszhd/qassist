@@ -117,9 +117,12 @@ Set in `.env` (see `.env.example`):
 | `MAX_STEPS` | `60` | Safety ceiling on agent steps per run |
 | `MAX_RUN_MEMORY_MB` | `1200` | Per-run process-tree RSS cap; over it the run is killed and marked failed |
 | `PORT` | `8080` | Express listen port |
+| `QA_RECORD` | `1` | Record every session to `runs/<runId>/recording.mp4`. `0` disables it — frame capture is then skipped entirely while nobody is watching the run |
+| `PUBLIC_BASE_URL` | — | Public address of this instance (`https://qa.example.com`). Only used to make the PDF report's "View recording" link resolvable; the recording is served either way |
 | `DATABASE_URL` | — | Postgres control plane (saved tests, suites, run history). Set for you in both paths — `docker compose` points it at its own `db` service, `npm run dev` at the same container on `localhost:5433`. Unset = in-memory mode: ad-hoc runs still work, saved tests/suites answer 503 |
 
-Per-run artifacts (screenshots, `report_data.json`, `report.pdf`) are written to
+Per-run artifacts (screenshots, `recording.mp4`, `report_data.json`,
+`report.pdf`) are written to
 `runs/<runId>/` and persisted via the `./runs` volume. Durable metadata —
 saved tests, suites, run verdicts — lives in Postgres (`pgdata` volume);
 schema and rationale in [`db/README.md`](db/README.md).
@@ -139,6 +142,12 @@ curl http://<host>:8080/api/runs/<runId> -H "Authorization: Bearer $WORKER_API_T
 # download the PDF report (202 while generating, 200 when ready)
 curl -L http://<host>:8080/api/runs/<runId>/report.pdf \
   -H "Authorization: Bearer $WORKER_API_TOKEN" -o report.pdf
+
+# download the session recording (mp4; 404 if the run wasn't recorded).
+# Supports range requests, and — alone among the endpoints — ?token=<token>
+# instead of the header, so a <video> element can stream it directly.
+curl -L http://<host>:8080/api/runs/<runId>/recording \
+  -H "Authorization: Bearer $WORKER_API_TOKEN" -o recording.mp4
 
 # health
 curl http://<host>:8080/api/health

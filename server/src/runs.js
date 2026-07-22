@@ -20,6 +20,7 @@ import {
   REPORT_SCRIPT,
   ARTIFACTS_DIR,
   MODEL,
+  PUBLIC_BASE_URL,
 } from './config.js';
 
 // --- in-memory run registry (live relay; DB holds the durable copy) ---
@@ -104,7 +105,8 @@ function persistUpdate(run) {
               steps_count   = $6,
               started_at    = $7,
               finished_at   = $8,
-              report_status = $9
+              report_status = $9,
+              has_recording = $10
         where id = $1`,
       [
         run.id,
@@ -116,6 +118,7 @@ function persistUpdate(run) {
         run.startedAt ? new Date(run.startedAt) : null,
         run.finishedAt ? new Date(run.finishedAt) : null,
         run.reportStatus || 'none',
+        !!run.recordingFile,
       ]
     )
     .catch((err) => console.error(`db: update run ${run.id.slice(0, 8)} failed:`, err.message));
@@ -265,7 +268,10 @@ function startRun(runId) {
       } catch {
         evt = { type: 'log', message: line };
       }
-      if (evt.type === 'done') {
+      if (evt.type === 'recording') {
+        // Always arrives before done/error, so the report can link it.
+        run.recordingFile = evt.file;
+      } else if (evt.type === 'done') {
         run.result = evt;
         run.status = evt.success === true ? 'passed' : evt.success === false ? 'failed' : 'completed';
         generateReport(run);
@@ -322,7 +328,13 @@ function generateReport(run) {
     steps_count: res.steps ?? run.events.filter((e) => e.type === 'step').length,
     final_result: res.final_result ?? res.message ?? null,
     errors: res.errors ?? (res.message ? [res.message] : []),
-    recording_url: null, // wired up when recordings are hosted
+    has_recording: !!run.recordingFile,
+    // A PDF can only link a recording that has a public address; without one
+    // the report says "recorded" and the app serves the video itself.
+    recording_url:
+      run.recordingFile && PUBLIC_BASE_URL
+        ? `${PUBLIC_BASE_URL}/api/runs/${run.id}/recording`
+        : null,
     generated_at: new Date().toISOString(),
     steps: run.events
       .filter((e) => e.type === 'step')

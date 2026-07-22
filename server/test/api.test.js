@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import fs from 'node:fs';
 import os from 'node:os';
+import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import request from 'supertest';
 
@@ -96,5 +97,31 @@ test('full lifecycle: run passes and serves a PDF report', async () => {
   assert.equal(pdf.headers['content-type'], 'application/pdf');
   assert.ok(pdf.body.toString().startsWith('%PDF'));
   // Artifacts landed on disk under runs/<id>/, per the design rules.
-  assert.ok(fs.existsSync(path.join(artifactsDir, runId, 'report_data.json')));
+  const dataPath = path.join(artifactsDir, runId, 'report_data.json');
+  assert.ok(fs.existsSync(dataPath));
+
+  // US-006: the recording is served, and the report knows about it. No
+  // PUBLIC_BASE_URL here, so the PDF gets has_recording without a link.
+  assert.equal(run.hasRecording, true);
+  const data = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
+  assert.equal(data.has_recording, true);
+  assert.equal(data.recording_url, null);
+
+  const video = await request(app).get(`/api/runs/${runId}/recording`).set(auth).expect(200);
+  assert.equal(video.headers['content-type'], 'video/mp4');
+  assert.match(video.body.toString(), /fake mp4/);
+  assert.equal(video.headers['accept-ranges'], 'bytes'); // <video> can seek
+
+  // A <video> element can't set headers, so the token may ride in the query.
+  await request(app).get(`/api/runs/${runId}/recording?token=${TOKEN}`).expect(200);
+  await request(app).get(`/api/runs/${runId}/recording?token=nope`).expect(401);
+});
+
+test('recording endpoint requires auth and 404s when there is none', async () => {
+  await request(app).get(`/api/runs/${randomUUID()}/recording`).expect(401);
+  await request(app).get(`/api/runs/${randomUUID()}/recording`).set(auth).expect(404);
+  // Not a uuid => never touches the filesystem.
+  await request(app).get('/api/runs/..%2F..%2Fetc/recording').set(auth).expect(404);
+  // The query token is scoped to the recording route only.
+  await request(app).get(`/api/runs/${randomUUID()}?token=${TOKEN}`).expect(401);
 });

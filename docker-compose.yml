@@ -13,7 +13,8 @@ services:
     environment:
       ARTIFACTS_DIR: /app/runs
       DATABASE_URL: postgres://qassist:qassist@db:5432/qassist
-    # Per-run screenshots, report data, and PDFs persist across restarts.
+    # Per-run screenshots, recordings, report data and PDFs persist across
+    # restarts.
     volumes:
       - ./runs:/app/runs
     # Chromium needs shared memory; without this it crashes on heavy pages.

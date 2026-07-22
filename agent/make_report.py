@@ -12,7 +12,8 @@ fonts as data URIs, fully self-contained.
 
 The data JSON shape is produced by the Express server (see generateReport()):
   { runId, goal, start_url, model, status, success, duration_seconds,
-    steps_count, final_result, errors[], recording_url, generated_at,
+    steps_count, final_result, errors[], has_recording, recording_url,
+    generated_at,
     steps: [{ step, elapsed, next_goal, evaluation, url, screenshot_file }] }
 Screenshot files are resolved relative to the data file's directory.
 """
@@ -232,6 +233,10 @@ def build_html(data: dict, base_dir: str) -> str:
     if recording_url:
         rec_cta = f'<a class="rec-cta" href="{esc(recording_url)}">▶&nbsp; View recording</a>'
         rec_note = "Full video replay of this test session."
+    elif data.get("has_recording"):
+        # Recorded, but this instance has no public address to link to.
+        rec_cta = '<span class="rec-cta rec-cta-soon">In QAssist</span>'
+        rec_note = "Full video replay of this session is available in the run view."
     else:
         rec_cta = '<span class="rec-cta rec-cta-soon">Not available</span>'
         rec_note = "Video replay of this session will be available at this link."

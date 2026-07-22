@@ -20,6 +20,11 @@ export const REPORT_SCRIPT = process.env.REPORT_SCRIPT || path.join(AGENT_DIR, '
 export const ARTIFACTS_DIR = process.env.ARTIFACTS_DIR || path.join(__dirname, '..', '..', 'runs');
 export const MODEL = process.env.BROWSER_USE_MODEL || 'gpt-4.1';
 export const PUBLIC_DIR = path.join(__dirname, '..', 'public');
+// Where this instance is reachable from outside (US-007 sets it). The PDF
+// report needs an absolute URL to link a recording; unset = no link in the
+// PDF, the recording is still served in-app.
+export const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+export const RECORDING_FILENAME = 'recording.mp4';
 
 // The agent can't run without a model key. Checked up front so a missing key
 // is a clear message at startup and on POST, not a Python traceback ~15s into
