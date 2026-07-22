@@ -55,7 +55,7 @@ until real cloud-only infra exists; the full repo/boundary rules live in
 | [US-021](release-1/US-021-signup-auth.md) | Signup & login (magic-link auth) | 📋 Planned | US-009, US-007 |
 | [US-022](release-1/US-022-stripe-billing.md) | Paid tier: Stripe billing | 📋 Planned | US-021, US-005 |
 | [US-013](release-1/done/US-013-registration-flow-verification.md) | Registration-flow verification — email tier | ✅ Tier 1 done | — |
-| [US-025](release-1/US-025-ui-consistency-pass-2.md) | UI consistency pass 2: type scale, sizes, dead space | 📋 Planned | — |
+| [US-025](release-1/done/US-025-ui-consistency-pass-2.md) | UI consistency pass 2: type scale, sizes, dead space | ✅ Done (2026-07-23) | — |
 
 Added to the release 2026-07-23: **US-025**, the follow-up to that day's
 spacing pass. It is polish, not new scope — but every UI story left in the
@@ -65,7 +65,13 @@ US-020/US-010/US-012 touch the frontend than after.
 ### Build order
 
 0. **US-025** — UI consistency pass 2, first: it decides the type and size
-   tokens the remaining frontend work will build on.
+   tokens the remaining frontend work will build on. **Shipped 2026-07-23**:
+   five type steps (`11/12/13/16/20`, `--t-md` gone), `--col-side` /
+   `--rail-strip` / `--scroll-cap` / `--dot` for the sizes that repeat, the
+   Run view's activity panel stretched to the frame's height, and a light
+   theme — which is what proved the palette really is swappable from `:root`,
+   after moving the topbar tint, the modal scrim and `status.js`'s seven
+   literal hexes into tokens.
 1. **US-009** — foundation: Postgres, saved tests/suites, run APIs (everything
    else in the release hangs off it)
 2. **US-023** — projects + modules on top of saved tests (pulled ahead

@@ -4,6 +4,19 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>QAssist — Live</title>
+    <!-- Applies the saved theme before first paint. React sets the same
+         attribute a moment later, but "a moment" is a frame of the wrong
+         colour for anyone who opted out of the dark default. Dark needs no
+         attribute — the tokens in :root already are the dark theme. -->
+    <script>
+      (function () {
+        var t = localStorage.getItem('qassist_theme') || 'dark';
+        if (t === 'system') {
+          t = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+        }
+        document.documentElement.dataset.theme = t;
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

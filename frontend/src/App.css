@@ -1,7 +1,11 @@
 /* ==========================================================================
    1. Tokens
-   Every colour, space, radius and type size in this file resolves to
-   something here, so the theme is swappable from this block alone.
+   Every colour, space, size and type step in this file resolves to something
+   here, so the theme is swappable from this block alone — the light theme
+   below it is that claim being cashed, and it overrides nothing but tokens.
+   The one exception is the `#fff` on the primary button and on selected text,
+   which is white against the accent in either theme and so is a property of
+   the pairing rather than of the palette.
 
    The palette is deliberately near-monochrome: a single neutral grey ramp,
    one accent spent only on the primary action and focus, and verdict colours
@@ -52,6 +56,24 @@
   --info-line: #34404f;
   --info-bg: #1b2029;
 
+  /* Solid verdict fills — history row dots and timeline bars. They run a
+     shade brighter than the surface-weight verdicts above because they sit as
+     a solid on the page rather than as a tint behind text. `status.js` maps a
+     status to one of these by name, so the JS table and this block cannot
+     drift apart, and a theme swap carries the dots with it. */
+  --fill-queued: #9c8039;
+  --fill-running: #4d7cf6;
+  --fill-passed: #4cb98a;
+  --fill-failed: #d0666c;
+  --fill-error: #d0666c;
+  --fill-completed: #45454c;
+  --fill-idle: #4f4f57;
+
+  /* The two translucent layers. They have to be tokens like everything else,
+     or a theme swap leaves a dark bar and a dark scrim over a light page. */
+  --bar: rgba(19, 19, 22, .85);
+  --scrim: rgba(7, 7, 9, .66);
+
   /* Spacing. Every value is N × 4px, including the two half-steps: component
      interiors kept inventing 5/6/7/9/10/11px because the scale started at 4,
      so `--s05` and `--s15` give the tight end somewhere legal to land. Nothing
@@ -67,6 +89,30 @@
      keeps a head with actions the same height as one without. */
   --ctl: 32px; --ctl-sm: 28px;
 
+  /* Sizes that more than one rule depends on. A number repeated in two places
+     is a measurement, and a measurement gets a name — the four side columns
+     below had drifted to two different widths, and the two scroll caps only
+     stayed in step by luck. Genuinely single-use numbers stay literals in
+     their own rule, each with a line saying what set it.
+
+     `--col-side` is the width of every column that flanks the main content:
+     the tests rail and the activity panel on Run, the detail panel on
+     History, the projects list on Library. They all hold the same kind of
+     thing — a list you scan while working in the middle — so they are one
+     measurement, and the Run view's frame is what the leftovers go to.
+     `--rail-strip` is the sliver the minimized rail keeps, and has to match
+     between the grid column and the strip that fills it.
+     `--scroll-cap` is how tall a list inside a card grows before it scrolls
+     itself rather than the page — the activity log and the suite membership
+     picker, which sit at the same height on purpose.
+     `--dot` is a status dot: WS state, the live pulse, a history row's
+     verdict. (The browser chrome's dots are decoration, not status, and keep
+     their own size.) */
+  --col-side: 300px;
+  --rail-strip: 34px;
+  --scroll-cap: 240px;
+  --dot: 6px;
+
   /* Page width — header and content share it so they stay flush. Sized for
      the Run view's three columns (tests, live browser, activity); the other
      views follow it so switching tabs never shifts the frame. */
@@ -79,9 +125,17 @@
   --sticky-top: calc(var(--topbar-h) + var(--s4));
   --sticky-h: calc(100vh - var(--sticky-top) - var(--s4));
 
-  /* Type scale. Five sizes for the whole app — anything that wants a sixth
-     is usually asking for the wrong emphasis. */
-  --t-xs: 10.5px; --t-sm: 11.5px; --t-base: 12.5px; --t-md: 13px; --t-lg: 15px; --t-xl: 18px;
+  /* Type scale. Five sizes for the whole app — anything that wants a sixth is
+     usually asking for the wrong emphasis. Each step is a role, not a nudge:
+     `--t-xs` is micro-caps (uppercase labels, badges, step numbers), `--t-sm`
+     is anything secondary to the line above it (hints, row subtitles, small
+     buttons), `--t-base` is every primary run of text and every control,
+     `--t-lg` is a heading or a number worth reading first, `--t-xl` is the
+     page title alone. The bottom three sit 1px apart because they are already
+     separated by weight, case and colour; the top two step by ~1.25 because
+     nothing else marks them. Whole pixels only — the old half-pixel steps
+     (10.5/11.5/12.5/13) were close enough to get picked interchangeably. */
+  --t-xs: 11px; --t-sm: 12px; --t-base: 13px; --t-lg: 16px; --t-xl: 20px;
 
   --r-sm: 4px; --r-md: 6px; --r-lg: 8px; --r-xl: 10px;
 
@@ -92,6 +146,86 @@
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 }
 
+/* The claim above — that the theme is swappable from the token block alone —
+   is only worth making if something exercises it, so here is the second
+   theme. It restates the palette and nothing else: no rule below this point
+   knows which theme it is in, and every value it overrides is one already
+   declared in `:root`. If a colour ever has to be added here that is not in
+   that list, the rule using it is reaching past the tokens and should be
+   fixed rather than patched.
+
+   **Dark is the default and the app's identity** — this is a console you
+   leave open beside a terminal. Light is opt-in, and it is reached by an
+   attribute rather than by `prefers-color-scheme` so that a light OS does not
+   silently decide what QAssist looks like. The one place that preference
+   lives is the theme select in Settings; "Match system" is one of its
+   options, and App.jsx resolves it to a concrete `dark`/`light` before it
+   ever reaches CSS, which is what keeps this palette written once instead of
+   once per selector.
+
+   Same constraints as the dark theme: one neutral ramp, one accent spent on
+   the primary button and focus, verdicts below full saturation. The ramp
+   inverts — page is the darkest surface in dark mode and the lightest here,
+   with cards sitting above it — so `--sunken` goes greyer than the card
+   rather than blacker, and `--accent-hi` darkens on hover instead of
+   lightening. `--stage` stops being near-black: it is the letterbox around a
+   screenshot of someone's page, and a black surround on a white console reads
+   as a broken image rather than as a browser. */
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --bg: #f4f4f6;
+  --sunken: #ebebee;
+  --card: #ffffff;
+  --raised: #ffffff;
+  --hover: #f1f1f4;
+  --border: #e3e3e8;
+  --border-hi: #cfcfd7;
+  --stage: #e8e8ea;
+
+  --text: #1a1a1f;
+  --muted: #5b5b66;
+  --faint: #85858f;
+
+  --accent: #3563d6;
+  --accent-hi: #2a4fb3;
+  --accent-line: #c2d0f1;
+  --accent-bg: #eef2fd;
+  --ring: rgba(53, 99, 214, .22);
+
+  --ok: #1d7a55;
+  --ok-line: #b6dfcc;
+  --ok-bg: #eef8f3;
+  --warn: #8a6512;
+  --warn-soft: #6d5a33;
+  --warn-line: #ebd8a9;
+  --warn-bg: #fbf6e8;
+  --bad: #b0303a;
+  --bad-line: #f0c3c6;
+  --bad-bg: #fdf1f2;
+  --info: #3d5a80;
+  --info-line: #cad7e8;
+  --info-bg: #f0f4fa;
+
+  /* Darker than their tinted counterparts above, not brighter: a solid dot
+     has to hold its own against white rather than against graphite. */
+  --fill-queued: #9a7315;
+  --fill-running: #3563d6;
+  --fill-passed: #1d8a5f;
+  --fill-failed: #c0434b;
+  --fill-error: #c0434b;
+  --fill-completed: #b4b4bd;
+  --fill-idle: #c2c2ca;
+
+  --bar: rgba(244, 244, 246, .85);
+  --scrim: rgba(26, 26, 32, .32);
+
+  /* Shadow is the one thing that does not invert — it stays black, just
+     far lighter, because a shadow on paper is an absence of light either
+     way. */
+  --shadow-lg: 0 24px 64px rgba(24, 24, 30, .14), 0 2px 6px rgba(24, 24, 30, .08);
+}
+
 /* ==========================================================================
    2. Base
    ========================================================================== */
@@ -100,7 +234,7 @@
 body {
   margin: 0;
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  font-size: var(--t-md);
+  font-size: var(--t-base);
   line-height: 1.5;
   background: var(--bg);
   color: var(--text);
@@ -130,13 +264,13 @@ code { font-family: var(--mono); font-size: .92em; }
 .topbar {
   position: sticky; top: 0; z-index: 20;
   height: var(--topbar-h); border-bottom: 1px solid var(--border);
-  background: rgba(19, 19, 22, .85); backdrop-filter: blur(12px);
+  background: var(--bar); backdrop-filter: blur(12px);
 }
 .topbar-inner {
   max-width: var(--page-w); height: 100%; margin: 0 auto; padding: 0 var(--s5);
   display: flex; align-items: center; gap: var(--s4);
 }
-.brand { font-size: var(--t-md); font-weight: 600; letter-spacing: -.006em; }
+.brand { font-size: var(--t-lg); font-weight: 600; letter-spacing: -.006em; }
 
 /* Segmented control rather than loose tabs: the group reads as one object,
    which is what keeps a three-view app from looking like a toolbar. */
@@ -163,7 +297,7 @@ code { font-family: var(--mono); font-size: .92em; }
   font-size: var(--t-xs); font-weight: 600; letter-spacing: .07em;
   text-transform: uppercase; color: var(--faint);
 }
-.ws::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+.ws::before { content: ''; width: var(--dot); height: var(--dot); border-radius: 50%; background: currentColor; }
 .ws-live { color: var(--ok); }
 .ws-live::before { animation: pulse 1.8s ease-in-out infinite; }
 .ws-connecting { color: var(--warn); }
@@ -283,8 +417,6 @@ select {
   background: var(--card); border: 1px solid var(--border); border-radius: var(--r-lg);
   padding: var(--s4);
 }
-.card-flush { padding: 0; overflow: hidden; }
-
 .card-head {
   display: flex; align-items: center; gap: var(--s2);
   min-height: var(--ctl-sm);
@@ -302,9 +434,12 @@ select {
   padding: var(--s6) var(--s4); text-align: center; color: var(--muted);
 }
 .empty > svg { color: var(--faint); }
-.empty-title { font-size: var(--t-md); font-weight: 500; color: var(--text); }
+.empty-title { font-size: var(--t-lg); font-weight: 500; color: var(--text); }
 .empty-body { font-size: var(--t-base); line-height: 1.6; max-width: 46ch; color: var(--muted); }
 
+/* 84px is the narrowest a stat can be and still fit its widest label
+   ("DURATION") on one line at `--t-xs`; below that the grid drops a column
+   instead of wrapping the caps. */
 .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(84px, 1fr)); gap: var(--s2); }
 .stat {
   background: var(--sunken); border: 1px solid var(--border); border-radius: var(--r-md);
@@ -318,7 +453,7 @@ select {
 .overlay {
   position: fixed; inset: 0; z-index: 50;
   display: flex; align-items: center; justify-content: center; padding: var(--s5);
-  background: rgba(7, 7, 9, .66); backdrop-filter: blur(2px);
+  background: var(--scrim); backdrop-filter: blur(2px);
   animation: fade 110ms ease;
 }
 .modal {
@@ -334,7 +469,7 @@ select {
   display: flex; align-items: flex-start; gap: var(--s3);
   padding: var(--s4);
 }
-.modal-head h2 { font-size: var(--t-md); font-weight: 600; letter-spacing: -.008em; }
+.modal-head h2 { font-size: var(--t-lg); font-weight: 600; letter-spacing: -.008em; }
 .modal-head p { margin-top: var(--s1); font-size: var(--t-base); line-height: 1.5; color: var(--muted); }
 .modal-head .icon-btn { margin-left: auto; }
 .modal-body { padding: 0 var(--s4) var(--s4); overflow-y: auto; display: flex; flex-direction: column; gap: var(--s4); }
@@ -378,10 +513,12 @@ select {
 /* ==========================================================================
    6. Run view — tests rail beside the live stage
    ========================================================================== */
-.run-grid { display: grid; grid-template-columns: 300px 1fr; gap: var(--s4); align-items: start; }
+.run-grid { display: grid; grid-template-columns: var(--col-side) 1fr; gap: var(--s4); align-items: start; }
 .run-grid.solo { grid-template-columns: 1fr; }
 /* Minimized: the rail keeps a strip so the way back is where it went. */
-.run-grid.rail-min { grid-template-columns: 34px 1fr; }
+.run-grid.rail-min { grid-template-columns: var(--rail-strip) 1fr; }
+/* 900px: below this the page cannot hold a side column and a readable main
+   column at once, so every view collapses to a single stack. */
 @media (max-width: 900px) {
   .run-grid, .run-grid.rail-min { grid-template-columns: 1fr; }
 }
@@ -390,7 +527,7 @@ select {
 .rail-strip {
   position: sticky; top: var(--sticky-top);
   display: flex; flex-direction: column; align-items: center; gap: var(--s3);
-  padding: var(--s3) 0; width: 34px;
+  padding: var(--s3) 0; width: var(--rail-strip);
   background: var(--card); border: 1px solid var(--border); border-radius: var(--r-lg);
   color: var(--muted); font-size: var(--t-sm); cursor: pointer;
 }
@@ -407,22 +544,34 @@ select {
 /* Browser and activity ride side by side and share a row height, so the log
    is as tall as the frame it belongs to. The split is permanent: an empty
    activity panel beats the whole stage reflowing on the first step. */
-.stage-split { display: grid; grid-template-columns: 1fr 300px; gap: var(--s4); align-items: start; }
+.stage-split { display: grid; grid-template-columns: 1fr var(--col-side); gap: var(--s4); align-items: stretch; }
 .stage-main { display: flex; flex-direction: column; gap: var(--s4); min-width: 0; }
-/* Sizes itself: it grows with the log rather than stretching to match the
-   frame + verdict beside it, and sticks to the viewport once it would run
-   past the bottom, scrolling its own list instead of the page. */
+/* Runs the full height of the row rather than sizing to its content: at rest
+   the log is empty and the frame beside it is a 16:9 box, so a self-sizing
+   panel left a column of dead card-height under it — the first thing a new
+   user sees. Stretching costs nothing (the log grows into the space it will
+   need anyway) and keeps the permanent split honest: the panel is the same
+   shape before the first step and after the last.
+   `--sticky-h` still caps it, so once the verdict card makes the row taller
+   than the viewport the panel is shorter than the row again and goes back to
+   sticking, scrolling its own list instead of the page. */
 .stage-side {
   min-width: 0;
   position: sticky; top: var(--sticky-top); max-height: var(--sticky-h);
 }
 .stage-side .log { flex: 1; min-height: 0; max-height: none; }
-/* Narrow enough that three columns would starve the frame: stack again, and
-   give the log back a fixed height since it no longer has a column to fill. */
+/* The zero state fills the same space the log will, centred in it — an empty
+   panel that is the right height reads as "nothing yet", one that is short
+   reads as a layout bug. */
+.stage-side > .empty { flex: 1; justify-content: center; }
+/* 1150px: the Run view is the only view with three columns, so it gives up
+   the third one first — at this width the rail and the activity panel
+   together would leave the frame narrower than the panel beside it. Stack,
+   and give the log back its cap since it no longer has a column to fill. */
 @media (max-width: 1150px) {
   .stage-split { grid-template-columns: 1fr; }
   .stage-side { position: static; max-height: none; }
-  .stage-side .log { flex: none; max-height: 240px; }
+  .stage-side .log { flex: none; max-height: var(--scroll-cap); }
 }
 
 /* The live view sits in a browser chrome so it reads as a real session and
@@ -433,6 +582,9 @@ select {
   padding: var(--s2) var(--s3); background: var(--card); border-bottom: 1px solid var(--border);
 }
 .browser-dots { display: flex; gap: var(--s1); padding-left: var(--s05); }
+/* Window-chrome decoration, not a status dot — a hair larger than `--dot` so
+   the three of them read as the frame's furniture rather than as three
+   states. */
 .browser-dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--border-hi); }
 .browser-url {
   flex: 1; min-width: 0; font-family: var(--mono); font-size: var(--t-sm); color: var(--muted);
@@ -455,7 +607,6 @@ select {
    resizes when the first one lands. */
 .screen-empty { aspect-ratio: 16 / 9; }
 .screen img, .screen video { display: block; width: 100%; height: auto; }
-.placeholder { color: var(--faint); font-size: var(--t-md); }
 .replay-note { font-size: var(--t-sm); color: var(--faint); }
 
 .thinking { display: flex; flex-direction: column; align-items: center; gap: var(--s2); color: var(--muted); font-size: var(--t-base); }
@@ -469,11 +620,11 @@ select {
 /* Padding and border come from the message rule above — it is the same kind
    of object, a one-line strip of status under the frame. */
 .action-bar { align-items: center; background: var(--card); border-color: var(--border); color: var(--muted); }
-.pulse { flex: 0 0 auto; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: pulse 1.3s ease-in-out infinite; }
+.pulse { flex: 0 0 auto; width: var(--dot); height: var(--dot); border-radius: 50%; background: var(--accent); animation: pulse 1.3s ease-in-out infinite; }
 
 /* Bled to the card's side edges like `.list`, and like `.list` it keeps the
    card's bottom padding — the two lists in the app end the same way. */
-.log { display: flex; flex-direction: column; max-height: 240px; overflow-y: auto; margin: 0 calc(var(--s4) * -1); }
+.log { display: flex; flex-direction: column; max-height: var(--scroll-cap); overflow-y: auto; margin: 0 calc(var(--s4) * -1); }
 /* A narrow column, so a row stacks rather than competing for one line: the
    step number gutters the goal, and the host sits under it. Goals run long —
    two lines then ellipsis, with the full text on hover. */
@@ -501,7 +652,7 @@ select {
 
 .verdict-head {
   display: flex; align-items: center; gap: var(--s2);
-  font-size: var(--t-md); font-weight: 600; letter-spacing: -.008em;
+  font-size: var(--t-lg); font-weight: 600; letter-spacing: -.008em;
 }
 .verdict.ok { border-color: var(--ok-line); }
 .verdict.ok .verdict-head { color: var(--ok); }
@@ -524,6 +675,9 @@ select {
   /* The leading rule is subtracted from the padding so row text still lines
      up with the card head above it — both sides read the same token, so the
      rule can't get wider than the space kept for it. */
+  /* 36px = `--ctl` plus a hair: a row is a touch taller than the button that
+     may sit in it, so the hover band has air above and below the control
+     rather than ending flush against it. */
   padding: var(--s15) var(--s4) var(--s15) calc(var(--s4) - var(--s05)); min-height: 36px;
   border-left: var(--s05) solid transparent;
   transition: background var(--fast), border-color var(--fast);
@@ -554,11 +708,14 @@ button.row-main { background: transparent; border: 0; padding: 0; color: inherit
 .group-name.muted { color: var(--faint); }
 .group-head .card-count { margin-right: auto; }
 
+/* Capped rather than full-width: a name field stretched across the whole
+   Library pane invites a sentence, and 440px is about as wide as a project or
+   module name ever wants to be. */
 .add-form { display: flex; gap: var(--s2); max-width: 440px; }
 .add-form input { flex: 1; }
 
 .member-list {
-  list-style: none; margin: 0; padding: var(--s1); max-height: 240px; overflow-y: auto;
+  list-style: none; margin: 0; padding: var(--s1); max-height: var(--scroll-cap); overflow-y: auto;
   background: var(--sunken); border: 1px solid var(--border); border-radius: var(--r-md);
 }
 .member-list label {
@@ -575,19 +732,22 @@ button.row-main { background: transparent; border: 0; padding: 0; color: inherit
 /* ==========================================================================
    8. History & Library layouts
    ========================================================================== */
-.history { display: grid; grid-template-columns: 1fr 320px; gap: var(--s4); align-items: start; }
-.library { display: grid; grid-template-columns: 300px 1fr; gap: var(--s4); align-items: start; }
+.history { display: grid; grid-template-columns: 1fr var(--col-side); gap: var(--s4); align-items: start; }
+.library { display: grid; grid-template-columns: var(--col-side) 1fr; gap: var(--s4); align-items: start; }
 @media (max-width: 900px) {
   .history, .library { grid-template-columns: 1fr; }
 }
 .hist-detail, .lib-projects { position: sticky; top: var(--sticky-top); }
 
 .hist-filters { display: flex; flex-wrap: wrap; gap: var(--s2); }
+/* 140px holds the longest option text ("All projects", a test name truncated)
+   without the chevron overlapping it; narrower and the four filters start
+   eliding at full page width. */
 .hist-filters select { flex: 1; min-width: 140px; }
 .hist-paging { display: flex; justify-content: flex-end; gap: var(--s2); }
 .run-when { flex: 0 0 auto; display: flex; flex-direction: column; align-items: flex-end; gap: var(--s05); font-size: var(--t-sm); color: var(--muted); }
 .run-sub { font-size: var(--t-sm); color: var(--faint); }
-.run-dot { flex: 0 0 auto; width: 6px; height: 6px; border-radius: 50%; }
+.run-dot { flex: 0 0 auto; width: var(--dot); height: var(--dot); border-radius: 50%; }
 
 /* Pass/fail strip for one test — the regression view. */
 .timeline-head { display: flex; justify-content: space-between; gap: var(--s2); font-size: var(--t-xs); text-transform: uppercase; letter-spacing: .06em; color: var(--faint); margin-bottom: var(--s15); }
