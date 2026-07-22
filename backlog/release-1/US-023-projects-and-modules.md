@@ -2,9 +2,11 @@
 
 **As a** user with many saved tests, **I want** to group them into projects and, within a project, into modules (auth, payment, …), **so that** I can find tests quickly and trigger a whole module from CI.
 
-- **Status:** 🚧 In progress — **backend done** (2026-07-22: migration `002`,
+- **Status:** ✅ Done (2026-07-22). Backend: migration `002`,
   `routes/projects.js` + `routes/modules.js`, suite project-scoping, test
-  filters; `npm test` 28/28 and `npm run check` green). **Frontend outstanding.**
+  filters; `npm test` 28/28 and `npm run check` green. Frontend: `App.jsx`
+  split into `RunView` / `LibraryView`, progressive reveal in Run, full
+  project / module / suite management in Library.
 - **Priority:** P1 (Release 1) — pulled ahead of US-006 at the user's request
 - **Estimate:** ~2 days (schema + routes ~0.5d; the frontend carries projects,
   modules *and* suite CRUD, which US-009 had deferred)
@@ -257,15 +259,40 @@ Backend (done 2026-07-22):
 - [x] Existing tests (no project, no module) behave exactly as before
 - [x] `npm test` + `npm run check` green; new endpoints covered by tests
 
-Frontend (outstanding — separate session):
+Frontend (done 2026-07-22):
 
-- [ ] Create / rename / delete a project in the UI
-- [ ] Create / rename / delete a module within a project
-- [ ] Saved-test list filters by project, groups by module, shows Ungrouped
-- [ ] Create / rename / delete a suite in the UI, edit its membership, and run
+- [x] Create / rename / delete a project in the UI
+- [x] Create / rename / delete a module within a project
+- [x] Saved-test list filters by project, groups by module, shows Ungrouped
+- [x] Create / rename / delete a suite in the UI, edit its membership, and run
       it — membership choices are limited to the suite's project
-- [ ] With zero projects, the Run view is visually identical to pre-US-023 —
+- [x] With zero projects, the Run view is visually identical to pre-US-023 —
       no project selector, no module headers, no pickers in the form
+
+### As built (frontend, 2026-07-22)
+
+- **Components:** `App.jsx` (shell: token, health, which view) → `TopBar.jsx`,
+  `RunView.jsx`, `LibraryView.jsx` (+ `Suites.jsx`, `SavedTests.jsx`).
+- **Run stays mounted while Library is open**, hidden with `[hidden]`.
+  Unmounting it would drop the live WebSocket and the finished run's result.
+  Library is the one that remounts — remounting is what refreshes it. Run
+  refetches its lists when it comes back into focus (a `refreshTick` bumped on
+  becoming visible), so groups created in Library show up.
+- **Run status is mirrored up to `App`** so the header shows it from either
+  view — you can reorganize while a run is in flight.
+- **Library has no run buttons.** Modules and suites are run from the Run
+  view, where the viewer is; Library only organizes. Running a module or suite
+  queues one run per member test, the viewer follows the first, and a note
+  says how many are queued.
+- **Filtering is server-side** (`?project_id=`, `none` for Ungrouped) rather
+  than filtering an already-loaded list.
+- **Empty modules still render** (with ▶ disabled) so there is somewhere
+  visible to file a test into.
+- **"Save as test" while filtered to a project pre-selects that project**, and
+  changing the project in the form clears the module. The save sends both ids
+  together, since `project_id` alone clears the module server-side.
+- **Not done:** `RunView.jsx` is 548 lines against the ~300 target — the form
+  and viewer are the obvious extractions if it grows again.
 
 ## Impact on other stories
 
