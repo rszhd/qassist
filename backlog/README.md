@@ -56,6 +56,11 @@ until real cloud-only infra exists; the full repo/boundary rules live in
 | [US-022](release-1/US-022-stripe-billing.md) | Paid tier: Stripe billing | 📋 Planned | US-021, US-005 |
 | [US-013](release-1/done/US-013-registration-flow-verification.md) | Registration-flow verification — email tier | ✅ Tier 1 done | — |
 | [US-025](release-1/done/US-025-ui-consistency-pass-2.md) | UI consistency pass 2: type scale, sizes, dead space | ✅ Done (2026-07-23) | — |
+| [US-026](release-1/US-026-history-run-activity.md) | Run activity in the History detail panel | 📋 Planned | US-011 |
+
+Added to the release 2026-07-23: **US-026**, so a past run explains itself in
+History rather than only in the PDF — the steps are already written to disk,
+so it is a read path, not new persistence.
 
 Added to the release 2026-07-23: **US-025**, the follow-up to that day's
 spacing pass. It is polish, not new scope — but every UI story left in the
@@ -92,7 +97,9 @@ US-020/US-010/US-012 touch the frontend than after.
    recording), and retention — `ARTIFACT_RETENTION_DAYS` (default 7) prunes
    `runs/<id>/` at boot and every 6 h while keeping the history row.
 5. **US-020** — report v2: the report that embeds step screenshots + the
-   recording link.
+   recording link. **US-026** (steps in History's detail panel) reads the same
+   `report_data.json`, so do it in the same pass — the endpoint it adds is
+   what a step screenshot would later hang off.
 6. **US-010** — scheduling on top of saved tests
 7. **US-012** — failure emails via Resend (pairs with scheduling; do the
    qassist.run SPF/DKIM DNS setup alongside step 8's DNS work)
