@@ -52,13 +52,32 @@
   --info-line: #34404f;
   --info-bg: #1b2029;
 
-  --s1: 4px;  --s2: 8px;  --s3: 12px; --s4: 16px;
-  --s5: 20px; --s6: 24px; --s8: 32px; --s10: 40px;
+  /* Spacing. Every value is N × 4px, including the two half-steps: component
+     interiors kept inventing 5/6/7/9/10/11px because the scale started at 4,
+     so `--s05` and `--s15` give the tight end somewhere legal to land. Nothing
+     in this file sets a margin, padding or gap in raw pixels. */
+  --s05: 2px; --s1: 4px;  --s15: 6px; --s2: 8px;
+  --s3: 12px; --s4: 16px; --s5: 20px; --s6: 24px;
+  --s8: 32px; --s10: 40px;
+
+  /* Control heights. Everything that can sit on one line — button, input,
+     select — is `--ctl` tall, so a form row lines up without per-case
+     nudging; `--ctl-sm` is the compact pair (small button, icon button, view
+     tab) and doubles as the minimum height of a card head, which is what
+     keeps a head with actions the same height as one without. */
+  --ctl: 32px; --ctl-sm: 28px;
 
   /* Page width — header and content share it so they stay flush. Sized for
      the Run view's three columns (tests, live browser, activity); the other
      views follow it so switching tabs never shifts the frame. */
   --page-w: 1400px;
+
+  /* A sticky column stops one gutter below the bar, and leaves the same
+     gutter at the bottom — so it sits in the grid exactly like a card that
+     happens not to scroll. */
+  --topbar-h: 52px;
+  --sticky-top: calc(var(--topbar-h) + var(--s4));
+  --sticky-h: calc(100vh - var(--sticky-top) - var(--s4));
 
   /* Type scale. Five sizes for the whole app — anything that wants a sixth
      is usually asking for the wrong emphasis. */
@@ -110,7 +129,7 @@ code { font-family: var(--mono); font-size: .92em; }
    ========================================================================== */
 .topbar {
   position: sticky; top: 0; z-index: 20;
-  height: 52px; border-bottom: 1px solid var(--border);
+  height: var(--topbar-h); border-bottom: 1px solid var(--border);
   background: rgba(19, 19, 22, .85); backdrop-filter: blur(12px);
 }
 .topbar-inner {
@@ -122,12 +141,15 @@ code { font-family: var(--mono); font-size: .92em; }
 /* Segmented control rather than loose tabs: the group reads as one object,
    which is what keeps a three-view app from looking like a toolbar. */
 .views {
-  display: flex; gap: 2px; padding: 2px;
+  display: flex; gap: var(--s05); padding: var(--s05);
   background: var(--sunken); border: 1px solid var(--border); border-radius: var(--r-md);
 }
+/* The tab is sized so the group — tab + its 2px padding + its border — comes
+   out exactly `--ctl` tall, level with the buttons sharing the bar with it. */
 .views button {
-  display: inline-flex; align-items: center; gap: 6px;
-  height: 26px; padding: 0 10px; border: 0; border-radius: var(--r-sm);
+  display: inline-flex; align-items: center; gap: var(--s15);
+  height: calc(var(--ctl) - var(--s05) * 2 - 2px);
+  padding: 0 var(--s3); border: 0; border-radius: var(--r-sm);
   background: transparent; color: var(--muted);
   font: inherit; font-size: var(--t-base); font-weight: 500; cursor: pointer;
   transition: background var(--fast), color var(--fast);
@@ -137,7 +159,7 @@ code { font-family: var(--mono); font-size: .92em; }
 
 .top-right { margin-left: auto; display: flex; align-items: center; gap: var(--s3); }
 .ws {
-  display: inline-flex; align-items: center; gap: 6px;
+  display: inline-flex; align-items: center; gap: var(--s15);
   font-size: var(--t-xs); font-weight: 600; letter-spacing: .07em;
   text-transform: uppercase; color: var(--faint);
 }
@@ -150,7 +172,7 @@ code { font-family: var(--mono); font-size: .92em; }
 
 /* Status pill: a tint and a hairline, never a saturated solid. */
 .badge {
-  display: inline-flex; align-items: center; height: 20px; padding: 0 8px;
+  display: inline-flex; align-items: center; height: var(--s5); padding: 0 var(--s2);
   border: 1px solid var(--border-hi); border-radius: var(--r-sm);
   background: var(--sunken); color: var(--muted);
   font-size: var(--t-xs); font-weight: 600; text-transform: uppercase; letter-spacing: .06em;
@@ -162,22 +184,24 @@ code { font-family: var(--mono); font-size: .92em; }
 
 .app { max-width: var(--page-w); margin: 0 auto; padding: 0 var(--s5) var(--s10); }
 
-.page-head { display: flex; align-items: flex-start; gap: var(--s4); padding: var(--s6) 0 var(--s5); }
+/* The header sits one gutter above the content, so the gap under the title
+   matches the gap between the cards below it. */
+.page-head { display: flex; align-items: flex-start; gap: var(--s4); padding: var(--s6) 0 var(--s4); }
 .page-head h1 { font-size: var(--t-xl); font-weight: 600; letter-spacing: -.018em; }
-.page-head p { margin-top: 4px; font-size: var(--t-base); color: var(--muted); max-width: 68ch; }
+.page-head p { margin-top: var(--s1); font-size: var(--t-base); color: var(--muted); max-width: 68ch; }
 .page-head-actions { margin-left: auto; display: flex; align-items: center; gap: var(--s2); flex-shrink: 0; }
 
 /* ==========================================================================
    4. Primitives — button, icon button, field, card, empty, stat, modal
    ========================================================================== */
 .btn {
-  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-  height: 32px; padding: 0 12px; border-radius: var(--r-md);
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--s15);
+  height: var(--ctl); padding: 0 var(--s3); border-radius: var(--r-md);
   border: 1px solid transparent; background: transparent; color: var(--text);
   font: inherit; font-size: var(--t-base); font-weight: 500; white-space: nowrap; cursor: pointer;
   transition: background var(--fast), border-color var(--fast), color var(--fast);
 }
-.btn-sm { height: 26px; padding: 0 9px; font-size: var(--t-sm); }
+.btn-sm { height: var(--ctl-sm); padding: 0 var(--s2); font-size: var(--t-sm); }
 .btn:disabled { opacity: .4; cursor: not-allowed; }
 
 .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
@@ -192,7 +216,7 @@ code { font-family: var(--mono); font-size: .92em; }
 
 .icon-btn {
   flex: 0 0 auto; display: inline-grid; place-items: center;
-  width: 26px; height: 26px; border-radius: var(--r-sm);
+  width: var(--ctl-sm); height: var(--ctl-sm); border-radius: var(--r-sm);
   border: 1px solid transparent; background: transparent; color: var(--faint);
   cursor: pointer; transition: background var(--fast), color var(--fast), border-color var(--fast);
 }
@@ -203,38 +227,58 @@ code { font-family: var(--mono); font-size: .92em; }
 
 /* Row actions stay hidden until the row is hovered or holds focus — the list
    reads as content, not as a wall of controls. Always visible without hover. */
-.row-actions { display: flex; gap: 2px; opacity: 0; transition: opacity var(--fast); }
+.row-actions { display: flex; gap: var(--s05); opacity: 0; transition: opacity var(--fast); }
 li:hover > .row-actions,
 li:focus-within > .row-actions,
 .row-actions:focus-within { opacity: 1; }
 @media (hover: none) { .row-actions { opacity: 1; } }
 
-.field { display: flex; flex-direction: column; gap: 6px; }
+.field { display: flex; flex-direction: column; gap: var(--s15); }
 .field-label { font-size: var(--t-base); font-weight: 500; color: var(--text); }
 .field-hint { font-size: var(--t-sm); line-height: 1.5; color: var(--faint); }
 
 input, textarea, select {
   width: 100%; background: var(--sunken); color: var(--text);
   border: 1px solid var(--border-hi); border-radius: var(--r-md);
-  padding: 7px 10px; font: inherit; font-size: var(--t-base); resize: vertical;
+  padding: var(--s2) var(--s3); font: inherit; font-size: var(--t-base); resize: vertical;
   transition: border-color var(--fast), box-shadow var(--fast), background var(--fast);
 }
+/* Single-line controls are set to the button height rather than padded to it,
+   so an input and the button beside it (the add-a-project form, the history
+   filters, a two-select field row) end up the same size instead of ~3px
+   apart. Text keeps the button's own `--s3` side inset, so labels down a
+   column of mixed controls line up too. */
+input:not([type='checkbox']), select { height: var(--ctl); padding-block: 0; }
 input:hover, textarea:hover, select:hover { border-color: var(--faint); }
 input::placeholder, textarea::placeholder { color: var(--faint); }
 input:focus, textarea:focus, select:focus {
   outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--ring);
 }
 select {
-  appearance: none; padding-right: 28px; cursor: pointer;
+  appearance: none; padding-right: var(--s6); cursor: pointer;
   background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%),
                     linear-gradient(135deg, var(--muted) 50%, transparent 50%);
-  background-position: calc(100% - 14px) 50%, calc(100% - 10px) 50%;
-  background-size: 4px 4px, 4px 4px;
+  /* The two halves of the chevron straddle `--s3`, so the arrow is centred on
+     the same inset the text uses on the other side. */
+  background-position: calc(100% - var(--s3) - var(--s05)) 50%, calc(100% - var(--s3) + var(--s05)) 50%;
+  background-size: var(--s1) var(--s1), var(--s1) var(--s1);
   background-repeat: no-repeat;
 }
-.field-row { display: flex; gap: var(--s2); }
+.field-row { display: flex; gap: var(--s3); }
 .field-row .field { flex: 1; min-width: 0; }
 
+/* A card stacks its blocks with a gap, never with a margin on whichever child
+   happens to be there — that is what keeps a head, a filter row, a list and a
+   footer form evenly spaced in every view, and it is why nothing below sets
+   `margin-top` to separate itself from a sibling. `.suites` and `.run-detail`
+   are sections that stack the same way inside a card; `.group` is one level
+   down and stacks tighter.
+   Three rhythms, and only three: `--s2` inside a group, `--s3` between the
+   blocks of a card, `--s4` between cards (see the view grids) and between the
+   fields of a form. */
+.card, .suites, .run-detail, .group { display: flex; flex-direction: column; }
+.card, .suites, .run-detail { gap: var(--s3); }
+.group { gap: var(--s2); }
 .card {
   background: var(--card); border: 1px solid var(--border); border-radius: var(--r-lg);
   padding: var(--s4);
@@ -243,12 +287,12 @@ select {
 
 .card-head {
   display: flex; align-items: center; gap: var(--s2);
-  margin-bottom: var(--s3); min-height: 26px;
+  min-height: var(--ctl-sm);
 }
 .card-title { font-size: var(--t-xs); font-weight: 600; text-transform: uppercase; letter-spacing: .09em; color: var(--faint); }
 .card-count {
   font-size: var(--t-xs); font-weight: 600; color: var(--muted);
-  background: var(--sunken); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 0 5px;
+  background: var(--sunken); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 0 var(--s15);
 }
 .spacer { margin-left: auto; }
 .modal-form { display: flex; flex-direction: column; gap: var(--s4); }
@@ -264,7 +308,7 @@ select {
 .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(84px, 1fr)); gap: var(--s2); }
 .stat {
   background: var(--sunken); border: 1px solid var(--border); border-radius: var(--r-md);
-  padding: 8px 10px; display: flex; flex-direction: column; gap: 2px;
+  padding: var(--s2) var(--s3); display: flex; flex-direction: column; gap: var(--s05);
 }
 .stat-value { font-size: var(--t-lg); font-weight: 550; letter-spacing: -.015em; }
 .stat-label { font-size: var(--t-xs); font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--faint); }
@@ -278,18 +322,20 @@ select {
   animation: fade 110ms ease;
 }
 .modal {
-  width: 100%; max-width: 500px; max-height: calc(100vh - 80px);
+  width: 100%; max-width: 500px; max-height: calc(100vh - var(--s10));
   display: flex; flex-direction: column;
   background: var(--raised); border: 1px solid var(--border-hi); border-radius: var(--r-xl);
   box-shadow: var(--shadow-lg); animation: rise 130ms ease;
 }
 .modal-wide { max-width: 660px; }
+/* The head's bottom padding is the form's field gap, so the first field sits
+   the same distance below the description as the fields sit from each other. */
 .modal-head {
   display: flex; align-items: flex-start; gap: var(--s3);
-  padding: var(--s4) var(--s4) var(--s3);
+  padding: var(--s4);
 }
 .modal-head h2 { font-size: var(--t-md); font-weight: 600; letter-spacing: -.008em; }
-.modal-head p { margin-top: 4px; font-size: var(--t-base); line-height: 1.5; color: var(--muted); }
+.modal-head p { margin-top: var(--s1); font-size: var(--t-base); line-height: 1.5; color: var(--muted); }
 .modal-head .icon-btn { margin-left: auto; }
 .modal-body { padding: 0 var(--s4) var(--s4); overflow-y: auto; display: flex; flex-direction: column; gap: var(--s4); }
 .modal-foot {
@@ -306,24 +352,28 @@ select {
 /* ==========================================================================
    5. Messages — banner, error, hint
    ========================================================================== */
-.banner, .error, .batch-note {
+.banner, .error, .batch-note, .action-bar {
   display: flex; align-items: flex-start; gap: var(--s2);
-  padding: 9px 11px; border-radius: var(--r-md);
+  padding: var(--s3); border-radius: var(--r-md);
   font-size: var(--t-base); line-height: 1.5; border: 1px solid;
 }
-.banner > svg, .error > svg, .batch-note > svg { flex: 0 0 auto; margin-top: 2px; }
+.banner > svg, .error > svg, .batch-note > svg { flex: 0 0 auto; margin-top: var(--s05); }
 .banner { background: var(--warn-bg); border-color: var(--warn-line); color: var(--warn); }
 .banner strong { display: block; font-size: var(--t-base); font-weight: 600; }
 .banner span { color: var(--warn-soft); }
 .banner code, .hint code, .row-sub code, .empty-body code {
-  background: var(--sunken); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 0 4px;
+  background: var(--sunken); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 0 var(--s1);
 }
 .error { background: var(--bad-bg); border-color: var(--bad-line); color: var(--bad); }
 .batch-note { background: var(--info-bg); border-color: var(--info-line); color: var(--info); }
 .page-error { margin-bottom: var(--s4); }
 
 .hint { font-size: var(--t-sm); line-height: 1.6; color: var(--faint); }
-.card > .hint { margin-top: var(--s4); padding-top: var(--s3); border-top: 1px solid var(--border); }
+
+/* A rule inside a card. The card's gap supplies the space above it and this
+   supplies the space below, so every divider in the app — this, the run
+   detail's goal, the suites block — has the same air on both sides. */
+.card > .hint, .detail-goal, .suites { padding-top: var(--s3); border-top: 1px solid var(--border); }
 
 /* ==========================================================================
    6. Run view — tests rail beside the live stage
@@ -336,10 +386,9 @@ select {
   .run-grid, .run-grid.rail-min { grid-template-columns: 1fr; }
 }
 
-.rail { position: sticky; top: 64px; max-height: calc(100vh - 88px); overflow-y: auto; }
-.rail .filter { margin-bottom: var(--s3); }
+.rail { position: sticky; top: var(--sticky-top); max-height: var(--sticky-h); overflow-y: auto; }
 .rail-strip {
-  position: sticky; top: 64px;
+  position: sticky; top: var(--sticky-top);
   display: flex; flex-direction: column; align-items: center; gap: var(--s3);
   padding: var(--s3) 0; width: 34px;
   background: var(--card); border: 1px solid var(--border); border-radius: var(--r-lg);
@@ -351,19 +400,21 @@ select {
   .rail-strip { flex-direction: row; justify-content: center; width: auto; padding: var(--s2); }
   .rail-strip span { writing-mode: horizontal-tb; }
 }
-.stage { display: flex; flex-direction: column; gap: var(--s3); }
+/* Card-to-card spacing, so a stack of cards reads the same whether it runs
+   down the page or across the grid beside it. */
+.stage { display: flex; flex-direction: column; gap: var(--s4); }
 
 /* Browser and activity ride side by side and share a row height, so the log
    is as tall as the frame it belongs to. The split is permanent: an empty
    activity panel beats the whole stage reflowing on the first step. */
 .stage-split { display: grid; grid-template-columns: 1fr 300px; gap: var(--s4); align-items: start; }
-.stage-main { display: flex; flex-direction: column; gap: var(--s3); min-width: 0; }
+.stage-main { display: flex; flex-direction: column; gap: var(--s4); min-width: 0; }
 /* Sizes itself: it grows with the log rather than stretching to match the
    frame + verdict beside it, and sticks to the viewport once it would run
    past the bottom, scrolling its own list instead of the page. */
 .stage-side {
-  display: flex; flex-direction: column; min-width: 0;
-  position: sticky; top: 64px; max-height: calc(100vh - 88px);
+  min-width: 0;
+  position: sticky; top: var(--sticky-top); max-height: var(--sticky-h);
 }
 .stage-side .log { flex: 1; min-height: 0; max-height: none; }
 /* Narrow enough that three columns would starve the frame: stack again, and
@@ -371,7 +422,7 @@ select {
 @media (max-width: 1150px) {
   .stage-split { grid-template-columns: 1fr; }
   .stage-side { position: static; max-height: none; }
-  .stage-side .log { flex: none; max-height: 232px; }
+  .stage-side .log { flex: none; max-height: 240px; }
 }
 
 /* The live view sits in a browser chrome so it reads as a real session and
@@ -379,13 +430,13 @@ select {
 .browser { border: 1px solid var(--border); border-radius: var(--r-lg); overflow: hidden; background: var(--stage); }
 .browser-bar {
   display: flex; align-items: center; gap: var(--s3);
-  padding: 7px 10px; background: var(--card); border-bottom: 1px solid var(--border);
+  padding: var(--s2) var(--s3); background: var(--card); border-bottom: 1px solid var(--border);
 }
-.browser-dots { display: flex; gap: 5px; padding-left: 2px; }
+.browser-dots { display: flex; gap: var(--s1); padding-left: var(--s05); }
 .browser-dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--border-hi); }
 .browser-url {
   flex: 1; min-width: 0; font-family: var(--mono); font-size: var(--t-sm); color: var(--muted);
-  background: var(--sunken); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 2px 8px;
+  background: var(--sunken); border: 1px solid var(--border); border-radius: var(--r-sm); padding: var(--s05) var(--s2);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 /* The frame sizes the box, not the other way round: pages under test come in
@@ -415,28 +466,29 @@ select {
   animation: spin .8s linear infinite;
 }
 
-.action-bar {
-  display: flex; align-items: center; gap: var(--s2);
-  background: var(--card); border: 1px solid var(--border); border-radius: var(--r-md);
-  padding: 9px 11px; font-size: var(--t-base); color: var(--muted);
-}
+/* Padding and border come from the message rule above — it is the same kind
+   of object, a one-line strip of status under the frame. */
+.action-bar { align-items: center; background: var(--card); border-color: var(--border); color: var(--muted); }
 .pulse { flex: 0 0 auto; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: pulse 1.3s ease-in-out infinite; }
 
-.log { display: flex; flex-direction: column; max-height: 232px; overflow-y: auto; margin: 0 calc(var(--s4) * -1) calc(var(--s4) * -1); }
+/* Bled to the card's side edges like `.list`, and like `.list` it keeps the
+   card's bottom padding — the two lists in the app end the same way. */
+.log { display: flex; flex-direction: column; max-height: 240px; overflow-y: auto; margin: 0 calc(var(--s4) * -1); }
 /* A narrow column, so a row stacks rather than competing for one line: the
    step number gutters the goal, and the host sits under it. Goals run long —
    two lines then ellipsis, with the full text on hover. */
 .log-item {
   display: flex; gap: var(--s2); align-items: flex-start;
-  padding: 7px var(--s4); font-size: var(--t-base); color: var(--muted);
+  padding: var(--s2) var(--s4); font-size: var(--t-base); color: var(--muted);
 }
 .log-item + .log-item { border-top: 1px solid var(--border); }
 .log-item:last-child { color: var(--text); }
 .step-n {
-  flex: 0 0 16px; padding-top: 1px; text-align: right;
+  /* The 1px lifts the mono digits onto the goal's baseline beside them. */
+  flex: 0 0 var(--s4); padding-top: 1px; text-align: right;
   font-family: var(--mono); font-size: var(--t-xs); color: var(--faint);
 }
-.step-body { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.step-body { min-width: 0; display: flex; flex-direction: column; gap: var(--s05); }
 /* Full text, wrapped — a truncated goal is the one thing you cannot recover
    by scrolling, and reading the agent's reasoning is the point of this list. */
 .step-goal { line-height: 1.45; overflow-wrap: anywhere; }
@@ -449,16 +501,16 @@ select {
 
 .verdict-head {
   display: flex; align-items: center; gap: var(--s2);
-  margin-bottom: var(--s3); font-size: var(--t-md); font-weight: 600; letter-spacing: -.008em;
+  font-size: var(--t-md); font-weight: 600; letter-spacing: -.008em;
 }
 .verdict.ok { border-color: var(--ok-line); }
 .verdict.ok .verdict-head { color: var(--ok); }
 .verdict.bad { border-color: var(--bad-line); }
 .verdict.bad .verdict-head { color: var(--bad); }
 .verdict-head .badge { margin-left: auto; }
-.final { margin-top: var(--s3); font-size: var(--t-base); line-height: 1.6; color: var(--muted); }
-.errs { margin: var(--s2) 0 0; padding-left: 16px; color: var(--bad); font-size: var(--t-base); }
-.verdict-actions { display: flex; gap: var(--s2); margin-top: var(--s4); flex-wrap: wrap; }
+.final { font-size: var(--t-base); line-height: 1.6; color: var(--muted); }
+.errs { margin: 0; padding-left: var(--s4); color: var(--bad); font-size: var(--t-base); }
+.verdict-actions { display: flex; gap: var(--s2); flex-wrap: wrap; }
 
 /* ==========================================================================
    7. Lists — saved tests, projects/modules/suites, history rows
@@ -469,10 +521,11 @@ select {
 .list { list-style: none; margin: 0 calc(var(--s4) * -1); padding: 0; display: flex; flex-direction: column; }
 .list li {
   display: flex; align-items: center; gap: var(--s2);
-  /* The 2px leading rule is subtracted from the padding so row text still
-     lines up with the card head above it. */
-  padding: 6px var(--s4) 6px calc(var(--s4) - 2px); min-height: 36px;
-  border-left: 2px solid transparent;
+  /* The leading rule is subtracted from the padding so row text still lines
+     up with the card head above it — both sides read the same token, so the
+     rule can't get wider than the space kept for it. */
+  padding: var(--s15) var(--s4) var(--s15) calc(var(--s4) - var(--s05)); min-height: 36px;
+  border-left: var(--s05) solid transparent;
   transition: background var(--fast), border-color var(--fast);
 }
 .list li + li { box-shadow: inset 0 1px 0 var(--border); }
@@ -481,38 +534,39 @@ select {
    beats a fill, because it survives being hovered. */
 .list li.active { background: var(--hover); border-left-color: var(--accent); }
 .list li.editing { display: block; background: var(--sunken); padding: var(--s3) var(--s4); }
-.row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; text-align: left; }
+.row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--s05); text-align: left; }
 button.row-main { background: transparent; border: 0; padding: 0; color: inherit; font: inherit; cursor: pointer; }
-.row-name { font-size: var(--t-base); font-weight: 500; display: flex; align-items: center; gap: 6px; }
+.row-name { font-size: var(--t-base); font-weight: 500; display: flex; align-items: center; gap: var(--s15); }
 .row-name em { color: var(--muted); font-weight: 400; font-style: normal; }
 .row-sub { font-size: var(--t-sm); color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .row-tag {
   font-size: var(--t-xs); font-weight: 600; text-transform: uppercase; letter-spacing: .06em;
-  color: var(--faint); border: 1px solid var(--border-hi); border-radius: var(--r-sm); padding: 0 5px;
+  color: var(--faint); border: 1px solid var(--border-hi); border-radius: var(--r-sm); padding: 0 var(--s15);
 }
 
-.group + .group { margin-top: var(--s4); }
+/* Sub-section rule: same construction as the card divider one level up, at
+   the group's own tighter gap on both sides. */
 .group-head {
   display: flex; align-items: center; gap: var(--s2);
-  padding: 0 0 6px; margin-bottom: 2px; border-bottom: 1px solid var(--border);
+  padding-bottom: var(--s2); border-bottom: 1px solid var(--border);
 }
 .group-name { font-size: var(--t-sm); font-weight: 600; text-transform: uppercase; letter-spacing: .07em; }
 .group-name.muted { color: var(--faint); }
 .group-head .card-count { margin-right: auto; }
 
-.add-form { display: flex; gap: var(--s2); margin-top: var(--s4); max-width: 440px; }
+.add-form { display: flex; gap: var(--s2); max-width: 440px; }
 .add-form input { flex: 1; }
 
 .member-list {
-  list-style: none; margin: 0; padding: var(--s1); max-height: 232px; overflow-y: auto;
+  list-style: none; margin: 0; padding: var(--s1); max-height: 240px; overflow-y: auto;
   background: var(--sunken); border: 1px solid var(--border); border-radius: var(--r-md);
 }
 .member-list label {
   display: flex; align-items: center; gap: var(--s2);
-  padding: 5px 8px; border-radius: var(--r-sm); cursor: pointer;
+  padding: var(--s15) var(--s2); border-radius: var(--r-sm); cursor: pointer;
 }
 .member-list label:hover { background: var(--hover); }
-.member-list input[type='checkbox'] { width: 13px; height: 13px; accent-color: var(--accent); flex: 0 0 auto; }
+.member-list input[type='checkbox'] { width: 14px; height: 14px; accent-color: var(--accent); flex: 0 0 auto; }
 .member-name { font-size: var(--t-base); }
 .member-url { font-size: var(--t-sm); color: var(--faint); margin-left: auto; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
@@ -526,37 +580,30 @@ button.row-main { background: transparent; border: 0; padding: 0; color: inherit
 @media (max-width: 900px) {
   .history, .library { grid-template-columns: 1fr; }
 }
-.hist-detail, .lib-projects { position: sticky; top: 64px; }
+.hist-detail, .lib-projects { position: sticky; top: var(--sticky-top); }
 
-.hist-filters { display: flex; flex-wrap: wrap; gap: var(--s2); margin-bottom: var(--s4); }
-.hist-filters select { flex: 1; min-width: 136px; }
-.hist-paging { display: flex; justify-content: flex-end; gap: var(--s2); margin-top: var(--s4); }
-.run-when { flex: 0 0 auto; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; font-size: var(--t-sm); color: var(--muted); }
+.hist-filters { display: flex; flex-wrap: wrap; gap: var(--s2); }
+.hist-filters select { flex: 1; min-width: 140px; }
+.hist-paging { display: flex; justify-content: flex-end; gap: var(--s2); }
+.run-when { flex: 0 0 auto; display: flex; flex-direction: column; align-items: flex-end; gap: var(--s05); font-size: var(--t-sm); color: var(--muted); }
 .run-sub { font-size: var(--t-sm); color: var(--faint); }
 .run-dot { flex: 0 0 auto; width: 6px; height: 6px; border-radius: 50%; }
 
 /* Pass/fail strip for one test — the regression view. */
-.timeline { margin-bottom: var(--s4); }
-.timeline-head { display: flex; justify-content: space-between; gap: var(--s2); font-size: var(--t-xs); text-transform: uppercase; letter-spacing: .06em; color: var(--faint); margin-bottom: 6px; }
+.timeline-head { display: flex; justify-content: space-between; gap: var(--s2); font-size: var(--t-xs); text-transform: uppercase; letter-spacing: .06em; color: var(--faint); margin-bottom: var(--s15); }
 .timeline-rate { font-weight: 600; letter-spacing: .02em; text-transform: none; color: var(--muted); }
-.timeline-bars { display: flex; gap: 2px; height: 24px; }
+.timeline-bars { display: flex; gap: var(--s05); height: var(--s6); }
 .tl-bar { flex: 1; min-width: 3px; border: 0; padding: 0; border-radius: 2px; opacity: .6; cursor: pointer; transition: opacity var(--fast); }
 .tl-bar:hover { opacity: 1; }
 .tl-bar.active { opacity: 1; outline: 1px solid var(--text); outline-offset: 2px; }
 
-.run-detail { display: flex; flex-direction: column; gap: var(--s4); }
-.run-detail .verdict-head { margin-bottom: 0; }
-.run-detail .final, .run-detail .verdict-actions { margin-top: 0; }
-.detail-facts { display: grid; grid-template-columns: auto 1fr; gap: 6px var(--s4); margin: 0; font-size: var(--t-base); }
+.detail-facts { display: grid; grid-template-columns: auto 1fr; gap: var(--s15) var(--s4); margin: 0; font-size: var(--t-base); }
 .detail-facts dt { color: var(--faint); }
 .detail-facts dd { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.detail-goal { padding-top: var(--s4); border-top: 1px solid var(--border); font-size: var(--t-base); line-height: 1.6; color: var(--muted); }
+.detail-goal { font-size: var(--t-base); line-height: 1.6; color: var(--muted); }
 .detail-screen { margin: 0; }
 
 /* Inline row editors (rename a project/module, edit a suite's membership). */
 .inline-edit { display: flex; flex-direction: column; gap: var(--s2); width: 100%; }
 .inline-edit-actions { display: flex; justify-content: flex-end; gap: var(--s2); }
-.suites { margin-top: var(--s6); padding-top: var(--s4); border-top: 1px solid var(--border); }
-.suites .empty { padding: var(--s4) var(--s2); }
-.filter { margin-bottom: var(--s3); }
 .banner .btn { align-self: center; }

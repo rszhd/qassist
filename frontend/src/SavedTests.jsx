@@ -47,7 +47,7 @@ export default function SavedTests({
       </CardHead>
 
       {projects.length > 0 && (
-        <select className="filter" value={filter} onChange={(e) => setFilter(e.target.value)}>
+        <select value={filter} onChange={(e) => setFilter(e.target.value)}>
           <option value="all">All tests</option>
           <option value="none">Ungrouped</option>
           {projects.map((p) => (

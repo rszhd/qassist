@@ -36,11 +36,27 @@ which is how they refresh.
 `Stat`, `PageHeader`, `Modal` — and every view is built from it rather than
 from raw `<button>`/`<label>`. Icons come from `lucide-react`, never text
 glyphs. `App.css` is one sheet in two halves: tokens + primitives, then
-per-view layout; colours, spacing (`--s1`…`--s10`), type sizes (`--t-xs`…
-`--t-xl`) and radii always resolve to a token, so the theme is swappable from
-`:root` alone. Each view opens with a `PageHeader` carrying its primary
-action; creating and editing happen in a `Modal`, and destructive/secondary
-row actions hide behind `.row-actions` until the row is hovered or focused.
+per-view layout; colours, spacing, type sizes (`--t-xs`…`--t-xl`) and radii
+always resolve to a token, so the theme is swappable from `:root` alone. Each
+view opens with a `PageHeader` carrying its primary action; creating and
+editing happen in a `Modal`, and destructive/secondary row actions hide behind
+`.row-actions` until the row is hovered or focused.
+
+**Spacing.** Every margin, padding and gap is a token — no raw pixels. The
+scale is `--s05` (2px) through `--s10` (40px), all multiples of 4 including
+the `--s05`/`--s15` half-steps, which exist so component interiors stop
+inventing 5/7/9/11px. Three rhythms and only three: `--s2` inside a `.group`,
+`--s3` between the blocks of a card, `--s4` between cards and between form
+fields. A card sets that distance with `gap` — `.card`, `.suites`,
+`.run-detail` and `.group` are flex columns — so **nothing adds `margin-top`
+to separate itself from a sibling**; a new block dropped into a card is
+spaced correctly by existing there. Dividers inside a card (`.card > .hint`,
+`.detail-goal`, `.suites`) are a `border-top` plus `padding-top: var(--s3)`,
+the gap above supplying the matching half. Anything one line tall — button,
+input, select — is `--ctl` (32px) or `--ctl-sm` (28px), set as a height rather
+than padded to it, which is what keeps an input level with the button beside
+it. Sticky columns use `--sticky-top`/`--sticky-h`, so they sit one gutter
+under the bar like any other card.
 
 The palette is near-monochrome by design: one neutral graphite ramp, a single
 accent spent only on the primary button, focus and the live pulse, and verdict
@@ -104,7 +120,12 @@ is exactly the pre-US-023 UI — keep it that way when adding features.
   `server/src/`; add a test when adding an endpoint.
 - **Verify frontend changes:** `cd frontend && npm run build` (no test suite
   yet). Exercise a new endpoint with `curl` against the dev server on :8081
-  before wiring it into a view.
+  before wiring it into a view. For visual changes, screenshot the real UI:
+  `agent/.venv` already has Playwright, so a short `sync_playwright` script
+  against the Vite port renders the actual views (Chromium, at
+  `device_scale_factor=2`) with live data from :8081 — cheaper and more honest
+  than reasoning about CSS. Several Vite servers are usually running; start your
+  own, note its port, and kill it **by PID** — never `pkill -f vite`.
 - Report iteration: render against `sample-report.pdf` locally; don't burn
   real runs to tweak the report.
 
