@@ -1,3 +1,4 @@
+// @ts-check
 // Express REST API + WebSocket relay for the QA agent prototype.
 //
 // Flow: POST /api/runs spawns agent/run_agent.py as a child process. The
@@ -35,6 +36,7 @@ const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 /** @type {Map<string, any>} */
 const runs = new Map();
 let active = 0;
+/** @type {string[]} */
 const queue = [];
 
 function send(run, evt) {
@@ -200,7 +202,8 @@ function startRun(runId) {
     if (!TERMINAL.has(run.status)) run.status = code === 0 ? 'completed' : 'error';
     broadcast(run, { type: 'end', status: run.status, code });
     startNext();
-    setTimeout(() => runs.delete(runId), RUN_TTL_MS);
+    // unref: an expiry timer must never hold the process open (e.g. in tests)
+    setTimeout(() => runs.delete(runId), RUN_TTL_MS).unref();
   });
 }
 
@@ -334,14 +337,14 @@ const server = createServer(app);
 const wss = new WebSocketServer({ noServer: true });
 
 server.on('upgrade', (req, socket, head) => {
-  const url = new URL(req.url, `http://${req.headers.host}`);
+  const url = new URL(req.url || '/', `http://${req.headers.host}`);
   if (url.pathname !== '/ws') return socket.destroy();
   const token = url.searchParams.get('token') || '';
   if (API_TOKEN && token !== API_TOKEN) {
     socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
     return socket.destroy();
   }
-  const runId = url.searchParams.get('runId');
+  const runId = url.searchParams.get('runId') || '';
   const run = runs.get(runId);
   if (!run) {
     socket.write('HTTP/1.1 404 Not Found\r\n\r\n');
@@ -361,6 +364,13 @@ server.on('upgrade', (req, socket, head) => {
   });
 });
 
-server.listen(PORT, () => {
-  console.log(`qassist server on :${PORT}  (max_concurrent=${MAX_CONCURRENT}, auth=${API_TOKEN ? 'on' : 'off'})`);
-});
+// Listen only when run directly (node src/server.js); tests import { app }
+// and drive it in-process without opening a port.
+const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (isMain) {
+  server.listen(PORT, () => {
+    console.log(`qassist server on :${PORT}  (max_concurrent=${MAX_CONCURRENT}, auth=${API_TOKEN ? 'on' : 'off'})`);
+  });
+}
+
+export { app, server };

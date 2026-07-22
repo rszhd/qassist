@@ -53,6 +53,10 @@ Artifacts land in `runs/<runId>/`. One Docker image, `docker compose up`.
 - Dev: `cd server && node src/server.js` (needs `WORKER_API_TOKEN`,
   `OPENAI_API_KEY`, `PYTHON_BIN` → venv with browser-use); `cd frontend &&
   npm run dev` (Vite proxies /api and /ws). API examples: README.md.
+- **Verify server changes:** `cd server && npm test` (node --test + supertest,
+  in-process app with stubbed agent/report — no Python/browser needed) and
+  `npm run check` (tsc over the JSDoc-typed JS). Run both after editing
+  `server/src/`; add a test when adding an endpoint.
 - Report iteration: render against `sample-report.pdf` locally; don't burn
   real runs to tweak the report.
 
