@@ -151,11 +151,11 @@ is exactly the pre-US-023 UI — keep it that way when adding features.
   `server/src/`; add a test when adding an endpoint.
 - **Verify frontend changes:** `cd frontend && npm run build` (no test suite
   yet). Exercise a new endpoint with `curl` against the dev server on :8081
-  before wiring it into a view. For visual changes, screenshot the real UI:
-  `agent/.venv` already has Playwright, so a short `sync_playwright` script
-  against the Vite port renders the actual views (Chromium, at
-  `device_scale_factor=2`) with live data from :8081 — cheaper and more honest
-  than reasoning about CSS. Several Vite servers are usually running; start your
+  before wiring it into a view. For visual changes, **ask before screenshotting
+  — often it is quicker for me to look myself.** When asked to: `agent/.venv`
+  already has Playwright, so a short `sync_playwright` script against the Vite
+  port renders the actual views (Chromium, at `device_scale_factor=2`) with
+  live data from :8081. Several Vite servers are usually running; start your
   own, note its port, and kill it **by PID** — never `pkill -f vite`.
 - Report iteration: render against `sample-report.pdf` locally; don't burn
   real runs to tweak the report.
