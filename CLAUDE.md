@@ -19,9 +19,19 @@ import time), `db.js` (pool, migrations, boot seed/recovery), `runs.js` (run
 engine + persistence), `routes/{tests,suites,projects,modules,helpers}.js`.
 `routes/projects.js` also holds the module query helpers `modules.js` imports.
 
+`frontend/src/` splits as: `App.jsx` (shell — token, health, which view),
+`TopBar.jsx` (header + view nav), `RunView.jsx` (a single run: WS socket, live
+viewer, saved-test list, run/edit form) with `SavedTests.jsx`, and
+`LibraryView.jsx` (project/module management) with `Suites.jsx`. New views land
+beside Run and Library — that split exists so US-011/US-010/US-005 have
+somewhere to go. Run stays mounted while hidden (unmounting drops the live
+WebSocket); Library remounts, which is how it refreshes.
+
 Saved tests can be grouped into a **project**, and within it into at most one
 **module**; a **suite** is the many-to-many alternative, scoped to one project.
 All three are runnable in one call. Path params take a slug or a uuid.
+**Grouping is revealed progressively** in the UI: with no projects the Run view
+is exactly the pre-US-023 UI — keep it that way when adding features.
 
 ## Design principles
 
@@ -68,6 +78,9 @@ All three are runnable in one call. Path params take a slug or a uuid.
   in-process app with stubbed agent/report — no Python/browser needed) and
   `npm run check` (tsc over the JSDoc-typed JS). Run both after editing
   `server/src/`; add a test when adding an endpoint.
+- **Verify frontend changes:** `cd frontend && npm run build` (no test suite
+  yet). Exercise a new endpoint with `curl` against the dev server on :8081
+  before wiring it into a view.
 - Report iteration: render against `sample-report.pdf` locally; don't burn
   real runs to tweak the report.
 
