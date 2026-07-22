@@ -171,9 +171,13 @@ story, organized by release folder (`release-1/`, `unscheduled/`,
   ([US-008](backlog/release-1/US-008-cicd-integration.md), needs US-009).
 - **Registration-flow verification** — email-confirmation signups, already
   working ([US-013](backlog/release-1/US-013-registration-flow-verification.md)).
+- **Hosted paid tier** — bring-your-own OpenAI key
+  ([US-005](backlog/release-1/US-005-byok-user-api-keys.md)), magic-link
+  signup ([US-021](backlog/release-1/US-021-signup-auth.md)), and Stripe
+  subscriptions ([US-022](backlog/release-1/US-022-stripe-billing.md)).
+  Self-hosting stays free: billing is env-gated and off by default.
 
-Later ([`backlog/unscheduled/`](backlog/README.md)): bring-your-own OpenAI
-key ([US-005](backlog/unscheduled/US-005-byok-user-api-keys.md)), run-history
+Later ([`backlog/unscheduled/`](backlog/README.md)): run-history
 UI ([US-011](backlog/unscheduled/US-011-run-history.md)), SMS/social
 registration tiers, PR status checks, scaling to ~100 concurrent sessions
 ([US-015](backlog/unscheduled/US-015-horizontal-scaling-100-concurrent.md)),

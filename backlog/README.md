@@ -14,10 +14,20 @@ the overview (keep it in sync when a story changes state or moves folder).
 
 ## Release 1 (first public release) — `release-1/`
 
-Scope decided 2026-07-22: report with recording + step screenshots, saved
-tests, scheduling, failure email notifications, CI trigger (tier 1), and
-registration-flow email confirmation (already done). US-007 rides along as a
-hard dependency of US-008 tier 1.
+Scope decided 2026-07-22, **extended 2026-07-22 to include the hosted paid
+tier**: Release 1 ships both (a) the open-source self-host release — report
+with recording + step screenshots, saved tests, scheduling, failure email
+notifications, CI trigger (tier 1), registration-flow email confirmation
+(already done) — and (b) a minimal paid hosted version at qassist.run:
+signup, Stripe subscription, BYOK. US-007 rides along as a hard dependency
+of US-008 tier 1 and of the hosted tier.
+
+Paid-tier ground rules (2026-07-22): nothing extra beyond what payment
+requires. One plan, Stripe Checkout, **BYOK for LLM tokens** (payment covers
+hosting, not OpenAI usage). Billing code lives in this repo **env-gated**
+(`STRIPE_*` unset = everything free) — the private cloud repo is deferred
+until real cloud-only infra exists. Email provider: **Resend** (US-012,
+US-021 magic links).
 
 | ID | Story | Status | Depends on |
 |---|---|---|---|
@@ -28,6 +38,9 @@ hard dependency of US-008 tier 1.
 | [US-012](release-1/US-012-email-reports.md) | Failure email notifications | 📋 Planned | US-009 |
 | [US-007](release-1/US-007-https-reverse-proxy.md) | Public HTTPS via reverse proxy | 📋 Planned | domain (owned) |
 | [US-008](release-1/US-008-cicd-integration.md) | CI/CD trigger — tier 1 only | 📋 Planned | US-007, US-009 |
+| [US-005](release-1/US-005-byok-user-api-keys.md) | Bring-your-own OpenAI key (BYOK) | 📋 Planned | — |
+| [US-021](release-1/US-021-signup-auth.md) | Signup & login (magic-link auth) | 📋 Planned | US-009, US-007 |
+| [US-022](release-1/US-022-stripe-billing.md) | Paid tier: Stripe billing | 📋 Planned | US-021, US-005 |
 | [US-013](release-1/US-013-registration-flow-verification.md) | Registration-flow verification — email tier | ✅ Tier 1 done | — |
 
 ### Build order
@@ -37,14 +50,16 @@ hard dependency of US-008 tier 1.
 2. **US-006 → US-020** — recording, then the report that embeds
    screenshots + recording link (independent of US-009; can run in parallel)
 3. **US-010** — scheduling on top of saved tests
-4. **US-012** — failure emails (pairs with scheduling)
+4. **US-012** — failure emails via Resend (pairs with scheduling; do the
+   qassist.run SPF/DKIM DNS setup alongside step 5's DNS work)
 5. **US-007 → US-008 tier 1** — public HTTPS, then the documented CI snippet
+6. **US-005** — BYOK, before anyone but the operator can run tests
+7. **US-021 → US-022** — signup, then billing; launch when US-022 lands
 
 ## Unscheduled — `unscheduled/`
 
 | ID | Story | Status | Priority | Depends on |
 |---|---|---|---|---|
-| [US-005](unscheduled/US-005-byok-user-api-keys.md) | Bring-your-own OpenAI key (BYOK) | 📋 Planned | P1 | — |
 | [US-011](unscheduled/US-011-run-history.md) | Run history | 📋 Planned | P3 | US-009 |
 | [US-013](release-1/US-013-registration-flow-verification.md) | Registration-flow tiers 2 (SMS) + 3 (social) | 📋 Planned | P3 | — |
 | [US-008](release-1/US-008-cicd-integration.md) | CI/CD tiers 2 (reusable Action) + 3 (GitHub App) | 📋 Planned | P2 | US-008 t1 |

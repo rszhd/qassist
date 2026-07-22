@@ -17,8 +17,10 @@ prefs are cheap to include; digest mode stays out of Release 1.
 - Send on run completion: verdict, goal, duration, final-result text, link to
   (or attachment of) the PDF report. Attachment is easy — the PDF is
   single-page and small.
-- Provider: SMTP or a transactional service (Resend/SES/Mailgun) — pick when
-  building; needs domain sender setup (SPF/DKIM) once US-007's domain exists.
+- Provider: **Resend** (decided 2026-07-22) — good free tier, simple API, and
+  US-021's magic-link auth reuses the same account. Set up the qassist.run
+  sender domain (SPF/DKIM DNS records) alongside US-007's DNS work so
+  propagation is done before this story starts.
 - Digest mode (daily summary) = later nice-to-have.
 
 ## Acceptance criteria
