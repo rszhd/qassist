@@ -127,13 +127,33 @@ curl http://<host>:8080/api/health
 
 ## Local development
 
+One-time setup:
+
 ```bash
-# terminal 1 — API (point PYTHON_BIN at a venv with browser-use installed)
-cd server && npm install && WORKER_API_TOKEN=dev OPENAI_API_KEY=sk-... \
-  PYTHON_BIN=/path/to/.venv/bin/python node src/server.js
-# terminal 2 — frontend (Vite proxies /api and /ws to :8080)
-cd frontend && npm install && npm run dev
+cp .env.example .env      # set WORKER_API_TOKEN and OPENAI_API_KEY
+
+# agent venv (browser-use + Playwright Chromium); needs python3-venv or uv
+cd agent && uv venv .venv && uv pip install -r requirements.txt --python .venv/bin/python \
+  && .venv/bin/playwright install chromium
+# without uv: python3 -m venv .venv && .venv/bin/pip install -r requirements.txt && ...
+
+cd ../server && npm install
+cd ../frontend && npm install
 ```
+
+Then run both dev servers, each with hot reload and logs in the foreground:
+
+```bash
+# terminal 1 — API on :8081 (node --watch; loads ../.env, uses agent/.venv)
+cd server && npm run dev
+# terminal 2 — frontend on :5173 (Vite HMR; proxies /api and /ws to :8081)
+cd frontend && npm run dev
+```
+
+Open `http://localhost:5173` and paste your `WORKER_API_TOKEN`. Dev defaults to
+port 8081 so it can't collide with the Docker stack on 8080; override with
+`PORT=<p> npm run dev` (server) and `API_PORT=<p> npm run dev` (frontend),
+keeping the two in sync.
 
 ## Deployment
 

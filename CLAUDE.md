@@ -50,9 +50,9 @@ Artifacts land in `runs/<runId>/`. One Docker image, `docker compose up`.
 ## Run / develop
 
 - Full stack: `cp .env.example .env` then `docker compose up --build` → :8080.
-- Dev: `cd server && node src/server.js` (needs `WORKER_API_TOKEN`,
-  `OPENAI_API_KEY`, `PYTHON_BIN` → venv with browser-use); `cd frontend &&
-  npm run dev` (Vite proxies /api and /ws). API examples: README.md.
+- Dev: `cd server && npm run dev` (hot reload on :8081; loads `../.env`,
+  points `PYTHON_BIN` at `agent/.venv`); `cd frontend && npm run dev` (Vite
+  proxies /api and /ws to :8081). Setup steps: README "Local development". API examples: README.md.
 - **Verify server changes:** `cd server && npm test` (node --test + supertest,
   in-process app with stubbed agent/report — no Python/browser needed) and
   `npm run check` (tsc over the JSDoc-typed JS). Run both after editing
