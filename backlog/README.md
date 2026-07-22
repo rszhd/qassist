@@ -57,6 +57,16 @@ until real cloud-only infra exists; the full repo/boundary rules live in
 | [US-013](release-1/done/US-013-registration-flow-verification.md) | Registration-flow verification — email tier | ✅ Tier 1 done | — |
 | [US-025](release-1/done/US-025-ui-consistency-pass-2.md) | UI consistency pass 2: type scale, sizes, dead space | ✅ Done (2026-07-23) | — |
 | [US-026](release-1/US-026-history-run-activity.md) | Run activity in the History detail panel | 📋 Planned | US-011 |
+| [US-027](release-1/US-027-queued-run-visibility.md) | Tell the user their run is queued | 📋 Planned | — |
+| [US-028](release-1/US-028-per-user-concurrency-limit.md) | Per-user concurrent run limit (hosted) | 📋 Planned | US-021, US-022, US-027 |
+
+Added to the release 2026-07-23: **US-027** and **US-028**, the two halves of
+concurrency being invisible. `MAX_CONCURRENT_SESSIONS=4` queues everything past
+the cap, but the Run view renders a queued run identically to a starting one
+(US-027), and the queue is global with no per-user share, so one user's module
+run can take the whole worker (US-028 — the fair-use item US-022 already flags,
+split out so billing can ship without it). US-028 is hosted-only and env-gated;
+self-host keeps today's single global queue.
 
 Added to the release 2026-07-23: **US-026**, so a past run explains itself in
 History rather than only in the PDF — the steps are already written to disk,
@@ -105,7 +115,15 @@ US-020/US-010/US-012 touch the frontend than after.
    qassist.run SPF/DKIM DNS setup alongside step 8's DNS work)
 8. **US-007 → US-008 tier 1** — public HTTPS, then the documented CI snippet
 9. **US-005** — BYOK, before anyone but the operator can run tests
-10. **US-021 → US-022** — signup, then billing; launch when US-022 lands
+10. **US-021 → US-022 → US-028** — signup, then billing, then the per-user
+    concurrency cap; launch when US-022 lands (US-028 can follow the launch —
+    it only bites once several subscribers share the box)
+
+**US-027** (queued-run visibility) sits outside this order: it depends on
+nothing, is half a day, and every story above makes the queue busier. Slot it
+whenever the frontend is already open — but before US-021, since the invisible
+queue stops being only the operator's problem the moment other people can sign
+up.
 
 ## Unscheduled — `unscheduled/`
 
