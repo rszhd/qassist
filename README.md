@@ -1,4 +1,4 @@
-# QAgent
+# QAssist
 
 **Goal-based, adaptive browser testing you can watch run live.** Give it a URL and
 a plain-English goal; an AI agent drives a real Chromium browser like a user,

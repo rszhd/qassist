@@ -11,7 +11,9 @@ const STATUS_COLORS = {
 };
 
 export default function App() {
-  const [token, setToken] = useState(() => localStorage.getItem('qagent_token') || '');
+  const [token, setToken] = useState(
+    () => localStorage.getItem('qassist_token') || localStorage.getItem('qagent_token') || ''
+  );
   const [goal, setGoal] = useState('Verify the page loads and find the main heading text');
   const [startUrl, setStartUrl] = useState('https://news.ycombinator.com');
   const [status, setStatus] = useState('idle');
@@ -26,7 +28,7 @@ export default function App() {
   const logRef = useRef(null);
 
   useEffect(() => {
-    localStorage.setItem('qagent_token', token);
+    localStorage.setItem('qassist_token', token);
   }, [token]);
 
   useEffect(() => {
@@ -157,7 +159,7 @@ export default function App() {
   return (
     <div className="app">
       <header>
-        <h1>QAgent <span className="tag">prototype</span></h1>
+        <h1>QAssist <span className="tag">prototype</span></h1>
         {runId && (
           <span className={`ws ws-${wsState}`}>
             ● {wsState === 'live' ? 'live' : wsState}

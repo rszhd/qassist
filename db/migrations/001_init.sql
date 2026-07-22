@@ -1,4 +1,4 @@
--- 001_init.sql — QAgent control plane, initial schema
+-- 001_init.sql — QAssist control plane, initial schema
 -- Covers: US-009 (saved tests), US-010 (scheduling), US-011 (run history),
 --         US-012 (email reports), US-005 (BYOK stored keys).
 -- Principle (README): the worker stays stateless; the control plane owns all

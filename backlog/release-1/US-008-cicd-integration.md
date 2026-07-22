@@ -1,6 +1,6 @@
 # US-008 — CI/CD integration (GitHub / GitLab)
 
-**As a** developer, **I want** QAgent runs triggered from my CI/CD pipeline with results reported back, **so that** every deploy is smoke-tested by a real browser agent without manual steps.
+**As a** developer, **I want** QAssist runs triggered from my CI/CD pipeline with results reported back, **so that** every deploy is smoke-tested by a real browser agent without manual steps.
 
 - **Status:** 📋 Planned
 - **Priority:** P1 (Release 1 — tier 1 only; tiers 2–3 stay on the backlog)
@@ -10,7 +10,7 @@
 ## Design decision
 
 CI does **not** describe tests inline (no goal strings in pipeline YAML — no
-use case for it). Users create test cases in the QAgent UI first (US-009),
+use case for it). Users create test cases in the QAssist UI first (US-009),
 optionally group them into suites, and CI triggers by **test-case id or
 suite id** only. The test definitions live server-side and evolve without
 touching the pipeline.
@@ -22,7 +22,7 @@ touching the pipeline.
    verdict. Body accepts an optional `start_url` override so CI can point the
    saved test at a fresh preview URL. Document a copy-paste snippet for
    GitHub Actions + GitLab CI. (~half day incl. docs/polish, once US-009 is in)
-2. **Reusable Action** — `qagent/run-tests@v1`: wraps trigger+poll, takes
+2. **Reusable Action** — `qassist/run-tests@v1`: wraps trigger+poll, takes
    `test_id`/`suite_id` + optional `start_url`, fails the job on a failing
    test, links the PDF report in the job summary. (~1–2 days)
 3. **GitHub App** — webhook-driven runs posting **PR status checks**

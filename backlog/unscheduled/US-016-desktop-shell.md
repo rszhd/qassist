@@ -1,6 +1,6 @@
 # US-016 — Desktop shell (Electron)
 
-**As a** user, **I want** QAgent to run as a desktop app on my own machine, **so that** tests execute on my hardware with my OpenAI key and nothing depends on a hosted server.
+**As a** user, **I want** QAssist to run as a desktop app on my own machine, **so that** tests execute on my hardware with my OpenAI key and nothing depends on a hosted server.
 
 - **Status:** 📋 Planned
 - **Priority:** TBD (desktop track on hold)
@@ -35,7 +35,7 @@ Python (frozen in US-017); Playwright Chromium assumed already installed
 
 ## Acceptance criteria
 
-- [ ] `npm run dev` in `desktop/` opens a window showing the QAgent UI
+- [ ] `npm run dev` in `desktop/` opens a window showing the QAssist UI
 - [ ] A full run works end-to-end in the window: goal → live screencast →
       verdict → PDF report download
 - [ ] Server listens on localhost only; port is random (no clash with a local

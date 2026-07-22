@@ -465,7 +465,7 @@ def build_html(data: dict, base_dir: str) -> str:
   <div class="page1">
     <div class="band">
       <div class="band-top">
-        <div class="wordmark">QAgent<span class="sub">Test Report</span></div>
+        <div class="wordmark">QAssist<span class="sub">Test Report</span></div>
         <div class="band-meta">
           <div class="band-date">{generated}</div>
           <div class="band-run">Run {esc(data.get("runId"))}</div>

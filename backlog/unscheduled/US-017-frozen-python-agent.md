@@ -23,7 +23,7 @@ don't change.
   `make_report.py` paths must resolve via `sys._MEIPASS`-style lookup when
   frozen, filesystem paths when not.
 - Server picks the agent command from env (set by the Electron main process):
-  `AGENT_CMD=/path/to/frozen/qagent-agent` when packaged, `python3
+  `AGENT_CMD=/path/to/frozen/qassist-agent` when packaged, `python3
   agent/run_agent.py` in dev and in the container. One code path, env-chosen.
 - Build per-platform in CI (a PyInstaller build only targets the OS it runs
   on) — same GitHub Actions matrix US-019 needs for installers.

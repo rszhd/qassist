@@ -312,7 +312,7 @@ app.get('/api/runs/:id/report.pdf', checkToken, (req, res) => {
   const pdfPath = run.reportPath || path.join(ARTIFACTS_DIR, run.id, 'report.pdf');
   if (run.reportStatus === 'ready' && fs.existsSync(pdfPath)) {
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename="qagent-report-${run.id.slice(0, 8)}.pdf"`);
+    res.setHeader('Content-Disposition', `inline; filename="qassist-report-${run.id.slice(0, 8)}.pdf"`);
     return res.sendFile(pdfPath);
   }
   if (run.reportStatus === 'generating') return res.status(202).json({ status: 'generating' });
@@ -362,5 +362,5 @@ server.on('upgrade', (req, socket, head) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`qagent server on :${PORT}  (max_concurrent=${MAX_CONCURRENT}, auth=${API_TOKEN ? 'on' : 'off'})`);
+  console.log(`qassist server on :${PORT}  (max_concurrent=${MAX_CONCURRENT}, auth=${API_TOKEN ? 'on' : 'off'})`);
 });
