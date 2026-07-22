@@ -20,13 +20,24 @@ overview (keep it in sync when a story changes state).
 | [US-013](US-013-registration-flow-verification.md) | Registration-flow verification | ✅ Tier 1 (email) done | P3 | — |
 | [US-014](US-014-block-heavy-resources.md) | Block heavy page resources | 📋 Planned | P3 | — |
 | [US-015](US-015-horizontal-scaling-100-concurrent.md) | Horizontal scaling to ~100 concurrent | 📋 Planned | P3 | US-005, US-009 |
+| [US-016](US-016-desktop-shell.md) | Desktop shell (Electron) | 📋 Planned | TBD | — |
+| [US-017](US-017-frozen-python-agent.md) | Frozen Python agent (no system Python) | 📋 Planned | TBD | US-016 |
+| [US-018](US-018-first-run-setup.md) | First-run setup: Chromium download + BYOK settings | 📋 Planned | TBD | US-016 |
+| [US-019](US-019-installers-signing-autoupdate.md) | Installers, code signing, auto-update | 📋 Planned | TBD | US-016..018 |
 
 ## Suggested order
 
-1. **Quick wins:** US-003 (5 min) → US-004 (1 h)
+**Desktop track (US-016..019, sketched 2026-07-21, on hold):** candidate
+strategy — free version runs entirely on the user's machine (their CPU/RAM,
+their OpenAI key), hosted features become the paid tier. Not prioritized yet;
+decision deferred. If picked up: US-016 → US-017 → US-018 → US-019, Windows
+before macOS, and `server.js` stays dual-mode (container + Electron) — never
+fork it. US-018 would realize US-005 (BYOK) on desktop.
+
+1. **Quick wins:** US-003 (5 min) — US-004 done
 2. **Product-ready:** US-007 (HTTPS) → US-005 (BYOK) → US-006 (recording)
 3. **Integrations:** US-008 tier 1 → US-009 → US-010/011/012
-4. **Scale & depth:** US-014 → US-015 → US-013, US-008 tiers 2–3
+4. **Scale & depth:** US-014 → US-015 → US-013 tiers 2+, US-008 tiers 2–3
 
 ## Conventions
 
