@@ -173,15 +173,27 @@ test('finished runs are readable from the DB after the relay forgets them', asyn
 });
 
 test('suites: CRUD, membership validation, one-shot run', async () => {
-  const a = (await makeTest({ name: 'suite member a' }).expect(201)).body;
-  const b = (await makeTest({ name: 'suite member b' }).expect(201)).body;
+  // Suites are project-scoped (US-023 decision 6), so members need a project.
+  const project = (
+    await request(app).post('/api/projects').set(auth).send({ name: 'Suite Host' }).expect(201)
+  ).body;
+  const a = (
+    await makeTest({ name: 'suite member a', project_id: project.id }).expect(201)
+  ).body;
+  const b = (
+    await makeTest({ name: 'suite member b', project_id: project.id }).expect(201)
+  ).body;
 
-  await request(app).post('/api/suites').set(auth).send({ test_ids: [a.id] }).expect(400);
+  await request(app)
+    .post('/api/suites')
+    .set(auth)
+    .send({ test_ids: [a.id], project_id: project.id })
+    .expect(400);
   const unknown = (
     await request(app)
       .post('/api/suites')
       .set(auth)
-      .send({ name: 'bad', test_ids: [randomUUID()] })
+      .send({ name: 'bad', project_id: project.id, test_ids: [randomUUID()] })
       .expect(400)
   ).body;
   assert.match(unknown.error, /unknown test id/);
@@ -190,7 +202,7 @@ test('suites: CRUD, membership validation, one-shot run', async () => {
     await request(app)
       .post('/api/suites')
       .set(auth)
-      .send({ name: 'smoke pack', test_ids: [a.id, b.id] })
+      .send({ name: 'smoke pack', project_id: project.id, test_ids: [a.id, b.id] })
       .expect(201)
   ).body;
   assert.deepEqual(suite.test_ids, [a.id, b.id]);
@@ -239,8 +251,15 @@ test('suites: CRUD, membership validation, one-shot run', async () => {
 });
 
 test('running an empty suite is a 400', async () => {
+  const project = (
+    await request(app).post('/api/projects').set(auth).send({ name: 'Empties' }).expect(201)
+  ).body;
   const suite = (
-    await request(app).post('/api/suites').set(auth).send({ name: 'empty' }).expect(201)
+    await request(app)
+      .post('/api/suites')
+      .set(auth)
+      .send({ name: 'empty', project_id: project.id })
+      .expect(201)
   ).body;
   const res = await request(app).post(`/api/suites/${suite.id}/run`).set(auth).expect(400);
   assert.match(res.body.error, /no tests/);
@@ -259,4 +278,237 @@ test('deleting a test detaches history instead of rewriting it', async () => {
   const row = (await pool.query('select * from runs where id = $1', [started.runId])).rows[0];
   assert.equal(row.test_id, null); // on delete set null
   assert.equal(row.goal, t.goal); // denormalized copy untouched
+});
+
+// --- US-023: projects & modules ---------------------------------------------
+
+async function makeProject(name) {
+  return (await request(app).post('/api/projects').set(auth).send({ name }).expect(201)).body;
+}
+
+test('projects: create derives a slug, list carries counts', async () => {
+  const p = await makeProject('Checkout Flow');
+  assert.equal(p.slug, 'checkout-flow');
+  assert.equal(p.test_count, 0);
+
+  const dup = await makeProject('Checkout Flow');
+  assert.equal(dup.slug, 'checkout-flow-2'); // unique per user
+
+  const list = (await request(app).get('/api/projects').set(auth).expect(200)).body;
+  assert.ok(list.projects.some((x) => x.id === p.id));
+
+  await request(app).post('/api/projects').set(auth).send({}).expect(400);
+});
+
+test('projects and modules are addressable by slug as well as id', async () => {
+  const p = await makeProject('Storefront');
+  const mod = (
+    await request(app)
+      .post(`/api/projects/${p.id}/modules`)
+      .set(auth)
+      .send({ name: 'Auth' })
+      .expect(201)
+  ).body;
+  assert.equal(mod.slug, 'auth');
+
+  // The CI-facing form US-008 will document — no UUIDs in the config.
+  const bySlug = (await request(app).get('/api/projects/storefront').set(auth).expect(200)).body;
+  assert.equal(bySlug.id, p.id);
+  assert.deepEqual(
+    bySlug.modules.map((m) => m.slug),
+    ['auth']
+  );
+  await request(app).get('/api/projects/nope').set(auth).expect(404);
+});
+
+test('assigning a test to a module derives its project', async () => {
+  const p = await makeProject('Derived');
+  const mod = (
+    await request(app)
+      .post(`/api/projects/${p.id}/modules`)
+      .set(auth)
+      .send({ name: 'Payment' })
+      .expect(201)
+  ).body;
+
+  // module_id alone is enough — the server fills project_id (decision 4).
+  const t = (await makeTest({ name: 'pay test', module_id: mod.id }).expect(201)).body;
+  assert.equal(t.module_id, mod.id);
+  assert.equal(t.project_id, p.id);
+
+  // A module from another project can't be claimed alongside a mismatched one.
+  const other = await makeProject('Other');
+  const moved = (
+    await request(app)
+      .put(`/api/tests/${t.id}`)
+      .set(auth)
+      .send({ project_id: other.id })
+      .expect(200)
+  ).body;
+  assert.equal(moved.project_id, other.id);
+  assert.equal(moved.module_id, null); // moving projects drops the stale module
+
+  await request(app)
+    .put(`/api/tests/${t.id}`)
+    .set(auth)
+    .send({ module_id: randomUUID() })
+    .expect(400);
+
+  // Unassigning entirely puts it back in Ungrouped.
+  const bare = (
+    await request(app).put(`/api/tests/${t.id}`).set(auth).send({ project_id: null }).expect(200)
+  ).body;
+  assert.equal(bare.project_id, null);
+  assert.equal(bare.module_id, null);
+});
+
+test('the test list filters by project and module, with a none bucket', async () => {
+  const p = await makeProject('Filterable');
+  const mod = (
+    await request(app)
+      .post(`/api/projects/${p.id}/modules`)
+      .set(auth)
+      .send({ name: 'Grouped' })
+      .expect(201)
+  ).body;
+  const inMod = (await makeTest({ name: 'in module', module_id: mod.id }).expect(201)).body;
+  const inProj = (await makeTest({ name: 'in project', project_id: p.id }).expect(201)).body;
+  const loose = (await makeTest({ name: 'ungrouped' }).expect(201)).body;
+
+  const byProject = (
+    await request(app).get(`/api/tests?project_id=${p.id}`).set(auth).expect(200)
+  ).body;
+  const projectIds = byProject.tests.map((t) => t.id);
+  assert.ok(projectIds.includes(inMod.id) && projectIds.includes(inProj.id));
+  assert.ok(!projectIds.includes(loose.id));
+
+  const byModule = (
+    await request(app).get(`/api/tests?module_id=${mod.id}`).set(auth).expect(200)
+  ).body;
+  assert.deepEqual(
+    byModule.tests.map((t) => t.id),
+    [inMod.id]
+  );
+
+  const ungrouped = (
+    await request(app).get('/api/tests?project_id=none').set(auth).expect(200)
+  ).body;
+  assert.ok(ungrouped.tests.some((t) => t.id === loose.id));
+  assert.ok(!ungrouped.tests.some((t) => t.id === inProj.id));
+});
+
+test('running a module starts one run per member test; empty is a 400', async () => {
+  const p = await makeProject('Runnable');
+  const mod = (
+    await request(app)
+      .post(`/api/projects/${p.id}/modules`)
+      .set(auth)
+      .send({ name: 'Smoke' })
+      .expect(201)
+  ).body;
+  await request(app).post(`/api/modules/${mod.id}/run`).set(auth).expect(400);
+
+  const a = (await makeTest({ name: 'mod a', module_id: mod.id }).expect(201)).body;
+  const b = (await makeTest({ name: 'mod b', module_id: mod.id }).expect(201)).body;
+
+  const res = (
+    await request(app)
+      .post(`/api/projects/runnable/modules/smoke/run`)
+      .set(auth)
+      .send({ trigger: 'ci', start_url: 'https://preview.example.com' })
+      .expect(200)
+  ).body;
+  assert.equal(res.runs.length, 2);
+  assert.deepEqual(res.runs.map((r) => r.testId).sort(), [a.id, b.id].sort());
+  for (const r of res.runs) {
+    const row = await pollUntil(async () => {
+      const q = await pool.query('select * from runs where id = $1', [r.runId]);
+      return q.rows[0]?.status === 'passed' ? q.rows[0] : null;
+    });
+    assert.equal(row.trigger, 'ci');
+    assert.equal(row.start_url, 'https://preview.example.com');
+  }
+
+  // A whole project runs too.
+  const projRun = (await request(app).post(`/api/projects/${p.id}/run`).set(auth).expect(200))
+    .body;
+  assert.equal(projRun.runs.length, 2);
+});
+
+test('deleting a module or project leaves its tests alone', async () => {
+  const p = await makeProject('Disposable');
+  const mod = (
+    await request(app)
+      .post(`/api/projects/${p.id}/modules`)
+      .set(auth)
+      .send({ name: 'Doomed' })
+      .expect(201)
+  ).body;
+  const t = (await makeTest({ name: 'survivor', module_id: mod.id }).expect(201)).body;
+
+  await request(app).delete(`/api/modules/${mod.id}`).set(auth).expect(204);
+  const afterModule = (await request(app).get(`/api/tests/${t.id}`).set(auth).expect(200)).body;
+  assert.equal(afterModule.module_id, null);
+  assert.equal(afterModule.project_id, p.id); // stays in the project
+
+  // A project delete takes its suites with it, but never its tests.
+  const suite = (
+    await request(app)
+      .post('/api/suites')
+      .set(auth)
+      .send({ name: 'doomed pack', project_id: p.id, test_ids: [t.id] })
+      .expect(201)
+  ).body;
+  await request(app).delete(`/api/projects/${p.id}`).set(auth).expect(204);
+  const afterProject = (await request(app).get(`/api/tests/${t.id}`).set(auth).expect(200)).body;
+  assert.equal(afterProject.project_id, null);
+  await request(app).get(`/api/suites/${suite.id}`).set(auth).expect(404);
+});
+
+test('suite membership is confined to the suite project', async () => {
+  const p = await makeProject('Suite Scope');
+  const other = await makeProject('Elsewhere');
+  const mine = (await makeTest({ name: 'mine', project_id: p.id }).expect(201)).body;
+  const theirs = (await makeTest({ name: 'theirs', project_id: other.id }).expect(201)).body;
+  const loose = (await makeTest({ name: 'loose' }).expect(201)).body;
+
+  // No project at all → rejected.
+  await request(app).post('/api/suites').set(auth).send({ name: 'x' }).expect(400);
+
+  for (const outsider of [theirs.id, loose.id]) {
+    const res = await request(app)
+      .post('/api/suites')
+      .set(auth)
+      .send({ name: 'cross', project_id: p.id, test_ids: [mine.id, outsider] })
+      .expect(400);
+    assert.match(res.body.error, /not in this suite's project/);
+  }
+
+  const suite = (
+    await request(app)
+      .post('/api/suites')
+      .set(auth)
+      .send({ name: 'ok', project_id: p.id, test_ids: [mine.id] })
+      .expect(201)
+  ).body;
+  // The same guard applies on membership edits, not just creation.
+  await request(app)
+    .put(`/api/suites/${suite.id}`)
+    .set(auth)
+    .send({ test_ids: [mine.id, theirs.id] })
+    .expect(400);
+
+  const scoped = (
+    await request(app).get(`/api/suites?project_id=${p.id}`).set(auth).expect(200)
+  ).body;
+  assert.deepEqual(
+    scoped.suites.map((s) => s.id),
+    [suite.id]
+  );
+});
+
+test('projects endpoints require the bearer token', async () => {
+  await request(app).get('/api/projects').expect(401);
+  await request(app).post('/api/projects').send({ name: 'x' }).expect(401);
+  await request(app).post(`/api/modules/${randomUUID()}/run`).expect(401);
 });

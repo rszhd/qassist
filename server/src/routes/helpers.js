@@ -1,6 +1,10 @@
 // @ts-check
 import { db } from '../db.js';
+import { createRun } from '../runs.js';
 import { OPENAI_API_KEY } from '../config.js';
+
+/** Triggers a caller may set; 'schedule' is US-010's, not callers'. */
+export const TRIGGERS = new Set(['ui', 'api', 'ci']);
 
 /**
  * Express 4 doesn't catch async errors — wrap handlers so rejections reach
@@ -34,4 +38,41 @@ export function requireDb(_req, res, next) {
     return;
   }
   next();
+}
+
+/**
+ * Start one run per test — the shared batch runner behind suite, module and
+ * project triggering (US-023). Callers pass tests already ordered; a start_url
+ * override applies to all of them (US-008: point a whole group at a fresh
+ * preview URL).
+ * @param {{ id: string, goal: string, start_url: string, max_steps: number, model: string|null }[]} tests
+ * @param {{ start_url?: string, trigger?: string }} body
+ */
+export function runTests(tests, body = {}) {
+  const trigger = TRIGGERS.has(body.trigger) ? body.trigger : 'api';
+  return tests.map((t) => {
+    const run = createRun({
+      goal: t.goal,
+      start_url: body.start_url || t.start_url,
+      max_steps: t.max_steps,
+      model: t.model,
+      test_id: t.id,
+      trigger,
+    });
+    return { runId: run.id, testId: t.id, status: run.status };
+  });
+}
+
+/**
+ * URL-safe slug: lowercase, non-alphanumerics collapsed to single dashes.
+ * Generated once at create time and independently editable afterwards — a
+ * rename must never silently break a CI config (US-023 decision 8).
+ * @param {string} value
+ */
+export function slugify(value) {
+  return String(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 64);
 }

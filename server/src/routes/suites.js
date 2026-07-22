@@ -4,10 +4,9 @@
 // returns the run ids; callers poll each run (no suite_runs table).
 import express from 'express';
 import { db, getOperatorUserId, isUuid } from '../db.js';
-import { createRun } from '../runs.js';
-import { h, requireDb, requireAgentKey } from './helpers.js';
+import { h, requireDb, requireAgentKey, runTests } from './helpers.js';
 
-const TRIGGERS = new Set(['ui', 'api', 'ci']);
+const COLS = 'id, name, project_id, created_at, updated_at';
 
 /**
  * Replace a suite's member list. testIds order defines run order.
@@ -24,18 +23,37 @@ async function setMembers(suiteId, testIds) {
   }
 }
 
-/** Validate a test_ids payload; returns an error string or null. */
-async function checkTestIds(testIds) {
+/**
+ * Validate a test_ids payload against the suite's project; returns an error
+ * string or null. Membership is confined to the suite's project (US-023
+ * decision 6) — an ungrouped test therefore can't be in any suite.
+ * @param {any} testIds
+ * @param {string} projectId
+ */
+async function checkTestIds(testIds, projectId) {
   if (!Array.isArray(testIds)) return 'test_ids must be an array of test ids';
   if (testIds.some((id) => typeof id !== 'string' || !isUuid(id))) {
     return 'test_ids contains an invalid id';
   }
   if (new Set(testIds).size !== testIds.length) return 'test_ids contains duplicates';
   for (const id of testIds) {
-    const { rowCount } = await db().query('select 1 from tests where id = $1', [id]);
-    if (!rowCount) return `unknown test id: ${id}`;
+    const { rows } = await db().query('select project_id from tests where id = $1', [id]);
+    if (!rows.length) return `unknown test id: ${id}`;
+    if (rows[0].project_id !== projectId) {
+      return `test ${id} is not in this suite's project`;
+    }
   }
   return null;
+}
+
+/** Confirm a project exists and belongs to the operator. */
+async function projectExists(projectId) {
+  if (typeof projectId !== 'string' || !isUuid(projectId)) return false;
+  const { rowCount } = await db().query(
+    'select 1 from projects where id = $1 and user_id = $2',
+    [projectId, getOperatorUserId()]
+  );
+  return !!rowCount;
 }
 
 async function memberIdsBySuite() {
@@ -58,9 +76,16 @@ export function suitesRouter({ checkToken }) {
 
   r.get(
     '/',
-    h(async (_req, res) => {
+    h(async (req, res) => {
+      const { project_id } = req.query;
+      const filtered = typeof project_id === 'string' && project_id;
+      if (filtered && !isUuid(project_id)) {
+        return res.status(400).json({ error: 'invalid project_id' });
+      }
       const { rows } = await db().query(
-        'select id, name, created_at, updated_at from suites order by created_at desc'
+        `select ${COLS} from suites ${filtered ? 'where project_id = $1' : ''}
+         order by created_at desc`,
+        filtered ? [project_id] : []
       );
       const members = await memberIdsBySuite();
       res.json({ suites: rows.map((s) => ({ ...s, test_ids: members.get(s.id) || [] })) });
@@ -70,13 +95,17 @@ export function suitesRouter({ checkToken }) {
   r.post(
     '/',
     h(async (req, res) => {
-      const { name, test_ids = [] } = req.body || {};
+      const { name, project_id, test_ids = [] } = req.body || {};
       if (!name) return res.status(400).json({ error: 'name is required' });
-      const bad = await checkTestIds(test_ids);
+      if (!(await projectExists(project_id))) {
+        return res.status(400).json({ error: 'project_id is required and must exist' });
+      }
+      const bad = await checkTestIds(test_ids, project_id);
       if (bad) return res.status(400).json({ error: bad });
       const { rows } = await db().query(
-        'insert into suites (user_id, name) values ($1, $2) returning id, name, created_at, updated_at',
-        [getOperatorUserId(), name]
+        `insert into suites (user_id, name, project_id) values ($1, $2, $3)
+         returning ${COLS}`,
+        [getOperatorUserId(), name, project_id]
       );
       await setMembers(rows[0].id, test_ids);
       res.status(201).json({ ...rows[0], test_ids });
@@ -87,10 +116,9 @@ export function suitesRouter({ checkToken }) {
     '/:id',
     h(async (req, res) => {
       if (!isUuid(req.params.id)) return res.status(404).json({ error: 'not found' });
-      const { rows } = await db().query(
-        'select id, name, created_at, updated_at from suites where id = $1',
-        [req.params.id]
-      );
+      const { rows } = await db().query(`select ${COLS} from suites where id = $1`, [
+        req.params.id,
+      ]);
       if (!rows.length) return res.status(404).json({ error: 'not found' });
       const { rows: tests } = await db().query(
         `select t.id, t.name, t.goal, t.start_url, t.max_steps, t.model
@@ -107,13 +135,20 @@ export function suitesRouter({ checkToken }) {
     h(async (req, res) => {
       if (!isUuid(req.params.id)) return res.status(404).json({ error: 'not found' });
       const { name, test_ids } = req.body || {};
+      // A suite never changes project — membership is scoped to it, so moving
+      // one would invalidate every member at once. Delete and recreate instead.
+      const { rows: existing } = await db().query(
+        'select project_id from suites where id = $1',
+        [req.params.id]
+      );
+      if (!existing.length) return res.status(404).json({ error: 'not found' });
       if (test_ids !== undefined) {
-        const bad = await checkTestIds(test_ids);
+        const bad = await checkTestIds(test_ids, existing[0].project_id);
         if (bad) return res.status(400).json({ error: bad });
       }
       const { rows } = await db().query(
         `update suites set name = coalesce($2, name), updated_at = now()
-          where id = $1 returning id, name, created_at, updated_at`,
+          where id = $1 returning ${COLS}`,
         [req.params.id, name ?? null]
       );
       if (!rows.length) return res.status(404).json({ error: 'not found' });
@@ -149,20 +184,7 @@ export function suitesRouter({ checkToken }) {
         [req.params.id]
       );
       if (!tests.length) return res.status(400).json({ error: 'suite has no tests' });
-      const body = req.body || {};
-      const trigger = TRIGGERS.has(body.trigger) ? body.trigger : 'api';
-      const started = tests.map((t) => {
-        const run = createRun({
-          goal: t.goal,
-          start_url: body.start_url || t.start_url,
-          max_steps: t.max_steps,
-          model: t.model,
-          test_id: t.id,
-          trigger,
-        });
-        return { runId: run.id, testId: t.id, status: run.status };
-      });
-      res.json({ suiteId: req.params.id, runs: started });
+      res.json({ suiteId: req.params.id, runs: runTests(tests, req.body || {}) });
     })
   );
 

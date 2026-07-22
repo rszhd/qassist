@@ -25,6 +25,8 @@ import { createRun, getRun, counts, attachViewer } from './runs.js';
 import { h, requireAgentKey } from './routes/helpers.js';
 import { testsRouter } from './routes/tests.js';
 import { suitesRouter } from './routes/suites.js';
+import { projectsRouter } from './routes/projects.js';
+import { modulesRouter } from './routes/modules.js';
 
 await initDb();
 
@@ -130,6 +132,8 @@ app.get(
 
 app.use('/api/tests', testsRouter({ checkToken }));
 app.use('/api/suites', suitesRouter({ checkToken }));
+app.use('/api/projects', projectsRouter({ checkToken }));
+app.use('/api/modules', modulesRouter({ checkToken }));
 
 app.use(express.static(PUBLIC_DIR));
 // SPA fallback: anything not matched above returns the React app.

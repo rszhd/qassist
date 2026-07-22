@@ -2,7 +2,9 @@
 
 **As a** user with many saved tests, **I want** to group them into projects and, within a project, into modules (auth, payment, …), **so that** I can find tests quickly and trigger a whole module from CI.
 
-- **Status:** 📋 Planned (design decided 2026-07-22)
+- **Status:** 🚧 In progress — **backend done** (2026-07-22: migration `002`,
+  `routes/projects.js` + `routes/modules.js`, suite project-scoping, test
+  filters; `npm test` 28/28 and `npm run check` green). **Frontend outstanding.**
 - **Priority:** P1 (Release 1) — pulled ahead of US-006 at the user's request
 - **Estimate:** ~2 days (schema + routes ~0.5d; the frontend carries projects,
   modules *and* suite CRUD, which US-009 had deferred)
@@ -73,14 +75,16 @@ project (optional)
    paths, to swap a familiar term for one that describes the data structure
    instead of the use.
 
-### Open — needs a call before implementing
-
-**Slugs for CI.** CI configs shouldn't carry UUIDs. Proposal: add a `slug`
-(lowercase, unique per parent) to projects and modules so US-008 can document
-`POST /api/projects/checkout/modules/auth/run` instead of
-`POST /api/modules/9f3c…/run`. Costs two more columns + a slugify helper; the
-alternative is telling CI users to paste an id from the UI. Assumed **yes** in
-the schema sketch below — flag if not wanted, it's easy to drop.
+8. **Slugs: yes** (decided 2026-07-22). Projects and modules each carry a
+   `slug` (lowercase, unique per parent) so CI configs never hold UUIDs:
+   US-008 documents `POST /api/projects/checkout/modules/auth/run` rather than
+   `POST /api/modules/9f3c…/run`. Costs two columns + a slugify helper.
+   Accepted downside: renaming does not re-slug (the slug is generated once at
+   create time and then editable on its own), because a rename silently
+   breaking a CI config is worse than a slug that drifts from its name.
+9. **Progressive disclosure** (decided 2026-07-22). Grouping is opt-in, so a
+   user with no projects must see *exactly* today's UI — no empty selectors,
+   no placeholder panels. See the UI section for the reveal table.
 
 ## Schema (`db/migrations/002_projects_modules.sql`)
 
@@ -164,58 +168,104 @@ run history by project/module joins through `tests` (best-effort, since
 - New file `server/src/routes/projects.js` (modules ride along; splitting into
   a fourth route file isn't worth it at this size — watch the ~300-line rule).
 
+### As built (backend, 2026-07-22) — read this before writing the frontend
+
+Deviations and details the API table above doesn't capture:
+
+- **Routes split two ways.** `routes/projects.js` (297 lines) owns everything
+  addressed under a project, including `POST /:project/modules` and the
+  slug-addressed `POST /:project/modules/:module/run`; `routes/modules.js`
+  owns the id-addressed `PUT`/`DELETE`/`POST /:id/run`. The story predicted
+  one file, but it hit 348 lines — over the ~300 target.
+- **Every `:project` / `:module` path param takes a uuid *or* a slug.**
+- **Renaming never re-slugs.** `PUT` accepts `name` and `slug` independently;
+  changing the slug is a deliberate act, since a rename that silently re-slugs
+  would break the CI config pointing at it. Collisions get a 400.
+- **Create auto-slugs with a numeric suffix on collision** (`checkout`,
+  `checkout-2`, …), unique per parent.
+- **Moving a test to a project clears its module** unless `module_id` is sent
+  in the same write. One predictable rule beat a conditional that depends on
+  the row's previous state (the old module may belong to another project).
+  Send both when the UI knows both.
+- **`POST`/`PUT /api/tests` accept `project_id` / `module_id`**; `module_id`
+  wins and derives `project_id` (decision 4). `project_id: null` clears both.
+- **A suite's project is immutable.** `PUT /api/suites/:id` won't move one —
+  membership is scoped to the project, so a move would invalidate every member
+  at once. Delete and recreate.
+- **Counts come back on the list endpoints**: `GET /api/projects` returns
+  `test_count` + `module_count` per project; module lists return `test_count`.
+- **pg-mem constraint** (test harness, not Postgres): no correlated subquery
+  against an outer alias, and no alias on an `UPDATE` target. Both are worked
+  around in `002` and `projects.js` — keep new queries within that envelope or
+  the tests will fail while real Postgres is fine.
+
 ## UI
 
-The left column is 340px and already carries the saved-test list + the
-run/edit form (US-009), so this must not become a third column.
+**Layout decided 2026-07-22: two views — `Run` (default) and `Library` — with
+grouping revealed progressively.**
 
-- A project `<select>` above the saved-test list scopes it; `All` and
-  `Ungrouped` are always present.
-- Within the list, modules render as group headers with a ▶ that runs the
-  whole module.
-- The existing run/edit form gains project + module pickers (module list
-  reloads when the project changes).
-- Managing projects/modules (create/rename/delete) piggybacks on that form —
-  no separate admin screen in this story.
-- **Suite UI is in scope** (reverses the US-009 deferral): create, rename,
-  delete a suite, edit its membership, and run it. Suites are listed within
-  the selected project, since a suite now belongs to one (decision 6).
+`Run` is the landing view and keeps today's shape: saved-test list + run/edit
+form in the 340px column, live viewer beside it. `Library` is a full-width
+view holding all project / module / suite management. Rationale: a first-time
+user should be able to type a URL and a goal and watch it run without meeting
+a single organizational concept. Empty containers ("Project: none", an empty
+module tree) cost attention and teach nothing, so nothing about grouping
+renders until the user creates a project.
 
-**Layout is undecided — settle it before writing frontend code.** The
-controls column is 340px and already stacks the saved-test list plus the
-run/edit form; a project selector, module headers, and suite membership
-editing do not fit there as-is. Suite membership in particular is a
-multi-select over the project's tests, which wants width. Candidates sketched
-so far:
+What the `Run` view reveals, and when:
 
-1. A `Tests` / `Suites` switch inside the existing column — cheapest, but
-   multi-select in 340px is cramped.
-2. A dialog over the viewer panel for suite editing — the viewer is idle
-   while organizing, and it needs no layout restructure.
-3. Split the app into a full-width `Library` view (projects / modules /
-   suites / tests) and the current `Run` view — the most room, and probably
-   where this ends up once US-010 scheduling, US-011 history and US-005
-   settings all need somewhere to live, but the largest change.
+| User state | Run view shows |
+|---|---|
+| No projects | Exactly today's UI — no selector, no headers |
+| ≥1 project | Project filter above the saved-test list (`All` / `Ungrouped` / each project) |
+| ≥1 module in the selected project | Module group headers in the list, each with a ▶ that runs the module |
+| Editing a test | Project + module pickers in the form — only once a project exists |
 
-Note `App.jsx` is already 424 lines against CLAUDE.md's ~300-line target, so
-whichever option wins, this story extracts components rather than growing it.
+`Library` holds create/rename/delete for projects and modules, and the full
+suite UI (**in scope**, reversing the US-009 deferral): create, rename,
+delete, edit membership via a multi-select over the project's tests, and run.
+Suites live under their project (decision 6). Running a suite is also
+reachable from `Run`; *editing* one is Library-only, which is what gives the
+membership multi-select the width it needs — the constraint that made
+squeezing this into 340px unattractive.
+
+Accepted risk: a second view makes grouping discoverable but ignorable, and
+some users who'd benefit will never open Library. Preferred over nudging.
+
+`App.jsx` is already 424 lines against CLAUDE.md's ~300-line target, so this
+story splits it into view components (`RunView`, `LibraryView`) rather than
+growing it. US-010 (scheduling), US-011 (history) and US-005 (settings) each
+need somewhere to live later; this split is where they land, which is part of
+why it's worth paying for now rather than three more times.
 
 ## Acceptance criteria
 
+Backend (done 2026-07-22):
+
+- [x] Assign a test to a project and to at most one module; unassigning works
+- [x] `POST /api/modules/:id/run` starts one run per member test and returns
+      the run ids (the CI-facing behavior US-008 will document), plus the
+      slug form `POST /api/projects/:slug/modules/:slug/run` and a
+      whole-project `POST /api/projects/:id/run`
+- [x] Deleting a module or project leaves its tests intact (a project delete
+      does take its suites with it)
+- [x] Creating a suite requires a project; adding a test from another project
+      (or an ungrouped one) is rejected with a 400 — on create *and* on
+      membership edit
+- [x] `GET /api/tests` filters by `?project_id=` / `?module_id=`, with
+      `project_id=none` for Ungrouped
+- [x] Existing tests (no project, no module) behave exactly as before
+- [x] `npm test` + `npm run check` green; new endpoints covered by tests
+
+Frontend (outstanding — separate session):
+
 - [ ] Create / rename / delete a project in the UI
 - [ ] Create / rename / delete a module within a project
-- [ ] Assign a test to a project and to at most one module; unassigning works
 - [ ] Saved-test list filters by project, groups by module, shows Ungrouped
-- [ ] `POST /api/modules/:id/run` starts one run per member test and returns
-      the run ids (the CI-facing behavior US-008 will document)
-- [ ] Deleting a module or project leaves its tests intact (a project delete
-      does take its suites with it)
-- [ ] Creating a suite requires a project; adding a test from another project
-      (or an ungrouped one) is rejected with a 400
 - [ ] Create / rename / delete a suite in the UI, edit its membership, and run
       it — membership choices are limited to the suite's project
-- [ ] Existing tests (no project, no module) behave exactly as before
-- [ ] `npm test` + `npm run check` green; new endpoints covered by tests
+- [ ] With zero projects, the Run view is visually identical to pre-US-023 —
+      no project selector, no module headers, no pickers in the form
 
 ## Impact on other stories
 

@@ -21,13 +21,17 @@ live in [`migrations/`](migrations/), numbered SQL files applied in order —
 
 ```mermaid
 erDiagram
-  users ||--o{ api_keys : has
-  users ||--o{ tests : owns
-  users ||--o{ suites : owns
-  suites ||--o{ suite_tests : contains
-  tests ||--o{ suite_tests : "member of"
-  tests ||--o{ runs : "produced (nullable — ad-hoc runs have no test)"
-  runs  ||--o{ notifications : "emailed as"
+  users    ||--o{ api_keys : has
+  users    ||--o{ tests : owns
+  users    ||--o{ projects : owns
+  projects ||--o{ modules : contains
+  projects ||--o{ suites : scopes
+  projects ||--o{ tests : "groups (nullable)"
+  modules  ||--o{ tests : "partitions (nullable, ≤1 per test)"
+  suites   ||--o{ suite_tests : contains
+  tests    ||--o{ suite_tests : "member of"
+  tests    ||--o{ runs : "produced (nullable — ad-hoc runs have no test)"
+  runs     ||--o{ notifications : "emailed as"
 ```
 
 | Table | Owns | Story |
@@ -35,14 +39,13 @@ erDiagram
 | `users` | identity + encrypted OpenAI key (BYOK) | US-005/009 |
 | `api_keys` | hashed bearer tokens, revocable — replaces the single `WORKER_API_TOKEN` | US-009 |
 | `tests` | saved goal+URL+settings, per-test schedule, per-test notify prefs | US-009/010/012 |
-| `suites` + `suite_tests` | named test groups for one-shot triggering (US-008 CI) | US-009 |
+| `projects` | top-level container: name + slug | US-023 |
+| `modules` | grouping inside a project; a test belongs to at most one | US-023 |
+| `suites` + `suite_tests` | named test groups for one-shot triggering (US-008 CI), scoped to a project | US-009/023 |
 | `runs` | durable run history — replaces the in-memory Map for finished runs | US-009/011 |
 | `notifications` | per-recipient email delivery log (idempotent sends) | US-012 |
 
-The diagram above is the **deployed** schema (`001_init.sql`). Next migration,
-`002` from [US-023](../backlog/release-1/US-023-projects-and-modules.md), adds
-`projects` and `modules`, hangs `tests` off both by nullable FK, and makes
-`suites.project_id` NOT NULL — update this section when it lands.
+The diagram above is the deployed schema through `002_projects_modules.sql`.
 
 ## Key decisions
 
@@ -51,7 +54,25 @@ The diagram above is the **deployed** schema (`001_init.sql`). Next migration,
   `on delete set null` so ad-hoc and orphaned runs are the same shape.
 - **No `suite_runs` table.** Running a suite creates one `runs` row per member
   test and returns the ids; US-008 CI polls each run. A grouping row buys
-  nothing until something needs a suite-level verdict — add it then.
+  nothing until something needs a suite-level verdict — add it then. Module
+  and project runs (US-023) work the same way.
+- **Module vs suite is the cardinality.** A test has at most one `module_id`
+  (a partition), but any number of suite memberships (an arbitrary selection).
+  Both are runnable; that is why both exist.
+- **Grouping is optional, and never invented.** `tests.project_id` /
+  `module_id` are nullable, both `on delete set null`, so deleting a project or
+  module never deletes tests — they fall back to Ungrouped. No "Default
+  project" is created for anyone except users who already owned suites when
+  `002` backfilled `suites.project_id` (which is NOT NULL: a suite's membership
+  is confined to its project, so it needs one).
+- **`runs` is not project-aware.** It already denormalizes goal/start_url at
+  enqueue time, and history must stay accurate after a test is re-filed;
+  filtering run history by project/module joins through `tests` (best-effort,
+  since `runs.test_id` is `on delete set null`).
+- **Slugs on `projects` and `modules`** so CI configs hold
+  `/api/projects/checkout/modules/auth/run` rather than a UUID. Unique per
+  parent, generated once at create time, and *not* re-derived on rename — a
+  rename silently breaking a CI config is the worse failure.
 - **Schedule is columns on `tests`, not a table.** US-010 is one schedule per
   test; a join table adds nothing. `next_run_at` is precomputed so the
   scheduler is a cheap poll (`tests_due_idx` is a partial index over enabled

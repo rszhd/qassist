@@ -16,7 +16,12 @@ plus a `db` (Postgres) service.
 
 `server/src/` splits as: `server.js` (wiring only), `config.js` (env, read at
 import time), `db.js` (pool, migrations, boot seed/recovery), `runs.js` (run
-engine + persistence), `routes/{tests,suites,helpers}.js`.
+engine + persistence), `routes/{tests,suites,projects,modules,helpers}.js`.
+`routes/projects.js` also holds the module query helpers `modules.js` imports.
+
+Saved tests can be grouped into a **project**, and within it into at most one
+**module**; a **suite** is the many-to-many alternative, scoped to one project.
+All three are runnable in one call. Path params take a slug or a uuid.
 
 ## Design principles
 

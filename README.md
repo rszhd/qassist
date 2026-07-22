@@ -146,6 +146,64 @@ curl http://<host>:8080/api/health
 # live feed: ws://<host>:8080/ws?runId=<runId>&token=<WORKER_API_TOKEN>
 ```
 
+### Saved tests, projects and modules
+
+Needs the Postgres control plane (`DATABASE_URL`); without it these answer 503
+and ad-hoc runs above still work.
+
+A saved test is the reusable unit. Grouping is optional: a test can sit in a
+**project**, and within it in at most one **module** (`auth`, `payment`, …).
+A **suite** is the cross-cutting alternative — an arbitrary many-to-many
+selection inside one project, so the same test can be in `smoke` and
+`nightly`. Projects, modules and suites are all runnable in one call.
+
+```bash
+# save a test, then run it (start_url is overridable per run — point CI at a
+# fresh preview deploy without editing the test)
+curl -X POST http://<host>:8080/api/tests \
+  -H "Authorization: Bearer $WORKER_API_TOKEN" -H "Content-Type: application/json" \
+  -d '{"name":"login smoke","goal":"log in and see the dashboard","start_url":"https://example.com"}'
+curl -X POST http://<host>:8080/api/tests/<testId>/run \
+  -H "Authorization: Bearer $WORKER_API_TOKEN" -H "Content-Type: application/json" \
+  -d '{"start_url":"https://preview.example.com","trigger":"ci"}'
+
+# organize: a project, a module in it, then file the test under the module
+# (project_id is derived from the module — you never set both)
+curl -X POST http://<host>:8080/api/projects \
+  -H "Authorization: Bearer $WORKER_API_TOKEN" -H "Content-Type: application/json" \
+  -d '{"name":"Checkout"}'          # -> {"id":"...","slug":"checkout",...}
+curl -X POST http://<host>:8080/api/projects/checkout/modules \
+  -H "Authorization: Bearer $WORKER_API_TOKEN" -H "Content-Type: application/json" \
+  -d '{"name":"Auth"}'              # -> {"id":"...","slug":"auth",...}
+curl -X PUT http://<host>:8080/api/tests/<testId> \
+  -H "Authorization: Bearer $WORKER_API_TOKEN" -H "Content-Type: application/json" \
+  -d '{"module_id":"<moduleId>"}'
+
+# run a whole module or project. Paths take a slug or a uuid, so CI configs
+# don't have to carry ids; one run is started per member test.
+curl -X POST http://<host>:8080/api/projects/checkout/modules/auth/run \
+  -H "Authorization: Bearer $WORKER_API_TOKEN" -H "Content-Type: application/json" \
+  -d '{"trigger":"ci"}'
+# -> {"moduleId":"...","runs":[{"runId":"...","testId":"...","status":"queued"}, ...]}
+
+# list/filter: ?project_id=<id>, ?module_id=<id>, or project_id=none (Ungrouped)
+curl "http://<host>:8080/api/tests?project_id=<projectId>" \
+  -H "Authorization: Bearer $WORKER_API_TOKEN"
+```
+
+Suites work the same way but belong to a project, and their members must too:
+
+```bash
+curl -X POST http://<host>:8080/api/suites \
+  -H "Authorization: Bearer $WORKER_API_TOKEN" -H "Content-Type: application/json" \
+  -d '{"name":"smoke","project_id":"<projectId>","test_ids":["<id>","<id>"]}'
+curl -X POST http://<host>:8080/api/suites/<suiteId>/run \
+  -H "Authorization: Bearer $WORKER_API_TOKEN"
+```
+
+Deleting a module or project never deletes tests — they fall back to
+Ungrouped. Deleting a project does take its suites with it.
+
 ## Local development
 
 This section is for working *on* QAssist. To just run it, see
@@ -223,7 +281,8 @@ story, organized by release folder (`release-1/`, `unscheduled/`,
 **Release 1** (in [`backlog/release-1/`](backlog/README.md)):
 
 - **Control plane** (Postgres) — saved tests & suites
-  ([US-009](backlog/release-1/US-009-control-plane-saved-tests.md)),
+  ([US-009](backlog/release-1/US-009-control-plane-saved-tests.md)), projects
+  & modules ([US-023](backlog/release-1/US-023-projects-and-modules.md)),
   scheduled runs ([US-010](backlog/release-1/US-010-scheduled-runs.md)),
   failure email notifications
   ([US-012](backlog/release-1/US-012-email-reports.md)).
