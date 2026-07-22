@@ -39,6 +39,11 @@ erDiagram
 | `runs` | durable run history — replaces the in-memory Map for finished runs | US-009/011 |
 | `notifications` | per-recipient email delivery log (idempotent sends) | US-012 |
 
+The diagram above is the **deployed** schema (`001_init.sql`). Next migration,
+`002` from [US-023](../backlog/release-1/US-023-projects-and-modules.md), adds
+`projects` and `modules`, hangs `tests` off both by nullable FK, and makes
+`suites.project_id` NOT NULL — update this section when it lands.
+
 ## Key decisions
 
 - **Runs denormalize `goal`/`start_url`/`max_steps`/`model`** at enqueue time.

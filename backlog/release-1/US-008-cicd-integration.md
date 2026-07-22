@@ -15,6 +15,15 @@ optionally group them into suites, and CI triggers by **test-case id or
 suite id** only. The test definitions live server-side and evolve without
 touching the pipeline.
 
+**Updated 2026-07-22 by [US-023](US-023-projects-and-modules.md).** Two more
+trigger targets exist: `POST /api/modules/:id/run` (everything in one module,
+e.g. "run the auth tests") and `POST /api/projects/:id/run`. Document modules
+alongside suites — modules are the likelier CI target, since they map to a
+part of the app rather than a curated selection. US-023 also proposes
+**slugs** on projects/modules so pipeline YAML can read
+`/api/projects/checkout/modules/auth/run` instead of carrying UUIDs; that
+decision is open and this story is its main consumer.
+
 ## Rollout tiers
 
 1. **CI step**: pipeline `POST`s to `/api/tests/:id/run` (or
@@ -41,5 +50,6 @@ agent should test what users will actually hit.
       verdict, and fail on a failing test using only `curl` + the documented
       snippet
 - [ ] Same for a suite id: all member tests run, job fails if any test fails
+- [ ] Same for a module id (US-023), documented as the default recommendation
 - [ ] `start_url` override respected for the triggered run(s)
 - [ ] Report PDF URL(s) printed in job output

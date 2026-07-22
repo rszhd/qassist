@@ -84,8 +84,10 @@ server's `{ error }` shape) and `SavedTests.jsx` (presentational list).
   banner naming `OPENAI_API_KEY`, and the API-token field hides when
   `auth: false` (kept whenever a token is already in localStorage, so it
   stays clearable).
-- Suite UI is **not** part of this story — the API exists for US-008 CI;
-  decide separately whether Release 1 needs a suite screen.
+- Suite UI is **not** part of this story — the API exists for US-008 CI.
+  Resolved 2026-07-22: the suite screen belongs to
+  [US-023](US-023-projects-and-modules.md), which also moves suites inside a
+  project.
 
 **Also landed alongside (first-run / Docker-only experience).** Not part of the
 original story; folded in because the control plane added a service to the

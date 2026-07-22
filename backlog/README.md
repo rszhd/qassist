@@ -33,6 +33,7 @@ until real cloud-only infra exists; the full repo/boundary rules live in
 | ID | Story | Status | Depends on |
 |---|---|---|---|
 | [US-009](release-1/US-009-control-plane-saved-tests.md) | Control plane: save & reuse tests | ✅ Done (2026-07-22) | — |
+| [US-023](release-1/US-023-projects-and-modules.md) | Projects & modules (organize saved tests) | 📋 Planned | US-009 |
 | [US-006](release-1/US-006-session-recording.md) | Session recording (record by default) | 📋 Planned | — |
 | [US-020](release-1/US-020-report-v2-screenshots-recording.md) | Report v2: step screenshots + recording | 📋 Planned | US-006 |
 | [US-010](release-1/US-010-scheduled-runs.md) | Scheduled runs | 📋 Planned | US-009 |
@@ -48,14 +49,16 @@ until real cloud-only infra exists; the full repo/boundary rules live in
 
 1. **US-009** — foundation: Postgres, saved tests/suites, run APIs (everything
    else in the release hangs off it)
-2. **US-006 → US-020** — recording, then the report that embeds
+2. **US-023** — projects + modules on top of saved tests (pulled ahead
+   2026-07-22 at the user's request; US-008 will document module triggering)
+3. **US-006 → US-020** — recording, then the report that embeds
    screenshots + recording link (independent of US-009; can run in parallel)
-3. **US-010** — scheduling on top of saved tests
-4. **US-012** — failure emails via Resend (pairs with scheduling; do the
-   qassist.run SPF/DKIM DNS setup alongside step 5's DNS work)
-5. **US-007 → US-008 tier 1** — public HTTPS, then the documented CI snippet
-6. **US-005** — BYOK, before anyone but the operator can run tests
-7. **US-021 → US-022** — signup, then billing; launch when US-022 lands
+4. **US-010** — scheduling on top of saved tests
+5. **US-012** — failure emails via Resend (pairs with scheduling; do the
+   qassist.run SPF/DKIM DNS setup alongside step 6's DNS work)
+6. **US-007 → US-008 tier 1** — public HTTPS, then the documented CI snippet
+7. **US-005** — BYOK, before anyone but the operator can run tests
+8. **US-021 → US-022** — signup, then billing; launch when US-022 lands
 
 ## Unscheduled — `unscheduled/`
 
