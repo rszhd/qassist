@@ -1,4 +1,4 @@
-import { FileText, Pencil, Play, Plus, Trash2 } from 'lucide-react';
+import { FileText, PanelLeftClose, Pencil, Play, Plus, Trash2 } from 'lucide-react';
 import { CardHead, EmptyState, IconButton } from './ui.jsx';
 
 // Saved-test rail (US-009, grouped in US-023). Presentational — RunView owns
@@ -22,6 +22,7 @@ export default function SavedTests({
   onRunModule,
   suites,
   onRunSuite,
+  onCollapse,
 }) {
   const grouped = modules.length > 0;
   const ungrouped = grouped ? tests.filter((t) => !t.module_id) : tests;
@@ -42,6 +43,7 @@ export default function SavedTests({
     <>
       <CardHead title="Tests" count={tests.length}>
         <IconButton icon={Plus} label="New test" onClick={onNew} className="spacer" />
+        <IconButton icon={PanelLeftClose} label="Minimize tests" onClick={onCollapse} />
       </CardHead>
 
       {projects.length > 0 && (

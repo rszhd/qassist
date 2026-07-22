@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  AlertTriangle, Check, Download, KeyRound, Monitor, Play, Plus, Undo2, X,
+  Activity, AlertTriangle, Check, Download, KeyRound, Monitor, PanelLeftOpen, Play, Plus,
+  Undo2, X,
 } from 'lucide-react';
 import { api, openReport } from './api.js';
 import SavedTests from './SavedTests.jsx';
@@ -37,6 +38,10 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
   const [editing, setEditing] = useState(null);
   const [savingTest, setSavingTest] = useState(false);
   const [reportBusy, setReportBusy] = useState(false);
+  // The rail is a launcher, not something you read mid-run — minimizing it to
+  // a strip hands its 300px to the live view. Remembered, since it is a
+  // per-screen preference rather than a per-run one.
+  const [railOpen, setRailOpen] = useState(() => localStorage.getItem('qassist_rail') !== 'min');
   // US-006: set by the `recording` event that arrives just before the run
   // ends. `showRecording` swaps the live screen for the replay player.
   const [hasRecording, setHasRecording] = useState(false);
@@ -51,6 +56,10 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
   useEffect(() => {
     onRunState({ status, wsState, runId });
   }, [status, wsState, runId, onRunState]);
+
+  useEffect(() => {
+    localStorage.setItem('qassist_rail', railOpen ? 'open' : 'min');
+  }, [railOpen]);
 
   const filterProjectId = filter === 'all' || filter === 'none' ? null : filter;
 
@@ -378,8 +387,20 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
         </div>
       )}
 
-      <div className={`run-grid${health?.db ? '' : ' solo'}`}>
-        {health?.db && (
+      <div className={`run-grid${health?.db ? (railOpen ? '' : ' rail-min') : ' solo'}`}>
+        {health?.db && !railOpen && (
+          <button
+            type="button"
+            className="rail-strip"
+            title="Show tests"
+            onClick={() => setRailOpen(true)}
+          >
+            <PanelLeftOpen size={14} aria-hidden="true" />
+            <span>Tests</span>
+          </button>
+        )}
+
+        {health?.db && railOpen && (
           <aside className="card rail">
             <SavedTests
               tests={tests}
@@ -396,6 +417,7 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
               onNew={newTest}
               onRunModule={(m, n) => runBatch('module', m, n)}
               onRunSuite={(s) => runBatch('suite', s, s.test_ids.length)}
+              onCollapse={() => setRailOpen(false)}
             />
           </aside>
         )}
@@ -412,115 +434,121 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
             </div>
           )}
 
-          <div className="browser">
-            <div className="browser-bar">
-              <span className="browser-dots"><i /><i /><i /></span>
-              <span className="browser-url">{showRecording ? 'Session recording' : liveUrl}</span>
-            </div>
-            <div className="screen">
-              {showRecording && runId ? (
-                // Plain <video src>, not a fetched blob: the endpoint takes a
-                // query token and honours Range, so seeking works (US-006).
-                <video
-                  key={runId}
-                  src={`/api/runs/${runId}/recording${token ? `?token=${encodeURIComponent(token)}` : ''}`}
-                  controls
-                  autoPlay
-                  onError={() => setError('Recording could not be loaded.')}
-                />
-              ) : screenshot ? (
-                <img src={screenshot} alt="live browser view" />
-              ) : waitingForFirstFrame ? (
-                <div className="thinking">
-                  <div className="spinner" />
-                  <div>Agent is starting…</div>
-                  <small>First frame appears after the first action (~10–15s)</small>
+          {/* Browser left, activity right, both the same height: the two things
+              you watch during a run stay in one glance. The split is permanent
+              so nothing reflows the moment the first step lands. */}
+          <div className="stage-split">
+            <div className="stage-main">
+              <div className="browser">
+                <div className="browser-bar">
+                  <span className="browser-dots"><i /><i /><i /></span>
+                  <span className="browser-url">{showRecording ? 'Session recording' : liveUrl}</span>
                 </div>
-              ) : (
-                <EmptyState
-                  icon={Monitor}
-                  title="Nothing running yet"
-                  action={
-                    <Button variant="primary" icon={Play} onClick={() => setDialog('run')} disabled={needsToken}>
-                      New run
-                    </Button>
-                  }
-                >
-                  Start a run and the browser session streams here, frame by frame.
-                </EmptyState>
-              )}
-            </div>
-          </div>
-
-          {showRecording && (
-            <p className="replay-note">
-              Condensed replay — frames are only captured when the page repaints, so idle time is
-              skipped.
-            </p>
-          )}
-
-          {currentAction && (
-            <div className="action-bar">
-              <span className="pulse" /> {currentAction}
-            </div>
-          )}
-
-          {steps.length > 0 && (
-            <div className="card">
-              <CardHead title="Activity" count={steps.length} />
-              <div className="log" ref={logRef}>
-                {steps.map((s, i) =>
-                  s.type === 'progress' ? (
-                    <div className="log-item" key={i}>
-                      <span className="step-n">···</span>
-                      <span className="step-goal">{s.message}</span>
+                <div className="screen">
+                  {showRecording && runId ? (
+                    // Plain <video src>, not a fetched blob: the endpoint takes
+                    // a query token and honours Range, so seeking works (US-006).
+                    <video
+                      key={runId}
+                      src={`/api/runs/${runId}/recording${token ? `?token=${encodeURIComponent(token)}` : ''}`}
+                      controls
+                      autoPlay
+                      onError={() => setError('Recording could not be loaded.')}
+                    />
+                  ) : screenshot ? (
+                    <img src={screenshot} alt="live browser view" />
+                  ) : waitingForFirstFrame ? (
+                    <div className="thinking">
+                      <div className="spinner" />
+                      <div>Agent is starting…</div>
+                      <small>First frame appears after the first action (~10–15s)</small>
                     </div>
                   ) : (
-                    <div className="log-item" key={i}>
-                      <span className="step-n">{s.step}</span>
-                      <span className="step-goal">{s.next_goal || s.thinking || s.evaluation || '…'}</span>
-                      {s.url && <span className="step-url">{s.url}</span>}
-                    </div>
-                  )
-                )}
+                    <EmptyState
+                      icon={Monitor}
+                      title="Nothing running yet"
+                      action={
+                        <Button variant="primary" icon={Play} onClick={() => setDialog('run')} disabled={needsToken}>
+                          New run
+                        </Button>
+                      }
+                    >
+                      Start a run and the browser session streams here, frame by frame.
+                    </EmptyState>
+                  )}
+                </div>
               </div>
-            </div>
-          )}
 
-          {result && (
-            <div className={`card verdict ${result.success ? 'ok' : result.success === false ? 'bad' : ''}`}>
-              <div className="verdict-head">
-                {result.success ? <Check size={15} /> : result.success === false ? <X size={15} /> : null}
-                {result.success ? 'Passed' : result.success === false ? 'Failed' : 'Done'}
-              </div>
-              <div className="stats">
-                <Stat label="Verdict" value={result.success ? 'Pass' : result.success === false ? 'Fail' : '—'}
-                  tone={result.success ? 'ok' : result.success === false ? 'bad' : ''} />
-                <Stat label="Steps" value={result.steps ?? '—'} />
-                <Stat
-                  label="Duration"
-                  value={result.duration_seconds ? `${Math.round(result.duration_seconds)}s` : '—'}
-                />
-              </div>
-              {result.final_result && <p className="final">{result.final_result}</p>}
-              {result.errors?.length > 0 && (
-                <ul className="errs">{result.errors.map((er, i) => <li key={i}>{er}</li>)}</ul>
+              {showRecording && (
+                <p className="replay-note">
+                  Condensed replay — frames are only captured when the page repaints, so idle time
+                  is skipped.
+                </p>
               )}
-              <div className="verdict-actions">
-                <Button icon={Download} onClick={downloadReport} disabled={reportBusy}>
-                  {reportBusy ? 'Preparing PDF…' : 'PDF report'}
-                </Button>
-                {hasRecording && (
-                  <Button
-                    icon={showRecording ? Undo2 : Play}
-                    onClick={() => setShowRecording((v) => !v)}
-                  >
-                    {showRecording ? 'Back to last frame' : 'Watch recording'}
-                  </Button>
-                )}
-              </div>
+
+              {currentAction && (
+                <div className="action-bar">
+                  <span className="pulse" /> {currentAction}
+                </div>
+              )}
+
+              {result && (
+                <div className={`card verdict ${result.success ? 'ok' : result.success === false ? 'bad' : ''}`}>
+                  <div className="verdict-head">
+                    {result.success ? <Check size={15} /> : result.success === false ? <X size={15} /> : null}
+                    {result.success ? 'Passed' : result.success === false ? 'Failed' : 'Done'}
+                  </div>
+                  <div className="stats">
+                    <Stat label="Verdict" value={result.success ? 'Pass' : result.success === false ? 'Fail' : '—'}
+                      tone={result.success ? 'ok' : result.success === false ? 'bad' : ''} />
+                    <Stat label="Steps" value={result.steps ?? '—'} />
+                    <Stat
+                      label="Duration"
+                      value={result.duration_seconds ? `${Math.round(result.duration_seconds)}s` : '—'}
+                    />
+                  </div>
+                  {result.final_result && <p className="final">{result.final_result}</p>}
+                  {result.errors?.length > 0 && (
+                    <ul className="errs">{result.errors.map((er, i) => <li key={i}>{er}</li>)}</ul>
+                  )}
+                  <div className="verdict-actions">
+                    <Button icon={Download} onClick={downloadReport} disabled={reportBusy}>
+                      {reportBusy ? 'Preparing PDF…' : 'PDF report'}
+                    </Button>
+                    {hasRecording && (
+                      <Button
+                        icon={showRecording ? Undo2 : Play}
+                        onClick={() => setShowRecording((v) => !v)}
+                      >
+                        {showRecording ? 'Back to last frame' : 'Watch recording'}
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
-          )}
+
+            <aside className="card stage-side">
+              <CardHead title="Activity" count={steps.length || undefined} />
+              {steps.length > 0 ? (
+                <div className="log" ref={logRef}>
+                  {steps.map((s, i) => (
+                    <div className="log-item" key={i}>
+                      <span className="step-n">{s.type === 'progress' ? '···' : s.step}</span>
+                      <span className="step-body">
+                        <span className="step-goal">{stepText(s)}</span>
+                        {s.url && <span className="step-url" title={s.url}>{hostOf(s.url)}</span>}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <EmptyState icon={Activity} title={running ? 'Waiting…' : 'No activity'}>
+                  {running ? 'The first step lands shortly.' : 'Steps appear here during a run.'}
+                </EmptyState>
+              )}
+            </aside>
+          </div>
         </section>
       </div>
 
@@ -548,6 +576,21 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
       )}
     </>
   );
+}
+
+/** What a step event says it is doing — `progress` events carry a message. */
+function stepText(s) {
+  return s.message || s.next_goal || s.thinking || s.evaluation || '…';
+}
+
+/** Host only: the column is too narrow for a full URL, and the path rarely
+ *  tells you more than the host does at a glance. Full URL is the tooltip. */
+function hostOf(url) {
+  try {
+    return new URL(url).host.replace(/^www\./, '');
+  } catch {
+    return url;
+  }
 }
 
 /**

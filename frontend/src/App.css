@@ -55,6 +55,11 @@
   --s1: 4px;  --s2: 8px;  --s3: 12px; --s4: 16px;
   --s5: 20px; --s6: 24px; --s8: 32px; --s10: 40px;
 
+  /* Page width — header and content share it so they stay flush. Sized for
+     the Run view's three columns (tests, live browser, activity); the other
+     views follow it so switching tabs never shifts the frame. */
+  --page-w: 1400px;
+
   /* Type scale. Five sizes for the whole app — anything that wants a sixth
      is usually asking for the wrong emphasis. */
   --t-xs: 10.5px; --t-sm: 11.5px; --t-base: 12.5px; --t-md: 13px; --t-lg: 15px; --t-xl: 18px;
@@ -109,7 +114,7 @@ code { font-family: var(--mono); font-size: .92em; }
   background: rgba(19, 19, 22, .85); backdrop-filter: blur(12px);
 }
 .topbar-inner {
-  max-width: 1200px; height: 100%; margin: 0 auto; padding: 0 var(--s5);
+  max-width: var(--page-w); height: 100%; margin: 0 auto; padding: 0 var(--s5);
   display: flex; align-items: center; gap: var(--s4);
 }
 .brand { display: flex; align-items: center; gap: var(--s2); font-size: var(--t-md); font-weight: 600; letter-spacing: -.006em; }
@@ -162,7 +167,7 @@ code { font-family: var(--mono); font-size: .92em; }
 .badge-queued { color: var(--warn); border-color: var(--warn-line); background: var(--warn-bg); }
 .badge-running { color: var(--accent-hi); border-color: var(--accent-line); background: var(--accent-bg); }
 
-.app { max-width: 1200px; margin: 0 auto; padding: 0 var(--s5) var(--s10); }
+.app { max-width: var(--page-w); margin: 0 auto; padding: 0 var(--s5) var(--s10); }
 
 .page-head { display: flex; align-items: flex-start; gap: var(--s4); padding: var(--s6) 0 var(--s5); }
 .page-head h1 { font-size: var(--t-xl); font-weight: 600; letter-spacing: -.018em; }
@@ -332,11 +337,49 @@ select {
    ========================================================================== */
 .run-grid { display: grid; grid-template-columns: 300px 1fr; gap: var(--s4); align-items: start; }
 .run-grid.solo { grid-template-columns: 1fr; }
-@media (max-width: 900px) { .run-grid { grid-template-columns: 1fr; } }
+/* Minimized: the rail keeps a strip so the way back is where it went. */
+.run-grid.rail-min { grid-template-columns: 34px 1fr; }
+@media (max-width: 900px) {
+  .run-grid, .run-grid.rail-min { grid-template-columns: 1fr; }
+}
 
 .rail { position: sticky; top: 64px; max-height: calc(100vh - 88px); overflow-y: auto; }
 .rail .filter { margin-bottom: var(--s3); }
+.rail-strip {
+  position: sticky; top: 64px;
+  display: flex; flex-direction: column; align-items: center; gap: var(--s3);
+  padding: var(--s3) 0; width: 34px;
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--r-lg);
+  color: var(--muted); font-size: var(--t-sm); cursor: pointer;
+}
+.rail-strip:hover { color: var(--text); border-color: var(--border-hi); }
+.rail-strip span { writing-mode: vertical-rl; letter-spacing: .04em; }
+@media (max-width: 900px) {
+  .rail-strip { flex-direction: row; justify-content: center; width: auto; padding: var(--s2); }
+  .rail-strip span { writing-mode: horizontal-tb; }
+}
 .stage { display: flex; flex-direction: column; gap: var(--s3); }
+
+/* Browser and activity ride side by side and share a row height, so the log
+   is as tall as the frame it belongs to. The split is permanent: an empty
+   activity panel beats the whole stage reflowing on the first step. */
+.stage-split { display: grid; grid-template-columns: 1fr 300px; gap: var(--s4); align-items: start; }
+.stage-main { display: flex; flex-direction: column; gap: var(--s3); min-width: 0; }
+/* Sizes itself: it grows with the log rather than stretching to match the
+   frame + verdict beside it, and sticks to the viewport once it would run
+   past the bottom, scrolling its own list instead of the page. */
+.stage-side {
+  display: flex; flex-direction: column; min-width: 0;
+  position: sticky; top: 64px; max-height: calc(100vh - 88px);
+}
+.stage-side .log { flex: 1; min-height: 0; max-height: none; }
+/* Narrow enough that three columns would starve the frame: stack again, and
+   give the log back a fixed height since it no longer has a column to fill. */
+@media (max-width: 1150px) {
+  .stage-split { grid-template-columns: 1fr; }
+  .stage-side { position: static; max-height: none; }
+  .stage-side .log { flex: none; max-height: 232px; }
+}
 
 /* The live view sits in a browser chrome so it reads as a real session and
    the URL under test always has somewhere to live. */
@@ -352,13 +395,18 @@ select {
   background: var(--sunken); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 2px 8px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-/* Capped so the stage still fits a laptop screen next to the rail; the frame
-   letterboxes rather than pushing the activity log below the fold. */
+/* The frame sizes the box, not the other way round: pages under test come in
+   every aspect ratio, and a fixed one letterboxes the difference in black.
+   Width always fills the column, height follows — so minimizing the rail
+   genuinely makes the live view bigger. min-height carries the empty and
+   starting-up states, which have no frame to measure. (The old height cap
+   existed to keep the activity log above the fold; it sits beside the frame
+   now, so nothing is pushed down.) */
 .screen {
-  aspect-ratio: 16 / 10; max-height: 56vh; background: var(--stage);
+  background: var(--stage); min-height: 300px;
   display: flex; align-items: center; justify-content: center;
 }
-.screen img, .screen video { width: 100%; height: 100%; object-fit: contain; }
+.screen img, .screen video { display: block; width: 100%; height: auto; }
 .placeholder { color: var(--faint); font-size: var(--t-md); }
 .replay-note { font-size: var(--t-sm); color: var(--faint); }
 
@@ -378,15 +426,27 @@ select {
 .pulse { flex: 0 0 auto; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: pulse 1.3s ease-in-out infinite; }
 
 .log { display: flex; flex-direction: column; max-height: 232px; overflow-y: auto; margin: 0 calc(var(--s4) * -1) calc(var(--s4) * -1); }
+/* A narrow column, so a row stacks rather than competing for one line: the
+   step number gutters the goal, and the host sits under it. Goals run long —
+   two lines then ellipsis, with the full text on hover. */
 .log-item {
-  display: flex; gap: var(--s3); align-items: baseline;
-  padding: 6px var(--s4); font-size: var(--t-base); color: var(--muted);
+  display: flex; gap: var(--s2); align-items: flex-start;
+  padding: 7px var(--s4); font-size: var(--t-base); color: var(--muted);
 }
 .log-item + .log-item { border-top: 1px solid var(--border); }
 .log-item:last-child { color: var(--text); }
-.step-n { flex: 0 0 22px; font-family: var(--mono); font-size: var(--t-xs); color: var(--faint); }
-.step-goal { flex: 1; }
-.step-url { font-family: var(--mono); font-size: var(--t-xs); color: var(--faint); max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.step-n {
+  flex: 0 0 16px; padding-top: 1px; text-align: right;
+  font-family: var(--mono); font-size: var(--t-xs); color: var(--faint);
+}
+.step-body { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+/* Full text, wrapped — a truncated goal is the one thing you cannot recover
+   by scrolling, and reading the agent's reasoning is the point of this list. */
+.step-goal { line-height: 1.45; overflow-wrap: anywhere; }
+.step-url {
+  font-family: var(--mono); font-size: var(--t-xs); color: var(--faint);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 
 .verdict-head {
   display: flex; align-items: center; gap: var(--s2);
