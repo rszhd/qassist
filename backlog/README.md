@@ -16,9 +16,10 @@ the overview (keep it in sync when a story changes state or moves folder).
 
 Scope decided 2026-07-22, **extended 2026-07-22 to include the hosted paid
 tier**: Release 1 ships both (a) the open-source self-host release — report
-with recording + step screenshots, saved tests, scheduling, failure email
-notifications, CI trigger (tier 1), registration-flow email confirmation
-(already done) — and (b) a minimal paid hosted version at qassist.run:
+with recording + step screenshots, saved tests, run history, scheduling,
+failure email notifications, CI trigger (tier 1), registration-flow email
+confirmation (already done) — and (b) a minimal paid hosted version at
+qassist.run:
 signup, Stripe subscription, BYOK. US-007 rides along as a hard dependency
 of US-008 tier 1 and of the hosted tier.
 
@@ -36,6 +37,7 @@ until real cloud-only infra exists; the full repo/boundary rules live in
 | [US-023](release-1/US-023-projects-and-modules.md) | Projects & modules (organize saved tests) | ✅ Done (2026-07-22) | US-009 |
 | [US-006](release-1/US-006-session-recording.md) | Session recording (record by default) | 📋 Planned | — |
 | [US-020](release-1/US-020-report-v2-screenshots-recording.md) | Report v2: step screenshots + recording | 📋 Planned | US-006 |
+| [US-011](release-1/US-011-run-history.md) | Run history | 📋 Planned (persistence done in US-009) | US-009 |
 | [US-010](release-1/US-010-scheduled-runs.md) | Scheduled runs | 📋 Planned | US-009 |
 | [US-012](release-1/US-012-email-reports.md) | Failure email notifications | 📋 Planned | US-009 |
 | [US-007](release-1/US-007-https-reverse-proxy.md) | Public HTTPS via reverse proxy | 📋 Planned | domain (owned) |
@@ -55,18 +57,21 @@ until real cloud-only infra exists; the full repo/boundary rules live in
    reveals grouping progressively — see the story's UI section.
 3. **US-006 → US-020** — recording, then the report that embeds
    screenshots + recording link (independent of US-009; can run in parallel)
-4. **US-010** — scheduling on top of saved tests
-5. **US-012** — failure emails via Resend (pairs with scheduling; do the
-   qassist.run SPF/DKIM DNS setup alongside step 6's DNS work)
-6. **US-007 → US-008 tier 1** — public HTTPS, then the documented CI snippet
-7. **US-005** — BYOK, before anyone but the operator can run tests
-8. **US-021 → US-022** — signup, then billing; launch when US-022 lands
+4. **US-011** — run history: list endpoint + a third view beside Run and
+   Library. Persistence already shipped with US-009, so what is left is the
+   endpoint, the UI and artifact retention. Sequenced after US-020 so the run
+   detail links a recording instead of being retrofitted for one.
+5. **US-010** — scheduling on top of saved tests
+6. **US-012** — failure emails via Resend (pairs with scheduling; do the
+   qassist.run SPF/DKIM DNS setup alongside step 7's DNS work)
+7. **US-007 → US-008 tier 1** — public HTTPS, then the documented CI snippet
+8. **US-005** — BYOK, before anyone but the operator can run tests
+9. **US-021 → US-022** — signup, then billing; launch when US-022 lands
 
 ## Unscheduled — `unscheduled/`
 
 | ID | Story | Status | Priority | Depends on |
 |---|---|---|---|---|
-| [US-011](unscheduled/US-011-run-history.md) | Run history | 📋 Planned | P3 | US-009 |
 | [US-013](release-1/US-013-registration-flow-verification.md) | Registration-flow tiers 2 (SMS) + 3 (social) | 📋 Planned | P3 | — |
 | [US-008](release-1/US-008-cicd-integration.md) | CI/CD tiers 2 (reusable Action) + 3 (GitHub App) | 📋 Planned | P2 | US-008 t1 |
 | [US-014](unscheduled/US-014-block-heavy-resources.md) | Block heavy page resources | 📋 Planned | P3 | — |
