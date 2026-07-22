@@ -32,7 +32,7 @@ until real cloud-only infra exists; the full repo/boundary rules live in
 
 | ID | Story | Status | Depends on |
 |---|---|---|---|
-| [US-009](release-1/US-009-control-plane-saved-tests.md) | Control plane: save & reuse tests | 🚧 In progress (backend done, UI left) | — |
+| [US-009](release-1/US-009-control-plane-saved-tests.md) | Control plane: save & reuse tests | ✅ Done (2026-07-22) | — |
 | [US-006](release-1/US-006-session-recording.md) | Session recording (record by default) | 📋 Planned | — |
 | [US-020](release-1/US-020-report-v2-screenshots-recording.md) | Report v2: step screenshots + recording | 📋 Planned | US-006 |
 | [US-010](release-1/US-010-scheduled-runs.md) | Scheduled runs | 📋 Planned | US-009 |

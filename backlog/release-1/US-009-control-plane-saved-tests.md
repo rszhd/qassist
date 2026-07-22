@@ -2,7 +2,7 @@
 
 **As a** user, **I want** to save a test (URL + goal + settings) and re-run it with one click, **so that** I don't retype goals and can build a regression suite over time.
 
-- **Status:** 🚧 In progress — backend done, frontend remaining (see Progress)
+- **Status:** ✅ Done (2026-07-22) — backend + UI; suite screen deliberately out of scope
 - **Priority:** P1 (Release 1) — first control-plane feature; establishes Postgres; foundation for the rest of the release
 - **Estimate:** ~2–3 days (includes standing up Postgres + auth model)
 - **Depends on:** — (foundation for US-010/011/012 run history, scheduling, email)
@@ -27,7 +27,7 @@ the control plane owns everything durable.
 
 ## Acceptance criteria
 
-- [ ] Create/edit/delete a saved test in the UI
+- [x] Create/edit/delete a saved test in the UI
 - [x] One-click re-run produces a normal run linked to the test (API)
 - [x] Saved tests survive server restart (in-memory registry doesn't)
 
@@ -66,14 +66,25 @@ the control plane owns everything durable.
 the in-memory relay has dropped. `GET /api/health` reports `db`, `auth` and
 `agent_ready`.
 
-**Remaining — frontend** (`frontend/src/App.jsx`, currently one 264-line
-component driving ad-hoc runs only):
+**Done — frontend.** `App.jsx` now drives the control plane; `vite build`
+clean. New files: `api.js` (token-aware fetch wrapper that unwraps the
+server's `{ error }` shape) and `SavedTests.jsx` (presentational list).
 
-- Saved-test list with a run button, plus a create/edit form → the two open
-  acceptance criteria.
-- Surface `agent_ready: false` from `/api/health` as a setup banner, and hide
-  the API-token field when `auth: false` (see first-run notes below).
-- Suite UI is **not** required for this story — the API exists for US-008 CI;
+- Saved-test list sits above the ad-hoc run form in the left column — no
+  third column, no tabs. Each row: ▶ run, ✎ edit, ✕ delete. The whole
+  section is gated on `health.db`, so a no-Postgres deploy looks exactly
+  like it did before.
+- **The run form doubles as the editor** rather than adding a second form —
+  the 340px column can't carry two. `editing` state: `null` = ad-hoc,
+  `{ name }` = create, `{ id, name }` = update. Enter saves while the editor
+  is open instead of starting a run.
+- Edits send only `name`/`goal`/`start_url`; `max_steps`/`model` aren't in
+  the form and PUT is a partial update, so editing never clobbers them.
+- `/api/health` is fetched on mount: `agent_ready: false` renders a setup
+  banner naming `OPENAI_API_KEY`, and the API-token field hides when
+  `auth: false` (kept whenever a token is already in localStorage, so it
+  stays clearable).
+- Suite UI is **not** part of this story — the API exists for US-008 CI;
   decide separately whether Release 1 needs a suite screen.
 
 **Also landed alongside (first-run / Docker-only experience).** Not part of the

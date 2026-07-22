@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { api } from './api.js';
+import SavedTests from './SavedTests.jsx';
 
 const STATUS_COLORS = {
   queued: '#a16207',
@@ -24,6 +26,13 @@ export default function App() {
   const [steps, setSteps] = useState([]);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
+  const [health, setHealth] = useState(null);
+  const [tests, setTests] = useState([]);
+  const [activeTestId, setActiveTestId] = useState(null);
+  // null = plain ad-hoc form. Otherwise the form doubles as the test editor:
+  // `{ name }` creates, `{ id, name }` updates that row.
+  const [editing, setEditing] = useState(null);
+  const [savingTest, setSavingTest] = useState(false);
   const wsRef = useRef(null);
   const logRef = useRef(null);
 
@@ -31,9 +40,37 @@ export default function App() {
     localStorage.setItem('qassist_token', token);
   }, [token]);
 
+  // /api/health is unauthenticated — it tells us whether a token is even
+  // needed (auth), whether runs can work at all (agent_ready) and whether the
+  // control plane is up (db).
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/health')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((h) => !cancelled && setHealth(h))
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   useEffect(() => {
     if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
   }, [steps]);
+
+  const loadTests = useCallback(async () => {
+    if (!health?.db) return;
+    try {
+      const { tests: rows } = await api('/api/tests', { token });
+      setTests(rows);
+    } catch (err) {
+      setError(`Saved tests: ${err.message}`);
+    }
+  }, [health?.db, token]);
+
+  useEffect(() => {
+    loadTests();
+  }, [loadTests]);
 
   function handleEvent(evt) {
     switch (evt.type) {
@@ -76,30 +113,92 @@ export default function App() {
     }
   }
 
-  async function startRun(e) {
-    e.preventDefault();
+  function resetRunState() {
     setError(null);
     setResult(null);
     setSteps([]);
     setScreenshot(null);
     setCurrentAction(null);
     setStatus('queued');
+  }
+
+  // The form is shared, so Enter means "save" while the editor is open.
+  async function startRun(e) {
+    e.preventDefault();
+    if (editing) return saveTest();
+    resetRunState();
+    setActiveTestId(null);
     try {
-      const res = await fetch('/api/runs', {
+      const { runId: id } = await api('/api/runs', {
+        token,
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ goal, start_url: startUrl }),
+        body: { goal, start_url: startUrl },
       });
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
-      const { runId: id } = await res.json();
       setRunId(id);
       openSocket(id);
     } catch (err) {
       setError(err.message);
       setStatus('error');
+    }
+  }
+
+  // Create or update from whatever the form currently holds. max_steps/model
+  // aren't in the form, and PUT is a partial update, so they keep their value.
+  async function saveTest() {
+    const name = (editing?.name || '').trim();
+    if (!name) return;
+    setSavingTest(true);
+    try {
+      const body = { name, goal, start_url: startUrl };
+      if (editing.id) await api(`/api/tests/${editing.id}`, { token, method: 'PUT', body });
+      else await api('/api/tests', { token, method: 'POST', body });
+      setEditing(null);
+      await loadTests();
+    } catch (err) {
+      setError(`Save: ${err.message}`);
+    } finally {
+      setSavingTest(false);
+    }
+  }
+
+  function editTest(test) {
+    setError(null);
+    setEditing({ id: test.id, name: test.name });
+    setGoal(test.goal);
+    setStartUrl(test.start_url);
+  }
+
+  async function deleteTest(test) {
+    if (!window.confirm(`Delete "${test.name}"?`)) return;
+    try {
+      await api(`/api/tests/${test.id}`, { token, method: 'DELETE' });
+      if (editing?.id === test.id) setEditing(null);
+      if (activeTestId === test.id) setActiveTestId(null);
+      await loadTests();
+    } catch (err) {
+      setError(`Delete: ${err.message}`);
+    }
+  }
+
+  // One-click re-run: the server reads goal/URL off the saved row, so we only
+  // mirror them into the form to show what's running.
+  async function runSavedTest(test) {
+    resetRunState();
+    setActiveTestId(test.id);
+    setGoal(test.goal);
+    setStartUrl(test.start_url);
+    try {
+      const { runId: id } = await api(`/api/tests/${test.id}/run`, {
+        token,
+        method: 'POST',
+        body: { trigger: 'ui' },
+      });
+      setRunId(id);
+      openSocket(id);
+    } catch (err) {
+      setError(err.message);
+      setStatus('error');
+      setActiveTestId(null);
     }
   }
 
@@ -155,6 +254,9 @@ export default function App() {
 
   const running = status === 'running' || status === 'queued';
   const waitingForFirstFrame = running && !screenshot;
+  // Keep the field until health says auth is off — and always if a token is
+  // already stored, so it can be cleared.
+  const showToken = !health || health.auth || !!token;
 
   return (
     <div className="app">
@@ -172,16 +274,51 @@ export default function App() {
 
       <div className="layout">
         <section className="panel controls">
+          {health && !health.agent_ready && (
+            <div className="banner">
+              <strong>Setup needed</strong>
+              <span>
+                No <code>OPENAI_API_KEY</code> on the server — runs will be rejected. Add it to{' '}
+                <code>.env</code> and restart.
+              </span>
+            </div>
+          )}
+
+          {health?.db && (
+            <SavedTests
+              tests={tests}
+              activeTestId={activeTestId}
+              editingId={editing?.id || null}
+              running={running}
+              onRun={runSavedTest}
+              onEdit={editTest}
+              onDelete={deleteTest}
+            />
+          )}
+
           <form onSubmit={startRun}>
-            <label>
-              API token
-              <input
-                type="password"
-                value={token}
-                placeholder="WORKER_API_TOKEN"
-                onChange={(e) => setToken(e.target.value)}
-              />
-            </label>
+            {showToken && (
+              <label>
+                API token
+                <input
+                  type="password"
+                  value={token}
+                  placeholder="WORKER_API_TOKEN"
+                  onChange={(e) => setToken(e.target.value)}
+                />
+              </label>
+            )}
+            {editing && (
+              <label>
+                Test name
+                <input
+                  value={editing.name}
+                  autoFocus
+                  placeholder="Checkout flow works"
+                  onChange={(e) => setEditing((cur) => ({ ...cur, name: e.target.value }))}
+                />
+              </label>
+            )}
             <label>
               Start URL
               <input value={startUrl} onChange={(e) => setStartUrl(e.target.value)} />
@@ -190,9 +327,32 @@ export default function App() {
               Goal
               <textarea rows={4} value={goal} onChange={(e) => setGoal(e.target.value)} />
             </label>
-            <button type="submit" disabled={running}>
-              {running ? 'Running…' : 'Run test'}
-            </button>
+            {editing ? (
+              <div className="btn-row">
+                <button type="submit" disabled={savingTest || !editing.name.trim()}>
+                  {savingTest ? 'Saving…' : editing.id ? 'Save changes' : 'Save test'}
+                </button>
+                <button type="button" className="ghost" onClick={() => setEditing(null)}>
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <div className="btn-row">
+                <button type="submit" disabled={running}>
+                  {running ? 'Running…' : 'Run test'}
+                </button>
+                {health?.db && (
+                  <button
+                    type="button"
+                    className="ghost"
+                    onClick={() => setEditing({ name: '' })}
+                    disabled={!goal.trim() || !startUrl.trim()}
+                  >
+                    Save as test
+                  </button>
+                )}
+              </div>
+            )}
           </form>
 
           <p className="hint">
