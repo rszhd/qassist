@@ -1,11 +1,8 @@
-import { useState } from 'react';
-import { FileText, PanelLeftClose, Pencil, Play, Plus, Terminal } from 'lucide-react';
+import { FileText, PanelLeftClose, Pencil, Play, Plus } from 'lucide-react';
 import { CardHead, EmptyState, IconButton } from './ui.jsx';
-import CiCommand from './CiCommand.jsx';
 
 // Saved-test rail (US-009, grouped in US-023). Presentational — RunView owns
-// the data and handlers; the CI dialog is the one exception, being state no
-// one outside this list can act on.
+// the data and handlers.
 //
 // Everything about grouping is conditional: with no projects this renders
 // exactly the flat list it always did, and module headers only appear once the
@@ -28,8 +25,6 @@ export default function SavedTests({
 }) {
   const grouped = modules.length > 0;
   const ungrouped = grouped ? tests.filter((t) => !t.module_id) : tests;
-  // The test whose CI command is on screen; see CiCommand for the shape.
-  const [ciTarget, setCiTarget] = useState(null);
 
   const row = (t) => (
     <TestRow
@@ -39,7 +34,6 @@ export default function SavedTests({
       running={running}
       onRun={onRun}
       onEdit={onEdit}
-      onCi={() => setCiTarget({ kind: 'test', name: t.name, id: t.id })}
     />
   );
 
@@ -130,24 +124,21 @@ export default function SavedTests({
           <p className="hint">Edit suites in Projects.</p>
         </div>
       )}
-
-      {ciTarget && <CiCommand target={ciTarget} onClose={() => setCiTarget(null)} />}
     </>
   );
 }
 
-function TestRow({ test: t, active, running, onRun, onEdit, onCi }) {
+function TestRow({ test: t, active, running, onRun, onEdit }) {
   return (
     <li className={active ? 'active' : ''}>
       <span className="row-main" title={t.goal}>
         <span className="row-name">{t.name}</span>
         <span className="row-sub">{t.start_url}</span>
       </span>
-      {/* Run stays visible — it is why the list exists. The rest are
-          hover/focus actions so the rail reads as content, not a toolbar;
-          delete is rarer still and lives in the edit dialog. */}
+      {/* Run stays visible — it is why the list exists. Edit is a hover/focus
+          action so the rail reads as content, not a toolbar; delete is rarer
+          still and lives in the edit dialog. */}
       <span className="row-actions">
-        <IconButton icon={Terminal} label="Run from CI" onClick={onCi} />
         <IconButton icon={Pencil} label="Edit" onClick={() => onEdit(t)} />
       </span>
       <IconButton
