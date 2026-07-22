@@ -229,12 +229,6 @@ export default function LibraryView({ token }) {
                   Add
                 </Button>
               </form>
-              <p className="hint">
-                Assign tests to a module from the Run view. Trigger one from CI with{' '}
-                <code>POST /api/projects/{detail.slug}/modules/&lt;module&gt;/run</code> — which is
-                why changing a slug is a separate, deliberate edit from renaming.
-              </p>
-
               <Suites projectId={detail.id} token={token} />
             </>
           )}

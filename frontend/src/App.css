@@ -117,14 +117,7 @@ code { font-family: var(--mono); font-size: .92em; }
   max-width: var(--page-w); height: 100%; margin: 0 auto; padding: 0 var(--s5);
   display: flex; align-items: center; gap: var(--s4);
 }
-.brand { display: flex; align-items: center; gap: var(--s2); font-size: var(--t-md); font-weight: 600; letter-spacing: -.006em; }
-/* Flat, bordered, monochrome — the mark identifies the product without
-   spending the one accent colour the palette has. */
-.brand-mark {
-  width: 22px; height: 22px; border-radius: var(--r-md);
-  display: grid; place-items: center;
-  background: var(--card); border: 1px solid var(--border-hi); color: var(--text);
-}
+.brand { font-size: var(--t-md); font-weight: 600; letter-spacing: -.006em; }
 
 /* Segmented control rather than loose tabs: the group reads as one object,
    which is what keeps a three-view app from looking like a toolbar. */
@@ -406,6 +399,10 @@ select {
   background: var(--stage); min-height: 300px;
   display: flex; align-items: center; justify-content: center;
 }
+/* No frame yet: hold the shape the agent actually captures (1920×1080), so the
+   stage opens at exactly the height a live frame will occupy and nothing
+   resizes when the first one lands. */
+.screen-empty { aspect-ratio: 16 / 9; }
 .screen img, .screen video { display: block; width: 100%; height: auto; }
 .placeholder { color: var(--faint); font-size: var(--t-md); }
 .replay-note { font-size: var(--t-sm); color: var(--faint); }
@@ -443,9 +440,11 @@ select {
 /* Full text, wrapped — a truncated goal is the one thing you cannot recover
    by scrolling, and reading the agent's reasoning is the point of this list. */
 .step-goal { line-height: 1.45; overflow-wrap: anywhere; }
+/* Full URL, wrapped like the goal above it — the path is often the only way to
+   tell two steps on the same host apart. */
 .step-url {
   font-family: var(--mono); font-size: var(--t-xs); color: var(--faint);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  line-height: 1.4; overflow-wrap: anywhere;
 }
 
 .verdict-head {

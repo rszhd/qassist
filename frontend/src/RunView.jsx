@@ -336,6 +336,7 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
   const running = status === 'running' || status === 'queued';
   const waitingForFirstFrame = running && !screenshot;
   const liveUrl = [...steps].reverse().find((s) => s.url)?.url || startUrl;
+  const hasFrame = (showRecording && runId) || !!screenshot;
 
   return (
     <>
@@ -444,7 +445,11 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
                   <span className="browser-dots"><i /><i /><i /></span>
                   <span className="browser-url">{showRecording ? 'Session recording' : liveUrl}</span>
                 </div>
-                <div className="screen">
+                {/* With no frame to measure the box has no height of its own, so
+                    the empty and starting-up states hold the capture's ratio —
+                    otherwise first load is a short band under a full-width bar,
+                    and the stage jumps taller the moment a frame lands. */}
+                <div className={`screen${hasFrame ? '' : ' screen-empty'}`}>
                   {showRecording && runId ? (
                     // Plain <video src>, not a fetched blob: the endpoint takes
                     // a query token and honours Range, so seeking works (US-006).
@@ -537,7 +542,7 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
                       <span className="step-n">{s.type === 'progress' ? '···' : s.step}</span>
                       <span className="step-body">
                         <span className="step-goal">{stepText(s)}</span>
-                        {s.url && <span className="step-url" title={s.url}>{hostOf(s.url)}</span>}
+                        {s.url && <span className="step-url">{s.url}</span>}
                       </span>
                     </div>
                   ))}
@@ -581,16 +586,6 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
 /** What a step event says it is doing — `progress` events carry a message. */
 function stepText(s) {
   return s.message || s.next_goal || s.thinking || s.evaluation || '…';
-}
-
-/** Host only: the column is too narrow for a full URL, and the path rarely
- *  tells you more than the host does at a glance. Full URL is the tooltip. */
-function hostOf(url) {
-  try {
-    return new URL(url).host.replace(/^www\./, '');
-  } catch {
-    return url;
-  }
 }
 
 /**

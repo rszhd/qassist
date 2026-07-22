@@ -1,4 +1,4 @@
-import { FolderTree, History, MousePointerClick, Play, Settings } from 'lucide-react';
+import { FolderTree, History, Play, Settings } from 'lucide-react';
 import { IconButton } from './ui.jsx';
 
 const VIEWS = [
@@ -19,12 +19,7 @@ export default function TopBar({ view, setView, showNav, runState, onOpenSetting
   return (
     <header className="topbar">
       <div className="topbar-inner">
-        <span className="brand">
-          <span className="brand-mark">
-            <MousePointerClick size={12} strokeWidth={2} aria-hidden="true" />
-          </span>
-          QAssist
-        </span>
+        <span className="brand">QAssist</span>
 
         {showNav && (
           <nav className="views">
