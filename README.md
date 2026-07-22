@@ -186,6 +186,8 @@ and a possible desktop app.
 ## Notes
 
 - The worker is **stateless** per run — durable state belongs in the control plane above.
+- How the open-source repo relates to the paid hosted tier (and the future
+  private cloud repo): [`docs/repo-model.md`](docs/repo-model.md).
 - **Secure it before exposing publicly:** always behind HTTPS, always with the token.
 - Some sites (Reddit, Cloudflare-heavy pages) block datacenter IPs and will fail
   from a server — expected, not a bug.

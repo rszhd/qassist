@@ -26,8 +26,9 @@ Paid-tier ground rules (2026-07-22): nothing extra beyond what payment
 requires. One plan, Stripe Checkout, **BYOK for LLM tokens** (payment covers
 hosting, not OpenAI usage). Billing code lives in this repo **env-gated**
 (`STRIPE_*` unset = everything free) — the private cloud repo is deferred
-until real cloud-only infra exists. Email provider: **Resend** (US-012,
-US-021 magic links).
+until real cloud-only infra exists; the full repo/boundary rules live in
+[`docs/repo-model.md`](../docs/repo-model.md). Email provider: **Resend**
+(US-012, US-021 magic links).
 
 | ID | Story | Status | Depends on |
 |---|---|---|---|
