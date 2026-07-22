@@ -3,7 +3,7 @@
 **As a** user or CI pipeline, **I want** to reach the QAgent UI/API over HTTPS without an SSH tunnel, **so that** the service is usable from anywhere and integrations become possible.
 
 - **Status:** 📋 Planned
-- **Priority:** P1 — unblocks US-008 (CI/CD) and any external users
+- **Priority:** P1 (Release 1) — hard dependency of US-008 tier 1 (CI must reach the API); unblocks any external users
 - **Estimate:** ~2 h (plus domain/DNS)
 - **Depends on:** a domain name pointed at the VPS — user confirmed
   (2026-07-21) they already own one; it's also being used for US-013's

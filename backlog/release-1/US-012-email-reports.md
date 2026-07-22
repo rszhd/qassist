@@ -1,11 +1,14 @@
-# US-012 — Email reports
+# US-012 — Failure email notifications
 
-**As a** user, **I want** run results emailed to me (especially failures), **so that** I hear about breakage without checking a dashboard.
+**As a** user, **I want** an email when a test run fails, **so that** I hear about breakage without checking a dashboard.
 
 - **Status:** 📋 Planned
-- **Priority:** P3
+- **Priority:** P1 (Release 1 — on-failure notification only)
 - **Estimate:** ~1 day
 - **Depends on:** US-009 (Postgres for recipients/prefs); pairs with US-010
+
+**Release-1 scope:** on-failure email only (the default). "Always"/"never"
+prefs are cheap to include; digest mode stays out of Release 1.
 
 ## Details
 

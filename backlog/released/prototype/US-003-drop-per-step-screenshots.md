@@ -2,10 +2,14 @@
 
 **As a** platform operator, **I want** the agent to stop writing per-step PNGs nobody reads, **so that** runs don't waste CPU, disk I/O, and ever-growing storage.
 
-- **Status:** 📋 Planned
-- **Priority:** P2 (quick win)
+- **Status:** ❌ Superseded by [US-020](../../release-1/US-020-report-v2-screenshots-recording.md) (2026-07-22)
+- **Priority:** —
 - **Estimate:** ~5 min
 - **Depends on:** —
+
+> **Superseded:** the release-1 report embeds per-step screenshots, so the
+> PNGs are no longer unused. The storage concern (unbounded `runs/` growth)
+> moved into US-020 as retention/cleanup.
 
 ## Details
 

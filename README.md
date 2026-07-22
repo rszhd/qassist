@@ -150,22 +150,34 @@ Fronting it with HTTPS (Caddy on 443) for public/API access is a [roadmap](#road
 ## Roadmap
 
 Planned work lives in [`backlog/`](backlog/README.md) — one file per user
-story, with status, priorities, dependencies, and acceptance criteria.
-Highlights:
+story, organized by release folder (`release-1/`, `unscheduled/`,
+`released/`), with status, dependencies, and acceptance criteria.
 
-- **Session recording** — store an MP4 per run and light up the report's
-  "View recording" button ([US-006](backlog/US-006-session-recording.md)).
+**Release 1** (in [`backlog/release-1/`](backlog/README.md)):
+
+- **Control plane** (Postgres) — saved tests & suites
+  ([US-009](backlog/release-1/US-009-control-plane-saved-tests.md)),
+  scheduled runs ([US-010](backlog/release-1/US-010-scheduled-runs.md)),
+  failure email notifications
+  ([US-012](backlog/release-1/US-012-email-reports.md)).
+- **Session recording** — store an MP4 per run
+  ([US-006](backlog/release-1/US-006-session-recording.md)) and a report
+  with per-step screenshots + working "View recording"
+  ([US-020](backlog/release-1/US-020-report-v2-screenshots-recording.md)).
 - **Public HTTPS** — Caddy on 443, no more SSH tunnel; unblocks CI/CD
-  ([US-007](backlog/US-007-https-reverse-proxy.md)).
-- **Bring-your-own OpenAI key** ([US-005](backlog/US-005-byok-user-api-keys.md)).
-- **CI/CD integration** — GitHub/GitLab, from a curl step up to PR status
-  checks ([US-008](backlog/US-008-cicd-integration.md)).
-- **Control plane** (Postgres) — saved tests, scheduling, history, email
-  reports ([US-009](backlog/US-009-control-plane-saved-tests.md)–US-012).
-- **Registration-flow verification** — email/SMS codes, social logins
-  ([US-013](backlog/US-013-registration-flow-verification.md)).
-- **Scaling to ~100 concurrent sessions**
-  ([US-015](backlog/US-015-horizontal-scaling-100-concurrent.md)).
+  ([US-007](backlog/release-1/US-007-https-reverse-proxy.md)).
+- **CI/CD integration (tier 1)** — GitHub/GitLab trigger saved tests/suites
+  by id via a documented curl step
+  ([US-008](backlog/release-1/US-008-cicd-integration.md), needs US-009).
+- **Registration-flow verification** — email-confirmation signups, already
+  working ([US-013](backlog/release-1/US-013-registration-flow-verification.md)).
+
+Later ([`backlog/unscheduled/`](backlog/README.md)): bring-your-own OpenAI
+key ([US-005](backlog/unscheduled/US-005-byok-user-api-keys.md)), run-history
+UI ([US-011](backlog/unscheduled/US-011-run-history.md)), SMS/social
+registration tiers, PR status checks, scaling to ~100 concurrent sessions
+([US-015](backlog/unscheduled/US-015-horizontal-scaling-100-concurrent.md)),
+and a possible desktop app.
 
 ## Notes
 

@@ -3,7 +3,7 @@
 **As a** user, **I want** my saved tests to run automatically on a schedule, **so that** I catch site breakage without anyone pressing a button.
 
 - **Status:** 📋 Planned
-- **Priority:** P3
+- **Priority:** P1 (Release 1)
 - **Estimate:** ~1–2 days
 - **Depends on:** US-009 (saved tests + Postgres)
 

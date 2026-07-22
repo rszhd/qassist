@@ -1,31 +1,62 @@
 # Backlog
 
-One file per user story. Status lives in each file's header; this table is the
-overview (keep it in sync when a story changes state).
+One file per user story. Status lives in each file's header; this README is
+the overview (keep it in sync when a story changes state or moves folder).
+
+## Folder layout
+
+- `release-1/` … `release-N/` — stories scoped to that upcoming release. The
+  lowest-numbered folder is the one being worked on.
+- `unscheduled/` — stories with no release assigned yet.
+- `released/<name>/` — shipped releases, moved here wholesale when the release
+  goes out (e.g. `released/prototype/`). A story with follow-up tiers left
+  over gets those spun into a new story in `unscheduled/` at that point.
+
+## Release 1 (first public release) — `release-1/`
+
+Scope decided 2026-07-22: report with recording + step screenshots, saved
+tests, scheduling, failure email notifications, CI trigger (tier 1), and
+registration-flow email confirmation (already done). US-007 rides along as a
+hard dependency of US-008 tier 1.
+
+| ID | Story | Status | Depends on |
+|---|---|---|---|
+| [US-009](release-1/US-009-control-plane-saved-tests.md) | Control plane: save & reuse tests | 📋 Planned | — |
+| [US-006](release-1/US-006-session-recording.md) | Session recording (record by default) | 📋 Planned | — |
+| [US-020](release-1/US-020-report-v2-screenshots-recording.md) | Report v2: step screenshots + recording | 📋 Planned | US-006 |
+| [US-010](release-1/US-010-scheduled-runs.md) | Scheduled runs | 📋 Planned | US-009 |
+| [US-012](release-1/US-012-email-reports.md) | Failure email notifications | 📋 Planned | US-009 |
+| [US-007](release-1/US-007-https-reverse-proxy.md) | Public HTTPS via reverse proxy | 📋 Planned | domain (owned) |
+| [US-008](release-1/US-008-cicd-integration.md) | CI/CD trigger — tier 1 only | 📋 Planned | US-007, US-009 |
+| [US-013](release-1/US-013-registration-flow-verification.md) | Registration-flow verification — email tier | ✅ Tier 1 done | — |
+
+### Build order
+
+1. **US-009** — foundation: Postgres, saved tests/suites, run APIs (everything
+   else in the release hangs off it)
+2. **US-006 → US-020** — recording, then the report that embeds
+   screenshots + recording link (independent of US-009; can run in parallel)
+3. **US-010** — scheduling on top of saved tests
+4. **US-012** — failure emails (pairs with scheduling)
+5. **US-007 → US-008 tier 1** — public HTTPS, then the documented CI snippet
+
+## Unscheduled — `unscheduled/`
 
 | ID | Story | Status | Priority | Depends on |
 |---|---|---|---|---|
-| [US-001](US-001-chromium-memory-flags.md) | Reduce per-session Chromium memory | ✅ Done | P1 | — |
-| [US-002](US-002-viewer-gated-screencast.md) | Viewer-gated live screencast | ✅ Done | P1 | — |
-| [US-003](US-003-drop-per-step-screenshots.md) | Stop saving unused per-step screenshots | 📋 Planned | P2 | — |
-| [US-004](US-004-per-run-memory-watchdog.md) | Per-run memory watchdog | ✅ Done | P2 | — |
-| [US-005](US-005-byok-user-api-keys.md) | Bring-your-own OpenAI key (BYOK) | 📋 Planned | P1 | — |
-| [US-006](US-006-session-recording.md) | Session recording (record by default) | 📋 Planned | P2 | US-003 |
-| [US-007](US-007-https-reverse-proxy.md) | Public HTTPS via reverse proxy | 📋 Planned | P1 | domain |
-| [US-008](US-008-cicd-integration.md) | CI/CD integration (GitHub/GitLab) | 📋 Planned | P2 | US-007 |
-| [US-009](US-009-control-plane-saved-tests.md) | Control plane: save & reuse tests | 📋 Planned | P2 | — |
-| [US-010](US-010-scheduled-runs.md) | Scheduled runs | 📋 Planned | P3 | US-009 |
-| [US-011](US-011-run-history.md) | Run history | 📋 Planned | P3 | US-009 |
-| [US-012](US-012-email-reports.md) | Email reports | 📋 Planned | P3 | US-009 |
-| [US-013](US-013-registration-flow-verification.md) | Registration-flow verification | ✅ Tier 1 (email) done | P3 | — |
-| [US-014](US-014-block-heavy-resources.md) | Block heavy page resources | 📋 Planned | P3 | — |
-| [US-015](US-015-horizontal-scaling-100-concurrent.md) | Horizontal scaling to ~100 concurrent | 📋 Planned | P3 | US-005, US-009 |
-| [US-016](US-016-desktop-shell.md) | Desktop shell (Electron) | 📋 Planned | TBD | — |
-| [US-017](US-017-frozen-python-agent.md) | Frozen Python agent (no system Python) | 📋 Planned | TBD | US-016 |
-| [US-018](US-018-first-run-setup.md) | First-run setup: Chromium download + BYOK settings | 📋 Planned | TBD | US-016 |
-| [US-019](US-019-installers-signing-autoupdate.md) | Installers, code signing, auto-update | 📋 Planned | TBD | US-016..018 |
+| [US-005](unscheduled/US-005-byok-user-api-keys.md) | Bring-your-own OpenAI key (BYOK) | 📋 Planned | P1 | — |
+| [US-011](unscheduled/US-011-run-history.md) | Run history | 📋 Planned | P3 | US-009 |
+| [US-013](release-1/US-013-registration-flow-verification.md) | Registration-flow tiers 2 (SMS) + 3 (social) | 📋 Planned | P3 | — |
+| [US-008](release-1/US-008-cicd-integration.md) | CI/CD tiers 2 (reusable Action) + 3 (GitHub App) | 📋 Planned | P2 | US-008 t1 |
+| [US-014](unscheduled/US-014-block-heavy-resources.md) | Block heavy page resources | 📋 Planned | P3 | — |
+| [US-015](unscheduled/US-015-horizontal-scaling-100-concurrent.md) | Horizontal scaling to ~100 concurrent | 📋 Planned | P3 | US-005, US-009 |
+| [US-016](unscheduled/US-016-desktop-shell.md) | Desktop shell (Electron) | 📋 Planned | TBD | — |
+| [US-017](unscheduled/US-017-frozen-python-agent.md) | Frozen Python agent (no system Python) | 📋 Planned | TBD | US-016 |
+| [US-018](unscheduled/US-018-first-run-setup.md) | First-run setup: Chromium download + BYOK settings | 📋 Planned | TBD | US-016 |
+| [US-019](unscheduled/US-019-installers-signing-autoupdate.md) | Installers, code signing, auto-update | 📋 Planned | TBD | US-016..018 |
 
-## Suggested order
+Tiered stories (US-008, US-013) live in `release-1/` because their next tier
+ships there; the later tiers listed above are unscheduled follow-ups.
 
 **Desktop track (US-016..019, sketched 2026-07-21, on hold):** candidate
 strategy — free version runs entirely on the user's machine (their CPU/RAM,
@@ -34,14 +65,21 @@ decision deferred. If picked up: US-016 → US-017 → US-018 → US-019, Window
 before macOS, and `server.js` stays dual-mode (container + Electron) — never
 fork it. US-018 would realize US-005 (BYOK) on desktop.
 
-1. **Quick wins:** US-003 (5 min) — US-004 done
-2. **Product-ready:** US-007 (HTTPS) → US-005 (BYOK) → US-006 (recording)
-3. **Integrations:** US-008 tier 1 → US-009 → US-010/011/012
-4. **Scale & depth:** US-014 → US-015 → US-013 tiers 2+, US-008 tiers 2–3
+## Released — `released/`
+
+### `released/prototype/` (shipped 2026-07-21)
+
+| ID | Story | Outcome |
+|---|---|---|
+| [US-001](released/prototype/US-001-chromium-memory-flags.md) | Reduce per-session Chromium memory | ✅ Done |
+| [US-002](released/prototype/US-002-viewer-gated-screencast.md) | Viewer-gated live screencast | ✅ Done |
+| [US-004](released/prototype/US-004-per-run-memory-watchdog.md) | Per-run memory watchdog | ✅ Done |
+| [US-003](released/prototype/US-003-drop-per-step-screenshots.md) | Stop saving per-step screenshots | ❌ Superseded by US-020 (report now uses them) |
 
 ## Conventions
 
-- File name: `US-NNN-short-slug.md`; never reuse an ID.
+- File name: `US-NNN-short-slug.md`; never reuse an ID, even across folders.
 - Header: user story sentence, then Status / Priority / Estimate / Depends on.
 - Body: Details, Acceptance criteria (checkboxes), plus Results/Tradeoffs for
   finished work. Record measured numbers — they drive sizing decisions.
+- Moving a story between folders is a `git mv` + README table update.

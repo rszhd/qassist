@@ -2,10 +2,10 @@
 
 **As a** user, **I want** a video recording of every test run, **so that** I can review exactly what the agent did after the fact — especially for failures.
 
-- **Status:** 📋 Planned (design decided 2026-07-21; user deferred build)
-- **Priority:** P2
+- **Status:** 📋 Planned (design decided 2026-07-21)
+- **Priority:** P1 (Release 1)
 - **Estimate:** ~half a day
-- **Depends on:** US-003 recommended first (keeps `runs/` tidy)
+- **Depends on:** — (US-003 superseded; `runs/` retention now lives in US-020)
 
 ## Decision
 
