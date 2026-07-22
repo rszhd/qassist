@@ -1,17 +1,21 @@
 // Run status → colour, shared by the header badge, the history rows and the
 // pass/fail timeline. One table so a verdict never reads as two different
 // colours depending on where you are looking at it.
+//
+// These are solid fills behind white text, so they sit a shade darker than the
+// text-weight --ok/--warn/--bad in App.css; keep the two in step when the
+// palette changes.
 export const STATUS_COLORS = {
   queued: '#a16207',
-  running: '#2563eb',
-  passed: '#16a34a',
-  failed: '#dc2626',
-  error: '#dc2626',
-  completed: '#4b5563',
-  idle: '#6b7280',
+  running: '#5b5bd6',
+  passed: '#1c9c62',
+  failed: '#cf3b40',
+  error: '#cf3b40',
+  completed: '#3f3f46',
+  idle: '#52525b',
 };
 
-export const statusColor = (status) => STATUS_COLORS[status] || '#6b7280';
+export const statusColor = (status) => STATUS_COLORS[status] || '#52525b';
 
 /** Compact local timestamp for history rows — date and minute, no year. */
 export function formatWhen(iso) {

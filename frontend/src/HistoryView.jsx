@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { AlertTriangle, ChevronLeft, ChevronRight, Clock, MousePointerClick } from 'lucide-react';
 import { api } from './api.js';
 import RunDetail from './RunDetail.jsx';
+import { Button, CardHead, EmptyState, PageHeader } from './ui.jsx';
 import { statusColor, formatWhen, formatDuration } from './status.js';
 
 // History (US-011): every run the control plane has kept, filtered and paged
@@ -110,14 +112,23 @@ export default function HistoryView({ token }) {
 
   return (
     <>
-      {error && <div className="error lib-error">⚠ {error}</div>}
+      <PageHeader
+        title="History"
+        description="Every run the control plane has kept — verdict, report and recording."
+      />
+
+      {error && (
+        <div className="error page-error">
+          <AlertTriangle size={15} aria-hidden="true" />
+          <span>{error}</span>
+        </div>
+      )}
 
       <div className="history">
-        <section className="panel hist-list">
-          <h2>
-            Run history
-            {showing && <span className="lib-count">{showing}</span>}
-          </h2>
+        <section className="card hist-list">
+          <CardHead title="Runs">
+            {showing && <span className="row-sub spacer">{showing}</span>}
+          </CardHead>
 
           <div className="hist-filters">
             {projects.length > 0 && (
@@ -149,68 +160,64 @@ export default function HistoryView({ token }) {
           {testId !== 'all' && <Timeline runs={data.runs} onPick={setSelectedId} selectedId={selectedId} />}
 
           {loading ? (
-            <p className="tests-empty">Loading…</p>
+            <EmptyState icon={Clock}>Loading runs…</EmptyState>
           ) : data.runs.length === 0 ? (
-            <p className="tests-empty">
+            <EmptyState icon={Clock} title="No runs to show">
               {data.total === 0 && status === 'all' && range === 'all' && testId === 'all'
-                ? 'No runs yet. Start one from the Run view and it will be kept here — verdict, report and recording — instead of disappearing when the page closes.'
+                ? 'Start a run and it is kept here — verdict, report and recording — instead of disappearing when the page closes.'
                 : 'No runs match these filters.'}
-            </p>
+            </EmptyState>
           ) : (
-            <ul className="run-list">
+            <ul className="list">
               {data.runs.map((run) => (
                 <li key={run.id} className={run.id === selectedId ? 'active' : ''}>
-                  <button type="button" className="run-pick" onClick={() => setSelectedId(run.id)}>
-                    <span className="run-dot" style={{ background: statusColor(run.status) }} />
-                    <span className="run-meta">
-                      <span className="run-name">
-                        {run.test_name || <em>Ad-hoc run</em>}
-                        {run.trigger !== 'ui' && <span className="run-trigger">{run.trigger}</span>}
-                      </span>
-                      <span className="run-goal">{run.goal}</span>
+                  <span className="run-dot" style={{ background: statusColor(run.status) }} />
+                  <button type="button" className="row-main" onClick={() => setSelectedId(run.id)}>
+                    <span className="row-name">
+                      {run.test_name || <em>Ad-hoc run</em>}
+                      {run.trigger !== 'ui' && <span className="row-tag">{run.trigger}</span>}
                     </span>
-                    <span className="run-when">
-                      {formatWhen(run.created_at)}
-                      <span className="run-sub">
-                        {run.steps_count ?? '—'} steps ·{' '}
-                        {formatDuration(run.started_at, run.finished_at)}
-                      </span>
-                    </span>
+                    <span className="row-sub">{run.goal}</span>
                   </button>
+                  <span className="run-when">
+                    {formatWhen(run.created_at)}
+                    <span className="run-sub">
+                      {run.steps_count ?? '—'} steps ·{' '}
+                      {formatDuration(run.started_at, run.finished_at)}
+                    </span>
+                  </span>
                 </li>
               ))}
             </ul>
           )}
 
           {data.total > PAGE && (
-            <div className="btn-row hist-paging">
-              <button
-                type="button"
-                className="ghost"
+            <div className="hist-paging">
+              <Button
+                icon={ChevronLeft}
                 disabled={offset === 0}
                 onClick={() => setOffset((o) => Math.max(0, o - PAGE))}
               >
-                ← Newer
-              </button>
-              <button
-                type="button"
-                className="ghost"
+                Newer
+              </Button>
+              <Button
                 disabled={offset + PAGE >= data.total}
                 onClick={() => setOffset((o) => o + PAGE)}
               >
-                Older →
-              </button>
+                Older
+                <ChevronRight size={16} strokeWidth={2} aria-hidden="true" />
+              </Button>
             </div>
           )}
         </section>
 
-        <section className="panel hist-detail">
+        <section className="card hist-detail">
           {selected ? (
             <RunDetail run={selected} token={token} onError={setError} />
           ) : (
-            <p className="tests-empty">
-              Select a run to see its verdict, report and recording.
-            </p>
+            <EmptyState icon={MousePointerClick} title="No run selected">
+              Pick a run to see its verdict, report and recording.
+            </EmptyState>
           )}
         </section>
       </div>

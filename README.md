@@ -4,7 +4,7 @@
 a plain-English goal; an AI agent drives a real Chromium browser like a user,
 streams the session live, decides pass/fail, and produces a shareable PDF report.
 
-> Status: **working prototype.** Runs end-to-end and is deployed on a VPS. See
+> Status: **actively developed.** Runs end-to-end and is deployed on a VPS. See
 > [Roadmap](#roadmap) for what's intentionally left for later.
 
 ## What it does

@@ -3,8 +3,8 @@
 QAssist (formerly QAgent) — goal-based AI browser testing. User gives a URL +
 plain-English goal; a Python agent drives real Chromium via browser-use,
 streams the session live over WebSocket, judges pass/fail, renders a PDF
-report. Working prototype, deployed on a VPS behind an SSH tunnel. Hosted paid
-tier planned at qassist.run.
+report. Deployed on a VPS behind an SSH tunnel. Hosted paid tier planned at
+qassist.run.
 
 ## Architecture (full details: README.md)
 
@@ -20,9 +20,9 @@ engine + persistence), `routes/{runs,tests,suites,projects,modules,helpers}.js`.
 `routes/runs.js` is the HTTP surface only — the engine stays `src/runs.js`.
 `routes/projects.js` also holds the module query helpers `modules.js` imports.
 
-`frontend/src/` splits as: `App.jsx` (shell — token, health, which view),
-`TopBar.jsx` (header + view nav), `RunView.jsx` (a single run: WS socket, live
-viewer, saved-test list, run/edit form) with `SavedTests.jsx`,
+`frontend/src/` splits as: `App.jsx` (shell — token, health, which view, the
+settings dialog), `TopBar.jsx` (header + view nav), `RunView.jsx` (a single
+run: WS socket, live stage, run/edit dialog) with `SavedTests.jsx`,
 `HistoryView.jsx` (past runs: filters, paging, timeline) with `RunDetail.jsx`,
 and `LibraryView.jsx` (project/module management) with `Suites.jsx`. Shared
 bits live in `api.js` (fetch wrapper + `openReport`) and `status.js`
@@ -30,6 +30,17 @@ bits live in `api.js` (fetch wrapper + `openReport`) and `status.js`
 split exists so US-010/US-005 have somewhere to go. Run stays mounted while
 hidden (unmounting drops the live WebSocket); History and Library remount,
 which is how they refresh.
+
+**UI conventions.** `ui.jsx` holds the shared vocabulary — `Button`
+(variant/size, lucide icon), `IconButton`, `Field`, `CardHead`, `EmptyState`,
+`Stat`, `PageHeader`, `Modal` — and every view is built from it rather than
+from raw `<button>`/`<label>`. Icons come from `lucide-react`, never text
+glyphs. `App.css` is one sheet in two halves: tokens + primitives, then
+per-view layout; colours, spacing (`--s1`…`--s10`) and radii always resolve to
+a token, so the theme is swappable from `:root` alone. Each view opens with a
+`PageHeader` carrying its primary action; creating and editing happen in a
+`Modal`, and destructive/secondary row actions hide behind `.row-actions`
+until the row is hovered or focused.
 
 Saved tests can be grouped into a **project**, and within it into at most one
 **module**; a **suite** is the many-to-many alternative, scoped to one project.

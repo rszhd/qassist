@@ -1,5 +1,7 @@
 import { useState } from 'react';
+import { AlertTriangle, Download, Play, Undo2 } from 'lucide-react';
 import { openReport } from './api.js';
+import { Button, Stat } from './ui.jsx';
 import { statusColor, formatWhen, formatDuration } from './status.js';
 
 // One past run, rendered entirely from the row the history list already has.
@@ -13,7 +15,6 @@ export default function RunDetail({ run, token, onError }) {
   const [showRecording, setShowRecording] = useState(false);
 
   const pruned = !!run.artifacts_deleted_at;
-  const verdict = run.success === true ? 'ok' : run.success === false ? 'bad' : '';
 
   async function downloadReport() {
     setReportBusy(true);
@@ -28,40 +29,57 @@ export default function RunDetail({ run, token, onError }) {
 
   return (
     <div className="run-detail">
-      <h2>
+      <div className="verdict-head">
         {run.test_name || 'Ad-hoc run'}
         <span className="badge" style={{ background: statusColor(run.status) }}>{run.status}</span>
-      </h2>
+      </div>
 
       {showRecording && run.has_recording && (
-        <div className="screen detail-screen">
-          <video
-            key={run.id}
-            src={`/api/runs/${run.id}/recording${token ? `?token=${encodeURIComponent(token)}` : ''}`}
-            controls
-            autoPlay
-            onError={() => onError('Recording could not be loaded.')}
-          />
+        <div className="browser detail-screen">
+          <div className="browser-bar">
+            <span className="browser-dots"><i /><i /><i /></span>
+            <span className="browser-url">Session recording</span>
+          </div>
+          <div className="screen">
+            <video
+              key={run.id}
+              src={`/api/runs/${run.id}/recording${token ? `?token=${encodeURIComponent(token)}` : ''}`}
+              controls
+              autoPlay
+              onError={() => onError('Recording could not be loaded.')}
+            />
+          </div>
         </div>
       )}
+
+      <div className="stats">
+        <Stat
+          label="Verdict"
+          value={run.success === true ? 'Pass' : run.success === false ? 'Fail' : '—'}
+          tone={run.success === true ? 'ok' : run.success === false ? 'bad' : ''}
+        />
+        <Stat label="Steps" value={run.steps_count ?? '—'} />
+        <Stat label="Duration" value={formatDuration(run.started_at, run.finished_at)} />
+      </div>
 
       <dl className="detail-facts">
         <dt>Started</dt>
         <dd>{formatWhen(run.created_at)}</dd>
-        <dt>Duration</dt>
-        <dd>{formatDuration(run.started_at, run.finished_at)}</dd>
-        <dt>Steps</dt>
-        <dd>{run.steps_count ?? '—'}</dd>
         <dt>Trigger</dt>
         <dd>{run.trigger}</dd>
         <dt>URL</dt>
-        <dd className="detail-url">{run.start_url}</dd>
+        <dd title={run.start_url}>{run.start_url}</dd>
       </dl>
 
       <p className="detail-goal">{run.goal}</p>
 
-      {run.final_result && <div className={`result ${verdict}`}><p className="final">{run.final_result}</p></div>}
-      {run.error && <div className="error">⚠ {run.error}</div>}
+      {run.final_result && <p className="final">{run.final_result}</p>}
+      {run.error && (
+        <div className="error">
+          <AlertTriangle size={15} aria-hidden="true" />
+          <span>{run.error}</span>
+        </div>
+      )}
 
       {pruned ? (
         <p className="hint">
@@ -69,20 +87,19 @@ export default function RunDetail({ run, token, onError }) {
           recording are gone, the verdict above is kept.
         </p>
       ) : (
-        <div className="btn-row result-actions">
-          <button
-            type="button"
-            className="report-btn"
+        <div className="verdict-actions">
+          <Button
+            icon={Download}
             onClick={downloadReport}
             disabled={reportBusy || run.report_status === 'none'}
             title={run.report_status === 'none' ? 'No report for this run' : undefined}
           >
-            {reportBusy ? 'Preparing PDF…' : '⭳ PDF report'}
-          </button>
+            {reportBusy ? 'Preparing PDF…' : 'PDF report'}
+          </Button>
           {run.has_recording && (
-            <button type="button" className="report-btn" onClick={() => setShowRecording((v) => !v)}>
-              {showRecording ? '⤺ Hide recording' : '▶ Watch recording'}
-            </button>
+            <Button icon={showRecording ? Undo2 : Play} onClick={() => setShowRecording((v) => !v)}>
+              {showRecording ? 'Hide recording' : 'Watch recording'}
+            </Button>
           )}
         </div>
       )}

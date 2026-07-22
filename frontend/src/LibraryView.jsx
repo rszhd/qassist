@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
+import { AlertTriangle, FolderTree, Layers, Pencil, Plus, Trash2 } from 'lucide-react';
 import { api } from './api.js';
 import Suites from './Suites.jsx';
+import { Button, CardHead, EmptyState, IconButton, PageHeader } from './ui.jsx';
 
 // Library (US-023): full-width management of projects and the modules inside
 // them. Running lives in the Run view — this view only organizes.
@@ -121,18 +123,28 @@ export default function LibraryView({ token }) {
 
   return (
     <>
-      {error && <div className="error lib-error">⚠ {error}</div>}
+      <PageHeader
+        title="Library"
+        description="Organize saved tests into projects and modules. Running happens in the Run view."
+      />
+
+      {error && (
+        <div className="error page-error">
+          <AlertTriangle size={15} aria-hidden="true" />
+          <span>{error}</span>
+        </div>
+      )}
 
       <div className="library">
-        <section className="panel lib-projects">
-          <h2>Projects</h2>
+        <section className="card lib-projects">
+          <CardHead title="Projects" count={projects.length} />
           {projects.length === 0 && (
-            <p className="tests-empty">
-              No projects yet. A project is one app under test — create one, then group its
-              saved tests into modules like <code>auth</code> or <code>checkout</code>.
-            </p>
+            <EmptyState icon={FolderTree} title="No projects yet">
+              A project is one app under test — create one, then group its saved tests into
+              modules like <code>auth</code> or <code>checkout</code>.
+            </EmptyState>
           )}
-          <ul className="group-list">
+          <ul className="list">
             {projects.map((p) =>
               editingRow('project', p.id) ? (
                 <li key={p.id} className="editing">
@@ -140,19 +152,17 @@ export default function LibraryView({ token }) {
                 </li>
               ) : (
                 <li key={p.id} className={p.id === selectedId ? 'active' : ''}>
-                  <button type="button" className="group-pick" onClick={() => setSelectedId(p.id)}>
-                    <span className="group-name">{p.name}</span>
-                    <span className="group-sub">
+                  <button type="button" className="row-main" onClick={() => setSelectedId(p.id)}>
+                    <span className="row-name">{p.name}</span>
+                    <span className="row-sub">
                       <code>{p.slug}</code> · {p.test_count} test{p.test_count === 1 ? '' : 's'} ·{' '}
                       {p.module_count} module{p.module_count === 1 ? '' : 's'}
                     </span>
                   </button>
-                  <button type="button" className="icon-btn" title="Rename" onClick={() => startEdit('project', p)}>
-                    ✎
-                  </button>
-                  <button type="button" className="icon-btn danger" title="Delete" onClick={() => deleteProject(p)}>
-                    ✕
-                  </button>
+                  <span className="row-actions">
+                    <IconButton icon={Pencil} label="Rename" onClick={() => startEdit('project', p)} />
+                    <IconButton icon={Trash2} variant="danger" label="Delete" onClick={() => deleteProject(p)} />
+                  </span>
                 </li>
               )
             )}
@@ -163,28 +173,31 @@ export default function LibraryView({ token }) {
               placeholder="New project name"
               onChange={(e) => setNewProject(e.target.value)}
             />
-            <button type="submit" disabled={busy || !newProject.trim()}>Add</button>
+            <Button type="submit" variant="primary" icon={Plus} disabled={busy || !newProject.trim()}>
+              Add
+            </Button>
           </form>
         </section>
 
-        <section className="panel lib-detail">
+        <section className="card lib-detail">
           {!detail ? (
-            <p className="tests-empty">Select a project to manage its modules.</p>
+            <EmptyState icon={Layers} title="No project selected">
+              Pick a project to manage its modules and suites.
+            </EmptyState>
           ) : (
             <>
-              <h2>
-                Modules in {detail.name}
-                <span className="lib-count">
+              <CardHead title={`Modules in ${detail.name}`}>
+                <span className="row-sub spacer">
                   {detail.test_count} test{detail.test_count === 1 ? '' : 's'} in this project
                 </span>
-              </h2>
+              </CardHead>
               {detail.modules.length === 0 && (
-                <p className="tests-empty">
-                  No modules yet. A test belongs to at most one module, so modules split the
-                  project's tests into non-overlapping groups — each one runnable on its own.
-                </p>
+                <EmptyState icon={Layers} title="No modules yet">
+                  A test belongs to at most one module, so modules split the project's tests into
+                  non-overlapping groups — each one runnable on its own.
+                </EmptyState>
               )}
-              <ul className="group-list">
+              <ul className="list">
                 {detail.modules.map((m) =>
                   editingRow('module', m.id) ? (
                     <li key={m.id} className="editing">
@@ -192,18 +205,16 @@ export default function LibraryView({ token }) {
                     </li>
                   ) : (
                     <li key={m.id}>
-                      <span className="group-pick static">
-                        <span className="group-name">{m.name}</span>
-                        <span className="group-sub">
+                      <span className="row-main">
+                        <span className="row-name">{m.name}</span>
+                        <span className="row-sub">
                           <code>{m.slug}</code> · {m.test_count} test{m.test_count === 1 ? '' : 's'}
                         </span>
                       </span>
-                      <button type="button" className="icon-btn" title="Rename" onClick={() => startEdit('module', m)}>
-                        ✎
-                      </button>
-                      <button type="button" className="icon-btn danger" title="Delete" onClick={() => deleteModule(m)}>
-                        ✕
-                      </button>
+                      <span className="row-actions">
+                        <IconButton icon={Pencil} label="Rename" onClick={() => startEdit('module', m)} />
+                        <IconButton icon={Trash2} variant="danger" label="Delete" onClick={() => deleteModule(m)} />
+                      </span>
                     </li>
                   )
                 )}
@@ -214,7 +225,9 @@ export default function LibraryView({ token }) {
                   placeholder="New module name"
                   onChange={(e) => setNewModule(e.target.value)}
                 />
-                <button type="submit" disabled={busy || !newModule.trim()}>Add</button>
+                <Button type="submit" variant="primary" icon={Plus} disabled={busy || !newModule.trim()}>
+                  Add
+                </Button>
               </form>
               <p className="hint">
                 Assign tests to a module from the Run view. Trigger one from CI with{' '}
@@ -234,7 +247,7 @@ export default function LibraryView({ token }) {
 /** Inline name + slug editor shared by the project and module rows. */
 function GroupEditor({ editing, setEditing, onSubmit, onCancel, busy }) {
   return (
-    <form className="group-edit" onSubmit={onSubmit}>
+    <form className="inline-edit" onSubmit={onSubmit}>
       <input
         value={editing.name}
         autoFocus
@@ -244,12 +257,14 @@ function GroupEditor({ editing, setEditing, onSubmit, onCancel, busy }) {
       <input
         value={editing.slug}
         placeholder="slug"
-        className="slug-input"
+        className="slug"
         onChange={(e) => setEditing((cur) => ({ ...cur, slug: e.target.value }))}
       />
-      <div className="btn-row">
-        <button type="submit" disabled={busy || !editing.name.trim()}>Save</button>
-        <button type="button" className="ghost" onClick={onCancel}>Cancel</button>
+      <div className="inline-edit-actions">
+        <Button size="sm" onClick={onCancel}>Cancel</Button>
+        <Button size="sm" type="submit" variant="primary" disabled={busy || !editing.name.trim()}>
+          Save
+        </Button>
       </div>
     </form>
   );

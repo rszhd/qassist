@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
+import { AlertTriangle, Boxes, Pencil, Plus, Trash2 } from 'lucide-react';
 import { api } from './api.js';
+import { Button, CardHead, EmptyState, IconButton } from './ui.jsx';
 
 // Suites (US-009 UI, deferred until US-023). A suite is the many-to-many
 // alternative to a module: the same test can sit in several suites, but a
@@ -78,26 +80,34 @@ export default function Suites({ projectId, token }) {
 
   return (
     <div className="suites">
-      <h2>
-        Suites
+      <CardHead title="Suites" count={suites.length}>
         {!editing && (
-          <button type="button" className="icon-btn" onClick={() => setEditing({ id: null, name: '', testIds: [] })}>
-            + New
-          </button>
+          <Button
+            size="sm"
+            icon={Plus}
+            className="spacer"
+            onClick={() => setEditing({ id: null, name: '', testIds: [] })}
+          >
+            New suite
+          </Button>
         )}
-      </h2>
+      </CardHead>
 
-      {error && <div className="error lib-error">⚠ {error}</div>}
-
-      {suites.length === 0 && !editing && (
-        <p className="tests-empty">
-          No suites yet. Unlike a module, a suite can hold any mix of this project's tests, and a
-          test can be in several — useful for cross-cutting sets like <code>smoke</code> or{' '}
-          <code>nightly</code>.
-        </p>
+      {error && (
+        <div className="error">
+          <AlertTriangle size={15} aria-hidden="true" />
+          <span>{error}</span>
+        </div>
       )}
 
-      <ul className="group-list">
+      {suites.length === 0 && !editing && (
+        <EmptyState icon={Boxes} title="No suites yet">
+          Unlike a module, a suite can hold any mix of this project's tests, and a test can be in
+          several — useful for cross-cutting sets like <code>smoke</code> or <code>nightly</code>.
+        </EmptyState>
+      )}
+
+      <ul className="list">
         {suites.map((s) =>
           editing?.id === s.id ? (
             <li key={s.id} className="editing">
@@ -113,24 +123,21 @@ export default function Suites({ projectId, token }) {
             </li>
           ) : (
             <li key={s.id}>
-              <span className="group-pick static">
-                <span className="group-name">{s.name}</span>
-                <span className="group-sub">
+              <span className="row-main">
+                <span className="row-name">{s.name}</span>
+                <span className="row-sub">
                   {s.test_ids.length} test{s.test_ids.length === 1 ? '' : 's'}
                   {s.test_ids.length === 0 && ' — add some to make it runnable'}
                 </span>
               </span>
-              <button
-                type="button"
-                className="icon-btn"
-                title="Edit name and membership"
-                onClick={() => setEditing({ id: s.id, name: s.name, testIds: s.test_ids })}
-              >
-                ✎
-              </button>
-              <button type="button" className="icon-btn danger" title="Delete" onClick={() => remove(s)}>
-                ✕
-              </button>
+              <span className="row-actions">
+                <IconButton
+                  icon={Pencil}
+                  label="Edit name and membership"
+                  onClick={() => setEditing({ id: s.id, name: s.name, testIds: s.test_ids })}
+                />
+                <IconButton icon={Trash2} variant="danger" label="Delete" onClick={() => remove(s)} />
+              </span>
             </li>
           )
         )}
@@ -154,7 +161,7 @@ export default function Suites({ projectId, token }) {
 
 function SuiteEditor({ editing, setEditing, tests, toggle, onSubmit, onCancel, busy }) {
   return (
-    <form className="group-edit" onSubmit={onSubmit}>
+    <form className="inline-edit" onSubmit={onSubmit}>
       <input
         value={editing.name}
         autoFocus
@@ -162,10 +169,10 @@ function SuiteEditor({ editing, setEditing, tests, toggle, onSubmit, onCancel, b
         onChange={(e) => setEditing((cur) => ({ ...cur, name: e.target.value }))}
       />
       {tests.length === 0 ? (
-        <p className="tests-empty">
+        <EmptyState>
           This project has no tests yet. Assign some to it from the Run view — a suite can only
           hold tests that belong to its own project.
-        </p>
+        </EmptyState>
       ) : (
         <ul className="member-list">
           {tests.map((t) => (
@@ -183,11 +190,11 @@ function SuiteEditor({ editing, setEditing, tests, toggle, onSubmit, onCancel, b
           ))}
         </ul>
       )}
-      <div className="btn-row">
-        <button type="submit" disabled={busy || !editing.name.trim()}>
+      <div className="inline-edit-actions">
+        <Button size="sm" onClick={onCancel}>Cancel</Button>
+        <Button size="sm" type="submit" variant="primary" disabled={busy || !editing.name.trim()}>
           {editing.id ? 'Save suite' : 'Create suite'}
-        </button>
-        <button type="button" className="ghost" onClick={onCancel}>Cancel</button>
+        </Button>
       </div>
     </form>
   );

@@ -1,10 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  AlertTriangle, Check, Download, KeyRound, Monitor, Play, Plus, Undo2, X,
+} from 'lucide-react';
 import { api, openReport } from './api.js';
 import SavedTests from './SavedTests.jsx';
+import { Button, CardHead, EmptyState, Field, Modal, PageHeader, Stat } from './ui.jsx';
 
-// The default view: saved-test list + run/edit form beside the live viewer.
+// The default view: the live stage is the page, with the saved-test rail
+// beside it. Creating and editing tests happens in a dialog so the run form
+// never competes with the thing you are actually here to watch.
+//
 // Owns everything about a single run (WS socket, steps, result, report).
-export default function RunView({ token, setToken, health, visible, onRunState }) {
+export default function RunView({ token, health, visible, needsToken, onOpenSettings, onRunState }) {
   const [goal, setGoal] = useState('Verify the page loads and find the main heading text');
   const [startUrl, setStartUrl] = useState('https://news.ycombinator.com');
   const [status, setStatus] = useState('idle');
@@ -23,8 +30,10 @@ export default function RunView({ token, setToken, health, visible, onRunState }
   // only follow one.
   const [batch, setBatch] = useState(null);
   const [activeTestId, setActiveTestId] = useState(null);
-  // null = plain ad-hoc form. Otherwise the form doubles as the test editor:
-  // `{ name, project_id, module_id }` creates, `{ id, ... }` updates that row.
+  // Which dialog is open: 'run' (ad-hoc), 'create' or 'edit'. The URL and goal
+  // fields are shared with the running state, so the dialog edits them in
+  // place; `editing` carries only what a saved test adds on top.
+  const [dialog, setDialog] = useState(null);
   const [editing, setEditing] = useState(null);
   const [savingTest, setSavingTest] = useState(false);
   const [reportBusy, setReportBusy] = useState(false);
@@ -157,10 +166,8 @@ export default function RunView({ token, setToken, health, visible, onRunState }
     setStatus('queued');
   }
 
-  // The form is shared, so Enter means "save" while the editor is open.
-  async function startRun(e) {
-    e.preventDefault();
-    if (editing) return saveTest();
+  async function startRun() {
+    setDialog(null);
     resetRunState();
     setActiveTestId(null);
     try {
@@ -177,7 +184,7 @@ export default function RunView({ token, setToken, health, visible, onRunState }
     }
   }
 
-  // Create or update from whatever the form currently holds. max_steps/model
+  // Create or update from whatever the dialog currently holds. max_steps/model
   // aren't in the form, and PUT is a partial update, so they keep their value.
   async function saveTest() {
     const name = (editing?.name || '').trim();
@@ -193,13 +200,18 @@ export default function RunView({ token, setToken, health, visible, onRunState }
       }
       if (editing.id) await api(`/api/tests/${editing.id}`, { token, method: 'PUT', body });
       else await api('/api/tests', { token, method: 'POST', body });
-      setEditing(null);
+      closeDialog();
       await loadTests();
     } catch (err) {
       setError(`Save: ${err.message}`);
     } finally {
       setSavingTest(false);
     }
+  }
+
+  function closeDialog() {
+    setDialog(null);
+    setEditing(null);
   }
 
   function editTest(test) {
@@ -212,19 +224,21 @@ export default function RunView({ token, setToken, health, visible, onRunState }
     });
     setGoal(test.goal);
     setStartUrl(test.start_url);
+    setDialog('edit');
   }
 
   // A new test lands in whatever project is being filtered — the least
   // surprising default when you are already working inside one.
   function newTest() {
     setEditing({ name: '', project_id: filterProjectId, module_id: null });
+    setDialog('create');
   }
 
   async function deleteTest(test) {
     if (!window.confirm(`Delete "${test.name}"?`)) return;
     try {
       await api(`/api/tests/${test.id}`, { token, method: 'DELETE' });
-      if (editing?.id === test.id) setEditing(null);
+      if (editing?.id === test.id) closeDialog();
       if (activeTestId === test.id) setActiveTestId(null);
       await loadTests();
     } catch (err) {
@@ -312,24 +326,61 @@ export default function RunView({ token, setToken, health, visible, onRunState }
 
   const running = status === 'running' || status === 'queued';
   const waitingForFirstFrame = running && !screenshot;
-  // Keep the field until health says auth is off — and always if a token is
-  // already stored, so it can be cleared.
-  const showToken = !health || health.auth || !!token;
+  const liveUrl = [...steps].reverse().find((s) => s.url)?.url || startUrl;
 
   return (
-    <div className="layout">
-        <section className="panel controls">
-          {health && !health.agent_ready && (
-            <div className="banner">
-              <strong>Setup needed</strong>
-              <span>
-                No <code>OPENAI_API_KEY</code> on the server — runs will be rejected. Add it to{' '}
-                <code>.env</code> and restart.
-              </span>
-            </div>
-          )}
+    <>
+      <PageHeader
+        title="Run"
+        description="Give the agent a URL and a goal in plain English, then watch it drive a real browser."
+      >
+        {health?.db && (
+          <Button icon={Plus} onClick={newTest} disabled={needsToken}>New test</Button>
+        )}
+        <Button
+          variant="primary"
+          icon={Play}
+          onClick={() => setDialog('run')}
+          disabled={running || needsToken}
+        >
+          {running ? 'Running…' : 'New run'}
+        </Button>
+      </PageHeader>
 
-          {health?.db && (
+      {needsToken && (
+        <div className="banner page-error">
+          <KeyRound size={15} aria-hidden="true" />
+          <span>
+            <strong>API token needed</strong>
+            <span>This worker requires a token before it will accept runs.</span>
+          </span>
+          <Button size="sm" className="spacer" onClick={onOpenSettings}>Add token</Button>
+        </div>
+      )}
+
+      {health && !health.agent_ready && (
+        <div className="banner page-error">
+          <AlertTriangle size={15} aria-hidden="true" />
+          <span>
+            <strong>Setup needed</strong>
+            <span>
+              No <code>OPENAI_API_KEY</code> on the server — runs will be rejected. Add it to{' '}
+              <code>.env</code> and restart.
+            </span>
+          </span>
+        </div>
+      )}
+
+      {error && (
+        <div className="error page-error">
+          <AlertTriangle size={15} aria-hidden="true" />
+          <span>{error}</span>
+        </div>
+      )}
+
+      <div className={`run-grid${health?.db ? '' : ' solo'}`}>
+        {health?.db && (
+          <aside className="card rail">
             <SavedTests
               tests={tests}
               projects={projects}
@@ -338,212 +389,271 @@ export default function RunView({ token, setToken, health, visible, onRunState }
               filter={filter}
               setFilter={setFilter}
               activeTestId={activeTestId}
-              editingId={editing?.id || null}
               running={running}
               onRun={runSavedTest}
               onEdit={editTest}
               onDelete={deleteTest}
+              onNew={newTest}
               onRunModule={(m, n) => runBatch('module', m, n)}
               onRunSuite={(s) => runBatch('suite', s, s.test_ids.length)}
             />
-          )}
+          </aside>
+        )}
 
-          <form onSubmit={startRun}>
-            {showToken && (
-              <label>
-                API token
-                <input
-                  type="password"
-                  value={token}
-                  placeholder="WORKER_API_TOKEN"
-                  onChange={(e) => setToken(e.target.value)}
-                />
-              </label>
-            )}
-            {editing && (
-              <label>
-                Test name
-                <input
-                  value={editing.name}
-                  autoFocus
-                  placeholder="Checkout flow works"
-                  onChange={(e) => setEditing((cur) => ({ ...cur, name: e.target.value }))}
-                />
-              </label>
-            )}
-            {editing && projects.length > 0 && (
-              <div className="picker-row">
-                <label>
-                  Project
-                  <select
-                    value={editing.project_id || ''}
-                    onChange={(e) =>
-                      // Changing project invalidates the module choice.
-                      setEditing((cur) => ({
-                        ...cur,
-                        project_id: e.target.value || null,
-                        module_id: null,
-                      }))
-                    }
-                  >
-                    <option value="">Ungrouped</option>
-                    {projects.map((p) => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </select>
-                </label>
-                {editModules.length > 0 && (
-                  <label>
-                    Module
-                    <select
-                      value={editing.module_id || ''}
-                      onChange={(e) =>
-                        setEditing((cur) => ({ ...cur, module_id: e.target.value || null }))
-                      }
-                    >
-                      <option value="">No module</option>
-                      {editModules.map((m) => (
-                        <option key={m.id} value={m.id}>{m.name}</option>
-                      ))}
-                    </select>
-                  </label>
-                )}
-              </div>
-            )}
-            <label>
-              Start URL
-              <input value={startUrl} onChange={(e) => setStartUrl(e.target.value)} />
-            </label>
-            <label>
-              Goal
-              <textarea rows={4} value={goal} onChange={(e) => setGoal(e.target.value)} />
-            </label>
-            {editing ? (
-              <div className="btn-row">
-                <button type="submit" disabled={savingTest || !editing.name.trim()}>
-                  {savingTest ? 'Saving…' : editing.id ? 'Save changes' : 'Save test'}
-                </button>
-                <button type="button" className="ghost" onClick={() => setEditing(null)}>
-                  Cancel
-                </button>
-              </div>
-            ) : (
-              <div className="btn-row">
-                <button type="submit" disabled={running}>
-                  {running ? 'Running…' : 'Run test'}
-                </button>
-                {health?.db && (
-                  <button
-                    type="button"
-                    className="ghost"
-                    onClick={newTest}
-                    disabled={!goal.trim() || !startUrl.trim()}
-                  >
-                    Save as test
-                  </button>
-                )}
-              </div>
-            )}
-          </form>
-
-          <p className="hint">
-            Tip: some sites (Reddit, Cloudflare-protected pages) block datacenter IPs and will
-            fail from a server. Try your own app, example.com, or Hacker News.
-          </p>
-
-          {error && <div className="error">⚠ {error}</div>}
-
-          {result && (
-            <div className={`result ${result.success ? 'ok' : 'bad'}`}>
-              <div className="result-head">
-                {result.success ? '✓ PASSED' : result.success === false ? '✗ FAILED' : '• DONE'}
-              </div>
-              <dl>
-                <dt>Steps</dt><dd>{result.steps}</dd>
-                <dt>Duration</dt><dd>{result.duration_seconds ? `${Math.round(result.duration_seconds)}s` : '—'}</dd>
-              </dl>
-              {result.final_result && <p className="final">{result.final_result}</p>}
-              {result.errors?.length > 0 && (
-                <ul className="errs">{result.errors.map((er, i) => <li key={i}>{er}</li>)}</ul>
-              )}
-              <div className="btn-row result-actions">
-                <button type="button" className="report-btn" onClick={downloadReport} disabled={reportBusy}>
-                  {reportBusy ? 'Preparing PDF…' : '⭳ Download PDF report'}
-                </button>
-                {hasRecording && (
-                  <button
-                    type="button"
-                    className="report-btn"
-                    onClick={() => setShowRecording((v) => !v)}
-                  >
-                    {showRecording ? '⤺ Back to last frame' : '▶ Watch recording'}
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
-        </section>
-
-        <section className="panel viewer">
+        <section className="stage">
           {batch && (
             <div className="batch-note">
-              Running {batch.kind} <strong>{batch.name}</strong> — {batch.total} test
-              {batch.total === 1 ? '' : 's'} queued. Following the first below; the rest run in
-              the background.
+              <Play size={15} aria-hidden="true" />
+              <span>
+                Running {batch.kind} <strong>{batch.name}</strong> — {batch.total} test
+                {batch.total === 1 ? '' : 's'} queued. Following the first below; the rest run in
+                the background.
+              </span>
             </div>
           )}
-          <div className="screen">
-            {showRecording && runId ? (
-              // Plain <video src>, not a fetched blob: the endpoint takes a
-              // query token and honours Range, so seeking works (US-006).
-              <video
-                key={runId}
-                src={`/api/runs/${runId}/recording${token ? `?token=${encodeURIComponent(token)}` : ''}`}
-                controls
-                autoPlay
-                onError={() => setError('Recording could not be loaded.')}
-              />
-            ) : screenshot ? (
-              <img src={screenshot} alt="live browser view" />
-            ) : waitingForFirstFrame ? (
-              <div className="thinking">
-                <div className="spinner" />
-                <div>Agent is starting…</div>
-                <small>First frame appears after the first action (~10–15s)</small>
-              </div>
-            ) : (
-              <div className="placeholder">Live browser view will appear here</div>
-            )}
+
+          <div className="browser">
+            <div className="browser-bar">
+              <span className="browser-dots"><i /><i /><i /></span>
+              <span className="browser-url">{showRecording ? 'Session recording' : liveUrl}</span>
+            </div>
+            <div className="screen">
+              {showRecording && runId ? (
+                // Plain <video src>, not a fetched blob: the endpoint takes a
+                // query token and honours Range, so seeking works (US-006).
+                <video
+                  key={runId}
+                  src={`/api/runs/${runId}/recording${token ? `?token=${encodeURIComponent(token)}` : ''}`}
+                  controls
+                  autoPlay
+                  onError={() => setError('Recording could not be loaded.')}
+                />
+              ) : screenshot ? (
+                <img src={screenshot} alt="live browser view" />
+              ) : waitingForFirstFrame ? (
+                <div className="thinking">
+                  <div className="spinner" />
+                  <div>Agent is starting…</div>
+                  <small>First frame appears after the first action (~10–15s)</small>
+                </div>
+              ) : (
+                <EmptyState
+                  icon={Monitor}
+                  title="Nothing running yet"
+                  action={
+                    <Button variant="primary" icon={Play} onClick={() => setDialog('run')} disabled={needsToken}>
+                      New run
+                    </Button>
+                  }
+                >
+                  Start a run and the browser session streams here, frame by frame.
+                </EmptyState>
+              )}
+            </div>
           </div>
+
           {showRecording && (
-            <div className="replay-note">
+            <p className="replay-note">
               Condensed replay — frames are only captured when the page repaints, so idle time is
               skipped.
-            </div>
+            </p>
           )}
+
           {currentAction && (
             <div className="action-bar">
               <span className="pulse" /> {currentAction}
             </div>
           )}
-          <div className="log" ref={logRef}>
-            {steps.map((s, i) =>
-              s.type === 'progress' ? (
-                <div className="log-item progress" key={i}>
-                  <span className="step-n">✉</span>
-                  <span className="step-goal">{s.message}</span>
-                </div>
-              ) : (
-                <div className="log-item" key={i}>
-                  <span className="step-n">#{s.step}</span>
-                  <span className="step-goal">{s.next_goal || s.thinking || s.evaluation || '…'}</span>
-                  {s.url && <span className="step-url">{s.url}</span>}
-                </div>
-              )
+
+          {steps.length > 0 && (
+            <div className="card">
+              <CardHead title="Activity" count={steps.length} />
+              <div className="log" ref={logRef}>
+                {steps.map((s, i) =>
+                  s.type === 'progress' ? (
+                    <div className="log-item" key={i}>
+                      <span className="step-n">···</span>
+                      <span className="step-goal">{s.message}</span>
+                    </div>
+                  ) : (
+                    <div className="log-item" key={i}>
+                      <span className="step-n">{s.step}</span>
+                      <span className="step-goal">{s.next_goal || s.thinking || s.evaluation || '…'}</span>
+                      {s.url && <span className="step-url">{s.url}</span>}
+                    </div>
+                  )
+                )}
+              </div>
+            </div>
+          )}
+
+          {result && (
+            <div className={`card verdict ${result.success ? 'ok' : result.success === false ? 'bad' : ''}`}>
+              <div className="verdict-head">
+                {result.success ? <Check size={17} /> : result.success === false ? <X size={17} /> : null}
+                {result.success ? 'Passed' : result.success === false ? 'Failed' : 'Done'}
+              </div>
+              <div className="stats">
+                <Stat label="Verdict" value={result.success ? 'Pass' : result.success === false ? 'Fail' : '—'}
+                  tone={result.success ? 'ok' : result.success === false ? 'bad' : ''} />
+                <Stat label="Steps" value={result.steps ?? '—'} />
+                <Stat
+                  label="Duration"
+                  value={result.duration_seconds ? `${Math.round(result.duration_seconds)}s` : '—'}
+                />
+              </div>
+              {result.final_result && <p className="final">{result.final_result}</p>}
+              {result.errors?.length > 0 && (
+                <ul className="errs">{result.errors.map((er, i) => <li key={i}>{er}</li>)}</ul>
+              )}
+              <div className="verdict-actions">
+                <Button icon={Download} onClick={downloadReport} disabled={reportBusy}>
+                  {reportBusy ? 'Preparing PDF…' : 'PDF report'}
+                </Button>
+                {hasRecording && (
+                  <Button
+                    icon={showRecording ? Undo2 : Play}
+                    onClick={() => setShowRecording((v) => !v)}
+                  >
+                    {showRecording ? 'Back to last frame' : 'Watch recording'}
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
+        </section>
+      </div>
+
+      {dialog && (
+        <TestDialog
+          mode={dialog}
+          goal={goal}
+          setGoal={setGoal}
+          startUrl={startUrl}
+          setStartUrl={setStartUrl}
+          editing={editing}
+          setEditing={setEditing}
+          projects={projects}
+          modules={editModules}
+          hasDb={!!health?.db}
+          saving={savingTest}
+          onClose={closeDialog}
+          onRun={startRun}
+          onSave={saveTest}
+          onSwitchToSave={() => {
+            setEditing({ name: '', project_id: filterProjectId, module_id: null });
+            setDialog('create');
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+/**
+ * The one place a run is described. `run` mode fires an ad-hoc run and can
+ * hand its values over to `create`; `create`/`edit` write a saved test. The
+ * URL and goal are the caller's state either way, so whatever you typed here
+ * is what the stage shows while the run happens.
+ */
+function TestDialog({
+  mode, goal, setGoal, startUrl, setStartUrl, editing, setEditing,
+  projects, modules, hasDb, saving, onClose, onRun, onSave, onSwitchToSave,
+}) {
+  const isRun = mode === 'run';
+  const ready = startUrl.trim() && goal.trim() && (isRun || editing?.name.trim());
+  const submit = (e) => {
+    e.preventDefault();
+    if (ready) (isRun ? onRun : onSave)();
+  };
+
+  return (
+    <Modal
+      title={isRun ? 'New run' : mode === 'edit' ? 'Edit test' : 'New test'}
+      description={
+        isRun
+          ? 'Runs once, right now. Nothing is saved unless you ask for it.'
+          : 'Saved tests re-run with one click and keep their history.'
+      }
+      onClose={onClose}
+      footer={
+        <>
+          {isRun && hasDb && (
+            <Button variant="ghost" icon={Plus} onClick={onSwitchToSave} disabled={!ready}>
+              Save as test
+            </Button>
+          )}
+          <Button onClick={onClose}>Cancel</Button>
+          <Button
+            variant="primary"
+            icon={isRun ? Play : undefined}
+            onClick={submit}
+            disabled={!ready || saving}
+          >
+            {isRun ? 'Run test' : saving ? 'Saving…' : mode === 'edit' ? 'Save changes' : 'Save test'}
+          </Button>
+        </>
+      }
+    >
+      <form onSubmit={submit} className="modal-form">
+        {!isRun && (
+          <Field label="Name">
+            <input
+              value={editing.name}
+              autoFocus
+              placeholder="Checkout flow works"
+              onChange={(e) => setEditing((cur) => ({ ...cur, name: e.target.value }))}
+            />
+          </Field>
+        )}
+
+        {!isRun && projects.length > 0 && (
+          <div className="field-row">
+            <Field label="Project">
+              <select
+                value={editing.project_id || ''}
+                onChange={(e) =>
+                  // Changing project invalidates the module choice.
+                  setEditing((cur) => ({ ...cur, project_id: e.target.value || null, module_id: null }))
+                }
+              >
+                <option value="">Ungrouped</option>
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            </Field>
+            {modules.length > 0 && (
+              <Field label="Module">
+                <select
+                  value={editing.module_id || ''}
+                  onChange={(e) => setEditing((cur) => ({ ...cur, module_id: e.target.value || null }))}
+                >
+                  <option value="">No module</option>
+                  {modules.map((m) => (
+                    <option key={m.id} value={m.id}>{m.name}</option>
+                  ))}
+                </select>
+              </Field>
             )}
           </div>
-        </section>
-    </div>
+        )}
+
+        <Field label="Start URL">
+          <input value={startUrl} autoFocus={isRun} onChange={(e) => setStartUrl(e.target.value)} />
+        </Field>
+
+        <Field
+          label="Goal"
+          hint="Some sites (Reddit, Cloudflare-protected pages) block datacenter IPs and will fail from a server."
+        >
+          <textarea rows={4} value={goal} onChange={(e) => setGoal(e.target.value)} />
+        </Field>
+
+        {/* Enter in a text field submits the dialog. */}
+        <button type="submit" hidden />
+      </form>
+    </Modal>
   );
 }
 
