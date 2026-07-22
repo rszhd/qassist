@@ -41,7 +41,14 @@ pid list is killed too as a backstop. On trip: status → `failed`,
 `result.message` = `resource limit exceeded: run used N MB (limit M MB)`,
 an `error` event goes to subscribers (UI shows the banner), report is still
 generated, and the normal `close` path emits `end` + starts the next queued
-run. Env: `MAX_RUN_MEMORY_MB` (default 1200).
+run. Env: `MAX_RUN_MEMORY_MB` (default raised 1200 → 1600 on 2026-07-22).
+
+**Amendment (2026-07-22):** summing RSS double-counts Chromium's shared pages
+— a recording run measures 1177 MB by this metric but only 663 MB PSS. US-006
+added ~100 MB and started tripping the 1200 MB limit on healthy runs, so the
+default was raised to 1600 as a stopgap;
+[US-024](../../unscheduled/US-024-memory-watchdog-pss-metric.md) replaces the
+metric with PSS and re-baselines the limit.
 
 Verified locally with a stub agent (300 MB cap): single-process hog killed
 in ~4 s at 310 MB; multi-process hog (parent + 2 allocating grandchildren)

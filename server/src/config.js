@@ -11,7 +11,11 @@ export const API_TOKEN = process.env.WORKER_API_TOKEN || '';
 export const MAX_CONCURRENT = parseInt(process.env.MAX_CONCURRENT_SESSIONS || '4', 10);
 export const DEFAULT_MAX_STEPS = parseInt(process.env.MAX_STEPS || '60', 10);
 export const RUN_TTL_MS = parseInt(process.env.RUN_TTL_SECONDS || '3600', 10) * 1000;
-export const MAX_RUN_MEMORY_MB = parseInt(process.env.MAX_RUN_MEMORY_MB || '1200', 10);
+// Summed RSS over the run's process tree, so it double-counts Chromium's
+// shared pages (~1.8x the real PSS footprint — US-024 fixes the metric).
+// 1600 because US-006's recording adds ~100 MB: measured peak 1177 MB with
+// recording vs 1076 MB without, which left only 23 MB under the old 1200.
+export const MAX_RUN_MEMORY_MB = parseInt(process.env.MAX_RUN_MEMORY_MB || '1600', 10);
 export const MEM_POLL_MS = 3000;
 export const PYTHON_BIN = process.env.PYTHON_BIN || 'python3';
 export const AGENT_DIR = process.env.AGENT_DIR || path.join(__dirname, '..', '..', 'agent');

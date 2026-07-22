@@ -35,7 +35,7 @@ until real cloud-only infra exists; the full repo/boundary rules live in
 |---|---|---|---|
 | [US-009](release-1/US-009-control-plane-saved-tests.md) | Control plane: save & reuse tests | ✅ Done (2026-07-22) | — |
 | [US-023](release-1/US-023-projects-and-modules.md) | Projects & modules (organize saved tests) | ✅ Done (2026-07-22) | US-009 |
-| [US-006](release-1/US-006-session-recording.md) | Session recording (record by default) | 🚧 Backend done (2026-07-22), frontend pending | — |
+| [US-006](release-1/US-006-session-recording.md) | Session recording (record by default) | ✅ Done (2026-07-22) — CPU overhead unmeasured | — |
 | [US-020](release-1/US-020-report-v2-screenshots-recording.md) | Report v2: step screenshots + recording | 📋 Planned | US-006 |
 | [US-011](release-1/US-011-run-history.md) | Run history | 📋 Planned (persistence done in US-009) | US-009 |
 | [US-010](release-1/US-010-scheduled-runs.md) | Scheduled runs | 📋 Planned | US-009 |
@@ -55,18 +55,23 @@ until real cloud-only infra exists; the full repo/boundary rules live in
    2026-07-22 at the user's request; US-008 will document module triggering).
    Shipped 2026-07-22, backend and frontend: a `Run` / `Library` split that
    reveals grouping progressively — see the story's UI section.
-3. **US-006 → US-020** — recording, then the report that embeds
-   screenshots + recording link (independent of US-009; can run in parallel)
+3. **US-006** — recording (independent of US-009). Shipped 2026-07-22, backend
+   and frontend.
 4. **US-011** — run history: list endpoint + a third view beside Run and
    Library. Persistence already shipped with US-009, so what is left is the
-   endpoint, the UI and artifact retention. Sequenced after US-020 so the run
-   detail links a recording instead of being retrofitted for one.
-5. **US-010** — scheduling on top of saved tests
-6. **US-012** — failure emails via Resend (pairs with scheduling; do the
-   qassist.run SPF/DKIM DNS setup alongside step 7's DNS work)
-7. **US-007 → US-008 tier 1** — public HTTPS, then the documented CI snippet
-8. **US-005** — BYOK, before anyone but the operator can run tests
-9. **US-021 → US-022** — signup, then billing; launch when US-022 lands
+   endpoint, the UI and artifact retention. **Pulled ahead of US-020 on
+   2026-07-22** at the user's request: US-006 already gives the detail panel a
+   recording to link and `GET /api/runs/:id` already reports `hasRecording`,
+   so only step screenshots still want US-020 — add those to the detail panel
+   when it lands.
+5. **US-020** — report v2: the report that embeds step screenshots + the
+   recording link.
+6. **US-010** — scheduling on top of saved tests
+7. **US-012** — failure emails via Resend (pairs with scheduling; do the
+   qassist.run SPF/DKIM DNS setup alongside step 8's DNS work)
+8. **US-007 → US-008 tier 1** — public HTTPS, then the documented CI snippet
+9. **US-005** — BYOK, before anyone but the operator can run tests
+10. **US-021 → US-022** — signup, then billing; launch when US-022 lands
 
 ## Unscheduled — `unscheduled/`
 
@@ -80,6 +85,7 @@ until real cloud-only infra exists; the full repo/boundary rules live in
 | [US-017](unscheduled/US-017-frozen-python-agent.md) | Frozen Python agent (no system Python) | 📋 Planned | TBD | US-016 |
 | [US-018](unscheduled/US-018-first-run-setup.md) | First-run setup: Chromium download + BYOK settings | 📋 Planned | TBD | US-016 |
 | [US-019](unscheduled/US-019-installers-signing-autoupdate.md) | Installers, code signing, auto-update | 📋 Planned | TBD | US-016..018 |
+| [US-024](unscheduled/US-024-memory-watchdog-pss-metric.md) | Memory watchdog: measure PSS, not summed RSS | 📋 Planned | P2 | — |
 
 Tiered stories (US-008, US-013) live in `release-1/` because their next tier
 ships there; the later tiers listed above are unscheduled follow-ups.

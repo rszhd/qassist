@@ -44,9 +44,13 @@ source of truth for finished runs, so state that as built rather than as work:
    problem whether or not anyone browses history, and the column it needs
    already exists. Splitting it lets the view land first without waiting on a
    policy decision about how long to keep artifacts.
-2. **Scheduled after US-020.** A run detail view built before recordings exist
-   gets retrofitted for them a week later; built after, it links one from the
-   start. Flip this only if history is wanted sooner than the report work.
+2. ~~**Scheduled after US-020.**~~ **Flipped 2026-07-22 — now ahead of
+   US-020.** The reason for the original order was that a detail view built
+   before recordings exist gets retrofitted for them; US-006 shipping both
+   halves removes that risk. The recording player already exists in
+   `RunView.jsx` and `GET /api/runs/:id` already returns `hasRecording` for a
+   finished run it never watched (the fallback was written for this view).
+   What still waits on US-020 is step screenshots in the detail panel.
 
 ## Acceptance criteria
 

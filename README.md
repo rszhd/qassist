@@ -115,7 +115,7 @@ Set in `.env` (see `.env.example`):
 | `BROWSER_USE_MODEL` | `gpt-4.1` | OpenAI model |
 | `MAX_CONCURRENT_SESSIONS` | `4` | Concurrent browser cap — the real throttle. Rule: `floor((RAM_GB − 1.5) / 1)` |
 | `MAX_STEPS` | `60` | Safety ceiling on agent steps per run |
-| `MAX_RUN_MEMORY_MB` | `1200` | Per-run process-tree RSS cap; over it the run is killed and marked failed |
+| `MAX_RUN_MEMORY_MB` | `1600` | Per-run process-tree RSS cap; over it the run is killed and marked failed. Summed RSS double-counts Chromium's shared pages — a recording run measures ~1177 MB here but only ~660 MB PSS (US-024) |
 | `PORT` | `8080` | Express listen port |
 | `QA_RECORD` | `1` | Record every session to `runs/<runId>/recording.mp4`. `0` disables it — frame capture is then skipped entirely while nobody is watching the run |
 | `PUBLIC_BASE_URL` | — | Public address of this instance (`https://qa.example.com`). Only used to make the PDF report's "View recording" link resolvable; the recording is served either way |
