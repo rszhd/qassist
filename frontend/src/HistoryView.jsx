@@ -119,7 +119,7 @@ export default function HistoryView({ token }) {
 
       {error && (
         <div className="error page-error">
-          <AlertTriangle size={15} aria-hidden="true" />
+          <AlertTriangle size={14} aria-hidden="true" />
           <span>{error}</span>
         </div>
       )}
@@ -205,7 +205,7 @@ export default function HistoryView({ token }) {
                 onClick={() => setOffset((o) => o + PAGE)}
               >
                 Older
-                <ChevronRight size={16} strokeWidth={2} aria-hidden="true" />
+                <ChevronRight size={15} strokeWidth={2} aria-hidden="true" />
               </Button>
             </div>
           )}

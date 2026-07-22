@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { AlertTriangle, Download, Play, Undo2 } from 'lucide-react';
 import { openReport } from './api.js';
 import { Button, Stat } from './ui.jsx';
-import { statusColor, formatWhen, formatDuration } from './status.js';
+import { formatWhen, formatDuration } from './status.js';
 
 // One past run, rendered entirely from the row the history list already has.
 // Only the two artifacts are fetched: the PDF as a blob (it needs the bearer
@@ -31,7 +31,7 @@ export default function RunDetail({ run, token, onError }) {
     <div className="run-detail">
       <div className="verdict-head">
         {run.test_name || 'Ad-hoc run'}
-        <span className="badge" style={{ background: statusColor(run.status) }}>{run.status}</span>
+        <span className={`badge badge-${run.status}`}>{run.status}</span>
       </div>
 
       {showRecording && run.has_recording && (
@@ -76,7 +76,7 @@ export default function RunDetail({ run, token, onError }) {
       {run.final_result && <p className="final">{run.final_result}</p>}
       {run.error && (
         <div className="error">
-          <AlertTriangle size={15} aria-hidden="true" />
+          <AlertTriangle size={14} aria-hidden="true" />
           <span>{run.error}</span>
         </div>
       )}

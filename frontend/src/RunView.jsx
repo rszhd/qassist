@@ -349,7 +349,7 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
 
       {needsToken && (
         <div className="banner page-error">
-          <KeyRound size={15} aria-hidden="true" />
+          <KeyRound size={14} aria-hidden="true" />
           <span>
             <strong>API token needed</strong>
             <span>This worker requires a token before it will accept runs.</span>
@@ -360,7 +360,7 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
 
       {health && !health.agent_ready && (
         <div className="banner page-error">
-          <AlertTriangle size={15} aria-hidden="true" />
+          <AlertTriangle size={14} aria-hidden="true" />
           <span>
             <strong>Setup needed</strong>
             <span>
@@ -373,7 +373,7 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
 
       {error && (
         <div className="error page-error">
-          <AlertTriangle size={15} aria-hidden="true" />
+          <AlertTriangle size={14} aria-hidden="true" />
           <span>{error}</span>
         </div>
       )}
@@ -403,7 +403,7 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
         <section className="stage">
           {batch && (
             <div className="batch-note">
-              <Play size={15} aria-hidden="true" />
+              <Play size={14} aria-hidden="true" />
               <span>
                 Running {batch.kind} <strong>{batch.name}</strong> — {batch.total} test
                 {batch.total === 1 ? '' : 's'} queued. Following the first below; the rest run in
@@ -490,7 +490,7 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
           {result && (
             <div className={`card verdict ${result.success ? 'ok' : result.success === false ? 'bad' : ''}`}>
               <div className="verdict-head">
-                {result.success ? <Check size={17} /> : result.success === false ? <X size={17} /> : null}
+                {result.success ? <Check size={15} /> : result.success === false ? <X size={15} /> : null}
                 {result.success ? 'Passed' : result.success === false ? 'Failed' : 'Done'}
               </div>
               <div className="stats">

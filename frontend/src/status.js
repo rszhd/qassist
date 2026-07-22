@@ -1,21 +1,22 @@
-// Run status → colour, shared by the header badge, the history rows and the
-// pass/fail timeline. One table so a verdict never reads as two different
-// colours depending on where you are looking at it.
+// Run status → colour, shared by the history row dots and the pass/fail
+// timeline bars. One table so a verdict never reads as two different colours
+// depending on where you are looking at it.
 //
-// These are solid fills behind white text, so they sit a shade darker than the
-// text-weight --ok/--warn/--bad in App.css; keep the two in step when the
-// palette changes.
+// These are solid fills on a dark surface, so they run a shade brighter than
+// the surface-weight --ok/--warn/--bad in App.css but stay at the same low
+// saturation; keep the two in step when the palette changes. The status pill
+// itself is CSS (`.badge-<status>`), not one of these.
 export const STATUS_COLORS = {
-  queued: '#a16207',
-  running: '#5b5bd6',
-  passed: '#1c9c62',
-  failed: '#cf3b40',
-  error: '#cf3b40',
-  completed: '#3f3f46',
-  idle: '#52525b',
+  queued: '#9c8039',
+  running: '#4d7cf6',
+  passed: '#4cb98a',
+  failed: '#d0666c',
+  error: '#d0666c',
+  completed: '#45454c',
+  idle: '#4f4f57',
 };
 
-export const statusColor = (status) => STATUS_COLORS[status] || '#52525b';
+export const statusColor = (status) => STATUS_COLORS[status] || '#4f4f57';
 
 /** Compact local timestamp for history rows — date and minute, no year. */
 export function formatWhen(iso) {

@@ -130,7 +130,7 @@ export default function LibraryView({ token }) {
 
       {error && (
         <div className="error page-error">
-          <AlertTriangle size={15} aria-hidden="true" />
+          <AlertTriangle size={14} aria-hidden="true" />
           <span>{error}</span>
         </div>
       )}

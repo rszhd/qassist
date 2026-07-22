@@ -36,11 +36,18 @@ which is how they refresh.
 `Stat`, `PageHeader`, `Modal` — and every view is built from it rather than
 from raw `<button>`/`<label>`. Icons come from `lucide-react`, never text
 glyphs. `App.css` is one sheet in two halves: tokens + primitives, then
-per-view layout; colours, spacing (`--s1`…`--s10`) and radii always resolve to
-a token, so the theme is swappable from `:root` alone. Each view opens with a
-`PageHeader` carrying its primary action; creating and editing happen in a
-`Modal`, and destructive/secondary row actions hide behind `.row-actions`
-until the row is hovered or focused.
+per-view layout; colours, spacing (`--s1`…`--s10`), type sizes (`--t-xs`…
+`--t-xl`) and radii always resolve to a token, so the theme is swappable from
+`:root` alone. Each view opens with a `PageHeader` carrying its primary
+action; creating and editing happen in a `Modal`, and destructive/secondary
+row actions hide behind `.row-actions` until the row is hovered or focused.
+
+The palette is near-monochrome by design: one neutral graphite ramp, a single
+accent spent only on the primary button, focus and the live pulse, and verdict
+colours held below full saturation. Depth comes from hairline borders, not
+from gradients or shadows — cards carry neither. A run status renders as a
+tinted `.badge-<status>` pill; `statusColor()` in `status.js` is only for the
+solid dots and timeline bars, so keep the two in step.
 
 Saved tests can be grouped into a **project**, and within it into at most one
 **module**; a **suite** is the many-to-many alternative, scoped to one project.

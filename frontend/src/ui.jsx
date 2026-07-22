@@ -22,7 +22,7 @@ export function Button({
 }) {
   return (
     <button type={type} className={`btn btn-${variant} btn-${size} ${className}`.trim()} {...rest}>
-      {Icon && <Icon size={size === 'sm' ? 14 : 16} strokeWidth={2} aria-hidden="true" />}
+      {Icon && <Icon size={size === 'sm' ? 13 : 15} strokeWidth={2} aria-hidden="true" />}
       {children}
     </button>
   );
@@ -41,7 +41,7 @@ export function IconButton({ icon: Icon, label, variant = 'quiet', className = '
       aria-label={label}
       {...rest}
     >
-      <Icon size={15} strokeWidth={2} aria-hidden="true" />
+      <Icon size={14} strokeWidth={2} aria-hidden="true" />
     </button>
   );
 }
@@ -85,7 +85,7 @@ export function CardHead({ title, count, children }) {
 export function EmptyState({ icon: Icon, title, children, action }) {
   return (
     <div className="empty">
-      {Icon && <Icon size={22} strokeWidth={1.5} aria-hidden="true" />}
+      {Icon && <Icon size={20} strokeWidth={1.5} aria-hidden="true" />}
       {title && <p className="empty-title">{title}</p>}
       {children && <p className="empty-body">{children}</p>}
       {action}

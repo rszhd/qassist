@@ -95,7 +95,7 @@ export default function Suites({ projectId, token }) {
 
       {error && (
         <div className="error">
-          <AlertTriangle size={15} aria-hidden="true" />
+          <AlertTriangle size={14} aria-hidden="true" />
           <span>{error}</span>
         </div>
       )}
