@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import HistoryView from './HistoryView.jsx';
 import LibraryView from './LibraryView.jsx';
 import RunView from './RunView.jsx';
 import TopBar from './TopBar.jsx';
@@ -36,8 +37,9 @@ export default function App() {
     <div className="app">
       <TopBar view={view} setView={setView} showNav={!!health?.db} runState={runState} />
       {/* Run stays mounted while hidden: unmounting would drop the live
-          WebSocket and the finished run's result. Library is cheap to remount,
-          and remounting is what refreshes it after edits made elsewhere. */}
+          WebSocket and the finished run's result. Library and History are
+          cheap to remount, and remounting is what refreshes them — History
+          in particular should show the run you just watched finish. */}
       <div hidden={view !== 'run'}>
         <RunView
           token={token}
@@ -47,6 +49,7 @@ export default function App() {
           onRunState={setRunState}
         />
       </div>
+      {view === 'history' && <HistoryView token={token} />}
       {view === 'library' && <LibraryView token={token} />}
     </div>
   );

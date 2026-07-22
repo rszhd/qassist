@@ -37,7 +37,7 @@ until real cloud-only infra exists; the full repo/boundary rules live in
 | [US-023](release-1/US-023-projects-and-modules.md) | Projects & modules (organize saved tests) | ✅ Done (2026-07-22) | US-009 |
 | [US-006](release-1/US-006-session-recording.md) | Session recording (record by default) | ✅ Done (2026-07-22) — CPU overhead unmeasured | — |
 | [US-020](release-1/US-020-report-v2-screenshots-recording.md) | Report v2: step screenshots + recording | 📋 Planned | US-006 |
-| [US-011](release-1/US-011-run-history.md) | Run history | 📋 Planned (persistence done in US-009) | US-009 |
+| [US-011](release-1/US-011-run-history.md) | Run history | ✅ Done (2026-07-22) | US-009 |
 | [US-010](release-1/US-010-scheduled-runs.md) | Scheduled runs | 📋 Planned | US-009 |
 | [US-012](release-1/US-012-email-reports.md) | Failure email notifications | 📋 Planned | US-009 |
 | [US-007](release-1/US-007-https-reverse-proxy.md) | Public HTTPS via reverse proxy | 📋 Planned | domain (owned) |
@@ -63,7 +63,11 @@ until real cloud-only infra exists; the full repo/boundary rules live in
    2026-07-22** at the user's request: US-006 already gives the detail panel a
    recording to link and `GET /api/runs/:id` already reports `hasRecording`,
    so only step screenshots still want US-020 — add those to the detail panel
-   when it lands.
+   when it lands. **Shipped 2026-07-22**: `GET /api/runs` with
+   test/status/project/module/date filters and pagination, the History view
+   (filters, paging, per-test pass/fail timeline, detail panel with PDF and
+   recording), and retention — `ARTIFACT_RETENTION_DAYS` (default 7) prunes
+   `runs/<id>/` at boot and every 6 h while keeping the history row.
 5. **US-020** — report v2: the report that embeds step screenshots + the
    recording link.
 6. **US-010** — scheduling on top of saved tests

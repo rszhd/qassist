@@ -9,21 +9,13 @@
 import express from 'express';
 import { WebSocketServer } from 'ws';
 import { createServer } from 'node:http';
-import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import {
-  PORT,
-  API_TOKEN,
-  MAX_CONCURRENT,
-  ARTIFACTS_DIR,
-  PUBLIC_DIR,
-  OPENAI_API_KEY,
-  RECORDING_FILENAME,
-} from './config.js';
-import { db, initDb, isUuid } from './db.js';
-import { createRun, getRun, counts, attachViewer } from './runs.js';
-import { h, requireAgentKey } from './routes/helpers.js';
+import { PORT, API_TOKEN, MAX_CONCURRENT, PUBLIC_DIR, OPENAI_API_KEY } from './config.js';
+import { db, initDb } from './db.js';
+import { getRun, counts, attachViewer } from './runs.js';
+import { startRetention } from './retention.js';
+import { runsRouter } from './routes/runs.js';
 import { testsRouter } from './routes/tests.js';
 import { suitesRouter } from './routes/suites.js';
 import { projectsRouter } from './routes/projects.js';
@@ -67,101 +59,7 @@ app.get('/api/health', (_req, res) => {
   });
 });
 
-app.post('/api/runs', checkToken, requireAgentKey, (req, res) => {
-  const { goal, start_url, max_steps } = req.body || {};
-  if (!goal || !start_url) {
-    return res.status(400).json({ error: 'goal and start_url are required' });
-  }
-  const run = createRun({ goal, start_url, max_steps });
-  res.json({ runId: run.id, status: run.status });
-});
-
-app.get(
-  '/api/runs/:id',
-  checkToken,
-  h(async (req, res) => {
-    const run = getRun(req.params.id);
-    if (run) {
-      return res.json({
-        runId: run.id,
-        status: run.status,
-        goal: run.goal,
-        start_url: run.start_url,
-        testId: run.test_id,
-        result: run.result,
-        eventCount: run.events.length,
-        hasRecording: !!run.recordingFile,
-      });
-    }
-    // Fallback: finished runs outlive the in-memory relay in the DB.
-    if (!db() || !isUuid(req.params.id)) return res.status(404).json({ error: 'not found' });
-    const { rows } = await db().query('select * from runs where id = $1', [req.params.id]);
-    if (!rows.length) return res.status(404).json({ error: 'not found' });
-    const row = rows[0];
-    res.json({
-      runId: row.id,
-      status: row.status,
-      goal: row.goal,
-      start_url: row.start_url,
-      testId: row.test_id,
-      result:
-        row.success === null && row.final_result === null
-          ? null
-          : { success: row.success, final_result: row.final_result },
-      error: row.error,
-      reportStatus: row.report_status,
-      hasRecording: row.has_recording && !row.artifacts_deleted_at,
-    });
-  })
-);
-
-// Session recording (US-006). The file on disk is the source of truth — a run
-// whose artifacts were pruned simply 404s. sendFile handles Range requests,
-// so browsers can seek without downloading the whole video (which is why this
-// is a plain <video src> with a query token, not a fetched blob).
-app.get(
-  '/api/runs/:id/recording',
-  checkTokenOrQuery,
-  h(async (req, res) => {
-    if (!isUuid(req.params.id)) return res.status(404).json({ error: 'not found' });
-    const file = path.join(ARTIFACTS_DIR, req.params.id, RECORDING_FILENAME);
-    if (!fs.existsSync(file)) return res.status(404).json({ error: 'no recording' });
-    res.setHeader('Content-Type', 'video/mp4');
-    res.setHeader('Content-Disposition', `inline; filename="qassist-${req.params.id.slice(0, 8)}.mp4"`);
-    res.sendFile(file);
-  })
-);
-
-app.get(
-  '/api/runs/:id/report.pdf',
-  checkToken,
-  h(async (req, res) => {
-    const run = getRun(req.params.id);
-    const pdfPath = run?.reportPath || path.join(ARTIFACTS_DIR, req.params.id, 'report.pdf');
-    /** @param {string} status */
-    const answer = (status) => {
-      if (status === 'ready' && fs.existsSync(pdfPath)) {
-        res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader(
-          'Content-Disposition',
-          `inline; filename="qassist-report-${req.params.id.slice(0, 8)}.pdf"`
-        );
-        return res.sendFile(pdfPath);
-      }
-      if (status === 'generating') return res.status(202).json({ status: 'generating' });
-      if (status === 'error') return res.status(500).json({ error: 'report generation failed' });
-      return res.status(404).json({ error: 'no report (run not finished?)' });
-    };
-    if (run) return answer(run.reportStatus);
-    if (!db() || !isUuid(req.params.id)) return res.status(404).json({ error: 'not found' });
-    const { rows } = await db().query('select report_status from runs where id = $1', [
-      req.params.id,
-    ]);
-    if (!rows.length) return res.status(404).json({ error: 'not found' });
-    answer(rows[0].report_status);
-  })
-);
-
+app.use('/api/runs', runsRouter({ checkToken, checkTokenOrQuery }));
 app.use('/api/tests', testsRouter({ checkToken }));
 app.use('/api/suites', suitesRouter({ checkToken }));
 app.use('/api/projects', projectsRouter({ checkToken }));
@@ -209,6 +107,10 @@ server.on('upgrade', (req, socket, head) => {
 // and drive it in-process without opening a port.
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMain) {
+  // Only when actually serving: tests drive the app in-process and would
+  // otherwise sweep a temp dir on every import. sweepArtifacts() is tested
+  // directly instead.
+  startRetention();
   server.listen(PORT, () => {
     console.log(
       `qassist server on :${PORT}  (max_concurrent=${MAX_CONCURRENT}, auth=${API_TOKEN ? 'on' : 'off'}, db=${db() ? 'on' : 'off'})`

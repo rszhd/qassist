@@ -88,9 +88,18 @@ The diagram above is the deployed schema through `002_projects_modules.sql`.
 - **BYOK stored keys**: `users.openai_key_ciphertext` is app-side encrypted
   (AES-256-GCM with a server secret from env), nullable — per-request keys
   (US-005 v1) keep working and nothing is persisted unless the user opts in.
-- **Retention (US-011)** is two-phase: prune `runs/<id>/` dirs first and stamp
-  `artifacts_deleted_at` (history stays browsable, links go dead), delete rows
-  on a longer horizon.
+- **Retention (US-011, shipped)**: rows are kept forever, artifacts are not.
+  After `ARTIFACT_RETENTION_DAYS` (default 7) the sweep stamps
+  `artifacts_deleted_at` and *then* removes `runs/<id>/` — that order means a
+  crash between the two leaves a stale directory the next sweep collects,
+  rather than a row advertising a report that no longer exists. History stays
+  browsable with its verdict; only the links go dead.
+  **Row-level retention is deferred, not rejected**: rows are cheap next to
+  artifacts and a pass/fail timeline is worth more the older it gets, so
+  nothing deletes them today. Revisit when scheduled runs (US-010) or scaling
+  (US-015) push volume up — `final_result` is a paragraph per run, and
+  `GET /api/runs` computes an exact `count(*)` — or when the hosted tier makes
+  deletion a compliance requirement rather than a housekeeping choice.
 - **Crash recovery**: on boot, any row still `queued`/`running` is stale (the
   worker died with it) — mark it `error`. The partial index makes this free.
 

@@ -22,9 +22,12 @@ const auth = { Authorization: `Bearer ${TOKEN}` };
 let app;
 /** @type {any} */
 let pool;
+/** @type {(now?: number) => Promise<{ pruned: number, skipped: number }>} */
+let sweepArtifacts;
+let artifactsDir;
 
 before(async () => {
-  const artifactsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'qassist-cp-test-'));
+  artifactsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'qassist-cp-test-'));
   // Config is read at import time, so env must be set before importing.
   process.env.WORKER_API_TOKEN = TOKEN;
   process.env.OPENAI_API_KEY = 'sk-test-not-a-real-key'; // gates run creation
@@ -56,6 +59,7 @@ before(async () => {
   await runMigrations(pool, { skipIndexes: true });
   await initDb(pool);
   ({ app } = await import('../src/server.js'));
+  ({ sweepArtifacts } = await import('../src/retention.js'));
 });
 
 async function pollUntil(fn, timeoutMs = 3000) {
@@ -505,6 +509,201 @@ test('suite membership is confined to the suite project', async () => {
     scoped.suites.map((s) => s.id),
     [suite.id]
   );
+});
+
+// --- US-011: run history -----------------------------------------------------
+
+test('run history lists newest first and filters by test, status and project', async () => {
+  const p = await makeProject('History');
+  const mod = (
+    await request(app).post(`/api/projects/${p.id}/modules`).set(auth).send({ name: 'Hist' })
+  ).body;
+  const t = (await makeTest({ name: 'historic', module_id: mod.id }).expect(201)).body;
+  const other = (await makeTest({ name: 'unrelated' }).expect(201)).body;
+
+  const mine = [];
+  for (let i = 0; i < 3; i++) {
+    const started = (
+      await request(app).post(`/api/tests/${t.id}/run`).set(auth).send({}).expect(200)
+    ).body;
+    mine.push(started.runId);
+    await pollUntil(async () => {
+      const q = await pool.query('select status from runs where id = $1', [started.runId]);
+      return q.rows[0]?.status === 'passed';
+    });
+  }
+  await request(app).post(`/api/tests/${other.id}/run`).set(auth).send({}).expect(200);
+
+  const byTest = (await request(app).get(`/api/runs?test_id=${t.id}`).set(auth).expect(200)).body;
+  assert.equal(byTest.total, 3);
+  assert.deepEqual(
+    byTest.runs.map((r) => r.id).sort(),
+    [...mine].sort()
+  );
+  // Newest first, and the join carries the test's name and grouping through —
+  // that is what makes the row renderable without a second request.
+  const stamps = byTest.runs.map((r) => new Date(r.created_at).getTime());
+  assert.deepEqual(stamps, [...stamps].sort((a, b) => b - a));
+  assert.equal(byTest.runs[0].test_name, 'historic');
+  assert.equal(byTest.runs[0].project_id, p.id);
+  assert.equal(byTest.runs[0].module_id, mod.id);
+
+  const byProject = (
+    await request(app).get(`/api/runs?project_id=${p.id}`).set(auth).expect(200)
+  ).body;
+  assert.equal(byProject.total, 3);
+
+  const passed = (
+    await request(app).get(`/api/runs?test_id=${t.id}&status=passed,error`).set(auth).expect(200)
+  ).body;
+  assert.equal(passed.total, 3);
+  const queued = (
+    await request(app).get(`/api/runs?test_id=${t.id}&status=queued`).set(auth).expect(200)
+  ).body;
+  assert.equal(queued.total, 0);
+  assert.deepEqual(queued.runs, []);
+});
+
+test('run history paginates and reports the unpaginated total', async () => {
+  const t = (await makeTest({ name: 'paged' }).expect(201)).body;
+  for (let i = 0; i < 3; i++) {
+    const started = (
+      await request(app).post(`/api/tests/${t.id}/run`).set(auth).send({}).expect(200)
+    ).body;
+    await pollUntil(async () => {
+      const q = await pool.query('select status from runs where id = $1', [started.runId]);
+      return q.rows[0]?.status === 'passed';
+    });
+  }
+  const first = (
+    await request(app).get(`/api/runs?test_id=${t.id}&limit=2`).set(auth).expect(200)
+  ).body;
+  assert.equal(first.runs.length, 2);
+  assert.equal(first.total, 3);
+  assert.equal(first.limit, 2);
+
+  const second = (
+    await request(app).get(`/api/runs?test_id=${t.id}&limit=2&offset=2`).set(auth).expect(200)
+  ).body;
+  assert.equal(second.runs.length, 1);
+  assert.equal(second.total, 3);
+  assert.ok(!first.runs.some((r) => r.id === second.runs[0].id));
+});
+
+test('run history filters by date range', async () => {
+  const id = randomUUID();
+  await pool.query(
+    `insert into runs (id, goal, start_url, max_steps, status, created_at)
+     values ($1, 'dated', 'https://example.com', 60, 'passed', '2020-01-15T00:00:00Z')`,
+    [id]
+  );
+  const inRange = (
+    await request(app)
+      .get('/api/runs?since=2020-01-01T00:00:00Z&until=2020-02-01T00:00:00Z')
+      .set(auth)
+      .expect(200)
+  ).body;
+  assert.deepEqual(
+    inRange.runs.map((r) => r.id),
+    [id]
+  );
+  const outOfRange = (
+    await request(app).get('/api/runs?since=2020-02-01T00:00:00Z&until=2020-03-01T00:00:00Z')
+      .set(auth)
+      .expect(200)
+  ).body;
+  assert.equal(outOfRange.total, 0);
+});
+
+test('run history hides artifact links once retention prunes the directory', async () => {
+  const id = randomUUID();
+  await pool.query(
+    `insert into runs (id, goal, start_url, max_steps, status, report_status,
+                       has_recording, artifacts_deleted_at)
+     values ($1, 'pruned', 'https://example.com', 60, 'passed', 'ready', true, now())`,
+    [id]
+  );
+  const list = (await request(app).get('/api/runs?limit=200').set(auth).expect(200)).body;
+  const row = list.runs.find((r) => r.id === id);
+  assert.equal(row.has_recording, false);
+  assert.equal(row.report_status, 'none');
+  assert.ok(row.artifacts_deleted_at); // the row itself survives
+});
+
+/** An artifact dir with a report + recording in it, last written `ageDays` ago. */
+function makeArtifacts(id, ageDays) {
+  const dir = path.join(artifactsDir, id);
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'report.pdf'), 'pdf');
+  fs.writeFileSync(path.join(dir, 'recording.mp4'), 'mp4');
+  const at = new Date(Date.now() - ageDays * 86400_000);
+  fs.utimesSync(dir, at, at);
+  return dir;
+}
+
+test('retention prunes old artifact dirs, stamps the row and keeps history', async () => {
+  const old = randomUUID();
+  const fresh = randomUUID();
+  for (const [id, status] of [[old, 'passed'], [fresh, 'passed']]) {
+    await pool.query(
+      `insert into runs (id, goal, start_url, max_steps, status, success, final_result,
+                         steps_count, report_status, has_recording)
+       values ($1, 'kept forever', 'https://example.com', 60, $2, true, 'ok', 7, 'ready', true)`,
+      [id, status]
+    );
+  }
+  const oldDir = makeArtifacts(old, 30);
+  const freshDir = makeArtifacts(fresh, 1);
+
+  const { pruned } = await sweepArtifacts();
+  assert.ok(pruned >= 1);
+  assert.equal(fs.existsSync(oldDir), false);
+  assert.equal(fs.existsSync(freshDir), true); // inside the 7-day window
+
+  // The row survives with its verdict; only the artifact columns change.
+  const row = (await pool.query('select * from runs where id = $1', [old])).rows[0];
+  assert.ok(row.artifacts_deleted_at);
+  assert.equal(row.success, true);
+  assert.equal(row.steps_count, 7);
+  assert.equal((await pool.query('select * from runs where id = $1', [fresh])).rows[0]
+    .artifacts_deleted_at, null);
+
+  // …and the API stops offering links the files can no longer satisfy.
+  const detail = (await request(app).get(`/api/runs/${old}`).set(auth).expect(200)).body;
+  assert.equal(detail.hasRecording, false);
+  assert.equal(detail.status, 'passed');
+  await request(app).get(`/api/runs/${old}/recording`).set(auth).expect(404);
+});
+
+test('retention never touches directories that are not run artifacts', async () => {
+  const stray = path.join(artifactsDir, 'not-a-run-id');
+  fs.mkdirSync(stray, { recursive: true });
+  const at = new Date(Date.now() - 365 * 86400_000);
+  fs.utimesSync(stray, at, at);
+
+  await sweepArtifacts();
+  assert.equal(fs.existsSync(stray), true);
+});
+
+test('retention collects orphan dirs with no run row', async () => {
+  const orphan = makeArtifacts(randomUUID(), 30);
+  await sweepArtifacts();
+  assert.equal(fs.existsSync(orphan), false);
+});
+
+test('run history rejects bad filters and paging', async () => {
+  for (const q of [
+    'test_id=nope',
+    'project_id=nope',
+    'status=bogus',
+    'since=not-a-date',
+    'limit=0',
+    'limit=1000',
+    'offset=-1',
+  ]) {
+    await request(app).get(`/api/runs?${q}`).set(auth).expect(400);
+  }
+  await request(app).get('/api/runs').expect(401);
 });
 
 test('projects endpoints require the bearer token', async () => {

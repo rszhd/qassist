@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { api } from './api.js';
+import { api, openReport } from './api.js';
 import SavedTests from './SavedTests.jsx';
 
 // The default view: saved-test list + run/edit form beside the live viewer.
@@ -301,21 +301,8 @@ export default function RunView({ token, setToken, health, visible, onRunState }
   async function downloadReport() {
     if (!runId) return;
     setReportBusy(true);
-    const headers = token ? { Authorization: `Bearer ${token}` } : {};
     try {
-      // Report renders right after the run finishes; retry a few times on 202.
-      for (let i = 0; i < 15; i++) {
-        const res = await fetch(`/api/runs/${runId}/report.pdf`, { headers });
-        if (res.status === 202) {
-          await new Promise((r) => setTimeout(r, 1000));
-          continue;
-        }
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const blob = await res.blob();
-        window.open(URL.createObjectURL(blob), '_blank');
-        return;
-      }
-      throw new Error('report still generating — try again in a moment');
+      await openReport(runId, token);
     } catch (err) {
       setError(`Report: ${err.message}`);
     } finally {

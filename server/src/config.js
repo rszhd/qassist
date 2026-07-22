@@ -29,6 +29,10 @@ export const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 // PDF, the recording is still served in-app.
 export const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
 export const RECORDING_FILENAME = 'recording.mp4';
+// US-011 retention: how long runs/<id>/ survives. The history row is bytes and
+// is kept forever; the PDF and the mp4 beside it are tens of MB, so they are
+// what has to go. 0 disables pruning (keep artifacts until the disk fills).
+export const ARTIFACT_RETENTION_DAYS = parseInt(process.env.ARTIFACT_RETENTION_DAYS || '7', 10);
 
 // The agent can't run without a model key. Checked up front so a missing key
 // is a clear message at startup and on POST, not a Python traceback ~15s into

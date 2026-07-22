@@ -16,16 +16,20 @@ plus a `db` (Postgres) service.
 
 `server/src/` splits as: `server.js` (wiring only), `config.js` (env, read at
 import time), `db.js` (pool, migrations, boot seed/recovery), `runs.js` (run
-engine + persistence), `routes/{tests,suites,projects,modules,helpers}.js`.
+engine + persistence), `routes/{runs,tests,suites,projects,modules,helpers}.js`.
+`routes/runs.js` is the HTTP surface only — the engine stays `src/runs.js`.
 `routes/projects.js` also holds the module query helpers `modules.js` imports.
 
 `frontend/src/` splits as: `App.jsx` (shell — token, health, which view),
 `TopBar.jsx` (header + view nav), `RunView.jsx` (a single run: WS socket, live
-viewer, saved-test list, run/edit form) with `SavedTests.jsx`, and
-`LibraryView.jsx` (project/module management) with `Suites.jsx`. New views land
-beside Run and Library — that split exists so US-011/US-010/US-005 have
-somewhere to go. Run stays mounted while hidden (unmounting drops the live
-WebSocket); Library remounts, which is how it refreshes.
+viewer, saved-test list, run/edit form) with `SavedTests.jsx`,
+`HistoryView.jsx` (past runs: filters, paging, timeline) with `RunDetail.jsx`,
+and `LibraryView.jsx` (project/module management) with `Suites.jsx`. Shared
+bits live in `api.js` (fetch wrapper + `openReport`) and `status.js`
+(status→colour, date/duration formatters). New views land beside these — that
+split exists so US-010/US-005 have somewhere to go. Run stays mounted while
+hidden (unmounting drops the live WebSocket); History and Library remount,
+which is how they refresh.
 
 Saved tests can be grouped into a **project**, and within it into at most one
 **module**; a **suite** is the many-to-many alternative, scoped to one project.

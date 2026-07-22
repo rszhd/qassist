@@ -118,6 +118,7 @@ Set in `.env` (see `.env.example`):
 | `MAX_RUN_MEMORY_MB` | `1600` | Per-run process-tree RSS cap; over it the run is killed and marked failed. Summed RSS double-counts Chromium's shared pages — a recording run measures ~1177 MB here but only ~660 MB PSS (US-024) |
 | `PORT` | `8080` | Express listen port |
 | `QA_RECORD` | `1` | Record every session to `runs/<runId>/recording.mp4`. `0` disables it — frame capture is then skipped entirely while nobody is watching the run |
+| `ARTIFACT_RETENTION_DAYS` | `7` | How long `runs/<runId>/` (report PDF + mp4 recording) is kept. Swept at startup and every 6 h; the history row and its verdict are kept forever regardless. `0` = never prune |
 | `PUBLIC_BASE_URL` | — | Public address of this instance (`https://qa.example.com`). Only used to make the PDF report's "View recording" link resolvable; the recording is served either way |
 | `DATABASE_URL` | — | Postgres control plane (saved tests, suites, run history). Set for you in both paths — `docker compose` points it at its own `db` service, `npm run dev` at the same container on `localhost:5433`. Unset = in-memory mode: ad-hoc runs still work, saved tests/suites answer 503 |
 
@@ -126,6 +127,11 @@ Per-run artifacts (screenshots, `recording.mp4`, `report_data.json`,
 `runs/<runId>/` and persisted via the `./runs` volume. Durable metadata —
 saved tests, suites, run verdicts — lives in Postgres (`pgdata` volume);
 schema and rationale in [`db/README.md`](db/README.md).
+
+The two have different lifetimes on purpose: a history row is a few hundred
+bytes and is kept forever, while the directory beside it is tens of MB and is
+deleted after `ARTIFACT_RETENTION_DAYS`. A pruned run keeps its verdict,
+timings and step count, and simply stops offering the report and recording.
 
 ## API
 
@@ -213,6 +219,28 @@ curl -X POST http://<host>:8080/api/suites/<suiteId>/run \
 Deleting a module or project never deletes tests — they fall back to
 Ungrouped. Deleting a project does take its suites with it.
 
+### Run history
+
+`GET /api/runs` lists finished and in-flight runs newest first, from the same
+control plane (503 without `DATABASE_URL`). Every row carries the test's name
+and grouping, so a history table renders from one request.
+
+```bash
+# filters combine: test_id, project_id, module_id, status (comma-separated),
+# since/until (ISO timestamps on created_at), limit (≤200) and offset
+curl "http://<host>:8080/api/runs?test_id=<testId>&status=failed,error&limit=20" \
+  -H "Authorization: Bearer $WORKER_API_TOKEN"
+# -> {"runs":[{"id":"...","status":"failed","test_name":"login smoke",
+#              "success":false,"created_at":"...","has_recording":true, ...}],
+#     "total":37,"limit":20,"offset":0}
+```
+
+`total` is the unpaginated count, for paging. A run's project is its test's,
+reached by join — so a run whose test was later deleted keeps its history row
+(goal and start_url were copied at enqueue time) but matches no project
+filter. Once retention prunes `runs/<id>/`, `artifacts_deleted_at` is set and
+the row reports no recording or report while the verdict survives.
+
 ## Local development
 
 This section is for working *on* QAssist. To just run it, see
@@ -291,10 +319,10 @@ story, organized by release folder (`release-1/`, `unscheduled/`,
 
 - **Control plane** (Postgres) — saved tests & suites
   ([US-009](backlog/release-1/US-009-control-plane-saved-tests.md)), projects
-  & modules ([US-023](backlog/release-1/US-023-projects-and-modules.md)),
-  scheduled runs ([US-010](backlog/release-1/US-010-scheduled-runs.md)),
-  failure email notifications
-  ([US-012](backlog/release-1/US-012-email-reports.md)).
+  & modules ([US-023](backlog/release-1/US-023-projects-and-modules.md)), run
+  history ([US-011](backlog/release-1/US-011-run-history.md)), scheduled runs
+  ([US-010](backlog/release-1/US-010-scheduled-runs.md)), failure email
+  notifications ([US-012](backlog/release-1/US-012-email-reports.md)).
 - **Session recording** — store an MP4 per run
   ([US-006](backlog/release-1/US-006-session-recording.md)) and a report
   with per-step screenshots + working "View recording"
@@ -312,8 +340,7 @@ story, organized by release folder (`release-1/`, `unscheduled/`,
   subscriptions ([US-022](backlog/release-1/US-022-stripe-billing.md)).
   Self-hosting stays free: billing is env-gated and off by default.
 
-Later ([`backlog/unscheduled/`](backlog/README.md)): run-history
-UI ([US-011](backlog/unscheduled/US-011-run-history.md)), SMS/social
+Later ([`backlog/unscheduled/`](backlog/README.md)): SMS/social
 registration tiers, PR status checks, scaling to ~100 concurrent sessions
 ([US-015](backlog/unscheduled/US-015-horizontal-scaling-100-concurrent.md)),
 and a possible desktop app.
