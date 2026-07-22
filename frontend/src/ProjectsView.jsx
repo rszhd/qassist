@@ -1,16 +1,17 @@
 import { useCallback, useEffect, useState } from 'react';
-import { AlertTriangle, FolderTree, Layers, Pencil, Plus, Trash2 } from 'lucide-react';
+import { AlertTriangle, FolderTree, Layers, Pencil, Plus, Terminal, Trash2 } from 'lucide-react';
 import { api } from './api.js';
+import CiCommand from './CiCommand.jsx';
 import Suites from './Suites.jsx';
 import { Button, CardHead, EmptyState, IconButton, PageHeader } from './ui.jsx';
 
-// Library (US-023): full-width management of projects and the modules inside
+// Projects (US-023): full-width management of projects and the modules inside
 // them. Running lives in the Run view — this view only organizes.
 //
 // Renaming and re-slugging are separate acts on the server: a rename never
 // re-slugs, because the slug is what a CI config points at. The editor
 // therefore exposes both fields and sends only what changed.
-export default function LibraryView({ token }) {
+export default function ProjectsView({ token }) {
   const [projects, setProjects] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [detail, setDetail] = useState(null);
@@ -18,6 +19,8 @@ export default function LibraryView({ token }) {
   const [newModule, setNewModule] = useState('');
   // { kind: 'project' | 'module', id, name, slug } — the row being renamed.
   const [editing, setEditing] = useState(null);
+  // The row whose CI command is on screen; see CiCommand for the shape.
+  const [ciTarget, setCiTarget] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
 
@@ -124,7 +127,7 @@ export default function LibraryView({ token }) {
   return (
     <>
       <PageHeader
-        title="Library"
+        title="Projects"
         description="Organize saved tests into projects and modules. Running happens in the Run view."
       />
 
@@ -135,9 +138,9 @@ export default function LibraryView({ token }) {
         </div>
       )}
 
-      <div className="library">
-        <section className="card lib-projects">
-          <CardHead title="Projects" count={projects.length} />
+      <div className="projects">
+        <section className="card proj-list">
+          <CardHead title="All projects" count={projects.length} />
           {projects.length === 0 && (
             <EmptyState icon={FolderTree} title="No projects yet">
               A project is one app under test — create one, then group its saved tests into
@@ -160,6 +163,11 @@ export default function LibraryView({ token }) {
                     </span>
                   </button>
                   <span className="row-actions">
+                    <IconButton
+                      icon={Terminal}
+                      label="Run from CI"
+                      onClick={() => setCiTarget({ kind: 'project', name: p.name, project: p.slug })}
+                    />
                     <IconButton icon={Pencil} label="Rename" onClick={() => startEdit('project', p)} />
                     <IconButton icon={Trash2} variant="danger" label="Delete" onClick={() => deleteProject(p)} />
                   </span>
@@ -179,7 +187,7 @@ export default function LibraryView({ token }) {
           </form>
         </section>
 
-        <section className="card lib-detail">
+        <section className="card proj-detail">
           {!detail ? (
             <EmptyState icon={Layers} title="No project selected">
               Pick a project to manage its modules and suites.
@@ -212,6 +220,18 @@ export default function LibraryView({ token }) {
                         </span>
                       </span>
                       <span className="row-actions">
+                        <IconButton
+                          icon={Terminal}
+                          label="Run from CI"
+                          onClick={() =>
+                            setCiTarget({
+                              kind: 'module',
+                              name: m.name,
+                              project: detail.slug,
+                              module: m.slug,
+                            })
+                          }
+                        />
                         <IconButton icon={Pencil} label="Rename" onClick={() => startEdit('module', m)} />
                         <IconButton icon={Trash2} variant="danger" label="Delete" onClick={() => deleteModule(m)} />
                       </span>
@@ -234,6 +254,8 @@ export default function LibraryView({ token }) {
           )}
         </section>
       </div>
+
+      {ciTarget && <CiCommand target={ciTarget} onClose={() => setCiTarget(null)} />}
     </>
   );
 }

@@ -123,7 +123,7 @@ export default function SavedTests({
               </li>
             ))}
           </ul>
-          <p className="hint">Edit suites in Library.</p>
+          <p className="hint">Edit suites in Projects.</p>
         </div>
       )}
     </>

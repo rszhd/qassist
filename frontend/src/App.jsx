@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import HistoryView from './HistoryView.jsx';
-import LibraryView from './LibraryView.jsx';
+import ProjectsView from './ProjectsView.jsx';
 import RunView from './RunView.jsx';
 import TopBar from './TopBar.jsx';
 import { Button, Field, Modal } from './ui.jsx';
@@ -72,7 +72,7 @@ export default function App() {
       />
       <div className="app">
         {/* Run stays mounted while hidden: unmounting would drop the live
-            WebSocket and the finished run's result. Library and History are
+            WebSocket and the finished run's result. Projects and History are
             cheap to remount, and remounting is what refreshes them — History
             in particular should show the run you just watched finish. */}
         <div hidden={view !== 'run'}>
@@ -86,7 +86,7 @@ export default function App() {
           />
         </div>
         {view === 'history' && <HistoryView token={token} />}
-        {view === 'library' && <LibraryView token={token} />}
+        {view === 'projects' && <ProjectsView token={token} />}
       </div>
 
       {settingsOpen && (

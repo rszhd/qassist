@@ -24,11 +24,11 @@ engine + persistence), `routes/{runs,tests,suites,projects,modules,helpers}.js`.
 settings dialog), `TopBar.jsx` (header + view nav), `RunView.jsx` (a single
 run: WS socket, live stage, run/edit dialog) with `SavedTests.jsx`,
 `HistoryView.jsx` (past runs: filters, paging, timeline) with `RunDetail.jsx`,
-and `LibraryView.jsx` (project/module management) with `Suites.jsx`. Shared
+and `ProjectsView.jsx` (project/module management) with `Suites.jsx`. Shared
 bits live in `api.js` (fetch wrapper + `openReport`) and `status.js`
 (status→colour, date/duration formatters). New views land beside these — that
 split exists so US-010/US-005 have somewhere to go. Run stays mounted while
-hidden (unmounting drops the live WebSocket); History and Library remount,
+hidden (unmounting drops the live WebSocket); History and Projects remount,
 which is how they refresh.
 
 **UI conventions.** `ui.jsx` holds the shared vocabulary — `Button`
@@ -75,7 +75,7 @@ under the bar like any other card.
 **Sizes.** A number that appears in two rules is a measurement and gets a
 name; a number that appears once stays a literal with a line saying what set
 it. The named ones are `--col-side` (every column flanking the main content —
-the Run rail and activity panel, History's detail, Library's projects),
+the Run rail and activity panel, History's detail, the Projects list),
 `--rail-strip`, `--scroll-cap` (how tall a list grows inside a card before it
 scrolls itself) and `--dot` (status dots). Media-query breakpoints can't read
 tokens, so 900px and 1150px each carry a comment saying what they protect.
@@ -117,6 +117,13 @@ is exactly the pre-US-023 UI — keep it that way when adding features.
 - **Auth: magic-link email via Resend, no passwords** (US-021). Signed
   one-time link → HTTP-only session cookie; signup == login.
 - Frontend: React 18 + Vite (JSX). Agent: Python + browser-use + Playwright.
+- **Code explains itself; comments are the exception.** Spend the effort on
+  names and structure instead — a comment restating what the line already says
+  is noise that goes stale. Write one only when the code can't carry the
+  meaning: a non-obvious *why* (a workaround, an ordering constraint, a
+  protocol quirk), or a bare number in a place that can't hold a named token
+  (the CSS breakpoints). JSDoc type annotations aren't comments in this sense
+  — they're what `npm run check` reads, so keep them.
 - Avoid: microservices, GraphQL, message queues, codegen/DSLs, barrel files,
   abstraction layers "for later".
 

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import { AlertTriangle, Boxes, Pencil, Plus, Trash2 } from 'lucide-react';
+import { AlertTriangle, Boxes, Pencil, Plus, Terminal, Trash2 } from 'lucide-react';
 import { api } from './api.js';
+import CiCommand from './CiCommand.jsx';
 import { Button, CardHead, EmptyState, IconButton } from './ui.jsx';
 
 // Suites (US-009 UI, deferred until US-023). A suite is the many-to-many
@@ -18,6 +19,8 @@ export default function Suites({ projectId, token }) {
   const [editing, setEditing] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
+  // The suite whose CI command is on screen; see CiCommand for the shape.
+  const [ciTarget, setCiTarget] = useState(null);
 
   const load = useCallback(async () => {
     try {
@@ -132,6 +135,11 @@ export default function Suites({ projectId, token }) {
               </span>
               <span className="row-actions">
                 <IconButton
+                  icon={Terminal}
+                  label="Run from CI"
+                  onClick={() => setCiTarget({ kind: 'suite', name: s.name, id: s.id })}
+                />
+                <IconButton
                   icon={Pencil}
                   label="Edit name and membership"
                   onClick={() => setEditing({ id: s.id, name: s.name, testIds: s.test_ids })}
@@ -155,6 +163,8 @@ export default function Suites({ projectId, token }) {
           </li>
         )}
       </ul>
+
+      {ciTarget && <CiCommand target={ciTarget} onClose={() => setCiTarget(null)} />}
     </div>
   );
 }

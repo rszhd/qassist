@@ -74,7 +74,7 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
     }
   }, [health?.db, token, filter]);
 
-  // Also refetches on the way back from Library, where groups may have changed.
+  // Also refetches on the way back from Projects, where groups may have changed.
   useEffect(() => {
     if (visible) loadTests();
   }, [visible, loadTests]);
@@ -84,7 +84,7 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
     try {
       const { projects: rows } = await api('/api/projects', { token });
       setProjects(rows);
-      // A project deleted in Library must not leave a dangling filter.
+      // A project deleted in Projects must not leave a dangling filter.
       setFilter((cur) => (cur === 'all' || cur === 'none' || rows.some((p) => p.id === cur) ? cur : 'all'));
     } catch (err) {
       setError(`Projects: ${err.message}`);
@@ -96,7 +96,7 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
   }, [visible, loadProjects]);
 
   // Bumped whenever this view comes back into focus, so the lists below
-  // refetch after edits made in Library.
+  // refetch after edits made in Projects.
   const [refreshTick, setRefreshTick] = useState(0);
   useEffect(() => {
     if (visible) setRefreshTick((t) => t + 1);
@@ -435,9 +435,10 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
             </div>
           )}
 
-          {/* Browser left, activity right, both the same height: the two things
-              you watch during a run stay in one glance. The split is permanent
-              so nothing reflows the moment the first step lands. */}
+          {/* Browser left, activity right — the two things you watch during a
+              run stay in one glance. Each column keeps its own height; the
+              split is permanent so nothing reflows the moment the first step
+              lands. */}
           <div className="stage-split">
             <div className="stage-main">
               <div className="browser">
@@ -699,7 +700,7 @@ function TestDialog({
  * Rows from `url` (null = nothing to fetch), unwrapped from `res[key]` and
  * refetched whenever the url or `tick` changes. Deliberately uncached: these
  * lists are small, and refetching is what keeps the Run view in step with
- * edits made in Library.
+ * edits made in Projects.
  */
 function useProjectList(url, key, token, onError, tick) {
   const [rows, setRows] = useState([]);

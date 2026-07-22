@@ -97,7 +97,7 @@
 
      `--col-side` is the width of every column that flanks the main content:
      the tests rail and the activity panel on Run, the detail panel on
-     History, the projects list on Library. They all hold the same kind of
+     History, the list on Projects. They all hold the same kind of
      thing — a list you scan while working in the middle — so they are one
      measurement, and the Run view's frame is what the leftovers go to.
      `--rail-strip` is the sliver the minimized rail keeps, and has to match
@@ -541,37 +541,30 @@ select {
    down the page or across the grid beside it. */
 .stage { display: flex; flex-direction: column; gap: var(--s4); }
 
-/* Browser and activity ride side by side and share a row height, so the log
-   is as tall as the frame it belongs to. The split is permanent: an empty
+/* Browser and activity ride side by side. The split is permanent: an empty
    activity panel beats the whole stage reflowing on the first step. */
-.stage-split { display: grid; grid-template-columns: 1fr var(--col-side); gap: var(--s4); align-items: stretch; }
+.stage-split { display: grid; grid-template-columns: 1fr var(--col-side); gap: var(--s4); align-items: start; }
 .stage-main { display: flex; flex-direction: column; gap: var(--s4); min-width: 0; }
-/* Runs the full height of the row rather than sizing to its content: at rest
-   the log is empty and the frame beside it is a 16:9 box, so a self-sizing
-   panel left a column of dead card-height under it — the first thing a new
-   user sees. Stretching costs nothing (the log grows into the space it will
-   need anyway) and keeps the permanent split honest: the panel is the same
-   shape before the first step and after the last.
-   `--sticky-h` still caps it, so once the verdict card makes the row taller
-   than the viewport the panel is shorter than the row again and goes back to
-   sticking, scrolling its own list instead of the page. */
+/* The panel is as tall as what is in it, not as tall as the row: a log three
+   steps long is three steps tall, and the frame beside it — a 16:9 box that
+   grows a verdict card under it — has no say in that. What bounds it is the
+   viewport, via `--sticky-h`, so a long run fills the screen and then scrolls
+   the log rather than the page. `min-height: 0` on the log is what makes that
+   cap bite; a flex item otherwise refuses to shrink below its content. */
 .stage-side {
   min-width: 0;
   position: sticky; top: var(--sticky-top); max-height: var(--sticky-h);
 }
-.stage-side .log { flex: 1; min-height: 0; max-height: none; }
-/* The zero state fills the same space the log will, centred in it — an empty
-   panel that is the right height reads as "nothing yet", one that is short
-   reads as a layout bug. */
-.stage-side > .empty { flex: 1; justify-content: center; }
+.stage-side .log { min-height: 0; max-height: none; }
 /* 1150px: the Run view is the only view with three columns, so it gives up
    the third one first — at this width the rail and the activity panel
-   together would leave the frame narrower than the panel beside it. Stack,
-   and give the log back its cap since it no longer has a column to fill. */
+   together would leave the frame narrower than the panel beside it. Stacked,
+   the panel is no longer stuck to the viewport, so `--scroll-cap` takes over
+   as the bound: without it a long log would run the page down instead. */
 @media (max-width: 1150px) {
   .stage-split { grid-template-columns: 1fr; }
   .stage-side { position: static; max-height: none; }
-  .stage-side .log { flex: none; max-height: var(--scroll-cap); }
+  .stage-side .log { max-height: var(--scroll-cap); }
 }
 
 /* The live view sits in a browser chrome so it reads as a real session and
@@ -709,7 +702,7 @@ button.row-main { background: transparent; border: 0; padding: 0; color: inherit
 .group-head .card-count { margin-right: auto; }
 
 /* Capped rather than full-width: a name field stretched across the whole
-   Library pane invites a sentence, and 440px is about as wide as a project or
+   pane invites a sentence, and 440px is about as wide as a project or
    module name ever wants to be. */
 .add-form { display: flex; gap: var(--s2); max-width: 440px; }
 .add-form input { flex: 1; }
@@ -730,14 +723,23 @@ button.row-main { background: transparent; border: 0; padding: 0; color: inherit
 .slug { font-family: var(--mono); }
 
 /* ==========================================================================
-   8. History & Library layouts
+   8. History & Projects layouts
    ========================================================================== */
 .history { display: grid; grid-template-columns: 1fr var(--col-side); gap: var(--s4); align-items: start; }
-.library { display: grid; grid-template-columns: var(--col-side) 1fr; gap: var(--s4); align-items: start; }
+.projects { display: grid; grid-template-columns: var(--col-side) 1fr; gap: var(--s4); align-items: start; }
 @media (max-width: 900px) {
-  .history, .library { grid-template-columns: 1fr; }
+  .history, .projects { grid-template-columns: 1fr; }
 }
-.hist-detail, .lib-projects { position: sticky; top: var(--sticky-top); }
+.hist-detail, .proj-list { position: sticky; top: var(--sticky-top); }
+
+/* The CI command shown for one module, suite or project. A command is read
+   line by line, so it sits at the wider line height and scrolls sideways
+   rather than wrapping — a wrapped curl reads as two commands. */
+.ci-code {
+  margin: 0; padding: var(--s3); overflow-x: auto;
+  background: var(--sunken); border: 1px solid var(--border); border-radius: var(--r-md);
+  font-family: var(--mono); font-size: var(--t-sm); line-height: 1.7; color: var(--muted);
+}
 
 .hist-filters { display: flex; flex-wrap: wrap; gap: var(--s2); }
 /* 140px holds the longest option text ("All projects", a test name truncated)

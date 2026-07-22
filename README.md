@@ -70,7 +70,7 @@ agent/                Python agent + report renderer
   requirements.txt
 server/
   src/server.js       Express REST API + WebSocket relay + run registry
-frontend/             React + Vite UI — Run view (live viewer) and Library
+frontend/             React + Vite UI — Run view (live viewer) and Projects
 Dockerfile            multi-stage: builds frontend, bundles Node + Python + Chromium
 docker-compose.yml
 .env.example
