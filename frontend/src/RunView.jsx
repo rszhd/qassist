@@ -28,6 +28,10 @@ export default function RunView({ token, setToken, health, visible, onRunState }
   const [editing, setEditing] = useState(null);
   const [savingTest, setSavingTest] = useState(false);
   const [reportBusy, setReportBusy] = useState(false);
+  // US-006: set by the `recording` event that arrives just before the run
+  // ends. `showRecording` swaps the live screen for the replay player.
+  const [hasRecording, setHasRecording] = useState(false);
+  const [showRecording, setShowRecording] = useState(false);
   const wsRef = useRef(null);
   const logRef = useRef(null);
 
@@ -118,6 +122,10 @@ export default function RunView({ token, setToken, health, visible, onRunState }
         setCurrentAction(evt.message);
         setSteps((s) => [...s, evt]);
         break;
+      case 'recording':
+        // Emitted before done/error, so the button is ready when the run ends.
+        setHasRecording(true);
+        break;
       case 'done':
         setResult(evt);
         setCurrentAction(null);
@@ -144,6 +152,8 @@ export default function RunView({ token, setToken, health, visible, onRunState }
     setScreenshot(null);
     setCurrentAction(null);
     setBatch(null);
+    setHasRecording(false);
+    setShowRecording(false);
     setStatus('queued');
   }
 
@@ -469,9 +479,20 @@ export default function RunView({ token, setToken, health, visible, onRunState }
               {result.errors?.length > 0 && (
                 <ul className="errs">{result.errors.map((er, i) => <li key={i}>{er}</li>)}</ul>
               )}
-              <button type="button" className="report-btn" onClick={downloadReport} disabled={reportBusy}>
-                {reportBusy ? 'Preparing PDF…' : '⭳ Download PDF report'}
-              </button>
+              <div className="btn-row result-actions">
+                <button type="button" className="report-btn" onClick={downloadReport} disabled={reportBusy}>
+                  {reportBusy ? 'Preparing PDF…' : '⭳ Download PDF report'}
+                </button>
+                {hasRecording && (
+                  <button
+                    type="button"
+                    className="report-btn"
+                    onClick={() => setShowRecording((v) => !v)}
+                  >
+                    {showRecording ? '⤺ Back to last frame' : '▶ Watch recording'}
+                  </button>
+                )}
+              </div>
             </div>
           )}
         </section>
@@ -485,7 +506,17 @@ export default function RunView({ token, setToken, health, visible, onRunState }
             </div>
           )}
           <div className="screen">
-            {screenshot ? (
+            {showRecording && runId ? (
+              // Plain <video src>, not a fetched blob: the endpoint takes a
+              // query token and honours Range, so seeking works (US-006).
+              <video
+                key={runId}
+                src={`/api/runs/${runId}/recording${token ? `?token=${encodeURIComponent(token)}` : ''}`}
+                controls
+                autoPlay
+                onError={() => setError('Recording could not be loaded.')}
+              />
+            ) : screenshot ? (
               <img src={screenshot} alt="live browser view" />
             ) : waitingForFirstFrame ? (
               <div className="thinking">
@@ -497,6 +528,12 @@ export default function RunView({ token, setToken, health, visible, onRunState }
               <div className="placeholder">Live browser view will appear here</div>
             )}
           </div>
+          {showRecording && (
+            <div className="replay-note">
+              Condensed replay — frames are only captured when the page repaints, so idle time is
+              skipped.
+            </div>
+          )}
           {currentAction && (
             <div className="action-bar">
               <span className="pulse" /> {currentAction}

@@ -2,7 +2,7 @@
 
 **As a** user, **I want** a video recording of every test run, **so that** I can review exactly what the agent did after the fact — especially for failures.
 
-- **Status:** 🚧 Backend done (2026-07-22) — frontend link pending
+- **Status:** ✅ Done (2026-07-22) — CPU overhead still unmeasured on the VPS
 - **Priority:** P1 (Release 1)
 - **Estimate:** ~half a day
 - **Depends on:** — (US-003 superseded; `runs/` retention now lives in US-020)
@@ -51,7 +51,7 @@ opt-in `"record": true` flag; retain-on-failure (delete video when run passes)
   cap; revisit properly with US-011 (`artifacts_deleted_at` is already in the
   schema).
 
-## Frontend (still open) — what the backend already gives you
+## Frontend (shipped 2026-07-22) — what the backend gives you
 
 - Live: a `{"type":"recording","file":"recording.mp4","frames":N}` event
   arrives on the run's WebSocket just before `end`. `RunView.jsx` can flip a
@@ -72,13 +72,22 @@ opt-in `"record": true` flag; retain-on-failure (delete video when run passes)
   report button. Progressive disclosure still applies — nothing new appears
   while a run is mid-flight or when there is no recording.
 
+**As built (`RunView.jsx`):** the `recording` event sets `hasRecording`, which
+adds a **▶ Watch recording** button beside the PDF button in the result block.
+It toggles `showRecording`, which swaps the live `.screen` (frozen on the last
+frame) for the `<video>` player, plus a note that the replay is condensed. Both
+flags reset in `resetRunState`, so a re-run goes back to the live feed. The
+`GET /api/runs/:id` `hasRecording` fallback is deliberately unused here — this
+view only ever shows the run it just started; the fallback is for US-011's run
+history, which loads finished runs it never watched.
+
 ## Acceptance criteria
 
 - [x] Every finished run has a playable video in `runs/<runId>/`
 - [x] Video downloadable via authed API endpoint
 - [x] PDF report links it when `PUBLIC_BASE_URL` is set, and says it exists
       otherwise
-- [ ] Frontend plays/links it on the finished-run view
+- [x] Frontend plays/links it on the finished-run view
 - [ ] CPU overhead ≤ ~0.2 vCPU per session at chosen fps (not yet measured on
       the VPS)
 
@@ -91,5 +100,12 @@ opt-in `"record": true` flag; retain-on-failure (delete video when run passes)
 - **Video quality is the live feed's quality**: one screencast serves both, at
   JPEG q55 capped to 1024×720. Frames are sampled to 3 fps and encoded
   synchronously in the frame handler (as browser-use does), a few ms per frame.
+- **Recording costs ~100 MB of RAM per run** (measured 2026-07-22, local,
+  headless, no viewer): peak process-tree RSS 1076 MB → 1177 MB, PSS 584 MB →
+  663 MB, one extra process. Breakdown: ffmpeg 40 MB, numpy/imageio imports
+  ~21 MB, ~40 MB of Chromium capture pipeline — the last because a recorder
+  keeps the screencast running for the whole session, where US-002 previously
+  ran none at all with no viewer attached. This tripped US-004's 1200 MB
+  watchdog on healthy runs; default raised to 1600, metric fixed in US-024.
 - **A watchdog kill (`SIGKILL`) leaves the mp4 unfinalized** — no chance to
   close the writer. The endpoint serves whatever landed on disk.

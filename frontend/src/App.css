@@ -239,6 +239,8 @@ button.ghost:hover:not(:disabled) { border-color: var(--accent); color: #fff; }
 .result dt { color: var(--muted); }
 .final { font-size: 13px; color: var(--text); margin: 10px 0 0; line-height: 1.45; }
 .errs { margin: 8px 0 0; padding-left: 18px; color: #fca5a5; font-size: 12px; }
+.result-actions { margin-top: 12px; }
+.result-actions .report-btn { margin-top: 0; }
 .report-btn {
   margin-top: 12px; width: 100%; background: transparent; color: var(--text);
   border: 1px solid var(--accent); border-radius: 8px; padding: 9px;
@@ -252,8 +254,10 @@ button.ghost:hover:not(:disabled) { border-color: var(--accent); color: #fff; }
   background: #000; border-radius: 8px; overflow: hidden;
   aspect-ratio: 16 / 10; display: flex; align-items: center; justify-content: center;
 }
-.screen img { width: 100%; height: 100%; object-fit: contain; }
+.screen img,
+.screen video { width: 100%; height: 100%; object-fit: contain; }
 .placeholder { color: var(--muted); font-size: 14px; }
+.replay-note { color: var(--muted); font-size: 11px; line-height: 1.4; }
 
 .thinking { text-align: center; color: var(--muted); display: flex; flex-direction: column; align-items: center; gap: 10px; }
 .thinking small { font-size: 11px; opacity: .7; }
