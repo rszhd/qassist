@@ -65,9 +65,11 @@ is exactly the pre-US-023 UI — keep it that way when adding features.
 ## Roadmap & docs
 
 - `backlog/` — one file per user story, organized by release folder;
-  `release-1/` is current scope. Story files record design decisions with
-  rationale — read the relevant US-xxx before implementing it, and keep
-  `backlog/README.md` in sync when a story changes state.
+  `release-1/` is current scope, and `release-1/done/` holds the ones already
+  shipped, so the release folder itself is the remaining work. Story files
+  record design decisions with rationale — read the relevant US-xxx before
+  implementing it; when a story is finished, `git mv` it into `done/` and
+  update `backlog/README.md` in the same commit.
 - `db/README.md` — control-plane schema ground rules.
 - `docs/repo-model.md` — open-source vs paid-cloud boundary.
 

@@ -15,7 +15,7 @@ optionally group them into suites, and CI triggers by **test-case id or
 suite id** only. The test definitions live server-side and evolve without
 touching the pipeline.
 
-**Updated 2026-07-22 by [US-023](US-023-projects-and-modules.md).** Two more
+**Updated 2026-07-22 by [US-023](done/US-023-projects-and-modules.md).** Two more
 trigger targets exist: `POST /api/modules/:id/run` (everything in one module,
 e.g. "run the auth tests") and `POST /api/projects/:id/run`. Document modules
 alongside suites — modules are the likelier CI target, since they map to a

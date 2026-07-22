@@ -313,18 +313,20 @@ Fronting it with HTTPS (Caddy on 443) for public/API access is a [roadmap](#road
 
 Planned work lives in [`backlog/`](backlog/README.md) — one file per user
 story, organized by release folder (`release-1/`, `unscheduled/`,
-`released/`), with status, dependencies, and acceptance criteria.
+`released/`), with status, dependencies, and acceptance criteria. Finished
+stories move into `release-N/done/`, so the release folder itself always lists
+exactly the work that is left.
 
 **Release 1** (in [`backlog/release-1/`](backlog/README.md)):
 
 - **Control plane** (Postgres) — saved tests & suites
-  ([US-009](backlog/release-1/US-009-control-plane-saved-tests.md)), projects
-  & modules ([US-023](backlog/release-1/US-023-projects-and-modules.md)), run
-  history ([US-011](backlog/release-1/US-011-run-history.md)), scheduled runs
+  ([US-009](backlog/release-1/done/US-009-control-plane-saved-tests.md)), projects
+  & modules ([US-023](backlog/release-1/done/US-023-projects-and-modules.md)), run
+  history ([US-011](backlog/release-1/done/US-011-run-history.md)), scheduled runs
   ([US-010](backlog/release-1/US-010-scheduled-runs.md)), failure email
   notifications ([US-012](backlog/release-1/US-012-email-reports.md)).
 - **Session recording** — store an MP4 per run
-  ([US-006](backlog/release-1/US-006-session-recording.md)) and a report
+  ([US-006](backlog/release-1/done/US-006-session-recording.md)) and a report
   with per-step screenshots + working "View recording"
   ([US-020](backlog/release-1/US-020-report-v2-screenshots-recording.md)).
 - **Public HTTPS** — Caddy on 443, no more SSH tunnel; unblocks CI/CD
@@ -333,7 +335,7 @@ story, organized by release folder (`release-1/`, `unscheduled/`,
   by id via a documented curl step
   ([US-008](backlog/release-1/US-008-cicd-integration.md), needs US-009).
 - **Registration-flow verification** — email-confirmation signups, already
-  working ([US-013](backlog/release-1/US-013-registration-flow-verification.md)).
+  working ([US-013](backlog/release-1/done/US-013-registration-flow-verification.md)).
 - **Hosted paid tier** — bring-your-own OpenAI key
   ([US-005](backlog/release-1/US-005-byok-user-api-keys.md)), magic-link
   signup ([US-021](backlog/release-1/US-021-signup-auth.md)), and Stripe
