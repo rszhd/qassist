@@ -16,7 +16,7 @@ agent core stops being the one untested part of the product.
   `RunDetail.test.jsx`) under jsdom + `@testing-library/react`; the selective-TDD
   practice is now a standing CLAUDE.md Workflow rule, written as a forward rule
   (assertion-first for correctness-critical pieces, with the duty to *flag* such
-  a piece placed on Claude, since Harith won't always catch it); `mutmut` is
+  a piece placed on Claude, since the maintainer won't always catch it); `mutmut` is
   wired for a repeatable agent mutation audit (`agent/setup.cfg`,
   `mutate_only_covered_lines` to skip the untested IMAP glue). All build items
   are done — `redact.py` leaves no survivors; the remaining survivors are
@@ -44,7 +44,7 @@ alongside the feature in the same commit — good discipline, but the tests are
 authored by the same agent as the code, so they can encode one misunderstanding
 twice. The mitigation is *not* full TDD ceremony. It is: for the
 correctness-critical, easy-to-get-subtly-wrong pieces — scheduler claim, slot
-math, redaction, billing gates when they arrive — **Harith writes or tightens
+math, redaction, billing gates when they arrive — **the maintainer writes or tightens
 the assertion first, reviews it, then the agent implements against it.** The
 test becomes a spec the implementation can't quietly bend. CRUD and wiring stay
 test-alongside. Capture this as a short paragraph in CLAUDE.md once the habit

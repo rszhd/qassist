@@ -2,14 +2,14 @@
 
 The running register of the **correctness-critical, easy-to-get-subtly-wrong**
 pieces that the assertion-first Workflow rule in `CLAUDE.md` applies to: work
-where Harith writes or tightens the assertion *first* and reviews it, and only
+where the maintainer writes or tightens the assertion *first* and reviews it, and only
 then is the implementation written against it. Rationale and the wider testing
 philosophy: `docs/testing.md`.
 
 **This list is non-exhaustive by design, and absence from it proves nothing.**
 Deciding whether a given piece of work belongs in this class happens at the
 moment the work is done, and that judgement is **Claude's to raise, not
-Harith's to remember** (the rule says so). A table can seed that judgement and
+the maintainer's to remember** (the rule says so). A table can seed that judgement and
 give us something concrete to point at; it can't replace it, and "it wasn't on
 the list" is never a reason to skip the discipline. The counterpart duty: when
 new work turns out to be one of these, **add a row here as part of doing it** —
@@ -28,7 +28,7 @@ the register only stays useful if it grows with the code.
 
 A surface listed here should, whenever it is next touched, have its expected
 behaviour pinned by an assertion written or tightened **before** the change,
-reviewed by Harith, and left as the spec the implementation is measured against.
+reviewed by the maintainer, and left as the spec the implementation is measured against.
 The three built rows above are currently covered test-*alongside* (the tests
 shipped with the code); the assertion-first escalation applies to the next
 change to any of them, and to billing gates from their first line. CRUD and

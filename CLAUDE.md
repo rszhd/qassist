@@ -214,10 +214,10 @@ is exactly the pre-US-023 UI — keep it that way when adding features.
   worth running: the test says what the code should do, not the reverse.
 - **Assertion-first for the correctness-critical, easy-to-get-subtly-wrong
   pieces** — scheduler claim, slot math, redaction, billing gates when they
-  arrive. There the assertion is Harith's to write or tighten *first* and
+  arrive. There the assertion is the maintainer's to write or tighten *first* and
   review, and only then is the implementation written against it, so the test
   is a spec the code can't quietly bend to. Deciding which work is in this class
-  is **Claude's job, not Harith's** — he won't always catch it, so surface the
+  is **Claude's job, not the maintainer's** — they won't always catch it, so surface the
   candidate, wait for the reviewed assertion before implementing, and don't
   assume a piece is ordinary just because it wasn't called out. CRUD and wiring
   stay test-alongside. This is the same-mind failure the "*red test is fixed in
