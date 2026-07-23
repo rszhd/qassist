@@ -18,6 +18,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 let pool;
 /** @type {(now?: number) => Promise<{ fired: number, runs: number, skipped: number }>} */
 let tick;
+/** @type {() => { active: number, queued: number }} */
+let counts;
 let userId;
 let artifactsDir;
 
@@ -33,6 +35,7 @@ before(async () => {
   process.env.AGENT_SCRIPT = path.join(__dirname, 'stubs', 'fake_agent.js');
   process.env.REPORT_SCRIPT = path.join(__dirname, 'stubs', 'fake_report.js');
   process.env.ARTIFACTS_DIR = artifactsDir;
+  process.env.MAX_CONCURRENT_SESSIONS = '2'; // read at import time; two slots make the queue observable
 
   const mem = newDb();
   mem.registerExtension('pgcrypto', (schema) => {
@@ -50,6 +53,7 @@ before(async () => {
   await runMigrations(pool, { skipIndexes: true });
   await initDb(pool);
   ({ tick } = await import('../src/scheduler.js'));
+  ({ counts } = await import('../src/runs.js'));
 
   const { rows } = await pool.query('select id from users limit 1');
   userId = rows[0].id;
@@ -279,4 +283,30 @@ test('a schedule left behind by downtime fires once, then moves to the future', 
   const row = await scheduleRow(scheduleId);
   assert.equal(new Date(row.next_run_at).getTime(), at('2026-07-24T02:00'));
   assert.deepEqual(await tick(at('2026-07-23T09:01')), { fired: 0, runs: 0, skipped: 0 });
+});
+
+test('a burst of scheduled tests queues instead of exceeding the concurrency cap', async () => {
+  // Earlier tests' stub runs finish in milliseconds, but a slot they still
+  // hold would show up here as a queued run this test did not cause.
+  const deadline = Date.now() + 5000;
+  while (counts().active > 0) {
+    assert.ok(Date.now() < deadline, 'earlier runs never drained');
+    await new Promise((r) => setTimeout(r, 25));
+  }
+
+  process.env.QA_STUB_HOLD_MS = '500'; // hold the slots long enough to read the queue behind them
+  try {
+    const { rows: p } = await pool.query(
+      `insert into projects (user_id, name, slug) values ($1, 'Burst', 'burst') returning id`,
+      [userId]
+    );
+    for (const name of ['a', 'b', 'c', 'd', 'e']) await makeTest(name, { project_id: p[0].id });
+    await makeSchedule({ project_id: p[0].id });
+
+    assert.deepEqual(await tick(at('2026-07-23T02:00:30')), { fired: 1, runs: 5, skipped: 0 });
+    assert.deepEqual(counts(), { active: 2, queued: 3 }, 'five at once, two slots');
+    assert.equal((await runRows()).length, 5, 'the queued three are persisted too');
+  } finally {
+    delete process.env.QA_STUB_HOLD_MS;
+  }
 });

@@ -85,6 +85,13 @@ async function activeTestIds(testIds) {
  * Claim before firing, deliberately: a crash in between skips one slot, while
  * the other order would re-fire the same slot on every boot — and a run costs
  * real LLM tokens.
+ *
+ * The guard is "still due", not "unchanged since the select": `nextSlot` is
+ * always strictly in the future, so a competing tick that already claimed the
+ * row leaves it failing `next_run_at <= now` just as surely. Comparing the
+ * timestamp for equality instead would tie the claim to round-trip precision —
+ * a `next_run_at` written by Postgres carries microseconds a JS Date cannot
+ * hold, and the row would then never be claimable again, silently and forever.
  * @param {any} schedule
  * @param {number} now
  */
@@ -93,8 +100,8 @@ async function claim(schedule, now) {
   const { rowCount } = await db().query(
     `update schedules
         set next_run_at = $2, last_run_at = $3, updated_at = now()
-      where id = $1 and next_run_at = $4`,
-    [schedule.id, next, new Date(now), schedule.next_run_at]
+      where id = $1 and enabled and next_run_at <= $3`,
+    [schedule.id, next, new Date(now)]
   );
   return rowCount === 1;
 }
@@ -129,7 +136,13 @@ export async function tick(now = Date.now()) {
       continue;
     }
 
-    if (!(await claim(schedule, now))) continue;
+    // Nothing else claims schedules today, so a failed claim means something
+    // unexpected moved the row — say so rather than skipping in silence, which
+    // is how a schedule that never fires stays invisible.
+    if (!(await claim(schedule, now))) {
+      console.warn(`schedule ${schedule.id.slice(0, 8)}: due but not claimable — slot skipped`);
+      continue;
+    }
 
     const { label, tests } = await testsOf(schedule);
     if (!tests.length) {

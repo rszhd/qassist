@@ -158,6 +158,17 @@ is exactly the pre-US-023 UI — keep it that way when adding features.
   in-process app with stubbed agent/report — no Python/browser needed) and
   `npm run check` (tsc over the JSDoc-typed JS). Run both after editing
   `server/src/`; add a test when adding an endpoint.
+- **pg-mem is not Postgres.** The suite runs on it, and it differs in ways that
+  make a broken query pass: partial indexes return wrong rows (hence
+  `skipIndexes`), array parameters don't bind, and timestamps hold only
+  milliseconds — which hid a `where next_run_at = $1` claim that could never
+  match a microsecond value real Postgres had written. SQL whose correctness
+  depends on the database's own semantics — precision, index behaviour,
+  concurrency — needs a real server: `scheduler-postgres.test.js` is the
+  pattern, creating and dropping its own database (never a schema inside an
+  existing one — the migration runner finds `schema_migrations` through the
+  search path and silently adopts the surrounding database) and skipping with a
+  reason when none answers.
 - **Verify frontend changes:** `cd frontend && npm run build` (no test suite
   yet). Exercise a new endpoint with `curl` against the dev server on :8081
   before wiring it into a view. For visual changes, **ask before screenshotting
