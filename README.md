@@ -121,6 +121,12 @@ Set in `.env` (see `.env.example`):
 | `ARTIFACT_RETENTION_DAYS` | `7` | How long `runs/<runId>/` (report PDF + mp4 recording) is kept. Swept at startup and every 6 h; the history row and its verdict are kept forever regardless. `0` = never prune |
 | `PUBLIC_BASE_URL` | — | Public address of this instance (`https://qa.example.com`). Only used to make the PDF report's "View recording" link resolvable; the recording is served either way |
 | `DATABASE_URL` | — | Postgres control plane (saved tests, suites, run history). Set for you in both paths — `docker compose` points it at its own `db` service, `npm run dev` at the same container on `localhost:5433`. Unset = in-memory mode: ad-hoc runs still work, saved tests/suites answer 503 |
+| `RESEND_API_KEY` | — | Resend key for result email. Unset (or `MAIL_FROM` unset) = notifications off: prefs still save, nothing sends. `/api/health` reports this as `mail` |
+| `MAIL_FROM` | — | Sender address, on a domain verified with Resend (`QAssist <qa@example.com>`) |
+| `NOTIFY_EMAILS` | — | Comma-separated fallback recipients, used when a project names none |
+| `NOTIFY_MODE` | `failure` | Default for tests in no project — one of `failure`, `always`, `never`. `failure` covers anything that is not a pass, including a run that ended unjudged. Projects carry their own mode |
+| `NOTIFY_SECRET` | `WORKER_API_TOKEN` | Signs unsubscribe links. Falls back to a per-boot random value if the token is blank too, which invalidates links already mailed |
+| `OPERATOR_EMAIL` | `operator@qassist.local` | Seeds the single account row, and is the last-resort recipient after `NOTIFY_EMAILS`. The default is not a deliverable address |
 
 Per-run artifacts (screenshots, `recording.mp4`, `report_data.json`,
 `report.pdf`) are written to
@@ -288,6 +294,39 @@ reached by join — so a run whose test was later deleted keeps its history row
 filter. Once retention prunes `runs/<id>/`, `artifacts_deleted_at` is set and
 the row reports no recording or report while the verdict survives.
 
+### Email notifications
+
+Off unless `RESEND_API_KEY` and `MAIL_FROM` are both set — `GET /api/health`
+answers `mail` so you can tell "not configured" from "nothing failed yet".
+Prefs live on the **project**, so one recipient list covers every test in it:
+
+```bash
+# who hears about this project's runs, and when.
+# notify: failure (default) | always | never — "failure" is anything that is
+# not a pass, so an errored or unjudged run mails too.
+curl -X PUT http://<host>:8080/api/projects/checkout \
+  -H "Authorization: Bearer $WORKER_API_TOKEN" -H "Content-Type: application/json" \
+  -d '{"notify":"failure","notify_emails":["qa@example.com","lead@example.com"]}'
+```
+
+Prefs are settable on `PUT` only, never on create. An empty `notify_emails`
+falls through to `NOTIFY_EMAILS`, then to `OPERATOR_EMAIL`. Each finished run
+decides for itself, one mail per recipient with the PDF attached; a run
+started ad-hoc from the Run view never mails, having no test and no project.
+
+Every mail carries a signed unsubscribe link — the one route in the app that
+takes no bearer token, because the person clicking it was mailed a report and
+does not have the instance's token. Suppression is by address and instance-
+wide, so being added to a second project cannot quietly re-subscribe someone:
+
+```bash
+# who has opted out, and putting one back
+curl http://<host>:8080/api/notifications/suppressions \
+  -H "Authorization: Bearer $WORKER_API_TOKEN"
+curl -X DELETE http://<host>:8080/api/notifications/suppressions/qa@example.com \
+  -H "Authorization: Bearer $WORKER_API_TOKEN"
+```
+
 ## Local development
 
 This section is for working *on* QAssist. To just run it, see
@@ -371,7 +410,7 @@ exactly the work that is left.
   & modules ([US-023](backlog/release-1/done/US-023-projects-and-modules.md)), run
   history ([US-011](backlog/release-1/done/US-011-run-history.md)), scheduled runs
   ([US-010](backlog/release-1/done/US-010-scheduled-runs.md)), failure email
-  notifications ([US-012](backlog/release-1/US-012-email-reports.md)).
+  notifications ([US-012](backlog/release-1/done/US-012-email-reports.md)).
 - **Session recording** — store an MP4 per run
   ([US-006](backlog/release-1/done/US-006-session-recording.md)) and a report
   with per-step screenshots + working "View recording"

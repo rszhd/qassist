@@ -170,6 +170,13 @@ const statuses = () =>
     .query('select recipient, status, error from notifications order by recipient')
     .then((r) => r.rows);
 
+// The counterpart lives in api.test.js, whose env has no provider: between
+// them both branches of the flag the prefs dialog reads are covered.
+test('health reports mail on, since this file configures a provider', async () => {
+  const res = await request(app).get('/api/health').expect(200);
+  assert.equal(res.body.mail, true);
+});
+
 test('a failed run mails the project recipients, with the report attached', async () => {
   const project = await makeProject('checkout', { emails: ['dev@example.com', 'qa@example.com'] });
   const testId = await makeTest('checkout smoke', project.id);

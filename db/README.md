@@ -38,12 +38,13 @@ erDiagram
 |---|---|---|
 | `users` | identity + encrypted OpenAI key (BYOK) | US-005/009 |
 | `api_keys` | hashed bearer tokens, revocable — replaces the single `WORKER_API_TOKEN` | US-009 |
-| `tests` | saved goal+URL+settings, per-test schedule, per-test notify prefs | US-009/010/012 |
-| `projects` | top-level container: name + slug | US-023 |
+| `tests` | saved goal+URL+settings, per-test schedule | US-009/010 |
+| `projects` | top-level container: name + slug, and the notify prefs for everything inside it | US-023/012 |
 | `modules` | grouping inside a project; a test belongs to at most one | US-023 |
 | `suites` + `suite_tests` | named test groups for one-shot triggering (US-008 CI), scoped to a project | US-009/023 |
 | `runs` | durable run history — replaces the in-memory Map for finished runs | US-009/011 |
 | `notifications` | per-recipient email delivery log (idempotent sends) | US-012 |
+| `email_suppressions` | addresses that unsubscribed, instance-wide | US-012 |
 
 The diagram above is the deployed schema through `002_projects_modules.sql`.
 
@@ -78,9 +79,20 @@ The diagram above is the deployed schema through `002_projects_modules.sql`.
   scheduler is a cheap poll (`tests_due_idx` is a partial index over enabled
   schedules only), and it survives restarts. Overlap-skip = "does this test
   have a row in `runs` with status queued/running" (`runs_active_idx`).
-- **Notification prefs on `tests`** (`notify` mode + `notify_emails[]`),
-  delivery attempts in `notifications` with a `(run_id, recipient)` unique
-  key — a crashed/retried sender can't double-email.
+- **Notification prefs on `projects`, not `tests`** (`notify` mode +
+  `notify_emails[]`). 001 put them on `tests`, written before projects existed
+  and never read; `004_notifications.sql` drops them and adds them a level up.
+  A recipient list is something a person owns — "mail the checkout team when
+  checkout breaks" — and per-test means editing twenty rows to add one
+  colleague. `notify` is not-null-with-a-default rather than nullable-means-
+  inherit, because two kinds of "unset" would resolve to the same env value
+  anyway. Delivery attempts land in `notifications` with a `(run_id,
+  recipient)` unique key, so a crashed or retried sender can't double-email;
+  the claim is `insert … select … where not exists … returning` rather than
+  `on conflict … returning`, which pg-mem answers with the conflicting row as
+  though it had inserted it. Unsubscribes are addresses in
+  `email_suppressions`, checked on every send — by address rather than by
+  project, so joining a second project can't silently re-subscribe anyone.
 - **Step-level detail is not in the DB.** It already lives in
   `report_data.json` on disk and is only read to render the report. If a
   per-step UI is ever needed, add a `steps jsonb` column then — don't pay for

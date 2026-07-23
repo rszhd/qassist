@@ -2,8 +2,9 @@
 
 **As a** user, **I want** an email when a test run fails, **so that** I hear about breakage without checking a dashboard.
 
-- **Status:** 🚧 Backend and UI done (2026-07-23) — schema, sender, prefs API,
-  unsubscribe, prefs dialog; docs and a verified sender domain remain
+- **Status:** ✅ Done (2026-07-23) — schema, sender, prefs API, unsubscribe,
+  prefs dialog, docs. Unproven against Resend itself until US-007 verifies the
+  sender domain; see "Still to do".
 - **Priority:** P1 (Release 1 — on-failure notification only)
 - **Estimate:** ~1 day
 - **Depends on:** US-009 (Postgres for recipients/prefs); pairs with US-010
@@ -159,16 +160,22 @@ editor (far left, away from Save, matching `.modal-foot .btn-danger`), so
 projects are back to three actions and modules to two. `GroupEditor` is shared,
 so both picked it up, and the pencil is now labelled Edit rather than Rename.
 
+Docs done: the six variables in `.env.example` and the README config table,
+an "Email notifications" section in the README API docs (prefs shape, the
+fallback chain, the two suppression routes), and `db/README.md` corrected —
+its `tests` row no longer claims the prefs, `projects` does, and the key
+decision says why they moved. `health.mail` is covered from both sides:
+`api.test.js` configures no provider and asserts `false`, `notify.test.js`
+configures one and asserts `true`, and `node --test` gives each file its own
+process. 98 server tests, `npm run check` clean.
+
 ## Still to do
 
-- **Docs** — `.env.example` (`RESEND_API_KEY`, `MAIL_FROM`, `NOTIFY_EMAILS`,
-  `NOTIFY_MODE`, `NOTIFY_SECRET`, and `OPERATOR_EMAIL` per decision 10),
-  README's API section, and `db/README.md`, whose notification row still says
-  the prefs live on `tests`.
-- **A test for `health.mail`** — two views branch on it and neither branch is
-  covered.
 - **A real send**, once US-007's DNS work verifies the qassist.run sender
-  domain. Until then Resend only delivers to the account's own address.
+  domain. Until then Resend only delivers to the account's own address. This
+  does not block the story: criterion 1 is ticked against the stand-in
+  provider and carries the caveat, because waiting on it would park a finished
+  feature behind an unstarted one.
 
 ## Acceptance criteria
 

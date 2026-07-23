@@ -45,6 +45,10 @@ test('health is open and reports capacity', async () => {
   const res = await request(app).get('/api/health').expect(200);
   assert.equal(res.body.ok, true);
   assert.equal(typeof res.body.max_concurrent, 'number');
+  // This file sets no RESEND_API_KEY/MAIL_FROM, so `mail` is the off branch
+  // the prefs dialog reads to say the instance cannot send. The on branch is
+  // in notify.test.js, which has its own process and its own env.
+  assert.equal(res.body.mail, false);
 });
 
 test('rejects missing/wrong bearer token', async () => {
