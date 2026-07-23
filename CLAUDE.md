@@ -145,6 +145,15 @@ is exactly the pre-US-023 UI — keep it that way when adding features.
   points `PYTHON_BIN` at `agent/.venv`, auto-starts the compose `db` service
   and defaults `DATABASE_URL` to it on :5433); `cd frontend && npm run dev` (Vite
   proxies /api and /ws to :8081). Setup steps: README "Local development". API examples: README.md.
+- **One dev server per port.** `predev` runs `scripts/check-port.mjs` and
+  aborts if :8081 is taken, because `node --watch` does *not* exit when its
+  child dies of `EADDRINUSE` — it waits for the next file change and restarts.
+  A duplicate start therefore becomes a permanent watcher, and every save has
+  them racing to bind the port; the winner may hold an older module graph, so
+  an edited route goes on 404ing while the file on disk is correct. If a change
+  isn't live, look for duplicate watchers (`pstree -sp <pid>`; parent
+  `systemd(1)` and TTY `?` = orphaned) before re-reading the code. Kill them by
+  PID, npm parents first.
 - **Verify server changes:** `cd server && npm test` (node --test + supertest,
   in-process app with stubbed agent/report — no Python/browser needed) and
   `npm run check` (tsc over the JSDoc-typed JS). Run both after editing
