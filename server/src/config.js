@@ -29,6 +29,9 @@ export const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 // PDF, the recording is still served in-app.
 export const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
 export const RECORDING_FILENAME = 'recording.mp4';
+// What generateReport() writes and both the PDF renderer and US-026's steps
+// endpoint read back.
+export const REPORT_DATA_FILENAME = 'report_data.json';
 // US-011 retention: how long runs/<id>/ survives. The history row is bytes and
 // is kept forever; the PDF and the mp4 beside it are tens of MB, so they are
 // what has to go. 0 disables pruning (keep artifacts until the disk fills).

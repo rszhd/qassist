@@ -21,6 +21,7 @@ import {
   ARTIFACTS_DIR,
   MODEL,
   PUBLIC_BASE_URL,
+  REPORT_DATA_FILENAME,
 } from './config.js';
 
 // --- in-memory run registry (live relay; DB holds the durable copy) ---
@@ -38,6 +39,26 @@ export function getRun(runId) {
 
 export function counts() {
   return { active, queued: queue.length };
+}
+
+/**
+ * A run's activity in the one shape everything reads it in: the report file,
+ * the PDF renderer and `GET /api/runs/:id/steps` (US-026), whether it comes
+ * from the live buffer or from report_data.json. `progress` events are left
+ * out — they carry no step number, and the report's step section is keyed on
+ * one, so they stay live-only in the Run view's stream.
+ */
+export function stepsOf(run) {
+  return run.events
+    .filter((e) => e.type === 'step')
+    .map((e) => ({
+      step: e.step,
+      elapsed: e.elapsed,
+      next_goal: e.next_goal,
+      evaluation: e.evaluation,
+      url: e.url,
+      screenshot_file: e.screenshot_file,
+    }));
 }
 
 function send(run, evt) {
@@ -336,18 +357,9 @@ function generateReport(run) {
         ? `${PUBLIC_BASE_URL}/api/runs/${run.id}/recording`
         : null,
     generated_at: new Date().toISOString(),
-    steps: run.events
-      .filter((e) => e.type === 'step')
-      .map((e) => ({
-        step: e.step,
-        elapsed: e.elapsed,
-        next_goal: e.next_goal,
-        evaluation: e.evaluation,
-        url: e.url,
-        screenshot_file: e.screenshot_file,
-      })),
+    steps: stepsOf(run),
   };
-  const dataPath = path.join(runDir, 'report_data.json');
+  const dataPath = path.join(runDir, REPORT_DATA_FILENAME);
   const pdfPath = path.join(runDir, 'report.pdf');
   fs.writeFileSync(dataPath, JSON.stringify(data, null, 2));
 

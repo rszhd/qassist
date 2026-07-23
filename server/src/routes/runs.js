@@ -10,8 +10,8 @@ import express from 'express';
 import fs from 'node:fs';
 import path from 'node:path';
 import { db, isUuid } from '../db.js';
-import { createRun, getRun } from '../runs.js';
-import { ARTIFACTS_DIR, RECORDING_FILENAME } from '../config.js';
+import { createRun, getRun, stepsOf } from '../runs.js';
+import { ARTIFACTS_DIR, RECORDING_FILENAME, REPORT_DATA_FILENAME } from '../config.js';
 import { h, requireDb, requireAgentKey } from './helpers.js';
 
 /** Mirrors the runs.status check constraint in 001_init.sql. */
@@ -194,6 +194,25 @@ export function runsRouter({ checkToken, checkTokenOrQuery }) {
         reportStatus: row.report_status,
         hasRecording: row.has_recording && !row.artifacts_deleted_at,
       });
+    })
+  );
+
+  // Step-by-step activity (US-026), so a past run can explain itself in History
+  // rather than only in the PDF. A read path over what generateReport() already
+  // wrote: the live buffer while the run is still in the relay, report_data.json
+  // afterwards. Pruned (or never written, if the process died before finishing)
+  // => 404, same as a missing recording.
+  r.get(
+    '/:id/steps',
+    checkToken,
+    h(async (req, res) => {
+      const run = getRun(req.params.id);
+      if (run) return res.json({ steps: stepsOf(run) });
+      if (!isUuid(req.params.id)) return res.status(404).json({ error: 'not found' });
+      const file = path.join(ARTIFACTS_DIR, req.params.id, REPORT_DATA_FILENAME);
+      if (!fs.existsSync(file)) return res.status(404).json({ error: 'no steps' });
+      const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+      res.json({ steps: data.steps || [] });
     })
   );
 

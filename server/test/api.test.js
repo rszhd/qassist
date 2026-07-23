@@ -115,6 +115,39 @@ test('full lifecycle: run passes and serves a PDF report', async () => {
   // A <video> element can't set headers, so the token may ride in the query.
   await request(app).get(`/api/runs/${runId}/recording?token=${TOKEN}`).expect(200);
   await request(app).get(`/api/runs/${runId}/recording?token=nope`).expect(401);
+
+  // US-026: the run is still in the relay, so the steps come from the live
+  // buffer — in the same shape the report file holds them, which is the point
+  // of the shared shaper.
+  const live = await request(app).get(`/api/runs/${runId}/steps`).set(auth).expect(200);
+  assert.equal(live.body.steps[0].next_goal, 'open page');
+  assert.deepEqual(live.body.steps, data.steps);
+});
+
+test('steps of a run that has left the relay are read from report_data.json', async () => {
+  // RUN_TTL keeps test runs in memory for an hour, so the disk branch is
+  // reached the way a restarted server reaches it: a run dir with no run.
+  const runId = randomUUID();
+  const steps = [{ step: 1, elapsed: 0.4, next_goal: 'open page', evaluation: null, url: 'https://example.com', screenshot_file: 'step_01.png' }];
+  fs.mkdirSync(path.join(artifactsDir, runId), { recursive: true });
+  fs.writeFileSync(
+    path.join(artifactsDir, runId, 'report_data.json'),
+    JSON.stringify({ runId, steps })
+  );
+
+  const res = await request(app).get(`/api/runs/${runId}/steps`).set(auth).expect(200);
+  assert.deepEqual(res.body.steps, steps);
+
+  // Pruned: the artifacts are the source of truth, so the list goes with them.
+  fs.rmSync(path.join(artifactsDir, runId), { recursive: true, force: true });
+  await request(app).get(`/api/runs/${runId}/steps`).set(auth).expect(404);
+});
+
+test('steps endpoint requires auth and 404s without artifacts', async () => {
+  await request(app).get(`/api/runs/${randomUUID()}/steps`).expect(401);
+  await request(app).get(`/api/runs/${randomUUID()}/steps`).set(auth).expect(404);
+  // Not a uuid => never touches the filesystem.
+  await request(app).get('/api/runs/..%2F..%2Fetc/steps').set(auth).expect(404);
 });
 
 test('recording endpoint requires auth and 404s when there is none', async () => {

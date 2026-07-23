@@ -4,6 +4,7 @@ import {
   Trash2, Undo2, X,
 } from 'lucide-react';
 import { api, openReport } from './api.js';
+import ActivityLog from './Activity.jsx';
 import SavedTests from './SavedTests.jsx';
 import { Button, CardHead, EmptyState, Field, Modal, PageHeader, Stat } from './ui.jsx';
 
@@ -536,17 +537,7 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
             <aside className="card stage-side">
               <CardHead title="Activity" count={steps.length || undefined} />
               {steps.length > 0 ? (
-                <div className="log" ref={logRef}>
-                  {steps.map((s, i) => (
-                    <div className="log-item" key={i}>
-                      <span className="step-n">{s.type === 'progress' ? '···' : s.step}</span>
-                      <span className="step-body">
-                        <span className="step-goal">{stepText(s)}</span>
-                        {s.url && <span className="step-url">{s.url}</span>}
-                      </span>
-                    </div>
-                  ))}
-                </div>
+                <ActivityLog steps={steps} logRef={logRef} />
               ) : (
                 <EmptyState icon={Activity} title={running ? 'Waiting…' : 'No activity'}>
                   {running ? 'The first step lands shortly.' : 'Steps appear here during a run.'}
@@ -582,11 +573,6 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
       )}
     </>
   );
-}
-
-/** What a step event says it is doing — `progress` events carry a message. */
-function stepText(s) {
-  return s.message || s.next_goal || s.thinking || s.evaluation || '…';
 }
 
 /**

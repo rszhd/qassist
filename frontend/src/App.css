@@ -96,10 +96,11 @@
      their own rule, each with a line saying what set it.
 
      `--col-side` is the width of every column that flanks the main content:
-     the tests rail and the activity panel on Run, the detail panel on
-     History, the list on Projects. They all hold the same kind of
-     thing — a list you scan while working in the middle — so they are one
-     measurement, and the Run view's frame is what the leftovers go to.
+     the tests rail and the activity panel on Run, the list on Projects. They
+     all hold the same kind of thing — a list you scan while working in the
+     middle — so they are one measurement, and the Run view's frame is what
+     the leftovers go to. History's detail panel is deliberately not one of
+     them; see `.history`.
      `--rail-strip` is the sliver the minimized rail keeps, and has to match
      between the grid column and the strip that fills it.
      `--scroll-cap` is how tall a list inside a card grows before it scrolls
@@ -729,7 +730,13 @@ button.row-main { background: transparent; border: 0; padding: 0; color: inherit
 /* ==========================================================================
    8. History & Projects layouts
    ========================================================================== */
-.history { display: grid; grid-template-columns: 1fr var(--col-side); gap: var(--s4); align-items: start; }
+/* 440px, not `--col-side`: the other flanking columns are lists you scan while
+   working in the middle, but this one is the thing you opened the view for — a
+   verdict, a 16:9 recording, and since US-026 a step log whose goals and URLs
+   are full sentences. At 300px a goal wraps to four lines and the URL fact
+   ellipsises; 440 is where both stop. The list beside it is short rows and
+   gives the width up cheaply. */
+.history { display: grid; grid-template-columns: 1fr 440px; gap: var(--s4); align-items: start; }
 .projects { display: grid; grid-template-columns: var(--col-side) 1fr; gap: var(--s4); align-items: start; }
 @media (max-width: 900px) {
   .history, .projects { grid-template-columns: 1fr; }

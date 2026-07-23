@@ -56,7 +56,7 @@ until real cloud-only infra exists; the full repo/boundary rules live in
 | [US-022](release-1/US-022-stripe-billing.md) | Paid tier: Stripe billing | 📋 Planned | US-021, US-005 |
 | [US-013](release-1/done/US-013-registration-flow-verification.md) | Registration-flow verification — email tier | ✅ Tier 1 done | — |
 | [US-025](release-1/done/US-025-ui-consistency-pass-2.md) | UI consistency pass 2: type scale, sizes, dead space | ✅ Done (2026-07-23) | — |
-| [US-026](release-1/US-026-history-run-activity.md) | Run activity in the History detail panel | 📋 Planned | US-011 |
+| [US-026](release-1/done/US-026-history-run-activity.md) | Run activity in the History detail panel | ✅ Done (2026-07-23) | US-011 |
 | [US-027](release-1/US-027-queued-run-visibility.md) | Tell the user their run is queued | 📋 Planned | — |
 | [US-028](release-1/US-028-per-user-concurrency-limit.md) | Per-user concurrent run limit (hosted) | 📋 Planned | US-021, US-022, US-027 |
 
@@ -106,10 +106,13 @@ US-020/US-010/US-012 touch the frontend than after.
    (filters, paging, per-test pass/fail timeline, detail panel with PDF and
    recording), and retention — `ARTIFACT_RETENTION_DAYS` (default 7) prunes
    `runs/<id>/` at boot and every 6 h while keeping the history row.
-5. **US-020** — report v2: the report that embeds step screenshots + the
-   recording link. **US-026** (steps in History's detail panel) reads the same
-   `report_data.json`, so do it in the same pass — the endpoint it adds is
-   what a step screenshot would later hang off.
+5. **US-026 → US-020** — **US-026 shipped 2026-07-23**, ahead of US-020 rather
+   than inside it: `GET /api/runs/:id/steps` over the `report_data.json` the
+   report already writes, and the activity list extracted into `Activity.jsx`
+   so the live log and the historical one are one component. US-020 then adds
+   the screenshots — to the report, and hanging off a step in that list. Its
+   step section renders `Step {n}`, which is why `progress` events were left
+   out of the file; revisit that if the section stops being step-keyed.
 6. **US-010** — scheduling on top of saved tests
 7. **US-012** — failure emails via Resend (pairs with scheduling; do the
    qassist.run SPF/DKIM DNS setup alongside step 8's DNS work)

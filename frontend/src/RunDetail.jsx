@@ -1,20 +1,38 @@
-import { useState } from 'react';
-import { AlertTriangle, Download, Play, Undo2 } from 'lucide-react';
-import { openReport } from './api.js';
-import { Button, Stat } from './ui.jsx';
+import { useEffect, useState } from 'react';
+import { Activity, AlertTriangle, Download, Play, Undo2 } from 'lucide-react';
+import { api, openReport } from './api.js';
+import ActivityLog from './Activity.jsx';
+import { Button, CardHead, EmptyState, Stat } from './ui.jsx';
 import { formatWhen, formatDuration } from './status.js';
 
-// One past run, rendered entirely from the row the history list already has.
-// Only the two artifacts are fetched: the PDF as a blob (it needs the bearer
-// header) and the recording as a plain <video src> with a query token, which
-// is what makes seeking work (US-006).
+// One past run, rendered mostly from the row the history list already has.
+// What it fetches: the PDF as a blob (it needs the bearer header), the
+// recording as a plain <video src> with a query token, which is what makes
+// seeking work (US-006), and the step list (US-026) — the run's activity is
+// on disk in report_data.json, not in the history row.
 //
-// Step screenshots belong here too once US-020 lands.
+// Step screenshots hang off a step in that list once US-020 lands.
 export default function RunDetail({ run, token, onError }) {
   const [reportBusy, setReportBusy] = useState(false);
   const [showRecording, setShowRecording] = useState(false);
+  // null until the fetch settles, so an empty list reads as "none recorded"
+  // rather than flashing that message under every run while it loads.
+  const [steps, setSteps] = useState(null);
 
   const pruned = !!run.artifacts_deleted_at;
+
+  // A pruned run's steps went with its artifacts — the notice below already
+  // says so, so don't ask for a 404 to find that out.
+  useEffect(() => {
+    if (pruned) return;
+    let current = true;
+    api(`/api/runs/${run.id}/steps`, { token })
+      .then((data) => current && setSteps(data.steps))
+      .catch(() => current && setSteps([]));
+    return () => {
+      current = false;
+    };
+  }, [run.id, pruned, token]);
 
   async function downloadReport() {
     setReportBusy(true);
@@ -79,6 +97,21 @@ export default function RunDetail({ run, token, onError }) {
           <AlertTriangle size={14} aria-hidden="true" />
           <span>{run.error}</span>
         </div>
+      )}
+
+      {/* Direct children of `.run-detail`, so the header and the list take the
+          card's own gap — the same rhythm the live panel reads at. */}
+      {!pruned && steps !== null && (
+        <>
+          <CardHead title="Activity" count={steps.length || undefined} />
+          {steps.length > 0 ? (
+            <ActivityLog steps={steps} />
+          ) : (
+            <EmptyState icon={Activity} title="No activity recorded">
+              This run ended before its steps were written to disk.
+            </EmptyState>
+          )}
+        </>
       )}
 
       {pruned ? (
