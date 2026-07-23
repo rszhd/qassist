@@ -47,7 +47,7 @@ until real cloud-only infra exists; the full repo/boundary rules live in
 | [US-006](release-1/done/US-006-session-recording.md) | Session recording (record by default) | ✅ Done (2026-07-22) — CPU overhead unmeasured | — |
 | [US-020](release-1/US-020-report-v2-screenshots-recording.md) | Report v2: step screenshots + recording | 📋 Planned (P2, last in the release) | US-006 |
 | [US-011](release-1/done/US-011-run-history.md) | Run history | ✅ Done (2026-07-22) | US-009 |
-| [US-010](release-1/US-010-scheduled-runs.md) | Scheduled runs | 🚧 Backend done (2026-07-23), UI left | US-009 |
+| [US-010](release-1/done/US-010-scheduled-runs.md) | Scheduled runs | ✅ Done (2026-07-23) | US-009 |
 | [US-012](release-1/US-012-email-reports.md) | Failure email notifications | 📋 Planned | US-009 |
 | [US-007](release-1/US-007-https-reverse-proxy.md) | Public HTTPS via reverse proxy | 📋 Planned | domain (owned) |
 | [US-008](release-1/US-008-cicd-integration.md) | CI/CD trigger — tier 1 only | 📋 Planned | US-007, US-009 |
@@ -116,8 +116,10 @@ US-020/US-010/US-012 touch the frontend than after.
    next to each other. **Backend shipped 2026-07-23**: a `schedules` table
    targeting a test, module, suite or project; `src/schedule.js` (preset →
    next slot, via `Intl` so DST and midnight anchoring hold); `src/scheduler.js`
-   (60 s tick, claim-then-fire, overlap skip); `/api/schedules` CRUD. The UI
-   is the remaining half.
+   (60 s tick, claim-then-fire, overlap skip); `/api/schedules` CRUD. **UI
+   shipped the same day**: a fourth top-bar view listing every schedule by
+   next fire, plus a `?trigger` filter on History so last night's unattended
+   runs can be read as a group.
 7. **US-012** — failure emails via Resend (pairs with scheduling; do the
    qassist.run SPF/DKIM DNS setup alongside step 8's DNS work)
 8. **US-007 → US-008 tier 1** — public HTTPS, then the documented CI snippet

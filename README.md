@@ -362,7 +362,7 @@ exactly the work that is left.
   ([US-009](backlog/release-1/done/US-009-control-plane-saved-tests.md)), projects
   & modules ([US-023](backlog/release-1/done/US-023-projects-and-modules.md)), run
   history ([US-011](backlog/release-1/done/US-011-run-history.md)), scheduled runs
-  ([US-010](backlog/release-1/US-010-scheduled-runs.md)), failure email
+  ([US-010](backlog/release-1/done/US-010-scheduled-runs.md)), failure email
   notifications ([US-012](backlog/release-1/US-012-email-reports.md)).
 - **Session recording** — store an MP4 per run
   ([US-006](backlog/release-1/done/US-006-session-recording.md)) and a report

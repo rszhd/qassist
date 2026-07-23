@@ -2,8 +2,8 @@
 
 **As a** user, **I want** my saved tests to run automatically on a schedule, **so that** I catch site breakage without anyone pressing a button.
 
-- **Status:** 🚧 In progress — backend done 2026-07-23 (schema, scheduler,
-  API); the UI is what's left
+- **Status:** ✅ Done (2026-07-23) — schema, scheduler, API and the Schedules
+  view
 - **Priority:** P1 (Release 1)
 - **Estimate:** ~1–2 days
 - **Depends on:** US-009 (saved tests + Postgres)
@@ -117,15 +117,73 @@
    `?project_id=`, mirroring `/api/suites`. Without those, rendering one row
    would mean fetching all four collections and joining them in the browser.
 
+## Results (shipped 2026-07-23)
+
+Backend and UI both landed the same day. `003_schedules.sql` drops the unused
+`schedule_cron` column for a `schedules` table with the four nullable target
+FKs; `src/schedule.js` turns a preset into its next slot and validates a saved
+one; `src/scheduler.js` ticks every 60 s, claims due rows and hands their
+tests to `runTests(…, { trigger: 'schedule' })`; `routes/schedules.js` is the
+CRUD surface. The frontend is `SchedulesView.jsx` — a fourth top-bar entry,
+one list ordered by next fire, an editor that discloses each kind's fields as
+the kind is picked, and an enable/disable toggle that leaves the row in place.
+
+History gained a `?trigger` filter alongside it (`STORED_TRIGGERS` in
+`routes/helpers.js`), because "did last night's runs pass?" is the question a
+schedule creates and scanning row tags for it is not an answer.
+
+Verification: 83 server tests pass, of which `schedule.test.js` (slot maths,
+DST, zones, validation), `scheduler.test.js` (claim, overlap, targets, no
+backfill, the concurrency cap), `schedules-api.test.js` (CRUD, cascade, auth)
+and `scheduler-postgres.test.js` are US-010's. The tick loop itself was watched
+live against the dev server, on a schedule pointed at an empty project so the
+check cost no tokens.
+
+**That live check earned its keep.** The claim's guard was
+`where id = $1 and next_run_at = $4` — compare-and-swap on the exact timestamp
+the select returned. Against pg-mem, where every `next_run_at` originates as a
+JS Date, it round-trips exactly and eleven scheduler tests pass. Against real
+Postgres it depends on the value having no more precision than a JS Date can
+hold: a `timestamptz` written by the database carries microseconds, `.525684`
+comes back as `.525`, the update matches zero rows, and the schedule is never
+claimable again — no error, no log line, just a row that stops firing. Every
+row the app writes comes from `nextSlot`, so nothing in the product had hit it
+yet; a seed row, a backfill or an `update … set next_run_at = now()` would
+have. The guard is now `next_run_at <= $now`, which excludes a competing tick
+just as strictly (`nextSlot` is always in the future) without betting on
+precision, and a claim that fails now logs instead of skipping in silence —
+silence is what let this hide.
+
+**So one test file now runs on real Postgres.** `scheduler-postgres.test.js`
+exists because that bug was invisible to the suite *by construction*: pg-mem
+stores timestamps at millisecond precision, so the broken compare-and-swap
+round-trips perfectly there and all eleven scheduler tests pass either way. It
+was checked in both directions — the file fails on the old guard and passes on
+the new one — which is the only reason to believe it covers anything.
+
+It isolates itself in a throwaway database it creates and drops, not a schema
+inside the configured one. The first attempt did use a schema, and silently
+wrote its fixtures into the dev database instead: `runMigrations` finds
+`schema_migrations` through the search path, concludes the schema is already
+migrated, and every unqualified table name then resolves to the borrowed
+database's. The test asserts `current_database()` before it writes anything.
+It skips with a reason when no server answers, so `npm test` still needs
+nothing but Node.
+
 ## Acceptance criteria
 
-- [ ] A daily-scheduled test runs within a few minutes of its slot
-- [ ] Schedules survive restarts
-- [ ] A burst of simultaneous schedules queues instead of exceeding the
-      concurrency cap
-- [ ] "Every 3 / 6 / 12 hours" fires on midnight-anchored slots, unaffected by
+- [x] A daily-scheduled test runs within a few minutes of its slot — 60 s tick;
+      live on the dev server a slot at 02:55:09 was claimed at 02:55:23
+- [x] Schedules survive restarts — `next_run_at` is a column, and the first
+      tick after boot is the catch-up (decision 6)
+- [x] A burst of simultaneous schedules queues instead of exceeding the
+      concurrency cap — five tests, two slots: two active, three queued and
+      all five persisted
+- [x] "Every 3 / 6 / 12 hours" fires on midnight-anchored slots, unaffected by
       when the schedule was saved
-- [ ] A suite or module can be scheduled, and fires one run per member test
-- [ ] A test whose previous run is still going is skipped, not stacked, and
+- [x] A suite or module can be scheduled, and fires one run per member test —
+      in suite order
+- [x] A test whose previous run is still going is skipped, not stacked, and
       its siblings in the same batch still run
-- [ ] Deleting the scheduled test/suite/module/project removes its schedule
+- [x] Deleting the scheduled test/suite/module/project removes its schedule —
+      by FK cascade, not by cleanup code (decision 8)
