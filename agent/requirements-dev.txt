@@ -3,3 +3,7 @@
 #   uv pip install --python .venv/bin/python -r requirements-dev.txt
 # Run the suite with: .venv/bin/python -m pytest   (from agent/)
 pytest>=9,<10
+# Mutation audit (US-034): .venv/bin/mutmut run, then mutmut results. Config and
+# scope live in agent/setup.cfg. Confirms the suite reacts to seeded defects
+# rather than passing no matter what.
+mutmut>=3,<4

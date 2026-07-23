@@ -123,8 +123,19 @@ above. It does **not** prove the expected values are the ones we want: a test
 can kill every mutant and still pin the wrong intended behaviour if the author
 misread the spec. Mutation testing checks "does a test react to change,"
 correctness of the target answer is still on the human and the story.
-(`scratchpad/mutsweep.py` was the throwaway driver; automating this with
-`mutmut` for the agent is a US-034 item.)
+
+The throwaway driver is now a repeatable tool: from `agent/`, `.venv/bin/mutmut
+run` then `mutmut results` (config and scope in `agent/setup.cfg`). It mutates
+the stdlib-only modules — `redact.py`, `report_format.py`, `email_codes.py` —
+and, via `mutate_only_covered_lines`, skips the untested IMAP network glue so
+survivors are always about logic a test could catch. Reading the survivors is
+the point, not chasing zero: some are **equivalent mutants** — `fmt_date`'s
+`.replace("Z", …)` is a no-op on Python 3.11+ where `fromisoformat` takes `Z`
+natively, and `generate_address`'s `partition`→`rpartition` is identical for a
+single-`@` address — unkillable without contorting the code, so they stay.
+Others are honest gaps worth a case (`extract_code`'s `4 <= len` lower bound has
+no 4-char-code test). `redact.py` — the security-critical one — leaves no
+survivors.
 
 ## Where this should go next
 
@@ -134,5 +145,7 @@ frontend mount-smoke test have landed. Selective TDD is now a standing CLAUDE.md
 rule (Workflow rules) rather than only a mitigation here — written as a *forward*
 rule, not a claim that the habit already ran, with one addition: spotting which
 work is correctness-critical is Claude's job to raise, since it won't reliably
-be flagged otherwise. What remains is `mutmut` for a repeatable agent mutation
-audit.
+be flagged otherwise. The `mutmut` audit is wired up (see above). With that,
+US-034's build items are all done; what stays open is judgement, not code —
+keeping the correctness-critical register current and exercising the
+assertion-first habit on the next hard piece.

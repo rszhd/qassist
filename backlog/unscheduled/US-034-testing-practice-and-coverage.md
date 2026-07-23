@@ -16,8 +16,15 @@ agent core stops being the one untested part of the product.
   `RunDetail.test.jsx`) under jsdom + `@testing-library/react`; the selective-TDD
   practice is now a standing CLAUDE.md Workflow rule, written as a forward rule
   (assertion-first for correctness-critical pieces, with the duty to *flag* such
-  a piece placed on Claude, since Harith won't always catch it). Still owed:
-  `mutmut` for a repeatable agent mutation audit.
+  a piece placed on Claude, since Harith won't always catch it); `mutmut` is
+  wired for a repeatable agent mutation audit (`agent/setup.cfg`,
+  `mutate_only_covered_lines` to skip the untested IMAP glue). All build items
+  are done — `redact.py` leaves no survivors; the remaining survivors are
+  equivalent mutants (`fmt_date` Z-replace, `generate_address` partition) plus a
+  couple of honest gaps in `email_codes` helpers (`extract_code`'s 4-char lower
+  bound, `_strip_html` flags) left as reported, not silently patched. What stays
+  open is judgement, not code: keeping `backlog/correctness-critical.md` current
+  and exercising the assertion-first habit on the next hard piece.
 - **Priority:** P2 (unscheduled) — the suites exist and pass; this deepens them.
 - **Estimate:** ~1 day for the coverage items; the practice itself is free.
 - **Depends on:** nothing hard. The pytest and Vitest harnesses are already in

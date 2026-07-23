@@ -183,7 +183,10 @@ is exactly the pre-US-023 UI — keep it that way when adding features.
   stdlib unit tests over the parsing/extraction logic — no browser, IMAP or
   network; `email_codes.py` is covered, the browser-driving core is not).
   Install the runner once with `uv pip install --python .venv/bin/python -r
-  requirements-dev.txt`. Add a case when you touch a pure helper.
+  requirements-dev.txt`. Add a case when you touch a pure helper. Sensitivity
+  audit: `.venv/bin/mutmut run` then `mutmut results` (config `agent/setup.cfg`)
+  — survivors mean a mutation the suite didn't catch; read them, don't chase
+  zero (some are equivalent mutants). See `docs/testing.md`.
 - **Verify frontend changes:** `cd frontend && npm test` (Vitest: pure-helper
   tests over `status.js` in node, plus jsdom mount-smoke tests that render the
   shell and the run-detail card — `App.test.jsx`, `RunDetail.test.jsx`, which
