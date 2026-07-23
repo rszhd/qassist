@@ -192,7 +192,8 @@ test('a failed run mails the project recipients, with the report attached', asyn
   assert.match(mail.subject, /^\[QAssist\] FAILED — checkout smoke$/);
   assert.match(mail.text, /button never appeared/);
   assert.match(mail.text, /Duration: 12s/);
-  assert.match(mail.text, new RegExp(BASE_URL));
+  // The run's own page (US-030), not just the app root.
+  assert.ok(mail.text.includes(`Open this run: ${BASE_URL}/runs/${run.id}`));
   assert.equal(mail.attachments.length, 1);
   assert.equal(
     Buffer.from(mail.attachments[0].content, 'base64').toString(),

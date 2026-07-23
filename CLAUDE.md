@@ -20,16 +20,25 @@ engine + persistence), `routes/{runs,tests,suites,projects,modules,helpers}.js`.
 `routes/runs.js` is the HTTP surface only — the engine stays `src/runs.js`.
 `routes/projects.js` also holds the module query helpers `modules.js` imports.
 
-`frontend/src/` splits as: `App.jsx` (shell — token, health, which view, the
+`frontend/src/` splits as: `App.jsx` (shell — token, health, the routes, the
 settings dialog), `TopBar.jsx` (header + view nav), `RunView.jsx` (a single
 run: WS socket, live stage, run/edit dialog) with `SavedTests.jsx`,
 `HistoryView.jsx` (past runs: filters, paging, timeline) with `RunDetail.jsx`,
-and `ProjectsView.jsx` (project/module management) with `Suites.jsx`. Shared
+`RunPage.jsx` (`/runs/<id>`, rendering that same `RunDetail`), and
+`ProjectsView.jsx` (project/module management) with `Suites.jsx`. Shared
 bits live in `api.js` (fetch wrapper + `openReport`) and `status.js`
 (status→colour, date/duration formatters). New views land beside these — that
-split exists so US-010/US-005 have somewhere to go. Run stays mounted while
-hidden (unmounting drops the live WebSocket); History and Projects remount,
-which is how they refresh.
+split exists so US-010/US-005 have somewhere to go.
+
+**The URL picks the view** (react-router, US-030): `/`, `/history`,
+`/schedules`, `/projects`, `/runs/<id>`, and anything else redirects to `/`.
+`RunView` is deliberately **outside `<Routes>`**, hidden rather than unmounted —
+unmounting drops the live WebSocket and the finished run's result. The routed
+views remount, which is how they refresh; History in particular should show the
+run you just watched finish. A new linkable thing is a `<Route>`; a new piece
+of *live* state that must survive navigation goes outside `<Routes>` like Run.
+Express already answers any non-`/api` path with `index.html`, so a new path
+needs no server change.
 
 **UI conventions.** `ui.jsx` holds the shared vocabulary — `Button`
 (variant/size, lucide icon), `IconButton`, `Field`, `CardHead`, `EmptyState`,

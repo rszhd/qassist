@@ -10,8 +10,13 @@ import { X } from 'lucide-react';
  * (primary action, secondary, quiet, destructive) and `icon` a lucide icon
  * rendered before the label. Defaults to type="button" — a submit button has
  * to say so, which is what keeps forms from firing on the wrong click.
+ *
+ * `as` swaps the element for something that navigates (a react-router `Link`),
+ * so a link that looks like a button is still this component rather than a
+ * hand-styled anchor. `type` goes with the real button.
  */
 export function Button({
+  as: Tag = 'button',
   variant = 'secondary',
   size = 'md',
   icon: Icon,
@@ -21,10 +26,14 @@ export function Button({
   ...rest
 }) {
   return (
-    <button type={type} className={`btn btn-${variant} btn-${size} ${className}`.trim()} {...rest}>
+    <Tag
+      {...(Tag === 'button' ? { type } : {})}
+      className={`btn btn-${variant} btn-${size} ${className}`.trim()}
+      {...rest}
+    >
       {Icon && <Icon size={size === 'sm' ? 13 : 15} strokeWidth={2} aria-hidden="true" />}
       {children}
-    </button>
+    </Tag>
   );
 }
 
@@ -32,17 +41,24 @@ export function Button({
  * Icon-only action. `label` is mandatory: it is both the tooltip and the
  * accessible name, since there is no visible text to fall back on.
  */
-export function IconButton({ icon: Icon, label, variant = 'quiet', className = '', ...rest }) {
+export function IconButton({
+  as: Tag = 'button',
+  icon: Icon,
+  label,
+  variant = 'quiet',
+  className = '',
+  ...rest
+}) {
   return (
-    <button
-      type="button"
+    <Tag
+      {...(Tag === 'button' ? { type: 'button' } : {})}
       className={`icon-btn icon-btn-${variant} ${className}`.trim()}
       title={label}
       aria-label={label}
       {...rest}
     >
       <Icon size={14} strokeWidth={2} aria-hidden="true" />
-    </button>
+    </Tag>
   );
 }
 

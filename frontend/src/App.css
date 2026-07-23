@@ -281,16 +281,16 @@ code { font-family: var(--mono); font-size: .92em; }
 }
 /* The tab is sized so the group — tab + its 2px padding + its border — comes
    out exactly `--ctl` tall, level with the buttons sharing the bar with it. */
-.views button {
+.views a {
   display: inline-flex; align-items: center; gap: var(--s15);
   height: calc(var(--ctl) - var(--s05) * 2 - 2px);
   padding: 0 var(--s3); border: 0; border-radius: var(--r-sm);
-  background: transparent; color: var(--muted);
+  background: transparent; color: var(--muted); text-decoration: none;
   font: inherit; font-size: var(--t-base); font-weight: 500; cursor: pointer;
   transition: background var(--fast), color var(--fast);
 }
-.views button:hover { color: var(--text); }
-.views button.active { color: var(--text); background: var(--hover); }
+.views a:hover { color: var(--text); }
+.views a.active { color: var(--text); background: var(--hover); }
 
 .top-right { margin-left: auto; display: flex; align-items: center; gap: var(--s3); }
 .ws {
@@ -338,6 +338,9 @@ code { font-family: var(--mono); font-size: .92em; }
 }
 .btn-sm { height: var(--ctl-sm); padding: 0 var(--s2); font-size: var(--t-sm); }
 .btn:disabled { opacity: .4; cursor: not-allowed; }
+/* A <Button as={Link}> is an anchor, which brings its own colour and rule. */
+a.btn { text-decoration: none; color: var(--text); }
+a.icon-btn { text-decoration: none; }
 
 .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 .btn-primary:hover:not(:disabled) { background: var(--accent-hi); border-color: var(--accent-hi); }
@@ -747,6 +750,11 @@ button.row-main { background: transparent; border: 0; padding: 0; color: inherit
   .history, .projects { grid-template-columns: 1fr; }
 }
 .hist-detail, .proj-list { position: sticky; top: var(--sticky-top); }
+
+/* The run permalink (US-030): the same panel, given a page. Capped rather than
+   full-bleed — it is a column of facts and one paragraph of goal, and 720 is
+   where the goal stops running past a comfortable measure. */
+.run-page { max-width: 720px; }
 
 /* The CI command shown for one module, suite or project. A command is read
    line by line, so it sits at the wider line height and scrolls sideways

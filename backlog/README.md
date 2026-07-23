@@ -49,7 +49,7 @@ until real cloud-only infra exists; the full repo/boundary rules live in
 | [US-011](release-1/done/US-011-run-history.md) | Run history | ✅ Done (2026-07-22) | US-009 |
 | [US-010](release-1/done/US-010-scheduled-runs.md) | Scheduled runs | ✅ Done (2026-07-23) | US-009 |
 | [US-012](release-1/done/US-012-email-reports.md) | Failure email notifications | ✅ Done (2026-07-23) — unproven against Resend until US-007 verifies the sender domain | US-009 |
-| [US-030](release-1/US-030-run-permalink.md) | A run has its own page (`/runs/<id>`) | 📋 Planned | US-011, US-026 |
+| [US-030](release-1/done/US-030-run-permalink.md) | A run has its own page (`/runs/<id>`) | ✅ Done (2026-07-23) | US-011, US-026 |
 | [US-007](release-1/US-007-https-reverse-proxy.md) | Public HTTPS via reverse proxy | 📋 Planned | domain (owned) |
 | [US-008](release-1/US-008-cicd-integration.md) | CI/CD trigger: the documented pipeline step | 📝 Docs written, unverified | US-007, US-009 |
 | [US-005](release-1/US-005-byok-user-api-keys.md) | Bring-your-own OpenAI key (BYOK) | 📋 Planned | — |
@@ -128,9 +128,13 @@ US-020/US-010/US-012 touch the frontend than after.
    mail per finished run, PDF attached, instance-wide signed unsubscribe, and
    a prefs dialog on the project row. Only a send through Resend itself is
    left, which waits on step 8's DNS.
-   - **US-030** falls out of it: the mail has no per-run URL to link to, so it
-     currently names a run id and points at the app root. Small, and it makes
-     History's detail panel addressable at the same time.
+   - **US-030** falls out of it: the mail had no per-run URL to link to, so it
+     named a run id and pointed at the app root. **Shipped 2026-07-23**: the
+     frontend gained react-router (the four views got addresses alongside
+     `/runs/<id>`, with `RunView` kept outside `<Routes>` so the live socket
+     survives navigation), `GET /api/runs/:id` now answers in the list shape so
+     `RunDetail` renders both History's panel and the page, and the mail links
+     straight at the run.
 8. **US-007 → US-008** — public HTTPS, then the documented CI snippet
 9. **US-005** — BYOK, before anyone but the operator can run tests
 10. **US-021 → US-022 → US-028** — signup, then billing, then the per-user

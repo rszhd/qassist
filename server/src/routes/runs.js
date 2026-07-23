@@ -107,6 +107,36 @@ function buildPaging(q) {
   return { limit, offset };
 }
 
+/**
+ * The list-shape columns an in-memory run owns. Persistence is
+ * fire-and-forget, so while a run is in the relay these are ahead of the row —
+ * and for the two moments there is no row at all (no control plane, or the gap
+ * before the insert lands) they are the whole answer. Mirrors what
+ * persistUpdate() writes; the test's name and grouping and the artifact-pruning
+ * stamp are the row's alone, since they only exist via the join.
+ */
+function liveRow(run) {
+  const res = run.result || {};
+  const failedOrError = run.status === 'error' || run.status === 'failed';
+  return {
+    id: run.id,
+    test_id: run.test_id,
+    trigger: run.trigger,
+    goal: run.goal,
+    start_url: run.start_url,
+    status: run.status,
+    success: res.success ?? null,
+    final_result: res.final_result ?? res.message ?? null,
+    error: failedOrError ? res.message ?? null : null,
+    steps_count: res.steps ?? run.events.filter((e) => e.type === 'step').length,
+    created_at: new Date(run.createdAt),
+    started_at: run.startedAt ? new Date(run.startedAt) : null,
+    finished_at: run.finishedAt ? new Date(run.finishedAt) : null,
+    report_status: run.reportStatus || 'none',
+    has_recording: !!run.recordingFile,
+  };
+}
+
 /** Artifact links are gone once retention prunes the directory (US-011). */
 function shapeRun(row) {
   const pruned = !!row.artifacts_deleted_at;
@@ -168,41 +198,46 @@ export function runsRouter({ checkToken, checkTokenOrQuery }) {
     })
   );
 
+  // One run, in the list shape (US-030: /runs/<id> renders it through the same
+  // RunDetail the history panel uses, so the two can't drift). The camelCase
+  // keys are kept on top of those columns because CI polls this endpoint —
+  // docs/ci.md reads `status`, `result.final_result` and `error`.
   r.get(
     '/:id',
     checkToken,
     h(async (req, res) => {
-      const run = getRun(req.params.id);
-      if (run) {
-        return res.json({
-          runId: run.id,
-          status: run.status,
-          goal: run.goal,
-          start_url: run.start_url,
-          testId: run.test_id,
-          result: run.result,
-          eventCount: run.events.length,
-          hasRecording: !!run.recordingFile,
-        });
+      const live = getRun(req.params.id);
+      let row = null;
+      if (db() && isUuid(req.params.id)) {
+        const { rows } = await db().query(
+          `select ${LIST_COLS} from runs r left join tests t on t.id = r.test_id where r.id = $1`,
+          [req.params.id]
+        );
+        if (rows.length) row = shapeRun(rows[0]);
       }
-      // Fallback: finished runs outlive the in-memory relay in the DB.
-      if (!db() || !isUuid(req.params.id)) return res.status(404).json({ error: 'not found' });
-      const { rows } = await db().query('select * from runs where id = $1', [req.params.id]);
-      if (!rows.length) return res.status(404).json({ error: 'not found' });
-      const row = rows[0];
+      if (!live && !row) return res.status(404).json({ error: 'not found' });
+
+      const base = {
+        test_name: null,
+        project_id: null,
+        module_id: null,
+        artifacts_deleted_at: null,
+        ...row,
+        ...(live ? liveRow(live) : {}),
+      };
+      const result =
+        base.success === null && base.final_result === null
+          ? null
+          : { success: base.success, final_result: base.final_result };
+
       res.json({
-        runId: row.id,
-        status: row.status,
-        goal: row.goal,
-        start_url: row.start_url,
-        testId: row.test_id,
-        result:
-          row.success === null && row.final_result === null
-            ? null
-            : { success: row.success, final_result: row.final_result },
-        error: row.error,
-        reportStatus: row.report_status,
-        hasRecording: row.has_recording && !row.artifacts_deleted_at,
+        ...base,
+        runId: base.id,
+        testId: base.test_id,
+        result,
+        reportStatus: base.report_status,
+        hasRecording: base.has_recording,
+        ...(live ? { eventCount: live.events.length } : {}),
       });
     })
   );

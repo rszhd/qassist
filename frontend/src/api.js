@@ -11,7 +11,11 @@ export async function api(path, { token, method = 'GET', body } = {}) {
   });
   if (!res.ok) {
     const payload = await res.json().catch(() => ({}));
-    throw new Error(payload.error || `HTTP ${res.status}`);
+    const err = new Error(payload.error || `HTTP ${res.status}`);
+    // Callers that treat one code differently (the run page's 404 is "no such
+    // run", not "something broke") shouldn't have to match on the message.
+    err.status = res.status;
+    throw err;
   }
   return res.status === 204 ? null : res.json();
 }

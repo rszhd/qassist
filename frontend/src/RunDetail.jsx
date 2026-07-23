@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Activity, AlertTriangle, Download, Play, Undo2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Activity, AlertTriangle, Download, ExternalLink, Play, Undo2 } from 'lucide-react';
 import { api, openReport } from './api.js';
 import ActivityLog from './Activity.jsx';
-import { Button, CardHead, EmptyState, Stat } from './ui.jsx';
+import { Button, CardHead, EmptyState, IconButton, Stat } from './ui.jsx';
 import { formatWhen, formatDuration } from './status.js';
 
 // One past run, rendered mostly from the row the history list already has.
@@ -11,28 +12,35 @@ import { formatWhen, formatDuration } from './status.js';
 // seeking work (US-006), and the step list (US-026) — the run's activity is
 // on disk in report_data.json, not in the history row.
 //
+// `liveSteps` is the run page's override (US-030): a run still in flight has
+// its steps arriving over the WebSocket, and refetching them would replace a
+// live list with a stale one. `permalink` is the other half — History shows
+// the link out to /runs/<id>, the page itself has no reason to link to itself.
+//
 // Step screenshots hang off a step in that list once US-020 lands.
-export default function RunDetail({ run, token, onError }) {
+export default function RunDetail({ run, token, onError, liveSteps, permalink }) {
   const [reportBusy, setReportBusy] = useState(false);
   const [showRecording, setShowRecording] = useState(false);
   // null until the fetch settles, so an empty list reads as "none recorded"
   // rather than flashing that message under every run while it loads.
-  const [steps, setSteps] = useState(null);
+  const [fetched, setFetched] = useState(null);
 
   const pruned = !!run.artifacts_deleted_at;
+  const steps = liveSteps ?? fetched;
+  const unfinished = run.status === 'queued' || run.status === 'running';
 
   // A pruned run's steps went with its artifacts — the notice below already
   // says so, so don't ask for a 404 to find that out.
   useEffect(() => {
-    if (pruned) return;
+    if (pruned || liveSteps) return;
     let current = true;
     api(`/api/runs/${run.id}/steps`, { token })
-      .then((data) => current && setSteps(data.steps))
-      .catch(() => current && setSteps([]));
+      .then((data) => current && setFetched(data.steps))
+      .catch(() => current && setFetched([]));
     return () => {
       current = false;
     };
-  }, [run.id, pruned, token]);
+  }, [run.id, pruned, token, liveSteps]);
 
   async function downloadReport() {
     setReportBusy(true);
@@ -50,6 +58,14 @@ export default function RunDetail({ run, token, onError }) {
       <div className="verdict-head">
         {run.test_name || 'Ad-hoc run'}
         <span className={`badge badge-${run.status}`}>{run.status}</span>
+        {permalink && (
+          <IconButton
+            as={Link}
+            to={`/runs/${run.id}`}
+            icon={ExternalLink}
+            label="Open this run on its own page"
+          />
+        )}
       </div>
 
       {showRecording && run.has_recording && (
@@ -106,6 +122,12 @@ export default function RunDetail({ run, token, onError }) {
           <CardHead title="Activity" count={steps.length || undefined} />
           {steps.length > 0 ? (
             <ActivityLog steps={steps} />
+          ) : unfinished ? (
+            <EmptyState icon={Activity} title="Waiting…">
+              {run.status === 'queued'
+                ? 'Steps start arriving once the run gets a slot.'
+                : 'The first step lands shortly.'}
+            </EmptyState>
           ) : (
             <EmptyState icon={Activity} title="No activity recorded">
               This run ended before its steps were written to disk.
@@ -125,7 +147,13 @@ export default function RunDetail({ run, token, onError }) {
             icon={Download}
             onClick={downloadReport}
             disabled={reportBusy || run.report_status === 'none'}
-            title={run.report_status === 'none' ? 'No report for this run' : undefined}
+            title={
+              run.report_status !== 'none'
+                ? undefined
+                : unfinished
+                  ? 'The report is rendered when the run finishes'
+                  : 'No report for this run'
+            }
           >
             {reportBusy ? 'Preparing PDF…' : 'PDF report'}
           </Button>

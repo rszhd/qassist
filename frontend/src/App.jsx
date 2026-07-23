@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import HistoryView from './HistoryView.jsx';
 import ProjectsView from './ProjectsView.jsx';
+import RunPage from './RunPage.jsx';
 import RunView from './RunView.jsx';
 import SchedulesView from './SchedulesView.jsx';
 import TopBar from './TopBar.jsx';
@@ -8,6 +10,9 @@ import { Button, Field, Modal } from './ui.jsx';
 
 // Shell: owns only what every view needs (the API token, server health, which
 // view is open). Each view owns its own data and fetches it when it mounts.
+//
+// The URL is what picks the view (US-030): a run has to be linkable, and once
+// there is a router the other views may as well have addresses too.
 export default function App() {
   const [token, setToken] = useState(
     () => localStorage.getItem('qassist_token') || localStorage.getItem('qagent_token') || ''
@@ -16,7 +21,6 @@ export default function App() {
   // Dark unless the user says otherwise — a light OS should not decide what
   // the console looks like. 'system' is the opt-in that hands that back.
   const [theme, setTheme] = useState(() => localStorage.getItem('qassist_theme') || 'dark');
-  const [view, setView] = useState('run');
   const [settingsOpen, setSettingsOpen] = useState(false);
   // Mirrored up from RunView so the header can show it from either view.
   const [runState, setRunState] = useState({ status: 'idle', wsState: 'idle', runId: null });
@@ -62,33 +66,50 @@ export default function App() {
   // behind the gear rather than in the run form.
   const needsToken = (!health || health.auth) && !token;
 
+  const atRun = useLocation().pathname === '/';
+
   return (
     <>
       <TopBar
-        view={view}
-        setView={setView}
         showNav={!!health?.db}
         runState={runState}
         onOpenSettings={() => setSettingsOpen(true)}
       />
       <div className="app">
-        {/* Run stays mounted while hidden: unmounting would drop the live
-            WebSocket and the finished run's result. Projects and History are
+        {/* Run sits outside <Routes> and only hides: unmounting would drop the
+            live WebSocket and the finished run's result. The routed views are
             cheap to remount, and remounting is what refreshes them — History
             in particular should show the run you just watched finish. */}
-        <div hidden={view !== 'run'}>
+        <div hidden={!atRun}>
           <RunView
             token={token}
             health={health}
-            visible={view === 'run'}
+            visible={atRun}
             needsToken={needsToken}
             onOpenSettings={() => setSettingsOpen(true)}
             onRunState={setRunState}
           />
         </div>
-        {view === 'history' && <HistoryView token={token} />}
-        {view === 'schedules' && <SchedulesView token={token} />}
-        {view === 'projects' && <ProjectsView token={token} health={health} />}
+        <Routes>
+          <Route path="/history" element={<HistoryView token={token} />} />
+          <Route path="/schedules" element={<SchedulesView token={token} />} />
+          <Route path="/projects" element={<ProjectsView token={token} health={health} />} />
+          <Route
+            path="/runs/:id"
+            element={
+              <RunPage
+                token={token}
+                needsToken={needsToken}
+                onOpenSettings={() => setSettingsOpen(true)}
+              />
+            }
+          />
+          {/* '/' is the Run view above, so it renders nothing extra here — but
+              it needs its own route, or the catch-all below would match it and
+              redirect the app to itself forever. */}
+          <Route path="/" element={null} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
       </div>
 
       {settingsOpen && (

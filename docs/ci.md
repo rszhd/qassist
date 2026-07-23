@@ -126,11 +126,16 @@ for id in $ids; do
     echo "  PASS  $id  $detail"
   else
     echo "  FAIL  $id  [$status] $detail"
+    echo "        $QASSIST_URL/runs/$id"
     exit_code=1
   fi
 done
 exit $exit_code
 ```
+
+Every run has a page at `$QASSIST_URL/runs/<runId>` — verdict, activity,
+recording and report — so the failing line in the job log is a link somebody
+can open instead of a run id they have to go and find.
 
 ## GitHub Actions
 

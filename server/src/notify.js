@@ -166,9 +166,7 @@ function compose(run, name, recipient) {
     '',
     run.reportStatus === 'ready' ? 'The PDF report is attached.' : 'No report was produced.',
   ];
-  // No per-run deep link exists in the UI yet, so the link is the app plus the
-  // run id rather than a URL that would 404 into the History view.
-  if (PUBLIC_BASE_URL) lines.push(`QAssist: ${PUBLIC_BASE_URL}  (run ${run.id.slice(0, 8)})`);
+  if (PUBLIC_BASE_URL) lines.push(`Open this run: ${PUBLIC_BASE_URL}/runs/${run.id}`);
   if (unsubscribe) lines.push('', `Unsubscribe: ${unsubscribe}`);
 
   return {

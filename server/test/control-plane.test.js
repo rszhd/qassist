@@ -176,6 +176,32 @@ test('finished runs are readable from the DB after the relay forgets them', asyn
   await request(app).get(`/api/runs/${id}/report.pdf`).set(auth).expect(500);
 });
 
+test('a single run answers in the list shape, and keeps the keys CI polls', async () => {
+  const t = (await makeTest({ name: 'permalink target' }).expect(201)).body;
+  const started = (await request(app).post(`/api/tests/${t.id}/run`).set(auth).expect(200)).body;
+  await pollUntil(async () => {
+    const r = await pool.query('select status from runs where id = $1', [started.runId]);
+    return r.rows[0]?.status === 'passed';
+  });
+
+  const body = (await request(app).get(`/api/runs/${started.runId}`).set(auth).expect(200)).body;
+
+  // The columns RunDetail reads, so /runs/<id> renders through it (US-030).
+  assert.equal(body.id, started.runId);
+  assert.equal(body.test_name, 'permalink target');
+  assert.equal(body.trigger, 'api');
+  assert.equal(body.success, true);
+  assert.equal(body.artifacts_deleted_at, null);
+  assert.ok(body.created_at);
+  assert.equal(typeof body.steps_count, 'number');
+
+  // …on top of what docs/ci.md polls for, which must not move.
+  assert.equal(body.status, 'passed');
+  assert.equal(body.runId, started.runId);
+  assert.equal(body.testId, t.id);
+  assert.equal(body.result.success, true);
+});
+
 test('suites: CRUD, membership validation, one-shot run', async () => {
   // Suites are project-scoped (US-023 decision 6), so members need a project.
   const project = (

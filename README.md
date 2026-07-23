@@ -148,7 +148,8 @@ curl -X POST http://<host>:8080/api/runs \
   -d '{"goal":"Search for a laptop and add the first result to cart","start_url":"https://example.com"}'
 # -> {"runId":"...","status":"running"}
 
-# poll status + result
+# poll status + result (the history row's columns, plus runId/result/status
+# for polling; the run's own page is http://<host>:8080/runs/<runId>)
 curl http://<host>:8080/api/runs/<runId> -H "Authorization: Bearer $WORKER_API_TOKEN"
 
 # download the PDF report (202 while generating, 200 when ready)

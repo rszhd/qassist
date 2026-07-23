@@ -1,11 +1,12 @@
 import { CalendarClock, FolderTree, History, Play, Settings } from 'lucide-react';
+import { NavLink } from 'react-router-dom';
 import { IconButton } from './ui.jsx';
 
 const VIEWS = [
-  ['run', 'Run', Play],
-  ['history', 'History', History],
-  ['schedules', 'Schedules', CalendarClock],
-  ['projects', 'Projects', FolderTree],
+  ['/', 'Run', Play],
+  ['/history', 'History', History],
+  ['/schedules', 'Schedules', CalendarClock],
+  ['/projects', 'Projects', FolderTree],
 ];
 
 // Shared header. It carries the run indicators even while another view is
@@ -15,7 +16,7 @@ const VIEWS = [
 // The nav only appears once the control plane is up — with no DB there are no
 // projects to open and no history to browse (US-023: nothing about grouping
 // renders before it exists).
-export default function TopBar({ view, setView, showNav, runState, onOpenSettings }) {
+export default function TopBar({ showNav, runState, onOpenSettings }) {
   const { status, wsState, runId } = runState;
   return (
     <header className="topbar">
@@ -24,16 +25,18 @@ export default function TopBar({ view, setView, showNav, runState, onOpenSetting
 
         {showNav && (
           <nav className="views">
-            {VIEWS.map(([v, label, Icon]) => (
-              <button
-                key={v}
-                type="button"
-                className={v === view ? 'active' : ''}
-                onClick={() => setView(v)}
+            {VIEWS.map(([to, label, Icon]) => (
+              <NavLink
+                key={to}
+                to={to}
+                // Without `end` the root link matches every path, so Run would
+                // read as active while History is open.
+                end={to === '/'}
+                className={({ isActive }) => (isActive ? 'active' : '')}
               >
                 <Icon size={13} strokeWidth={2} aria-hidden="true" />
                 {label}
-              </button>
+              </NavLink>
             ))}
           </nav>
         )}

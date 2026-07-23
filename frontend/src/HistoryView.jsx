@@ -237,7 +237,7 @@ export default function HistoryView({ token }) {
           {selected ? (
             // Keyed by run: picking another run starts its panel clean rather
             // than painting the previous run's steps under the new verdict.
-            <RunDetail key={selected.id} run={selected} token={token} onError={setError} />
+            <RunDetail key={selected.id} run={selected} token={token} onError={setError} permalink />
           ) : (
             <EmptyState icon={MousePointerClick} title="No run selected">
               Pick a run to see its verdict, report and recording.
