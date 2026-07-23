@@ -1,6 +1,6 @@
 // @ts-check
 import { db } from '../db.js';
-import { createRun } from '../runs.js';
+import { runTests } from '../runs.js';
 import { OPENAI_API_KEY } from '../config.js';
 
 /** Triggers a caller may set; 'schedule' is US-010's, not callers'. */
@@ -41,25 +41,16 @@ export function requireDb(_req, res, next) {
 }
 
 /**
- * Start one run per test — the shared batch runner behind suite, module and
- * project triggering (US-023). Callers pass tests already ordered; a start_url
- * override applies to all of them (US-008: point a whole group at a fresh
- * preview URL).
+ * The batch enqueue as an HTTP caller reaches it: same runs.js `runTests`, but
+ * the trigger is whatever the request claimed, filtered to what a caller is
+ * allowed to say it is. The scheduler calls runTests directly with 'schedule'.
  * @param {{ id: string, goal: string, start_url: string, max_steps: number, model: string|null }[]} tests
  * @param {{ start_url?: string, trigger?: string }} body
  */
-export function runTests(tests, body = {}) {
-  const trigger = TRIGGERS.has(body.trigger) ? body.trigger : 'api';
-  return tests.map((t) => {
-    const run = createRun({
-      goal: t.goal,
-      start_url: body.start_url || t.start_url,
-      max_steps: t.max_steps,
-      model: t.model,
-      test_id: t.id,
-      trigger,
-    });
-    return { runId: run.id, testId: t.id, status: run.status };
+export function runTestsFromRequest(tests, body = {}) {
+  return runTests(tests, {
+    start_url: body.start_url,
+    trigger: TRIGGERS.has(body.trigger) ? body.trigger : 'api',
   });
 }
 

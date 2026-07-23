@@ -45,9 +45,9 @@ until real cloud-only infra exists; the full repo/boundary rules live in
 | [US-009](release-1/done/US-009-control-plane-saved-tests.md) | Control plane: save & reuse tests | ✅ Done (2026-07-22) | — |
 | [US-023](release-1/done/US-023-projects-and-modules.md) | Projects & modules (organize saved tests) | ✅ Done (2026-07-22) | US-009 |
 | [US-006](release-1/done/US-006-session-recording.md) | Session recording (record by default) | ✅ Done (2026-07-22) — CPU overhead unmeasured | — |
-| [US-020](release-1/US-020-report-v2-screenshots-recording.md) | Report v2: step screenshots + recording | 📋 Planned | US-006 |
+| [US-020](release-1/US-020-report-v2-screenshots-recording.md) | Report v2: step screenshots + recording | 📋 Planned (P2, last in the release) | US-006 |
 | [US-011](release-1/done/US-011-run-history.md) | Run history | ✅ Done (2026-07-22) | US-009 |
-| [US-010](release-1/US-010-scheduled-runs.md) | Scheduled runs | 📋 Planned | US-009 |
+| [US-010](release-1/US-010-scheduled-runs.md) | Scheduled runs | 🚧 Backend done (2026-07-23), UI left | US-009 |
 | [US-012](release-1/US-012-email-reports.md) | Failure email notifications | 📋 Planned | US-009 |
 | [US-007](release-1/US-007-https-reverse-proxy.md) | Public HTTPS via reverse proxy | 📋 Planned | domain (owned) |
 | [US-008](release-1/US-008-cicd-integration.md) | CI/CD trigger — tier 1 only | 📋 Planned | US-007, US-009 |
@@ -106,14 +106,18 @@ US-020/US-010/US-012 touch the frontend than after.
    (filters, paging, per-test pass/fail timeline, detail panel with PDF and
    recording), and retention — `ARTIFACT_RETENTION_DAYS` (default 7) prunes
    `runs/<id>/` at boot and every 6 h while keeping the history row.
-5. **US-026 → US-020** — **US-026 shipped 2026-07-23**, ahead of US-020 rather
-   than inside it: `GET /api/runs/:id/steps` over the `report_data.json` the
-   report already writes, and the activity list extracted into `Activity.jsx`
-   so the live log and the historical one are one component. US-020 then adds
-   the screenshots — to the report, and hanging off a step in that list. Its
-   step section renders `Step {n}`, which is why `progress` events were left
-   out of the file; revisit that if the section stops being step-keyed.
-6. **US-010** — scheduling on top of saved tests
+5. **US-026** — **shipped 2026-07-23**, ahead of US-020 rather than inside it:
+   `GET /api/runs/:id/steps` over the `report_data.json` the report already
+   writes, and the activity list extracted into `Activity.jsx` so the live log
+   and the historical one are one component.
+6. **US-010** — scheduling on top of saved tests. **Pulled ahead of US-020 on
+   2026-07-23** at the user's request: US-020 blocks nothing, while US-010 is
+   what US-012 pairs with, so the two halves of unattended testing now sit
+   next to each other. **Backend shipped 2026-07-23**: a `schedules` table
+   targeting a test, module, suite or project; `src/schedule.js` (preset →
+   next slot, via `Intl` so DST and midnight anchoring hold); `src/scheduler.js`
+   (60 s tick, claim-then-fire, overlap skip); `/api/schedules` CRUD. The UI
+   is the remaining half.
 7. **US-012** — failure emails via Resend (pairs with scheduling; do the
    qassist.run SPF/DKIM DNS setup alongside step 8's DNS work)
 8. **US-007 → US-008 tier 1** — public HTTPS, then the documented CI snippet
@@ -121,6 +125,11 @@ US-020/US-010/US-012 touch the frontend than after.
 10. **US-021 → US-022 → US-028** — signup, then billing, then the per-user
     concurrency cap; launch when US-022 lands (US-028 can follow the launch —
     it only bites once several subscribers share the box)
+11. **US-020** — the screenshots, into the report and hanging off a step in
+    US-026's activity list. Dropped to P2 on 2026-07-23: it makes a good
+    report better rather than making anything possible. Its step section
+    renders `Step {n}`, which is why `progress` events were left out of
+    `report_data.json`; revisit that if the section stops being step-keyed.
 
 **US-027** (queued-run visibility) sat outside this order: it depended on
 nothing, and every story above makes the queue busier. **Shipped 2026-07-23**,

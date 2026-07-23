@@ -191,6 +191,28 @@ export function createRun(fields) {
   return run;
 }
 
+/**
+ * Start one run per test — the shared batch enqueue behind suite, module and
+ * project triggering (US-023) and behind the scheduler (US-010). Tests arrive
+ * already ordered; a `start_url` override applies to all of them (US-008:
+ * point a whole group at a fresh preview URL).
+ * @param {{ id: string, goal: string, start_url: string, max_steps: number, model: string|null }[]} tests
+ * @param {{ start_url?: string|null, trigger?: string }} [opts]
+ */
+export function runTests(tests, opts = {}) {
+  return tests.map((t) => {
+    const run = createRun({
+      goal: t.goal,
+      start_url: opts.start_url || t.start_url,
+      max_steps: t.max_steps,
+      model: t.model,
+      test_id: t.id,
+      trigger: opts.trigger || 'api',
+    });
+    return { runId: run.id, testId: t.id, status: run.status };
+  });
+}
+
 // A run is one Python parent plus a dozen-odd Chromium processes, so memory
 // accounting must cover the whole tree. Walk /proc (Linux-only, like our
 // Docker base image) and sum RSS over the root pid's descendants; the pid

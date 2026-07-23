@@ -4,7 +4,7 @@
 // returns the run ids; callers poll each run (no suite_runs table).
 import express from 'express';
 import { db, getOperatorUserId, isUuid } from '../db.js';
-import { h, requireDb, requireAgentKey, runTests } from './helpers.js';
+import { h, requireDb, requireAgentKey, runTestsFromRequest } from './helpers.js';
 
 const COLS = 'id, name, project_id, created_at, updated_at';
 
@@ -184,7 +184,7 @@ export function suitesRouter({ checkToken }) {
         [req.params.id]
       );
       if (!tests.length) return res.status(400).json({ error: 'suite has no tests' });
-      res.json({ suiteId: req.params.id, runs: runTests(tests, req.body || {}) });
+      res.json({ suiteId: req.params.id, runs: runTestsFromRequest(tests, req.body || {}) });
     })
   );
 

@@ -15,11 +15,13 @@ import { PORT, API_TOKEN, MAX_CONCURRENT, PUBLIC_DIR, OPENAI_API_KEY } from './c
 import { db, initDb } from './db.js';
 import { getRun, counts, attachViewer } from './runs.js';
 import { startRetention } from './retention.js';
+import { startScheduler } from './scheduler.js';
 import { runsRouter } from './routes/runs.js';
 import { testsRouter } from './routes/tests.js';
 import { suitesRouter } from './routes/suites.js';
 import { projectsRouter } from './routes/projects.js';
 import { modulesRouter } from './routes/modules.js';
+import { schedulesRouter } from './routes/schedules.js';
 
 await initDb();
 
@@ -64,6 +66,7 @@ app.use('/api/tests', testsRouter({ checkToken }));
 app.use('/api/suites', suitesRouter({ checkToken }));
 app.use('/api/projects', projectsRouter({ checkToken }));
 app.use('/api/modules', modulesRouter({ checkToken }));
+app.use('/api/schedules', schedulesRouter({ checkToken }));
 
 app.use(express.static(PUBLIC_DIR));
 // SPA fallback: anything not matched above returns the React app.
@@ -108,9 +111,10 @@ server.on('upgrade', (req, socket, head) => {
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMain) {
   // Only when actually serving: tests drive the app in-process and would
-  // otherwise sweep a temp dir on every import. sweepArtifacts() is tested
-  // directly instead.
+  // otherwise sweep a temp dir — or start runs on a timer — on every import.
+  // sweepArtifacts() and tick() are tested directly instead.
   startRetention();
+  startScheduler();
   server.listen(PORT, () => {
     console.log(
       `qassist server on :${PORT}  (max_concurrent=${MAX_CONCURRENT}, auth=${API_TOKEN ? 'on' : 'off'}, db=${db() ? 'on' : 'off'})`

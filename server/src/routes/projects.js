@@ -10,7 +10,7 @@
 // project resolver; routes/modules.js imports them.
 import express from 'express';
 import { db, getOperatorUserId, isUuid } from '../db.js';
-import { h, requireDb, requireAgentKey, runTests, slugify } from './helpers.js';
+import { h, requireDb, requireAgentKey, runTestsFromRequest, slugify } from './helpers.js';
 
 export const PROJECT_COLS = 'id, name, slug, created_at, updated_at';
 export const MODULE_COLS = 'id, project_id, name, slug, created_at, updated_at';
@@ -133,7 +133,7 @@ export async function runModule(mod, body) {
     [mod.id]
   );
   if (!tests.length) return { empty: true };
-  return { moduleId: mod.id, runs: runTests(tests, body) };
+  return { moduleId: mod.id, runs: runTestsFromRequest(tests, body) };
 }
 
 /** @param {{ checkToken: import('express').RequestHandler }} deps */
@@ -250,7 +250,7 @@ export function projectsRouter({ checkToken }) {
         [project.id]
       );
       if (!tests.length) return res.status(400).json({ error: 'project has no tests' });
-      res.json({ projectId: project.id, runs: runTests(tests, req.body || {}) });
+      res.json({ projectId: project.id, runs: runTestsFromRequest(tests, req.body || {}) });
     })
   );
 

@@ -219,6 +219,45 @@ curl -X POST http://<host>:8080/api/suites/<suiteId>/run \
 Deleting a module or project never deletes tests — they fall back to
 Ungrouped. Deleting a project does take its suites with it.
 
+### Schedules
+
+`POST /api/schedules` runs any of those four things on a repeating slot. The
+schedule names exactly one target — `test_id`, `module_id`, `suite_id` or
+`project_id` — and fires the same way the matching `/run` endpoint does: one
+run per member test, queued behind `MAX_CONCURRENT_SESSIONS` like any other.
+
+```bash
+# every 6 hours: slots are anchored to local midnight, so this fires at
+# 00:15 / 06:15 / 12:15 / 18:15 in the schedule's own timezone
+curl -X POST http://<host>:8080/api/schedules \
+  -H "Authorization: Bearer $WORKER_API_TOKEN" -H "Content-Type: application/json" \
+  -d '{"suite_id":"<suiteId>","kind":"hourly","interval_hours":6,"minute":15,
+       "tz":"Europe/Berlin"}'
+# -> {"id":"...","kind":"hourly","interval_hours":6,"enabled":true,
+#     "next_run_at":"2026-07-23T04:15:00.000Z", ...}
+
+# nightly, and weekly on a Tuesday
+-d '{"test_id":"<testId>","kind":"daily","hour":2,"minute":30,"tz":"Europe/Berlin"}'
+-d '{"project_id":"<id>","kind":"weekly","weekday":2,"hour":9,"tz":"Europe/Berlin"}'
+
+# list (filter by any target column), pause, re-time, remove
+curl "http://<host>:8080/api/schedules?suite_id=<suiteId>" -H "Authorization: Bearer $WORKER_API_TOKEN"
+curl -X PUT http://<host>:8080/api/schedules/<id> -H "Authorization: Bearer $WORKER_API_TOKEN" \
+  -H "Content-Type: application/json" -d '{"enabled":false}'
+curl -X DELETE http://<host>:8080/api/schedules/<id> -H "Authorization: Bearer $WORKER_API_TOKEN"
+```
+
+`kind` is `hourly` (with `interval_hours` ∈ 1, 2, 3, 4, 6, 8, 12), `daily`
+(`hour`/`minute`) or `weekly` (plus `weekday`, 0 = Sunday). `tz` is an IANA
+name and defaults to the server's; times mean wall-clock time there, so a
+daily slot keeps its hour across a DST change. Every write recomputes
+`next_run_at`, which is what the scheduler claims each minute.
+
+A slot fires once even if the server was down for several — missed slots are
+not replayed. A test with a run still `queued` or `running` is skipped for
+that slot while its siblings in the same suite go ahead. Deleting the target
+deletes its schedules.
+
 ### Run history
 
 `GET /api/runs` lists finished and in-flight runs newest first, from the same
