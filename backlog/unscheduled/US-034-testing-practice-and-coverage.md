@@ -5,10 +5,15 @@ testing practice and the test surfaces we deliberately skipped filled in, **so
 that** correctness-critical logic is specified before it's implemented and the
 agent core stops being the one untested part of the product.
 
-- **Status:** 🧭 Planned — spun out 2026-07-24 when the three test *gaps* were
-  closed (agent `email_codes` under pytest, frontend `status.js` under Vitest,
-  the "red test is fixed in the code" rule in CLAUDE.md). This story is the
-  work those three did **not** cover.
+- **Status:** 🔨 In progress — spun out 2026-07-24 when the three test *gaps*
+  were closed (agent `email_codes` under pytest, frontend `status.js` under
+  Vitest, the "red test is fixed in the code" rule in CLAUDE.md). This story is
+  the work those three did **not** cover. Landed so far: `scrub` lifted to
+  `agent/redact.py` + `test_redact.py`; report formatters split to
+  `agent/report_format.py` + `test_report_format.py`; verdict path covered by
+  `server/test/verdict.test.js` replaying recorded `fixtures/*.ndjson` through
+  the real engine. Still owed: the frontend component smoke test, and the
+  practice paragraph in CLAUDE.md (once the habit has proven itself).
 - **Priority:** P2 (unscheduled) — the suites exist and pass; this deepens them.
 - **Estimate:** ~1 day for the coverage items; the practice itself is free.
 - **Depends on:** nothing hard. The pytest and Vitest harnesses are already in

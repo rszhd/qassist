@@ -1,0 +1,4 @@
+{"type":"step","step":1,"elapsed":0.5,"url":"https://example.com/login","evaluation":null,"next_goal":"log in with the given credentials","thinking":"try login","screenshot_file":"step_1.png"}
+{"type":"step","step":2,"elapsed":3.2,"url":"https://example.com/login","evaluation":"Login failed: the error banner says the password is wrong","next_goal":"report the goal as failed","thinking":"cannot proceed","screenshot_file":"step_2.png"}
+{"type":"recording","file":"recording.mp4","frames":30}
+{"type":"done","success":false,"duration_seconds":4.0,"steps":2,"final_result":"Goal failed: could not log in with the supplied credentials.","urls":["https://example.com/login"],"errors":["invalid credentials"]}

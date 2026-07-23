@@ -1,0 +1,4 @@
+{"type":"step","step":1,"elapsed":0.4,"url":"https://example.com","evaluation":null,"next_goal":"open the signup page","thinking":"start here","screenshot_file":"step_1.png"}
+{"type":"step","step":2,"elapsed":2.1,"url":"https://example.com/signup","evaluation":"Successfully loaded the signup form","next_goal":"fill and submit the form","thinking":"form is visible","screenshot_file":"step_2.png"}
+{"type":"recording","file":"recording.mp4","frames":42}
+{"type":"done","success":true,"duration_seconds":3.7,"steps":2,"final_result":"Goal succeeded: account created and confirmation shown.","urls":["https://example.com","https://example.com/welcome"],"errors":[]}

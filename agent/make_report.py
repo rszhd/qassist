@@ -20,14 +20,14 @@ Screenshot files are resolved relative to the data file's directory.
 from __future__ import annotations
 
 import base64
-import html
 import json
 import os
 import re
 import sys
-from datetime import datetime, timezone
 
 from playwright.sync_api import sync_playwright
+
+from report_format import esc, fmt_date, fmt_duration, fmt_elapsed, step_ok
 
 FONTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fonts")
 
@@ -91,10 +91,6 @@ def font_face_css() -> str:
     return "\n".join(rules)
 
 
-def esc(v) -> str:
-    return html.escape(str(v)) if v is not None else ""
-
-
 def img_data_uri(path: str) -> str | None:
     try:
         with open(path, "rb") as f:
@@ -102,42 +98,6 @@ def img_data_uri(path: str) -> str | None:
         return f"data:image/png;base64,{b64}"
     except Exception:
         return None
-
-
-def fmt_duration(secs) -> str:
-    if not secs:
-        return "—"
-    secs = round(secs)
-    if secs < 60:
-        return f"{secs}s"
-    return f"{secs // 60}m {secs % 60}s"
-
-
-def fmt_elapsed(secs) -> str:
-    if secs is None:
-        return "—:—"
-    secs = int(secs)
-    return f"{secs // 60:02d}:{secs % 60:02d}"
-
-
-def fmt_date(iso) -> str:
-    try:
-        dt = datetime.fromisoformat(str(iso).replace("Z", "+00:00")).astimezone(timezone.utc)
-        return dt.strftime("%Y-%m-%d · %H:%M UTC")
-    except Exception:
-        return esc(iso)
-
-
-def step_ok(evaluation) -> bool | None:
-    """Heuristic pass/fail marker per step from the agent's own evaluation text."""
-    if not evaluation:
-        return None
-    text = str(evaluation).lower()
-    if any(w in text for w in ("fail", "error", "block", "unable", "could not")):
-        return False
-    if "success" in text:
-        return True
-    return None
 
 
 def build_html(data: dict, base_dir: str) -> str:

@@ -1,0 +1,2 @@
+{"type":"step","step":1,"elapsed":0.3,"url":"https://example.com","evaluation":null,"next_goal":"open the target page","thinking":"begin","screenshot_file":"step_1.png"}
+{"type":"error","message":"RuntimeError: browser crashed before the goal could be judged"}

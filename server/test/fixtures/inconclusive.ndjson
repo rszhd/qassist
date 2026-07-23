@@ -1,0 +1,3 @@
+{"type":"step","step":1,"elapsed":0.6,"url":"https://example.com","evaluation":null,"next_goal":"explore the page","thinking":"looking around","screenshot_file":"step_1.png"}
+{"type":"recording","file":"recording.mp4","frames":12}
+{"type":"done","success":null,"duration_seconds":2.0,"steps":1,"final_result":"Ran out of steps before a verdict could be reached.","urls":["https://example.com"],"errors":[]}
