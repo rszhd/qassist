@@ -3,6 +3,12 @@
 One file per user story. Status lives in each file's header; this README is
 the overview (keep it in sync when a story changes state or moves folder).
 
+Two root-level files are **not** stories but living reference docs that sit
+here because they track the backlog as a whole: this README, and
+[`correctness-critical.md`](correctness-critical.md) — the register of
+correctness-critical, easy-to-get-subtly-wrong surfaces the assertion-first
+Workflow rule (`CLAUDE.md`) applies to.
+
 ## Folder layout
 
 - `release-1/` … `release-N/` — stories scoped to that upcoming release. The

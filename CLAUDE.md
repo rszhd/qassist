@@ -184,8 +184,11 @@ is exactly the pre-US-023 UI — keep it that way when adding features.
   network; `email_codes.py` is covered, the browser-driving core is not).
   Install the runner once with `uv pip install --python .venv/bin/python -r
   requirements-dev.txt`. Add a case when you touch a pure helper.
-- **Verify frontend changes:** `cd frontend && npm test` (Vitest over the pure
-  helpers in `status.js` — no DOM) and `npm run build`. Exercise a new endpoint
+- **Verify frontend changes:** `cd frontend && npm test` (Vitest: pure-helper
+  tests over `status.js` in node, plus jsdom mount-smoke tests that render the
+  shell and the run-detail card — `App.test.jsx`, `RunDetail.test.jsx`, which
+  opt into jsdom per-file so `status.test.js` stays DOM-free) and `npm run
+  build`. Exercise a new endpoint
   with `curl` against the dev server on :8081
   before wiring it into a view. For visual changes, **ask before screenshotting
   — often it is quicker for me to look myself.** When asked to: `agent/.venv`
@@ -206,6 +209,19 @@ is exactly the pre-US-023 UI — keep it that way when adding features.
   message says which behaviour and why. Never loosen or delete an assertion, or
   skip a test, to get to green. This guards the one thing that makes the suite
   worth running: the test says what the code should do, not the reverse.
+- **Assertion-first for the correctness-critical, easy-to-get-subtly-wrong
+  pieces** — scheduler claim, slot math, redaction, billing gates when they
+  arrive. There the assertion is Harith's to write or tighten *first* and
+  review, and only then is the implementation written against it, so the test
+  is a spec the code can't quietly bend to. Deciding which work is in this class
+  is **Claude's job, not Harith's** — he won't always catch it, so surface the
+  candidate, wait for the reviewed assertion before implementing, and don't
+  assume a piece is ordinary just because it wasn't called out. CRUD and wiring
+  stay test-alongside. This is the same-mind failure the "*red test is fixed in
+  the code*" rule guards, taken one step earlier: there a human owns the
+  disagreement, here a human owns the spec. The known surfaces are registered in
+  `backlog/correctness-critical.md` (non-exhaustive — add a row when new work
+  joins the class); full reasoning: `docs/testing.md`.
 - Don't commit or push unless asked. `dev` is the working branch; PRs → `main`.
 - Never log or commit secrets; `.env` stays untracked. Bearer token required
   on every API/WS call.

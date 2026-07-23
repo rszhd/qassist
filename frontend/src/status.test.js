@@ -1,8 +1,7 @@
-// First frontend test layer (Vitest). status.js is pure — a status→token map
-// and two formatters — so it needs no DOM: these assert the mapping and the
-// duration/timestamp edge cases directly. A rendered-component smoke test is
-// deliberately not here yet; it needs jsdom + a fetch/router harness and is
-// tracked in backlog US-034.
+// status.js is pure — a status→token map and two formatters — so it needs no
+// DOM: these assert the mapping and the duration/timestamp edge cases directly.
+// This file stays in the default node env; the rendered-component smoke tests
+// (App.test.jsx, RunDetail.test.jsx) opt into jsdom per-file (US-034).
 import { describe, it, expect } from 'vitest';
 import { statusColor, formatWhen, formatDuration } from './status.js';
 

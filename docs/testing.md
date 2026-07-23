@@ -50,15 +50,20 @@ twice over here.
 
 ## What we don't test (and why that's a choice, not neglect)
 
-- **The browser-driving agent core.** Every server test stubs `run_agent.py`.
-  Launching a real Chromium + LLM per test is slow, flaky, and costs tokens.
-  The first agent-side coverage reaches only the pure parsing in
-  `email_codes.py`. Closing the rest — the `scrub()` redaction, the report
-  formatters, and a *recorded-fixture* run through the pass/fail judge (a
-  canned NDJSON transcript, no browser) — is US-034.
-- **Rendered frontend components.** `status.js` helpers are unit-tested; a
-  jsdom render-smoke test is deferred to US-034 because it needs a fetch/router
-  harness the pure helpers don't.
+- **The browser-driving agent loop itself.** Every server test stubs
+  `run_agent.py`; launching a real Chromium + LLM per test is slow, flaky, and
+  costs tokens. What US-034 could peel *off* the browser is now covered without
+  one: `scrub()` redaction (`agent/redact.py` + `test_redact.py`), the report
+  formatters (`agent/report_format.py` + `test_report_format.py`), and a
+  recorded-fixture run through the pass/fail judge (`server/test/verdict.test.js`
+  replays canned NDJSON transcripts through the real engine, no browser). What
+  stays untested is the Chromium-driving core proper — the part that genuinely
+  needs a browser to exercise.
+- **Deep frontend interaction.** `status.js` helpers are unit-tested and a
+  jsdom mount-smoke test now renders the shell and the run-detail card
+  (`App.test.jsx`, `RunDetail.test.jsx`, US-034) to catch render-time breaks the
+  build can't see. What stays untested is interaction behaviour — driving
+  events, the WebSocket flow — which costs far more harness than it returns.
 - **A full end-to-end (real browser + real LLM).** Not planned. The
   recorded-fixture approach buys most of the confidence with none of the
   flake or spend.
@@ -93,10 +98,11 @@ The mitigations, roughly by leverage:
    split earned its keep, and why the agent judge wants a recorded real
    transcript over an invented one.
 4. **Selective TDD for the correctness-critical, easy-to-get-subtly-wrong
-   pieces** — scheduler claim, slot math, redaction, billing gates. There, the
-   human writes or tightens the assertion *first*, reviews it, then the AI
-   implements against it. The test becomes a spec the implementation can't
-   retrofit. Not the whole codebase — CRUD and wiring stay test-alongside.
+   pieces** — scheduler claim, slot math, redaction, billing gates; the running
+   register is [`backlog/correctness-critical.md`](../backlog/correctness-critical.md).
+   There, the human writes or tightens the assertion *first*, reviews it, then
+   the AI implements against it. The test becomes a spec the implementation
+   can't retrofit. Not the whole codebase — CRUD and wiring stay test-alongside.
 5. **The house rule:** *a red test is fixed in the code, not the assertion*
    (CLAUDE.md, Workflow rules). Expected values change only when the behaviour
    was *meant* to change, and the commit says which and why. This forces every
@@ -123,7 +129,10 @@ correctness of the target answer is still on the human and the story.
 ## Where this should go next
 
 Tracked in [US-034](../backlog/unscheduled/US-034-testing-practice-and-coverage.md):
-the owed agent coverage (redaction refactor + test, report formatters, judge
-fixture), the frontend component smoke test, `mutmut` for a repeatable agent
-mutation audit, and promoting selective TDD from "practised on the hard bits"
-to a documented habit once it has earned it.
+the owed agent coverage (redaction, report formatters, judge fixture) and the
+frontend mount-smoke test have landed. Selective TDD is now a standing CLAUDE.md
+rule (Workflow rules) rather than only a mitigation here — written as a *forward*
+rule, not a claim that the habit already ran, with one addition: spotting which
+work is correctness-critical is Claude's job to raise, since it won't reliably
+be flagged otherwise. What remains is `mutmut` for a repeatable agent mutation
+audit.

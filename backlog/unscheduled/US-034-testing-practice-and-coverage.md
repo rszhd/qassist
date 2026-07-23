@@ -12,8 +12,12 @@ agent core stops being the one untested part of the product.
   `agent/redact.py` + `test_redact.py`; report formatters split to
   `agent/report_format.py` + `test_report_format.py`; verdict path covered by
   `server/test/verdict.test.js` replaying recorded `fixtures/*.ndjson` through
-  the real engine. Still owed: the frontend component smoke test, and the
-  practice paragraph in CLAUDE.md (once the habit has proven itself).
+  the real engine; frontend mount smoke tests (`frontend/src/App.test.jsx`,
+  `RunDetail.test.jsx`) under jsdom + `@testing-library/react`; the selective-TDD
+  practice is now a standing CLAUDE.md Workflow rule, written as a forward rule
+  (assertion-first for correctness-critical pieces, with the duty to *flag* such
+  a piece placed on Claude, since Harith won't always catch it). Still owed:
+  `mutmut` for a repeatable agent mutation audit.
 - **Priority:** P2 (unscheduled) — the suites exist and pass; this deepens them.
 - **Estimate:** ~1 day for the coverage items; the practice itself is free.
 - **Depends on:** nothing hard. The pytest and Vitest harnesses are already in
@@ -55,11 +59,16 @@ first layer only reached the pure-stdlib `email_codes.py`):
   transcript through the pass/fail judging path without launching a browser, so
   the product's actual decision is exercised.
 
-**Frontend component smoke test** (deferred from the helpers-only decision on
-2026-07-24): render the shell / a status badge in jsdom to catch wiring breaks
-`npm run build` can't. Adds `jsdom` + `@testing-library/react` and a
-fetch/router harness, since the views fetch on mount. Kept out of the first
-layer to get the runner in with zero DOM mocking.
+**Frontend component smoke test** ✅ landed 2026-07-24: `App.test.jsx` renders
+the real shell in jsdom against a URL-routed `fetch` stub (health up → nav
+shows; no DB → nav hidden), and `RunDetail.test.jsx` renders a canned run row
+via the `liveSteps` path so it never fetches. Added `jsdom` +
+`@testing-library/react`, scoped to the component tests with a per-file
+`// @vitest-environment jsdom` docblock so `status.js`'s test stays DOM-free.
+The one harness surprise was `window.matchMedia` (App's theme effect), stubbed
+in the App test. A red-first sweep confirmed sensitivity: a component that
+throws on mount fails the App tests, and a wrong verdict word fails RunDetail —
+the "builds green but crashes on render" class the build itself can't see.
 
 **Not in scope:** an end-to-end test that launches a real browser + LLM. Slow,
 flaky, and costs tokens per run; the recorded-fixture approach above buys most
