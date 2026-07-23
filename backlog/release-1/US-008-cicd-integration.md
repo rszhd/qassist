@@ -2,7 +2,9 @@
 
 **As a** developer, **I want** QAssist runs triggered from my CI/CD pipeline with results reported back, **so that** every deploy is smoke-tested by a real browser agent without manual steps.
 
-- **Status:** 📋 Planned
+- **Status:** 📝 Docs written (`docs/ci.md`, 2026-07-23) — **unverified**: no
+  runner can reach the box until US-007 ships, so the snippets have not been
+  executed from a real pipeline. Not done until they have been.
 - **Priority:** P1 (Release 1)
 - **Estimate:** ~half a day including docs, once US-009 is in
 - **Depends on:** US-007 (public HTTPS) + US-009 (saved tests) — both hard requirements
@@ -38,6 +40,28 @@ slug or a uuid — so the documented snippet reads
 `/api/projects/checkout/modules/auth/run` rather than carrying UUIDs through
 pipeline YAML.
 
+**Suites keep their uuid in CI configs** (decided 2026-07-23). They never got
+a slug column, and the story doesn't buy one: a suite target is one line in
+one pipeline file, and a migration plus slug handling on create/update is more
+surface than that line is worth. Revisit if suite renames start breaking
+configs in practice.
+
+**No batch-status endpoint** (same date). Triggering returns N run ids and the
+snippet polls `GET /api/runs/:id` per id in a loop. A `GET /api/runs?ids=…`
+would roughly halve the snippet, but the scope line says no new server surface
+and the loop is ~10 lines of bash.
+
+**Gate on `passed` only.** `completed` means the agent finished its steps
+without producing a verdict — the run answered nothing, and a build going
+green on that is the false signal the step exists to prevent. So the script
+fails the job on anything that isn't `passed`.
+
+**The `start_url` override replaces the whole URL, not a prefix** — a test
+saved against `example.com/login`, run with `start_url=preview.app`, starts at
+that preview's root. The docs tell CI users to author tests that navigate from
+the app root instead of teaching a path-join rule that would need server work
+and would still guess wrong.
+
 ## Scope
 
 The pipeline `POST`s to `/api/projects/:project/modules/:module/run` (the
@@ -64,6 +88,13 @@ agent should test what users will actually hit.
       only variable
 - [ ] Same two, documented for GitLab CI
 - [ ] `start_url` override respected for every run the trigger started
-- [ ] Report PDF URL printed in job output for each run
-- [ ] The docs say why a single test and a whole project aren't CI targets, so
+- [x] The docs say why a single test and a whole project aren't CI targets, so
       the omission reads as a decision rather than a gap
+
+Dropped 2026-07-23: *report PDF URL printed in job output*. The PDF needs the
+bearer token, so a link in a job log isn't clickable by whoever reads it, and
+`report_status` is still `generating` for a moment after a run goes terminal —
+printing the URL at that point promises a file that 202s. The log prints the
+run id and the docs point at History, which has the report behind a session.
+Revisit alongside US-020 (report v2) if the report becomes the artifact CI
+users want in hand.

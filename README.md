@@ -258,6 +258,14 @@ not replayed. A test with a run still `queued` or `running` is skipped for
 that slot while its siblings in the same suite go ahead. Deleting the target
 deletes its schedules.
 
+### From CI/CD
+
+A pipeline triggers a **module or a suite** — the set of tests that covers a
+change — passing the fresh preview URL as `start_url`, then polls each run and
+fails the job unless every one comes back `passed`. That's `curl` plus a poll
+loop, no Action and no plugin: **[docs/ci.md](docs/ci.md)** has the script and
+ready-made GitHub Actions and GitLab CI jobs.
+
 ### Run history
 
 `GET /api/runs` lists finished and in-flight runs newest first, from the same
