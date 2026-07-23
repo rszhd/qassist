@@ -62,6 +62,7 @@ into [Release 2](#release-2-the-hosted-paid-tier--release-2).
 | [US-025](release-1/done/US-025-ui-consistency-pass-2.md) | UI consistency pass 2: type scale, sizes, dead space | ✅ Done (2026-07-23) | — |
 | [US-026](release-1/done/US-026-history-run-activity.md) | Run activity in the History detail panel | ✅ Done (2026-07-23) | US-011 |
 | [US-027](release-1/done/US-027-queued-run-visibility.md) | Tell the user their run is queued | ✅ Done (2026-07-23) | — |
+| [US-034](release-1/done/US-034-testing-practice-and-coverage.md) | Testing practice: selective TDD, owed agent/frontend coverage, mutmut audit | ✅ Done (2026-07-24) | — |
 
 Added to the release 2026-07-23: **US-031** and **US-032**, which is what the
 narrowing exposed. The product was ready to self-host and the *release* was
@@ -230,7 +231,6 @@ for it before the hosted tier is real.
 | [US-018](unscheduled/US-018-first-run-setup.md) | First-run setup: Chromium download + BYOK settings | 📋 Planned | TBD | US-016 |
 | [US-019](unscheduled/US-019-installers-signing-autoupdate.md) | Installers, code signing, auto-update | 📋 Planned | TBD | US-016..018 |
 | [US-024](unscheduled/US-024-memory-watchdog-pss-metric.md) | Memory watchdog: measure PSS, not summed RSS | 📋 Planned | P2 | — |
-| [US-034](unscheduled/US-034-testing-practice-and-coverage.md) | Testing practice: selective TDD + owed coverage (agent scrub/report, judge fixture, frontend smoke) | 🧭 Planned | P2 | — |
 
 A tiered story keeps one file while its later tiers are still hypothetical:
 US-013's email tier shipped, so the file sits in `release-1/done/` with the

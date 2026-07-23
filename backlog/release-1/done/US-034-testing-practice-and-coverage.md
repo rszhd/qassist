@@ -5,7 +5,7 @@ testing practice and the test surfaces we deliberately skipped filled in, **so
 that** correctness-critical logic is specified before it's implemented and the
 agent core stops being the one untested part of the product.
 
-- **Status:** 🔨 In progress — spun out 2026-07-24 when the three test *gaps*
+- **Status:** ✅ Done (2026-07-24), folded into Release 1 — spun out 2026-07-24 when the three test *gaps*
   were closed (agent `email_codes` under pytest, frontend `status.js` under
   Vitest, the "red test is fixed in the code" rule in CLAUDE.md). This story is
   the work those three did **not** cover. Landed so far: `scrub` lifted to
@@ -25,7 +25,9 @@ agent core stops being the one untested part of the product.
   bound, `_strip_html` flags) left as reported, not silently patched. What stays
   open is judgement, not code: keeping `backlog/correctness-critical.md` current
   and exercising the assertion-first habit on the next hard piece.
-- **Priority:** P2 (unscheduled) — the suites exist and pass; this deepens them.
+- **Priority:** P2 — the suites exist and pass; this deepened them. What stays
+  open (register upkeep, the assertion-first habit) is ongoing judgement, not a
+  deliverable, so the story ships done rather than waiting on it.
 - **Estimate:** ~1 day for the coverage items; the practice itself is free.
 - **Depends on:** nothing hard. The pytest and Vitest harnesses are already in
   place (`agent/pytest.ini`, `frontend` `npm test`).
