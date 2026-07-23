@@ -224,6 +224,7 @@ for it before the hosted tier is real.
 | [US-018](unscheduled/US-018-first-run-setup.md) | First-run setup: Chromium download + BYOK settings | 📋 Planned | TBD | US-016 |
 | [US-019](unscheduled/US-019-installers-signing-autoupdate.md) | Installers, code signing, auto-update | 📋 Planned | TBD | US-016..018 |
 | [US-024](unscheduled/US-024-memory-watchdog-pss-metric.md) | Memory watchdog: measure PSS, not summed RSS | 📋 Planned | P2 | — |
+| [US-034](unscheduled/US-034-testing-practice-and-coverage.md) | Testing practice: selective TDD + owed coverage (agent scrub/report, judge fixture, frontend smoke) | 🧭 Planned | P2 | — |
 
 A tiered story keeps one file while its later tiers are still hypothetical:
 US-013's email tier shipped, so the file sits in `release-1/done/` with the

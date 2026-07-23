@@ -1,0 +1,5 @@
+# Test-only dependencies, kept out of requirements.txt so a production/self-host
+# install stays lean. Install into the venv with:
+#   uv pip install --python .venv/bin/python -r requirements-dev.txt
+# Run the suite with: .venv/bin/python -m pytest   (from agent/)
+pytest>=9,<10

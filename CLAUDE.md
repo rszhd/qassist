@@ -145,6 +145,8 @@ is exactly the pre-US-023 UI — keep it that way when adding features.
   update `backlog/README.md` in the same commit.
 - `db/README.md` — control-plane schema ground rules.
 - `docs/repo-model.md` — open-source vs paid-cloud boundary.
+- `docs/testing.md` — testing philosophy: what we test and why, what we skip,
+  and how AI-pair authorship changes the risk (and the mitigations).
 
 ## Run / develop
 
@@ -177,8 +179,14 @@ is exactly the pre-US-023 UI — keep it that way when adding features.
   existing one — the migration runner finds `schema_migrations` through the
   search path and silently adopts the surrounding database) and skipping with a
   reason when none answers.
-- **Verify frontend changes:** `cd frontend && npm run build` (no test suite
-  yet). Exercise a new endpoint with `curl` against the dev server on :8081
+- **Verify agent changes:** `cd agent && .venv/bin/python -m pytest` (pure
+  stdlib unit tests over the parsing/extraction logic — no browser, IMAP or
+  network; `email_codes.py` is covered, the browser-driving core is not).
+  Install the runner once with `uv pip install --python .venv/bin/python -r
+  requirements-dev.txt`. Add a case when you touch a pure helper.
+- **Verify frontend changes:** `cd frontend && npm test` (Vitest over the pure
+  helpers in `status.js` — no DOM) and `npm run build`. Exercise a new endpoint
+  with `curl` against the dev server on :8081
   before wiring it into a view. For visual changes, **ask before screenshotting
   — often it is quicker for me to look myself.** When asked to: `agent/.venv`
   already has Playwright, so a short `sync_playwright` script against the Vite
@@ -191,6 +199,13 @@ is exactly the pre-US-023 UI — keep it that way when adding features.
 ## Workflow rules
 
 - **Never auto-deploy.** Always ask before deploying to the server.
+- **A red test is fixed in the code, not the assertion.** When a test fails,
+  the default is that it caught a real regression — change the implementation
+  until it passes. Editing a test's expected value to match new behaviour is
+  only legitimate when the behaviour was *meant* to change, and then the commit
+  message says which behaviour and why. Never loosen or delete an assertion, or
+  skip a test, to get to green. This guards the one thing that makes the suite
+  worth running: the test says what the code should do, not the reverse.
 - Don't commit or push unless asked. `dev` is the working branch; PRs → `main`.
 - Never log or commit secrets; `.env` stays untracked. Bearer token required
   on every API/WS call.
