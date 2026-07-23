@@ -325,7 +325,7 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
     ws.onclose = () => setWsState('closed');
     ws.onerror = () => {
       setWsState('error');
-      setError('WebSocket could not connect — check the token and that the tunnel/port is reachable.');
+      setError('WebSocket could not connect — check the token and that the server is reachable.');
     };
     ws.onmessage = (m) => {
       try {

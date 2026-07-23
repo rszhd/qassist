@@ -3,8 +3,7 @@
 QAssist (formerly QAgent) — goal-based AI browser testing. User gives a URL +
 plain-English goal; a Python agent drives real Chromium via browser-use,
 streams the session live over WebSocket, judges pass/fail, renders a PDF
-report. Deployed on a VPS behind an SSH tunnel. Hosted paid tier planned at
-qassist.run.
+report. Self-hosted via Docker. Hosted paid tier planned at qassist.run.
 
 ## Architecture (full details: README.md)
 
@@ -191,7 +190,7 @@ is exactly the pre-US-023 UI — keep it that way when adding features.
 
 ## Workflow rules
 
-- **Never auto-deploy.** Always ask before deploying to the VPS.
+- **Never auto-deploy.** Always ask before deploying to the server.
 - Don't commit or push unless asked. `dev` is the working branch; PRs → `main`.
 - Never log or commit secrets; `.env` stays untracked. Bearer token required
   on every API/WS call.

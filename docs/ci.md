@@ -11,7 +11,7 @@ poll loop, because the API is already the interface. Copy
 ## Prerequisites
 
 - **QAssist reachable over HTTPS** from the runner, with a token
-  (`WORKER_API_TOKEN`). CI runners are not on your SSH tunnel.
+  (`WORKER_API_TOKEN`). A runner can only reach a publicly routable endpoint.
 - **The tests already exist**, created in the QAssist UI and grouped into a
   module or a suite. CI never describes a test — no goal strings in pipeline
   YAML. The definitions live server-side and can be rewritten without anyone

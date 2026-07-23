@@ -53,6 +53,6 @@ Before building anything, ask: **"would a self-hoster want this?"**
 
 - gitleaks/trufflehog scan of full git history; if anything is found,
   prefer a fresh squashed initial commit over history scrubbing.
-- Decide whether README/backlog keep the VPS IP.
+- Decide whether README/backlog keep the deployment host's IP.
 - Decide CLA/DCO **before** accepting outside contributions (AGPL
   relicensing later needs every contributor's consent otherwise).

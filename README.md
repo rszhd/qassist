@@ -4,7 +4,7 @@
 a plain-English goal; an AI agent drives a real Chromium browser like a user,
 streams the session live, decides pass/fail, and produces a shareable PDF report.
 
-> Status: **actively developed.** Runs end-to-end and is deployed on a VPS. See
+> Status: **actively developed.** Runs end-to-end and is deployed. See
 > [Roadmap](#roadmap) for what's intentionally left for later.
 
 ## What it does
@@ -386,13 +386,9 @@ in-memory mode, where saved tests and suites answer 503).
 
 ## Deployment
 
-Runs as a single container (`docker compose up -d`) on an Ubuntu VPS (4 vCPU /
-8 GB is comfortable for ~4 concurrent sessions). Currently reachable via an SSH
-tunnel while port 8080 stays firewalled:
-
-```bash
-ssh -L 8090:localhost:8080 <vps>   # then open http://localhost:8090
-```
+Runs as a single container (`docker compose up -d`) on any Linux host with
+Docker (4 vCPU / 8 GB is comfortable for ~4 concurrent sessions). The app
+listens on port 8080.
 
 Fronting it with HTTPS (Caddy on 443) for public/API access is a [roadmap](#roadmap) item.
 
@@ -416,7 +412,7 @@ exactly the work that is left.
   ([US-006](backlog/release-1/done/US-006-session-recording.md)) and a report
   with per-step screenshots + working "View recording"
   ([US-020](backlog/release-1/US-020-report-v2-screenshots-recording.md)).
-- **Public HTTPS** — Caddy on 443, no more SSH tunnel; unblocks CI/CD
+- **Public HTTPS** — Caddy on 443 terminating TLS; unblocks CI/CD
   ([US-007](backlog/release-1/US-007-https-reverse-proxy.md)).
 - **CI/CD trigger** — GitHub/GitLab run a module or a suite via a documented
   curl step
