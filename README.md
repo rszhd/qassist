@@ -370,9 +370,11 @@ exactly the work that is left.
   ([US-020](backlog/release-1/US-020-report-v2-screenshots-recording.md)).
 - **Public HTTPS** — Caddy on 443, no more SSH tunnel; unblocks CI/CD
   ([US-007](backlog/release-1/US-007-https-reverse-proxy.md)).
-- **CI/CD integration (tier 1)** — GitHub/GitLab trigger saved tests/suites
-  by id via a documented curl step
-  ([US-008](backlog/release-1/US-008-cicd-integration.md), needs US-009).
+- **CI/CD trigger** — GitHub/GitLab run saved tests, suites, modules or
+  projects via a documented curl step
+  ([US-008](backlog/release-1/US-008-cicd-integration.md), needs US-009); a
+  reusable Action and a GitHub App are a later story
+  ([US-029](backlog/unscheduled/US-029-cicd-action-and-github-app.md)).
 - **Registration-flow verification** — email-confirmation signups, already
   working ([US-013](backlog/release-1/done/US-013-registration-flow-verification.md)).
 - **Hosted paid tier** — bring-your-own OpenAI key

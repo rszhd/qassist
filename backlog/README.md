@@ -26,11 +26,11 @@ the overview (keep it in sync when a story changes state or moves folder).
 Scope decided 2026-07-22, **extended 2026-07-22 to include the hosted paid
 tier**: Release 1 ships both (a) the open-source self-host release — report
 with recording + step screenshots, saved tests, run history, scheduling,
-failure email notifications, CI trigger (tier 1), registration-flow email
+failure email notifications, CI trigger, registration-flow email
 confirmation (already done) — and (b) a minimal paid hosted version at
 qassist.run:
 signup, Stripe subscription, BYOK. US-007 rides along as a hard dependency
-of US-008 tier 1 and of the hosted tier.
+of US-008 and of the hosted tier.
 
 Paid-tier ground rules (2026-07-22): nothing extra beyond what payment
 requires. One plan, Stripe Checkout, **BYOK for LLM tokens** (payment covers
@@ -50,7 +50,7 @@ until real cloud-only infra exists; the full repo/boundary rules live in
 | [US-010](release-1/done/US-010-scheduled-runs.md) | Scheduled runs | ✅ Done (2026-07-23) | US-009 |
 | [US-012](release-1/US-012-email-reports.md) | Failure email notifications | 📋 Planned | US-009 |
 | [US-007](release-1/US-007-https-reverse-proxy.md) | Public HTTPS via reverse proxy | 📋 Planned | domain (owned) |
-| [US-008](release-1/US-008-cicd-integration.md) | CI/CD trigger — tier 1 only | 📋 Planned | US-007, US-009 |
+| [US-008](release-1/US-008-cicd-integration.md) | CI/CD trigger: the documented pipeline step | 📋 Planned | US-007, US-009 |
 | [US-005](release-1/US-005-byok-user-api-keys.md) | Bring-your-own OpenAI key (BYOK) | 📋 Planned | — |
 | [US-021](release-1/US-021-signup-auth.md) | Signup & login (magic-link auth) | 📋 Planned | US-009, US-007 |
 | [US-022](release-1/US-022-stripe-billing.md) | Paid tier: Stripe billing | 📋 Planned | US-021, US-005 |
@@ -122,7 +122,7 @@ US-020/US-010/US-012 touch the frontend than after.
    runs can be read as a group.
 7. **US-012** — failure emails via Resend (pairs with scheduling; do the
    qassist.run SPF/DKIM DNS setup alongside step 8's DNS work)
-8. **US-007 → US-008 tier 1** — public HTTPS, then the documented CI snippet
+8. **US-007 → US-008** — public HTTPS, then the documented CI snippet
 9. **US-005** — BYOK, before anyone but the operator can run tests
 10. **US-021 → US-022 → US-028** — signup, then billing, then the per-user
     concurrency cap; launch when US-022 lands (US-028 can follow the launch —
@@ -147,7 +147,7 @@ strict FIFO.
 | ID | Story | Status | Priority | Depends on |
 |---|---|---|---|---|
 | [US-013](release-1/done/US-013-registration-flow-verification.md) | Registration-flow tiers 2 (SMS) + 3 (social) | 📋 Planned | P3 | — |
-| [US-008](release-1/US-008-cicd-integration.md) | CI/CD tiers 2 (reusable Action) + 3 (GitHub App) | 📋 Planned | P2 | US-008 t1 |
+| [US-029](unscheduled/US-029-cicd-action-and-github-app.md) | CI/CD: reusable Action + GitHub App | 📋 Planned | P2 | US-008 |
 | [US-014](unscheduled/US-014-block-heavy-resources.md) | Block heavy page resources | 📋 Planned | P3 | — |
 | [US-015](unscheduled/US-015-horizontal-scaling-100-concurrent.md) | Horizontal scaling to ~100 concurrent | 📋 Planned | P3 | US-005, US-009 |
 | [US-016](unscheduled/US-016-desktop-shell.md) | Desktop shell (Electron) | 📋 Planned | TBD | — |
@@ -156,10 +156,14 @@ strict FIFO.
 | [US-019](unscheduled/US-019-installers-signing-autoupdate.md) | Installers, code signing, auto-update | 📋 Planned | TBD | US-016..018 |
 | [US-024](unscheduled/US-024-memory-watchdog-pss-metric.md) | Memory watchdog: measure PSS, not summed RSS | 📋 Planned | P2 | — |
 
-Tiered stories keep one file wherever their release-1 tier sits: US-008 is
-still open, so it lives in `release-1/`; US-013's email tier already shipped,
-so it lives in `release-1/done/`. The later tiers listed above are unscheduled
-follow-ups recorded inside those same files.
+A tiered story keeps one file while its later tiers are still hypothetical:
+US-013's email tier shipped, so the file sits in `release-1/done/` with the
+SMS and social tiers recorded inside it. It gets split once the out-of-scope
+tiers are real enough to plan, which is what happened to **US-008 on
+2026-07-23** — two of its three tiers were work Release 1 does not owe, and a
+story whose acceptance criteria are mostly out of scope makes `ls release-1/`
+overstate what is left. US-008 is now the CI step alone; [US-029](unscheduled/US-029-cicd-action-and-github-app.md)
+carries the Action and the App.
 
 **Desktop track (US-016..019, sketched 2026-07-21, on hold):** candidate
 strategy — free version runs entirely on the user's machine (their CPU/RAM,
