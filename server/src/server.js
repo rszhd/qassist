@@ -13,6 +13,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PORT, API_TOKEN, MAX_CONCURRENT, PUBLIC_DIR, OPENAI_API_KEY } from './config.js';
 import { db, initDb } from './db.js';
+import { mailEnabled } from './mail.js';
 import { getRun, counts, attachViewer } from './runs.js';
 import { startRetention } from './retention.js';
 import { startScheduler } from './scheduler.js';
@@ -59,6 +60,10 @@ app.get('/api/health', (_req, res) => {
     // Lets the UI tell "not configured yet" apart from "run failed".
     agent_ready: !!OPENAI_API_KEY,
     auth: !!API_TOKEN,
+    // Same purpose for notifications: a project can hold recipients on an
+    // instance that can't send, and the prefs UI says so rather than looking
+    // like it saved something that works.
+    mail: mailEnabled(),
   });
 });
 

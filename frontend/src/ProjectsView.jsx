@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
-import { AlertTriangle, FolderTree, Layers, Pencil, Plus, Terminal, Trash2 } from 'lucide-react';
+import { AlertTriangle, Bell, FolderTree, Layers, Pencil, Plus, Terminal, Trash2 } from 'lucide-react';
 import { api } from './api.js';
 import CiCommand from './CiCommand.jsx';
+import NotifyPrefs from './NotifyPrefs.jsx';
 import Suites from './Suites.jsx';
 import { Button, CardHead, EmptyState, IconButton, PageHeader } from './ui.jsx';
 
@@ -11,7 +12,7 @@ import { Button, CardHead, EmptyState, IconButton, PageHeader } from './ui.jsx';
 // Renaming and re-slugging are separate acts on the server: a rename never
 // re-slugs, because the slug is what a CI config points at. The editor
 // therefore exposes both fields and sends only what changed.
-export default function ProjectsView({ token }) {
+export default function ProjectsView({ token, health }) {
   const [projects, setProjects] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [detail, setDetail] = useState(null);
@@ -21,6 +22,8 @@ export default function ProjectsView({ token }) {
   const [editing, setEditing] = useState(null);
   // The row whose CI command is on screen; see CiCommand for the shape.
   const [ciTarget, setCiTarget] = useState(null);
+  // The project whose notification prefs are being edited (US-012).
+  const [notifyProject, setNotifyProject] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
 
@@ -151,7 +154,7 @@ export default function ProjectsView({ token }) {
             {projects.map((p) =>
               editingRow('project', p.id) ? (
                 <li key={p.id} className="editing">
-                  <GroupEditor editing={editing} setEditing={setEditing} onSubmit={saveEdit} onCancel={() => setEditing(null)} busy={busy} />
+                  <GroupEditor editing={editing} setEditing={setEditing} onSubmit={saveEdit} onCancel={() => setEditing(null)} onDelete={() => deleteProject(p)} busy={busy} />
                 </li>
               ) : (
                 <li key={p.id} className={p.id === selectedId ? 'active' : ''}>
@@ -164,12 +167,16 @@ export default function ProjectsView({ token }) {
                   </button>
                   <span className="row-actions">
                     <IconButton
+                      icon={Bell}
+                      label="Notifications"
+                      onClick={() => setNotifyProject(p)}
+                    />
+                    <IconButton
                       icon={Terminal}
                       label="Run from CI"
                       onClick={() => setCiTarget({ kind: 'project', name: p.name, project: p.slug })}
                     />
-                    <IconButton icon={Pencil} label="Rename" onClick={() => startEdit('project', p)} />
-                    <IconButton icon={Trash2} variant="danger" label="Delete" onClick={() => deleteProject(p)} />
+                    <IconButton icon={Pencil} label="Edit" onClick={() => startEdit('project', p)} />
                   </span>
                 </li>
               )
@@ -209,7 +216,7 @@ export default function ProjectsView({ token }) {
                 {detail.modules.map((m) =>
                   editingRow('module', m.id) ? (
                     <li key={m.id} className="editing">
-                      <GroupEditor editing={editing} setEditing={setEditing} onSubmit={saveEdit} onCancel={() => setEditing(null)} busy={busy} />
+                      <GroupEditor editing={editing} setEditing={setEditing} onSubmit={saveEdit} onCancel={() => setEditing(null)} onDelete={() => deleteModule(m)} busy={busy} />
                     </li>
                   ) : (
                     <li key={m.id}>
@@ -232,8 +239,7 @@ export default function ProjectsView({ token }) {
                             })
                           }
                         />
-                        <IconButton icon={Pencil} label="Rename" onClick={() => startEdit('module', m)} />
-                        <IconButton icon={Trash2} variant="danger" label="Delete" onClick={() => deleteModule(m)} />
+                        <IconButton icon={Pencil} label="Edit" onClick={() => startEdit('module', m)} />
                       </span>
                     </li>
                   )
@@ -256,12 +262,25 @@ export default function ProjectsView({ token }) {
       </div>
 
       {ciTarget && <CiCommand target={ciTarget} onClose={() => setCiTarget(null)} />}
+
+      {notifyProject && (
+        <NotifyPrefs
+          project={notifyProject}
+          token={token}
+          mailEnabled={!health || health.mail}
+          onClose={() => setNotifyProject(null)}
+          onSaved={loadProjects}
+        />
+      )}
     </>
   );
 }
 
-/** Inline name + slug editor shared by the project and module rows. */
-function GroupEditor({ editing, setEditing, onSubmit, onCancel, busy }) {
+// Inline name + slug editor shared by the project and module rows. Delete
+// lives in here rather than on the row: a row that carries every action at
+// once is four icons wide before it says anything, and deleting is the one
+// action worth a deliberate second step.
+function GroupEditor({ editing, setEditing, onSubmit, onCancel, onDelete, busy }) {
   return (
     <form className="inline-edit" onSubmit={onSubmit}>
       <input
@@ -277,6 +296,9 @@ function GroupEditor({ editing, setEditing, onSubmit, onCancel, busy }) {
         onChange={(e) => setEditing((cur) => ({ ...cur, slug: e.target.value }))}
       />
       <div className="inline-edit-actions">
+        <Button size="sm" variant="danger" icon={Trash2} onClick={onDelete} disabled={busy}>
+          Delete
+        </Button>
         <Button size="sm" onClick={onCancel}>Cancel</Button>
         <Button size="sm" type="submit" variant="primary" disabled={busy || !editing.name.trim()}>
           Save

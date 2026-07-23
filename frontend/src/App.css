@@ -509,6 +509,8 @@ select {
 .page-error { margin-bottom: var(--s4); }
 
 .hint { font-size: var(--t-sm); line-height: 1.6; color: var(--faint); }
+/* A recipient who unsubscribed: icon, address and the undo, on one line. */
+.opted-out { display: flex; align-items: center; gap: var(--s2); }
 
 /* A rule inside a card. The card's gap supplies the space above it and this
    supplies the space below, so every divider in the app — this, the run
@@ -782,4 +784,7 @@ button.row-main { background: transparent; border: 0; padding: 0; color: inherit
 /* Inline row editors (rename a project/module, edit a suite's membership). */
 .inline-edit { display: flex; flex-direction: column; gap: var(--s2); width: 100%; }
 .inline-edit-actions { display: flex; justify-content: flex-end; gap: var(--s2); }
+/* Destructive action to the far left, away from Save — the same placement the
+   modal footer uses, so the two editors read the same way. */
+.inline-edit-actions .btn-danger { margin-right: auto; }
 .banner .btn { align-self: center; }

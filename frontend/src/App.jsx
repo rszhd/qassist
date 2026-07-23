@@ -88,7 +88,7 @@ export default function App() {
         </div>
         {view === 'history' && <HistoryView token={token} />}
         {view === 'schedules' && <SchedulesView token={token} />}
-        {view === 'projects' && <ProjectsView token={token} />}
+        {view === 'projects' && <ProjectsView token={token} health={health} />}
       </div>
 
       {settingsOpen && (
@@ -124,6 +124,8 @@ export default function App() {
               <dd>{health.db ? 'Connected' : 'Not configured — saved tests and history are off'}</dd>
               <dt>Auth</dt>
               <dd>{health.auth ? 'Token required' : 'Open (no token configured)'}</dd>
+              <dt>Email</dt>
+              <dd>{health.mail ? 'Configured' : 'Off — no RESEND_API_KEY / MAIL_FROM'}</dd>
             </dl>
           )}
         </Modal>

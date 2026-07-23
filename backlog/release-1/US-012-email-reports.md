@@ -2,8 +2,8 @@
 
 **As a** user, **I want** an email when a test run fails, **so that** I hear about breakage without checking a dashboard.
 
-- **Status:** 🚧 Backend done (2026-07-23) — schema, sender, prefs API,
-  unsubscribe; the prefs UI is still to come
+- **Status:** 🚧 Backend and UI done (2026-07-23) — schema, sender, prefs API,
+  unsubscribe, prefs dialog; docs and a verified sender domain remain
 - **Priority:** P1 (Release 1 — on-failure notification only)
 - **Estimate:** ~1 day
 - **Depends on:** US-009 (Postgres for recipients/prefs); pairs with US-010
@@ -97,6 +97,21 @@ prefs are cheap to include; digest mode stays out of Release 1.
    per-run URL to link to. Spun out as **US-030** (run permalink); when it
    lands, `compose()` in `notify.js` points at `/runs/<id>` instead.
 
+10. **Account-level prefs wait for US-021.** The recipient chain already has an
+    account tier — `notify.js` joins `users.email` as the last fallback, and
+    `db.js` seeds that row from `OPERATOR_EMAIL` — so the question is only
+    whether the UI can edit it, and the answer for Release 1 is no. "Account"
+    does not mean anything yet: there is one seeded user and no login, so an
+    account-settings surface today would edit the same operator row that holds
+    the BYOK key and will receive magic-links, before the story that gives it
+    an owner. Tiers 2 and 3 stay env-only, which was decision 1's intent.
+
+    Left behind for whoever picks this up: `OPERATOR_EMAIL` defaults to
+    `operator@qassist.local` (`config.js:68`), so on an instance with no
+    project recipients and no `NOTIFY_EMAILS` the send resolves to an address
+    that cannot receive. Documenting the variable is the Release-1 fix; making
+    it settable is US-021's.
+
 ## Progress (2026-07-23)
 
 Backend shipped: `004_notifications.sql` (drop the dead test columns, prefs on
@@ -106,7 +121,7 @@ Backend shipped: `004_notifications.sql` (drop the dead test columns, prefs on
 `maybeNotify` hook in `runs.js`. Prefs are deliberately not settable on
 `POST /api/projects` — a create names a project, and the UI edits prefs after.
 
-Verification: 97 server tests plus `notify.test.js`'s 14, `npm run check`
+Verification: 97 server tests (`notify.test.js` among them), `npm run check`
 clean, and migration 004 applies to real Postgres (`scheduler-postgres.test.js`
 runs the migrations there). The mail tests run a real HTTP server on a loopback
 port as the provider, so what they assert is the actual outbound request.
@@ -130,15 +145,28 @@ Also: an uncast `default '{}'` on a `text[]` comes back from pg-mem as the
 string `"{}"`, so the API answers a different shape there than in production —
 the column declares `default '{}'::text[]`.
 
+UI shipped: `NotifyPrefs.jsx` — mode, recipients, and the unsubscribed
+addresses in the list with a re-enable — opened from a `Bell` in the project
+row's `.row-actions`, plus `mail` on `/api/health` and an Email row in
+Settings. It is a modal off the list row rather than a card in the detail
+pane: that is where `CiCommand` is already reached, and the two dialogs are
+the same kind of thing — per-project settings that are not part of managing
+modules.
+
+**The row ran out of room**, which is this story's doing: notifications made a
+fourth icon on every project row. Delete moved off the row and into the inline
+editor (far left, away from Save, matching `.modal-foot .btn-danger`), so
+projects are back to three actions and modules to two. `GroupEditor` is shared,
+so both picked it up, and the pencil is now labelled Edit rather than Rename.
+
 ## Still to do
 
-- **Prefs UI** — mode + recipients on the project. The Projects detail pane is
-  the home; the existing row editor is an inline rename form, so this wants its
-  own card or modal. `/api/health` should report `mail` alongside `agent_ready`
-  so the UI can say plainly when email is not configured on this instance.
 - **Docs** — `.env.example` (`RESEND_API_KEY`, `MAIL_FROM`, `NOTIFY_EMAILS`,
-  `NOTIFY_MODE`, `NOTIFY_SECRET`), README's API section, and `db/README.md`,
-  whose notification row still says the prefs live on `tests`.
+  `NOTIFY_MODE`, `NOTIFY_SECRET`, and `OPERATOR_EMAIL` per decision 10),
+  README's API section, and `db/README.md`, whose notification row still says
+  the prefs live on `tests`.
+- **A test for `health.mail`** — two views branch on it and neither branch is
+  covered.
 - **A real send**, once US-007's DNS work verifies the qassist.run sender
   domain. Until then Resend only delivers to the account's own address.
 
@@ -149,4 +177,5 @@ the column declares `default '{}'::text[]`.
       unproven against Resend itself until the sender domain is verified
 - [x] on-failure-only default doesn't email on passes
 - [x] Unsubscribe/prefs honored — suppression is checked on every send
-- [ ] The prefs are reachable from the UI
+- [x] The prefs are reachable from the UI — `NotifyPrefs.jsx`, opened from the
+      project row; the dialog also says when the instance cannot send at all
