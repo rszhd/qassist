@@ -11,8 +11,10 @@
 import express from 'express';
 import { db, getOperatorUserId, isUuid } from '../db.js';
 import { h, requireDb, requireAgentKey, runTestsFromRequest, slugify } from './helpers.js';
+import { NOTIFY_MODES, cleanEmails } from '../notify.js';
 
-export const PROJECT_COLS = 'id, name, slug, created_at, updated_at';
+export const PROJECT_COLS =
+  'id, name, slug, notify, notify_emails, created_at, updated_at';
 export const MODULE_COLS = 'id, project_id, name, slug, created_at, updated_at';
 const TEST_RUN_COLS = 'id, goal, start_url, max_steps, model';
 
@@ -133,6 +135,38 @@ export async function resolveSlug(body, current, table, parentCol, parentId) {
   return { slug: next };
 }
 
+/**
+ * Validate the notification prefs a write asks for (US-012). Returns
+ * `{ error }`, or `{ mode, emails }` where `undefined` means "leave unchanged".
+ * @param {{ notify?: string, notify_emails?: any }} body
+ */
+function resolveNotify(body) {
+  const { notify, notify_emails } = body;
+  if (notify !== undefined && !NOTIFY_MODES.has(notify)) {
+    return { error: `notify must be one of ${[...NOTIFY_MODES].join(', ')}` };
+  }
+  if (notify_emails === undefined) return { mode: notify, emails: undefined };
+  const cleaned = cleanEmails(notify_emails);
+  if ('error' in cleaned) return { error: cleaned.error };
+  return { mode: notify, emails: cleaned.emails };
+}
+
+/**
+ * A `notify_emails` value as SQL. Spelled out as an array literal over
+ * placeholders rather than bound as one parameter: pg-mem (the test harness)
+ * has no array parameter binding, and a recipient list is a handful of
+ * entries. Appends its values to `params`.
+ * @param {string[] | undefined} emails
+ * @param {any[]} params
+ */
+function emailsSql(emails, params) {
+  if (emails === undefined) return 'notify_emails';
+  if (!emails.length) return `'{}'::text[]`;
+  const placeholders = emails.map((_, i) => `$${params.length + i + 1}`).join(', ');
+  params.push(...emails);
+  return `array[${placeholders}]::text[]`;
+}
+
 /** Start a run per member test of a module; `{ empty: true }` when it has none. */
 export async function runModule(mod, body) {
   const { rows: tests } = await db().query(
@@ -225,11 +259,16 @@ export function projectsRouter({ checkToken }) {
       const body = req.body || {};
       const slug = await resolveSlug(body, project, 'projects', 'user_id', getOperatorUserId());
       if (slug.error) return res.status(400).json({ error: slug.error });
+      const notify = resolveNotify(body);
+      if (notify.error) return res.status(400).json({ error: notify.error });
+      const params = [project.id, body.name ?? null, slug.slug, notify.mode ?? null];
       const { rows } = await db().query(
         `update projects set name = coalesce($2, name), slug = coalesce($3, slug),
+                notify = coalesce($4, notify),
+                notify_emails = ${emailsSql(notify.emails, params)},
                 updated_at = now()
           where id = $1 returning ${PROJECT_COLS}`,
-        [project.id, body.name ?? null, slug.slug]
+        params
       );
       res.json(rows[0]);
     })

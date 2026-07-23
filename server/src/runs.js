@@ -9,6 +9,7 @@ import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { db, getOperatorUserId } from './db.js';
+import { notifyRunFinished } from './notify.js';
 import {
   MAX_CONCURRENT,
   DEFAULT_MAX_STEPS,
@@ -153,6 +154,19 @@ function persistUpdate(run) {
       ]
     )
     .catch((err) => console.error(`db: update run ${run.id.slice(0, 8)} failed:`, err.message));
+}
+
+// A run is mailable (US-012) once it has finished *and* the report it would
+// attach has stopped changing. Those two arrive in either order — the renderer
+// usually outlives the agent process, but a watchdog kill doesn't wait for it —
+// so both paths call this and whichever completes the pair wins. The flag is
+// belt and braces over the notifications table's own (run_id, recipient) key.
+function maybeNotify(run) {
+  if (run.notified || !run.finishedAt || run.reportStatus === 'generating') return;
+  run.notified = true;
+  notifyRunFinished(run).catch((err) =>
+    console.error(`notify ${run.id.slice(0, 8)} failed:`, err.message)
+  );
 }
 
 // --- run lifecycle ---
@@ -353,6 +367,7 @@ function startRun(runId) {
     run.finishedAt = Date.now();
     persistUpdate(run);
     broadcast(run, { type: 'end', status: run.status, code });
+    maybeNotify(run);
     startNext();
     // unref: an expiry timer must never hold the process open (e.g. in tests)
     setTimeout(() => runs.delete(runId), RUN_TTL_MS).unref();
@@ -413,6 +428,7 @@ function generateReport(run) {
     run.reportPath = pdfPath;
     persistUpdate(run);
     console.log(`report ${run.id.slice(0, 8)}: ${run.reportStatus}`);
+    maybeNotify(run);
   });
 }
 

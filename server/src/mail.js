@@ -1,0 +1,48 @@
+// @ts-check
+// The transport, and nothing else (US-012): one POST to Resend's REST API.
+// No SDK — the call is a fetch with a JSON body, and a dependency that wraps
+// that would be more code to audit than the code it replaces.
+//
+// Who gets mail and why lives in notify.js; this file only knows how to hand
+// an already-composed message to the provider.
+import { RESEND_API_KEY, RESEND_API_URL, MAIL_FROM } from './config.js';
+
+/** Sending needs both a key and a verified sender; either missing = feature off. */
+export function mailEnabled() {
+  return !!(RESEND_API_KEY && MAIL_FROM);
+}
+
+/**
+ * Send one message. Throws on a non-2xx so the caller can record the reason
+ * against the delivery row rather than losing it to a log line.
+ * @param {{ to: string, subject: string, text: string,
+ *           unsubscribeUrl?: string | null,
+ *           attachments?: { filename: string, content: string }[] }} msg
+ * @returns {Promise<string>} the provider's message id
+ */
+export async function sendMail(msg) {
+  const res = await fetch(RESEND_API_URL, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${RESEND_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      from: MAIL_FROM,
+      to: [msg.to],
+      subject: msg.subject,
+      text: msg.text,
+      attachments: msg.attachments,
+      // The header is what a mail client's own "unsubscribe" button reads;
+      // without it the link in the body is the only way out.
+      headers: msg.unsubscribeUrl ? { 'List-Unsubscribe': `<${msg.unsubscribeUrl}>` } : undefined,
+    }),
+  });
+  const body = await res.text();
+  if (!res.ok) throw new Error(`resend ${res.status}: ${body.slice(0, 200)}`);
+  try {
+    return JSON.parse(body).id || '';
+  } catch {
+    return '';
+  }
+}

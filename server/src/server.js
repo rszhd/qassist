@@ -22,6 +22,7 @@ import { suitesRouter } from './routes/suites.js';
 import { projectsRouter } from './routes/projects.js';
 import { modulesRouter } from './routes/modules.js';
 import { schedulesRouter } from './routes/schedules.js';
+import { notificationsRouter } from './routes/notifications.js';
 
 await initDb();
 
@@ -67,6 +68,9 @@ app.use('/api/suites', suitesRouter({ checkToken }));
 app.use('/api/projects', projectsRouter({ checkToken }));
 app.use('/api/modules', modulesRouter({ checkToken }));
 app.use('/api/schedules', schedulesRouter({ checkToken }));
+// Not wrapped in checkToken as a whole: /unsubscribe is reached by a recipient
+// from their inbox and carries its own signature (routes/notifications.js).
+app.use('/api/notifications', notificationsRouter({ checkToken }));
 
 app.use(express.static(PUBLIC_DIR));
 // SPA fallback: anything not matched above returns the React app.

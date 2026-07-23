@@ -1,6 +1,7 @@
 // @ts-check
 // Central env config, read once at import time (tests set env before
 // importing the app).
+import crypto from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -41,6 +42,25 @@ export const ARTIFACT_RETENTION_DAYS = parseInt(process.env.ARTIFACT_RETENTION_D
 // is a clear message at startup and on POST, not a Python traceback ~15s into
 // the first run. US-005 (BYOK) will extend this to per-request/stored keys.
 export const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
+
+// Email notifications (US-012). Unset key or sender = the feature is off:
+// prefs are still stored and editable, nothing is sent.
+export const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
+export const MAIL_FROM = process.env.MAIL_FROM || '';
+// Overridable so the tests can point the sender at a local server instead of
+// stubbing fetch — the request that goes out is then the real one.
+export const RESEND_API_URL = process.env.RESEND_API_URL || 'https://api.resend.com/emails';
+// Instance fallbacks for tests that belong to no project.
+export const NOTIFY_EMAILS = (process.env.NOTIFY_EMAILS || '')
+  .split(',')
+  .map((e) => e.trim())
+  .filter(Boolean);
+export const NOTIFY_MODE = process.env.NOTIFY_MODE || 'failure';
+// Signs unsubscribe links. Derived from the API token when unset so a link
+// keeps working across restarts; the random fallback only matters on an
+// instance with no token at all, where the links last as long as the process.
+export const NOTIFY_SECRET =
+  process.env.NOTIFY_SECRET || API_TOKEN || crypto.randomBytes(32).toString('hex');
 
 // Control plane (US-009). No DATABASE_URL = legacy in-memory mode: ad-hoc
 // runs work, saved tests/suites respond 503.
