@@ -635,6 +635,32 @@ test('run history filters by date range', async () => {
   assert.equal(outOfRange.total, 0);
 });
 
+test('run history filters by trigger, including the scheduler its callers cannot claim', async () => {
+  const ids = {};
+  for (const trigger of ['ui', 'api', 'ci', 'schedule']) {
+    ids[trigger] = randomUUID();
+    await pool.query(
+      `insert into runs (id, goal, start_url, max_steps, status, trigger)
+       values ($1, 'triggered', 'https://example.com', 60, 'passed', $2)`,
+      [ids[trigger], trigger]
+    );
+  }
+
+  const scheduled = (
+    await request(app).get('/api/runs?trigger=schedule&limit=200').set(auth).expect(200)
+  ).body;
+  assert.ok(scheduled.runs.some((r) => r.id === ids.schedule));
+  assert.ok(scheduled.runs.every((r) => r.trigger === 'schedule'));
+
+  // Comma-separated, so "started by hand" is one request rather than two.
+  const manual = (
+    await request(app).get('/api/runs?trigger=ui,api&limit=200').set(auth).expect(200)
+  ).body;
+  const manualIds = manual.runs.map((r) => r.id);
+  assert.ok(manualIds.includes(ids.ui) && manualIds.includes(ids.api));
+  assert.ok(!manualIds.includes(ids.schedule) && !manualIds.includes(ids.ci));
+});
+
 test('run history hides artifact links once retention prunes the directory', async () => {
   const id = randomUUID();
   await pool.query(
@@ -716,6 +742,7 @@ test('run history rejects bad filters and paging', async () => {
     'test_id=nope',
     'project_id=nope',
     'status=bogus',
+    'trigger=bogus',
     'since=not-a-date',
     'limit=0',
     'limit=1000',

@@ -7,6 +7,13 @@ import { OPENAI_API_KEY } from '../config.js';
 export const TRIGGERS = new Set(['ui', 'api', 'ci']);
 
 /**
+ * Every trigger a stored run can carry — the claimable ones plus the
+ * scheduler's. History filters on this wider set: a caller may not *say* a run
+ * was scheduled, but it may certainly ask to see the ones that were.
+ */
+export const STORED_TRIGGERS = new Set([...TRIGGERS, 'schedule']);
+
+/**
  * Express 4 doesn't catch async errors — wrap handlers so rejections reach
  * the error middleware instead of crashing the process.
  * @param {(req: import('express').Request, res: import('express').Response) => Promise<any>} fn

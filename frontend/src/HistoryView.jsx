@@ -18,6 +18,16 @@ const STATUS_FILTERS = [
   { value: 'unfinished', label: 'Still running', query: 'queued,running' },
 ];
 
+// 'ui,api' is one option rather than two: what you want to separate is "a
+// person was watching" from "something ran this on its own", and which button
+// the person pressed is not that distinction.
+const TRIGGER_FILTERS = [
+  { value: 'all', label: 'Any trigger', query: '' },
+  { value: 'schedule', label: 'Scheduled', query: 'schedule' },
+  { value: 'manual', label: 'Started by hand', query: 'ui,api' },
+  { value: 'ci', label: 'From CI', query: 'ci' },
+];
+
 const RANGES = [
   { value: 'all', label: 'Any time', hours: null },
   { value: '24h', label: 'Last 24 hours', hours: 24 },
@@ -31,6 +41,7 @@ export default function HistoryView({ token }) {
   const [project, setProject] = useState('all');
   const [testId, setTestId] = useState('all');
   const [status, setStatus] = useState('all');
+  const [trigger, setTrigger] = useState('all');
   const [range, setRange] = useState('all');
   const [offset, setOffset] = useState(0);
   const [data, setData] = useState({ runs: [], total: 0 });
@@ -73,10 +84,12 @@ export default function HistoryView({ token }) {
     if (testId !== 'all') q.set('test_id', testId);
     const statuses = STATUS_FILTERS.find((f) => f.value === status)?.query;
     if (statuses) q.set('status', statuses);
+    const triggers = TRIGGER_FILTERS.find((f) => f.value === trigger)?.query;
+    if (triggers) q.set('trigger', triggers);
     const hours = RANGES.find((r) => r.value === range)?.hours;
     if (hours) q.set('since', new Date(Date.now() - hours * 3600e3).toISOString());
     return q.toString();
-  }, [project, testId, status, range, offset]);
+  }, [project, testId, status, trigger, range, offset]);
 
   const load = useCallback(async () => {
     try {
@@ -96,7 +109,7 @@ export default function HistoryView({ token }) {
   // Changing a filter invalidates the page number, never the other way round.
   useEffect(() => {
     setOffset(0);
-  }, [project, testId, status, range]);
+  }, [project, testId, status, trigger, range]);
 
   // A run started in the Run view finishes while this list is open, so poll —
   // but only while something is actually in flight.
@@ -150,6 +163,11 @@ export default function HistoryView({ token }) {
                 <option key={f.value} value={f.value}>{f.label}</option>
               ))}
             </select>
+            <select value={trigger} onChange={(e) => setTrigger(e.target.value)}>
+              {TRIGGER_FILTERS.map((f) => (
+                <option key={f.value} value={f.value}>{f.label}</option>
+              ))}
+            </select>
             <select value={range} onChange={(e) => setRange(e.target.value)}>
               {RANGES.map((r) => (
                 <option key={r.value} value={r.value}>{r.label}</option>
@@ -163,7 +181,11 @@ export default function HistoryView({ token }) {
             <EmptyState icon={Clock}>Loading runs…</EmptyState>
           ) : data.runs.length === 0 ? (
             <EmptyState icon={Clock} title="No runs to show">
-              {data.total === 0 && status === 'all' && range === 'all' && testId === 'all'
+              {data.total === 0 &&
+              status === 'all' &&
+              trigger === 'all' &&
+              range === 'all' &&
+              testId === 'all'
                 ? 'Start a run and it is kept here — verdict, report and recording — instead of disappearing when the page closes.'
                 : 'No runs match these filters.'}
             </EmptyState>

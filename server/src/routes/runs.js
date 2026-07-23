@@ -12,7 +12,7 @@ import path from 'node:path';
 import { db, isUuid } from '../db.js';
 import { createRun, getRun, stepsOf } from '../runs.js';
 import { ARTIFACTS_DIR, RECORDING_FILENAME, REPORT_DATA_FILENAME } from '../config.js';
-import { h, requireDb, requireAgentKey } from './helpers.js';
+import { h, requireDb, requireAgentKey, STORED_TRIGGERS } from './helpers.js';
 
 /** Mirrors the runs.status check constraint in 001_init.sql. */
 const STATUSES = new Set(['queued', 'running', 'passed', 'failed', 'completed', 'error']);
@@ -31,7 +31,8 @@ const LIST_COLS = `r.id, r.test_id, r.trigger, r.goal, r.start_url, r.status,
   t.name as test_name, t.project_id, t.module_id`;
 
 /**
- * Translate ?test_id/?status/?project_id/?since/?until into a WHERE clause.
+ * Translate ?test_id/?status/?trigger/?project_id/?since/?until into a WHERE
+ * clause.
  * Returns an error string instead of throwing so the caller can 400.
  * @param {Record<string, any>} q
  * @returns {{ error?: string, where: string, params: any[] }}
@@ -59,6 +60,15 @@ function buildFilters(q) {
       return { error: 'invalid status', where: '', params: [] };
     }
     add('r.status = any($?)', wanted);
+  }
+  if (q.trigger !== undefined) {
+    // Comma-separated like status, so "started by hand" is one request over
+    // 'ui,api' rather than a filter per entry point.
+    const wanted = String(q.trigger).split(',').map((s) => s.trim()).filter(Boolean);
+    if (!wanted.length || wanted.some((t) => !STORED_TRIGGERS.has(t))) {
+      return { error: 'invalid trigger', where: '', params: [] };
+    }
+    add('r.trigger = any($?)', wanted);
   }
   if (q.project_id !== undefined) {
     if (!isUuid(q.project_id)) return { error: 'invalid project_id', where: '', params: [] };
