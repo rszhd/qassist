@@ -1,9 +1,10 @@
-import { FolderTree, History, Play, Settings } from 'lucide-react';
+import { CalendarClock, FolderTree, History, Play, Settings } from 'lucide-react';
 import { IconButton } from './ui.jsx';
 
 const VIEWS = [
   ['run', 'Run', Play],
   ['history', 'History', History],
+  ['schedules', 'Schedules', CalendarClock],
   ['projects', 'Projects', FolderTree],
 ];
 

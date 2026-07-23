@@ -695,6 +695,9 @@ button.row-main { background: transparent; border: 0; padding: 0; color: inherit
   font-size: var(--t-xs); font-weight: 600; text-transform: uppercase; letter-spacing: .06em;
   color: var(--faint); border: 1px solid var(--border-hi); border-radius: var(--r-sm); padding: 0 var(--s15);
 }
+/* A paused schedule stays in the list — it is switched off, not deleted — but
+   it should not read as loudly as the rows that are going to fire. */
+.list li.paused .row-name, .list li.paused .run-when { color: var(--faint); }
 
 /* Sub-section rule: same construction as the card divider one level up, at
    the group's own tighter gap on both sides. */

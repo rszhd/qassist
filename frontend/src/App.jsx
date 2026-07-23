@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import HistoryView from './HistoryView.jsx';
 import ProjectsView from './ProjectsView.jsx';
 import RunView from './RunView.jsx';
+import SchedulesView from './SchedulesView.jsx';
 import TopBar from './TopBar.jsx';
 import { Button, Field, Modal } from './ui.jsx';
 
@@ -86,6 +87,7 @@ export default function App() {
           />
         </div>
         {view === 'history' && <HistoryView token={token} />}
+        {view === 'schedules' && <SchedulesView token={token} />}
         {view === 'projects' && <ProjectsView token={token} />}
       </div>
 
