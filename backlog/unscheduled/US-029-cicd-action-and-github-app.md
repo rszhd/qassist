@@ -22,8 +22,8 @@ documents, so neither should need a server change beyond what tier 1 lands.
 
 ## Tiers
 
-1. **Reusable Action** — `qassist/run-tests@v1`: wraps trigger+poll, takes
-   `test_id`/`suite_id` (or a project/module slug) plus an optional
+1. **Reusable Action** — `qassist/run-tests@v1`: wraps trigger+poll, takes a
+   module or suite (US-008's two CI targets, by slug) plus an optional
    `start_url`, fails the job on a failing test, and links the PDF report in
    the job summary. (~1–2 days)
 2. **GitHub App** — webhook-driven runs posting **PR status checks**,
@@ -40,8 +40,8 @@ put the mapping.
 
 ### Tier 2 — reusable Action
 
-- [ ] A workflow using `qassist/run-tests@v1` with a test, suite, module or
-      project id runs it and fails the job on a failing verdict
+- [ ] A workflow using `qassist/run-tests@v1` with a module or suite slug runs
+      it and fails the job on a failing verdict
 - [ ] `start_url` input overrides the saved test's URL, so a preview
       deployment can be tested
 - [ ] The job summary links the report PDF for every run the step started
