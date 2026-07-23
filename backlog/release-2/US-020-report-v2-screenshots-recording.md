@@ -2,9 +2,10 @@
 
 **As a** user, **I want** the report to show per-step screenshots and give me the session recording, **so that** I can see exactly what the agent did — especially on failures — without rerunning the test.
 
-- **Status:** 📋 Planned
-- **Priority:** P2 (Release 1, last in the build order — lowered 2026-07-23:
-  it blocks nothing, so it yields to US-010/US-012)
+- **Status:** 📋 Planned (moved to Release 2 on 2026-07-23 — Release 1 is the
+  self-host launch, and a better report is not what gates it)
+- **Priority:** P2 (Release 2 — lowered 2026-07-23: it blocks nothing, so it
+  yielded to US-010/US-012 and then out of the release entirely)
 - **Estimate:** ~1–2 days
 - **Depends on:** US-006 (recording must exist to link/embed)
 

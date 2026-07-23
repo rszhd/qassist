@@ -9,7 +9,9 @@ consistent. The backlog holds *what* we build; this holds *where* it goes.
 **This repo is the product, and it is the only repo for now.** Engine
 (`agent/`), server, frontend, control plane (Postgres, saved tests,
 scheduling, notifications), auth, and even Stripe billing all live here and
-ship open source (license leaning AGPL-3.0, not final).
+ship open source under **AGPL-3.0-only** — settled 2026-07-23, with
+contributions under a DCO rather than a CLA; the reasoning and the checklist
+are [US-031](../backlog/release-1/US-031-license-and-public-repo.md).
 
 The paid hosted tier at qassist.run runs this exact codebase. Billing is
 **env-gated**: with `STRIPE_*` unset — the self-host default — there is no
@@ -51,8 +53,16 @@ Before building anything, ask: **"would a self-hoster want this?"**
 
 ## Before flipping this repo public
 
+Owned by [US-031](../backlog/release-1/US-031-license-and-public-repo.md); two
+of the three are already answered.
+
 - gitleaks/trufflehog scan of full git history; if anything is found,
-  prefer a fresh squashed initial commit over history scrubbing.
-- Decide whether README/backlog keep the deployment host's IP.
-- Decide CLA/DCO **before** accepting outside contributions (AGPL
-  relicensing later needs every contributor's consent otherwise).
+  prefer a fresh squashed initial commit over history scrubbing. **Still to
+  do** — a by-hand check on 2026-07-23 found no key in `git log --all -p`, no
+  committed `.env`, and no host IP in any tracked markdown, but a grep is not
+  a scanner.
+- ~~Decide whether README/backlog keep the deployment host's IP.~~ Moot: no
+  tracked file names it.
+- ~~Decide CLA/DCO~~ **DCO** (2026-07-23) — `Signed-off-by`, copyright stays
+  with the author. A CLA is what you need to relicense unilaterally later; the
+  repo has one author, so that is not a problem it has yet.

@@ -2,8 +2,9 @@
 
 **As a** visitor, **I want** to sign up and log in to the hosted QAssist, **so that** I get my own tests, runs, and API keys without the operator provisioning anything by hand.
 
-- **Status:** 📋 Planned
-- **Priority:** P1 (Release 1) — required for the hosted paid tier; also
+- **Status:** 📋 Planned (moved to Release 2 on 2026-07-23 with the rest of the
+  hosted tier)
+- **Priority:** P1 (Release 2) — required for the hosted paid tier; also
   useful to self-hosters who want multiple users
 - **Estimate:** ~1–2 days
 - **Depends on:** US-009 (Postgres `users`/`api_keys` tables), US-007 (public

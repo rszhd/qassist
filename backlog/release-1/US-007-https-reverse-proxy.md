@@ -21,9 +21,27 @@
 
 Current workaround being replaced: `ssh -L 8090:localhost:8080 qagent-vps`.
 
+## The DNS trip also finishes US-012 (added 2026-07-23)
+
+[US-012](done/US-012-email-reports.md) shipped with one thing outstanding: no
+mail has ever gone through Resend, because Resend only delivers to the account
+owner's own address until the sender domain is verified — and verifying it
+means adding SPF/DKIM records to qassist.run, which is the same DNS panel this
+story is already in for the A record. So the proof lands here rather than
+re-opening a finished story: the story stays in `done/`, and the criteria below
+carry the send.
+
+`PUBLIC_BASE_URL` needs setting to `https://qassist.run` in the same pass — it
+is what puts a working recording link in the PDF and a working run link
+([US-030](done/US-030-run-permalink.md)) in the mail, and until this story
+there was no URL to give it.
+
 ## Acceptance criteria
 
 - [ ] `https://qassist.run` serves the UI; API + WebSocket live view work through it
 - [ ] Port 8080 remains unreachable externally
 - [ ] Unauthenticated requests still get 401
 - [ ] Certificate auto-renews (Caddy default)
+- [ ] qassist.run is verified in Resend (SPF + DKIM), and a real failing run
+      mails its report to an address that is **not** the Resend account owner's
+- [ ] `PUBLIC_BASE_URL` is set, and the run link in that mail opens the run

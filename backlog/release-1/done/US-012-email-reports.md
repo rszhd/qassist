@@ -175,7 +175,10 @@ process. 98 server tests, `npm run check` clean.
   domain. Until then Resend only delivers to the account's own address. This
   does not block the story: criterion 1 is ticked against the stand-in
   provider and carries the caveat, because waiting on it would park a finished
-  feature behind an unstarted one.
+  feature behind an unstarted one. **Owned by [US-007](../US-007-https-reverse-proxy.md)
+  since 2026-07-23** — the SPF/DKIM records are the same DNS visit as the A
+  record, so the proof is an acceptance criterion there rather than this story
+  coming back out of `done/`.
 
 ## Acceptance criteria
 

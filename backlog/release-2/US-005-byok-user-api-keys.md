@@ -3,8 +3,10 @@
 **As a** user, **I want** to run tests with my own OpenAI API key, **so that** I control model cost and rate limits instead of sharing the operator's key.
 
 - **Status:** 📋 Planned (decision made 2026-07-21; pulled into Release 1
-  2026-07-22 — the hosted paid tier is BYOK, so this is a launch requirement)
-- **Priority:** P1 (Release 1) — prerequisite for offering the service to
+  2026-07-22, then moved to Release 2 on 2026-07-23 — it is a *hosted*-tier
+  launch requirement, and a self-hoster already supplies the one key their
+  instance uses)
+- **Priority:** P1 (Release 2) — prerequisite for offering the service to
   others; removes the operator's token bill and OpenAI rate-limit ceiling as
   scaling limits. On the paid tier, payment covers hosting — LLM tokens are
   the user's own key (see US-022).
