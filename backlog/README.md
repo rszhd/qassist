@@ -178,7 +178,16 @@ rules live in [`docs/repo-model.md`](../docs/repo-model.md). Email provider:
 | [US-021](release-2/US-021-signup-auth.md) | Signup & login (magic-link auth) | 📋 Planned | US-009, US-007 |
 | [US-022](release-2/US-022-stripe-billing.md) | Paid tier: Stripe billing | 📋 Planned | US-021, US-005 |
 | [US-028](release-2/US-028-per-user-concurrency-limit.md) | Per-user concurrent run limit (hosted) | 📋 Planned | US-021, US-022, US-027 |
+| [US-033](release-2/US-033-live-demo-replay.md) | Live demo: a canned run that replays as if it were live | 📋 Planned (P2) | US-006, US-026 |
 | [US-020](release-2/US-020-report-v2-screenshots-recording.md) | Report v2: step screenshots + recording | 📋 Planned (P2) | US-006 |
+
+Added to the release 2026-07-23: **US-033**, because "try before you
+subscribe" has no cheap answer otherwise. A real free trial spends a browser
+slot and LLM tokens per visitor, and BYOK (US-005) puts an API key in front of
+the evaluation anyway. The live stage is already fed by an event stream rather
+than by the agent, so a recorded run replayed at its original pace costs
+nothing per visitor — the story's work is mostly about keeping it honest and
+keeping it out of the database.
 
 ### Build order
 
@@ -186,7 +195,11 @@ rules live in [`docs/repo-model.md`](../docs/repo-model.md). Email provider:
 2. **US-021 → US-022 → US-028** — signup, then billing, then the per-user
    concurrency cap; launch when US-022 lands (US-028 can follow the launch —
    it only bites once several subscribers share the box)
-3. **US-020** — the screenshots, into the report and hanging off a step in
+3. **US-033** — the demo, beside US-022 rather than before it: it depends on
+   neither signup nor billing technically, but the replay ends on a "subscribe"
+   CTA that has nowhere to point until there is something to buy. Record the
+   fixtures earlier if convenient — they only need US-006, which shipped.
+4. **US-020** — the screenshots, into the report and hanging off a step in
    US-026's activity list. P2 since 2026-07-23: it makes a good report better
    rather than making anything possible, which is also why it left Release 1.
    Its step section renders `Step {n}`, which is why `progress` events were
