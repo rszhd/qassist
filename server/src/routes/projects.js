@@ -70,11 +70,18 @@ async function testCounts(column) {
   return new Map(rows.map((r) => [r.key, r.n]));
 }
 
-/** A project's modules, each with its test count. */
-async function listModules(projectId) {
+/**
+ * Modules with their test counts — one project's, or every project's when
+ * `projectId` is null (which is what the flat /api/modules list asks for).
+ * @param {string|null} [projectId]
+ */
+export async function listModules(projectId = null) {
   const { rows } = await db().query(
-    `select ${MODULE_COLS} from modules where project_id = $1 order by created_at`,
-    [projectId]
+    `select m.${MODULE_COLS.split(', ').join(', m.')} from modules m
+       join projects p on p.id = m.project_id
+      where p.user_id = $1 ${projectId ? 'and m.project_id = $2' : ''}
+      order by m.created_at`,
+    projectId ? [getOperatorUserId(), projectId] : [getOperatorUserId()]
   );
   const counts = await testCounts('module_id');
   return rows.map((m) => ({ ...m, test_count: counts.get(m.id) || 0 }));

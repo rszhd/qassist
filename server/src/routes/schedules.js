@@ -22,6 +22,26 @@ const TARGETS = [
   ['project_id', 'projects'],
 ];
 
+// The list is read by a view that shows every schedule at once, whatever it
+// points at, so it resolves the target here: without a name the UI would have
+// to fetch all four collections and join them client-side to print one row.
+// Which id column is set is already the target type (see decision 8), so the
+// type is derived rather than stored.
+const LIST_QUERY = `
+  select ${COLS.split(', ')
+    .map((c) => `s.${c}`)
+    .join(', ')},
+         case when s.test_id is not null then 'test'
+              when s.module_id is not null then 'module'
+              when s.suite_id is not null then 'suite'
+              else 'project' end as target_type,
+         coalesce(t.name, m.name, u.name, p.name) as target_name
+    from schedules s
+    left join tests t on t.id = s.test_id
+    left join modules m on m.id = s.module_id
+    left join suites u on u.id = s.suite_id
+    left join projects p on p.id = s.project_id`;
+
 /**
  * Pick the one target a write names and check it exists. The column is the
  * target type — the table's check constraint allows exactly one.
@@ -57,12 +77,12 @@ export function schedulesRouter({ checkToken }) {
         if (typeof value !== 'string' || !value) continue;
         if (!isUuid(value)) return res.status(400).json({ error: `invalid ${column}` });
         params.push(value);
-        where.push(`${column} = $${params.length}`);
+        where.push(`s.${column} = $${params.length}`);
       }
       const { rows } = await db().query(
-        `select ${COLS} from schedules
+        `${LIST_QUERY}
          ${where.length ? `where ${where.join(' and ')}` : ''}
-         order by next_run_at nulls last`,
+         order by s.next_run_at nulls last`,
         params
       );
       res.json({ schedules: rows });

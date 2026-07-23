@@ -325,6 +325,26 @@ test('projects and modules are addressable by slug as well as id', async () => {
   await request(app).get('/api/projects/nope').set(auth).expect(404);
 });
 
+test('modules list flat, across projects or filtered to one', async () => {
+  const a = await makeProject('Flat A');
+  const b = await makeProject('Flat B');
+  for (const [project, name] of [[a, 'one'], [b, 'two']]) {
+    await request(app)
+      .post(`/api/projects/${project.id}/modules`)
+      .set(auth)
+      .send({ name })
+      .expect(201);
+  }
+
+  const all = (await request(app).get('/api/modules').set(auth).expect(200)).body.modules;
+  const names = all.map((m) => m.name);
+  assert.ok(names.includes('one') && names.includes('two'), 'both projects are represented');
+
+  const mine = (await request(app).get(`/api/modules?project_id=${b.id}`).set(auth).expect(200)).body;
+  assert.deepEqual(mine.modules.map((m) => m.name), ['two']);
+  await request(app).get('/api/modules?project_id=nope').set(auth).expect(400);
+});
+
 test('assigning a test to a module derives its project', async () => {
   const p = await makeProject('Derived');
   const mod = (

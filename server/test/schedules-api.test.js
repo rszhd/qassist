@@ -134,6 +134,14 @@ test('every target type is accepted', async () => {
 
   const list = (await request(app).get('/api/schedules').set(auth).expect(200)).body;
   assert.equal(list.schedules.length, 4);
+
+  // The list resolves its targets, so a view showing every schedule at once
+  // can name each one without fetching all four collections itself.
+  const named = new Map(list.schedules.map((s) => [s.target_type, s.target_name]));
+  assert.deepEqual(
+    Object.fromEntries(named),
+    { test: 'login smoke', module: 'auth', suite: 'regression', project: 'Shop' }
+  );
 });
 
 test('a write must name exactly one target that exists', async () => {

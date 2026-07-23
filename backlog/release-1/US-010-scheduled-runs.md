@@ -98,6 +98,25 @@
    behind is `runTestsFromRequest`, the thin wrapper that decides which
    trigger an HTTP caller is allowed to claim.
 
+9. **The UI is a dedicated Schedules view** (decided 2026-07-23), a fourth
+   top-bar entry beside Run, Library and History rather than a schedule
+   control on each target's row. A schedule can point at four different kinds
+   of thing, so per-row controls would scatter the same editor across
+   `SavedTests`, `Suites` and `ProjectsView` and still leave "what fires
+   tonight?" unanswerable without visiting all three. One list ordered by
+   `next_run_at` answers it directly. Decision 7's progressive disclosure still
+   holds *inside* the editor — kind defaults to `Off`, and each kind's fields
+   appear only once it is chosen — and the view itself only appears when the
+   control plane is up, like the rest of the nav.
+
+   That flat list has to name its targets, which is what the two read paths
+   added ahead of the UI are for: `GET /api/schedules` resolves `target_type`
+   (derived from which id column is set — the same fact decision 8 relies on,
+   so there is still no discriminator to disagree with) and `target_name` via
+   left joins, and `GET /api/modules` lists modules flat with an optional
+   `?project_id=`, mirroring `/api/suites`. Without those, rendering one row
+   would mean fetching all four collections and joining them in the browser.
+
 ## Acceptance criteria
 
 - [ ] A daily-scheduled test runs within a few minutes of its slot

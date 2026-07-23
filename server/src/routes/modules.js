@@ -9,12 +9,28 @@
 import express from 'express';
 import { db } from '../db.js';
 import { h, requireDb, requireAgentKey } from './helpers.js';
-import { MODULE_COLS, findModuleById, resolveSlug, runModule } from './projects.js';
+import { isUuid } from '../db.js';
+import { MODULE_COLS, findModuleById, listModules, resolveSlug, runModule } from './projects.js';
 
 /** @param {{ checkToken: import('express').RequestHandler }} deps */
 export function modulesRouter({ checkToken }) {
   const r = express.Router();
   r.use(checkToken, requireDb);
+
+  // Flat list, mirroring /api/suites: a caller that wants to offer every
+  // module at once (the schedule target picker) would otherwise have to walk
+  // the projects and fetch each one's modules separately.
+  r.get(
+    '/',
+    h(async (req, res) => {
+      const { project_id } = req.query;
+      const filtered = typeof project_id === 'string' && project_id;
+      if (filtered && !isUuid(project_id)) {
+        return res.status(400).json({ error: 'invalid project_id' });
+      }
+      res.json({ modules: await listModules(filtered ? project_id : null) });
+    })
+  );
 
   r.put(
     '/:id',
