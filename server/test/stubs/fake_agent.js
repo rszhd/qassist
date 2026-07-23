@@ -14,5 +14,13 @@ const events = [
   { type: 'recording', file: 'recording.mp4', frames: 3 },
   { type: 'done', success: true, duration_seconds: 0.2, steps: 1, final_result: 'goal met (stub)' },
 ];
-for (const evt of events) process.stdout.write(JSON.stringify(evt) + '\n');
-process.exit(0);
+function emit() {
+  for (const evt of events) process.stdout.write(JSON.stringify(evt) + '\n');
+  process.exit(0);
+}
+
+// QA_STUB_HOLD_MS keeps a run in its slot long enough for the queue behind it
+// to be observed (queue.test.js); unset, the stub finishes at once.
+const holdMs = Number(process.env.QA_STUB_HOLD_MS || 0);
+if (holdMs) setTimeout(emit, holdMs);
+else emit();

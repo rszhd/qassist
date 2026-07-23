@@ -57,7 +57,7 @@ until real cloud-only infra exists; the full repo/boundary rules live in
 | [US-013](release-1/done/US-013-registration-flow-verification.md) | Registration-flow verification — email tier | ✅ Tier 1 done | — |
 | [US-025](release-1/done/US-025-ui-consistency-pass-2.md) | UI consistency pass 2: type scale, sizes, dead space | ✅ Done (2026-07-23) | — |
 | [US-026](release-1/done/US-026-history-run-activity.md) | Run activity in the History detail panel | ✅ Done (2026-07-23) | US-011 |
-| [US-027](release-1/US-027-queued-run-visibility.md) | Tell the user their run is queued | 📋 Planned | — |
+| [US-027](release-1/done/US-027-queued-run-visibility.md) | Tell the user their run is queued | ✅ Done (2026-07-23) | — |
 | [US-028](release-1/US-028-per-user-concurrency-limit.md) | Per-user concurrent run limit (hosted) | 📋 Planned | US-021, US-022, US-027 |
 
 Added to the release 2026-07-23: **US-027** and **US-028**, the two halves of
@@ -122,11 +122,14 @@ US-020/US-010/US-012 touch the frontend than after.
     concurrency cap; launch when US-022 lands (US-028 can follow the launch —
     it only bites once several subscribers share the box)
 
-**US-027** (queued-run visibility) sits outside this order: it depends on
-nothing, is half a day, and every story above makes the queue busier. Slot it
-whenever the frontend is already open — but before US-021, since the invisible
-queue stops being only the operator's problem the moment other people can sign
-up.
+**US-027** (queued-run visibility) sat outside this order: it depended on
+nothing, and every story above makes the queue busier. **Shipped 2026-07-23**,
+straight after US-026 while the Run view was already open: `startNext()` now
+tells each waiting run its new position, the position rides the WebSocket as
+live-only state (like frames — replaying it would be a stale countdown), and
+the Run view has a queued state distinct from "Agent is starting…". US-028
+inherits that position and has to keep it honest once the dequeue stops being
+strict FIFO.
 
 ## Unscheduled — `unscheduled/`
 

@@ -80,6 +80,16 @@ function broadcast(run, evt) {
   send(run, evt);
 }
 
+// A waiting run's place in the FIFO (0 = next to start). Live-only, like
+// frames: it changes every time the queue drains, so replaying it out of
+// `run.events` would make a late viewer watch a countdown that already
+// happened. Each waiting run keeps just its current one and `attachViewer`
+// sends that.
+function setQueuePosition(run, position) {
+  run.queueEvent = { type: 'status', status: 'queued', position, concurrency: MAX_CONCURRENT };
+  send(run, run.queueEvent);
+}
+
 // Tell the agent whether anyone is watching: it only captures screencast
 // frames while a viewer is attached (saves Chromium encode CPU otherwise).
 function setScreencast(run, on) {
@@ -172,8 +182,12 @@ export function createRun(fields) {
   };
   runs.set(runId, run);
   persistInsert(run);
-  if (active < MAX_CONCURRENT) startRun(runId);
-  else queue.push(runId);
+  if (active < MAX_CONCURRENT) {
+    startRun(runId);
+  } else {
+    queue.push(runId);
+    setQueuePosition(run, queue.length - 1);
+  }
   return run;
 }
 
@@ -238,6 +252,7 @@ function startRun(runId) {
   if (!run) return;
   active++;
   run.status = 'running';
+  run.queueEvent = null;
   run.startedAt = Date.now();
   broadcast(run, { type: 'status', status: 'running' });
   persistUpdate(run);
@@ -324,6 +339,12 @@ function startRun(runId) {
 
 function startNext() {
   while (active < MAX_CONCURRENT && queue.length) startRun(queue.shift());
+  // Everyone still waiting moved up — tell them, so "2 ahead of you" counts
+  // down in place rather than only on reload.
+  queue.forEach((id, position) => {
+    const run = runs.get(id);
+    if (run) setQueuePosition(run, position);
+  });
 }
 
 // Build the run's data JSON and render it to a PDF via the Python renderer
@@ -374,13 +395,14 @@ function generateReport(run) {
 }
 
 /**
- * Subscribe a WebSocket to a run's live feed: replay durable events, then
- * the latest frame, then live updates follow.
+ * Subscribe a WebSocket to a run's live feed: replay durable events, then the
+ * live-only state (queue position, latest frame), then live updates follow.
  */
 export function attachViewer(run, ws) {
   run.subscribers.add(ws);
   if (run.subscribers.size === 1) setScreencast(run, true);
   for (const evt of run.events) ws.send(JSON.stringify(evt));
+  if (run.queueEvent) ws.send(JSON.stringify(run.queueEvent));
   if (run.lastFrame) ws.send(JSON.stringify(run.lastFrame));
   if (TERMINAL.has(run.status)) ws.send(JSON.stringify({ type: 'end', status: run.status }));
   ws.on('close', () => {

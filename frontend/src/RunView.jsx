@@ -17,6 +17,11 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
   const [goal, setGoal] = useState('Verify the page loads and find the main heading text');
   const [startUrl, setStartUrl] = useState('https://news.ycombinator.com');
   const [status, setStatus] = useState('idle');
+  // US-027: `{ position, concurrency }` while this run sits in the worker's
+  // queue, null otherwise. It gates the queued copy rather than `status`
+  // alone, because a run is optimistically 'queued' from the moment it is
+  // POSTed — only the server knows whether anyone is actually ahead of it.
+  const [waiting, setWaiting] = useState(null);
   const [wsState, setWsState] = useState('idle');
   const [runId, setRunId] = useState(null);
   const [screenshot, setScreenshot] = useState(null);
@@ -123,6 +128,9 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
     switch (evt.type) {
       case 'status':
         setStatus(evt.status);
+        setWaiting(
+          evt.status === 'queued' ? { position: evt.position, concurrency: evt.concurrency } : null
+        );
         if (evt.status === 'running') setCurrentAction('Launching browser and loading the page…');
         break;
       case 'start':
@@ -157,6 +165,7 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
         break;
       case 'end':
         setCurrentAction(null);
+        setWaiting(null);
         setStatus((cur) => (cur === 'running' || cur === 'queued' ? evt.status : cur));
         break;
       default:
@@ -173,6 +182,7 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
     setBatch(null);
     setHasRecording(false);
     setShowRecording(false);
+    setWaiting(null);
     setStatus('queued');
   }
 
@@ -290,7 +300,12 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
         method: 'POST',
         body: { trigger: 'ui' },
       });
-      setBatch({ kind, name: group.name, total: runs.length });
+      setBatch({
+        kind,
+        name: group.name,
+        total: runs.length,
+        queued: runs.filter((r) => r.status === 'queued').length,
+      });
       setRunId(runs[0].runId);
       openSocket(runs[0].runId);
     } catch (err) {
@@ -335,7 +350,8 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
   }
 
   const running = status === 'running' || status === 'queued';
-  const waitingForFirstFrame = running && !screenshot;
+  const queued = status === 'queued' && !!waiting;
+  const waitingForFirstFrame = running && !queued && !screenshot;
   const liveUrl = [...steps].reverse().find((s) => s.url)?.url || startUrl;
   const hasFrame = (showRecording && runId) || !!screenshot;
 
@@ -354,7 +370,7 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
           onClick={() => setDialog('run')}
           disabled={running || needsToken}
         >
-          {running ? 'Running…' : 'New run'}
+          {queued ? 'Queued…' : running ? 'Running…' : 'New run'}
         </Button>
       </PageHeader>
 
@@ -428,9 +444,7 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
             <div className="batch-note">
               <Play size={14} aria-hidden="true" />
               <span>
-                Running {batch.kind} <strong>{batch.name}</strong> — {batch.total} test
-                {batch.total === 1 ? '' : 's'} queued. Following the first below; the rest run in
-                the background.
+                Running {batch.kind} <strong>{batch.name}</strong> — {batchSummary(batch)}
               </span>
             </div>
           )}
@@ -463,6 +477,19 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
                     />
                   ) : screenshot ? (
                     <img src={screenshot} alt="live browser view" />
+                  ) : queued ? (
+                    <div className="thinking">
+                      <div className="spinner" />
+                      <div>
+                        {waiting.position === 0
+                          ? 'Queued — next up'
+                          : `Queued — ${waiting.position} run${waiting.position === 1 ? '' : 's'} ahead of you`}
+                      </div>
+                      <small>
+                        This worker runs {waiting.concurrency} at a time; yours starts when a slot
+                        frees.
+                      </small>
+                    </div>
                   ) : waitingForFirstFrame ? (
                     <div className="thinking">
                       <div className="spinner" />
@@ -540,7 +567,11 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
                 <ActivityLog steps={steps} logRef={logRef} />
               ) : (
                 <EmptyState icon={Activity} title={running ? 'Waiting…' : 'No activity'}>
-                  {running ? 'The first step lands shortly.' : 'Steps appear here during a run.'}
+                  {queued
+                    ? 'Steps start arriving once the run gets a slot.'
+                    : running
+                      ? 'The first step lands shortly.'
+                      : 'Steps appear here during a run.'}
                 </EmptyState>
               )}
             </aside>
@@ -573,6 +604,18 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
       )}
     </>
   );
+}
+
+/**
+ * What a module or suite run actually did with its tests. The server starts as
+ * many as the concurrency cap allows and queues the rest, so on a busy worker
+ * "the rest run in the background" is only half the truth (US-027).
+ */
+function batchSummary({ total, queued }) {
+  const tests = `${total} test${total === 1 ? '' : 's'}`;
+  if (total === 1) return `${tests}, running below.`;
+  if (queued > 0) return `${tests}. Following the first below; ${queued} wait for a free slot.`;
+  return `${tests}. Following the first below; the rest run in the background.`;
 }
 
 /**

@@ -4,7 +4,7 @@
 waiting in a queue and how far back I am, **so that** I don't read a stalled
 "Agent is starting…" spinner as a broken app.
 
-- **Status:** 📋 Planned
+- **Status:** ✅ Done (2026-07-23)
 - **Priority:** P2 (the throttle already works; what's missing is that it is
   invisible — and it gets worse with every user added, so it wants fixing
   before US-021 lets anyone but the operator in)
@@ -77,16 +77,48 @@ What already exists, and doesn't need rebuilding:
 
 ## Acceptance criteria
 
-- [ ] Starting a run while the worker is at `MAX_CONCURRENT` shows a queued
+- [x] Starting a run while the worker is at `MAX_CONCURRENT` shows a queued
       state with position, visibly distinct from "Agent is starting…"
-- [ ] The position counts down as earlier runs finish, without a reload
-- [ ] Attaching a viewer to an already-queued run (reload, or opening it from
+- [x] The position counts down as earlier runs finish, without a reload
+- [x] Attaching a viewer to an already-queued run (reload, or opening it from
       History mid-wait) shows the current position, not a replayed countdown
-- [ ] The primary button reads "Queued…" while waiting, "Running…" after
-- [ ] `cd server && npm test` covers: a run enqueued past the cap emits a
+- [x] The primary button reads "Queued…" while waiting, "Running…" after
+- [x] `cd server && npm test` covers: a run enqueued past the cap emits a
       queued status with a position, and the position updates on drain;
       `npm run check` clean
-- [ ] `cd frontend && npm run build` clean
+- [x] `cd frontend && npm run build` clean
+
+## Results (2026-07-23)
+
+Built as designed, in four small pieces:
+
+- `runs.js` gained `setQueuePosition(run, position)`, which stores the event on
+  `run.queueEvent` and sends it. `createRun()` calls it on enqueue and
+  `startNext()` re-walks what is left after the drain, so every waiting run is
+  told its new place. `startRun()` clears `queueEvent`, and `attachViewer()`
+  sends it between the durable replay and `lastFrame` — the live-only slot the
+  design asked for.
+- `RunView.jsx` keeps `waiting = { position, concurrency }` rather than reading
+  the position off `status`. That split matters: `resetRunState()` sets status
+  `'queued'` optimistically the moment a run is POSTed, so gating the copy on
+  the status alone would flash "you are in a queue" at every run for the length
+  of the WebSocket handshake. `waiting` is only ever set by a server event.
+- The batch note now counts what the server actually queued —
+  `runTests()` already returns each run's status, so no endpoint changed.
+  `batchSummary()` holds the three cases (one test, some waiting, none waiting).
+- `test/queue.test.js` drives the engine directly with
+  `MAX_CONCURRENT_SESSIONS=1` and a fake socket, which is enough to assert the
+  position, the countdown, and that a viewer attaching after the run starts
+  gets `running` and no stale `queued`. The agent stub holds its slot for
+  `QA_STUB_HOLD_MS`, unset everywhere else so the other suites stay instant.
+
+Not built, deliberately: nothing tells a queued run how *long* the wait is.
+An ETA needs a rolling average run duration the control plane does not keep
+yet, and a wrong estimate is worse than an honest position.
+
+The restart caveat is recorded in the README's `MAX_CONCURRENT_SESSIONS` row
+rather than in UI copy — the run view has no room to explain a deploy, and
+`recoverStaleRuns()` already surfaces the outcome as an errored run.
 
 ## Later
 
