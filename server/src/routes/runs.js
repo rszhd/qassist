@@ -12,7 +12,7 @@ import path from 'node:path';
 import { db, isUuid, currentUserId } from '../db.js';
 import { createRun, getRun, stepsOf } from '../runs.js';
 import { ARTIFACTS_DIR, RECORDING_FILENAME, REPORT_DATA_FILENAME } from '../config.js';
-import { h, requireDb, requireAgentKey, STORED_TRIGGERS } from './helpers.js';
+import { h, requireDb, requireAgentKey, respondOverCap, STORED_TRIGGERS } from './helpers.js';
 
 /** Mirrors the runs.status check constraint in 001_init.sql. */
 const STATUSES = new Set(['queued', 'running', 'passed', 'failed', 'completed', 'error']);
@@ -197,6 +197,7 @@ export function runsRouter({ checkToken, checkTokenOrQuery }) {
       max_steps,
       openai_api_key: /** @type {any} */ (req).runOpenaiKey,
     });
+    if ('rejected' in run) return respondOverCap(res, run);
     res.json({ runId: run.id, status: run.status });
   });
 

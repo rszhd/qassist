@@ -10,6 +10,13 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const PORT = parseInt(process.env.PORT || '8080', 10);
 export const API_TOKEN = process.env.WORKER_API_TOKEN || '';
 export const MAX_CONCURRENT = parseInt(process.env.MAX_CONCURRENT_SESSIONS || '4', 10);
+// Per-user fair-use cap on concurrent runs (US-028), unset = off. When set, one
+// user (real users arrive with US-021) can hold at most this many runs in flight
+// so no single person fills MAX_CONCURRENT and queues everyone else. Off by
+// default so a solo self-host is byte-for-byte the pre-US-028 single global queue.
+export const MAX_CONCURRENT_PER_USER = process.env.MAX_CONCURRENT_PER_USER
+  ? parseInt(process.env.MAX_CONCURRENT_PER_USER, 10)
+  : null;
 export const DEFAULT_MAX_STEPS = parseInt(process.env.MAX_STEPS || '60', 10);
 export const RUN_TTL_MS = parseInt(process.env.RUN_TTL_SECONDS || '3600', 10) * 1000;
 // Summed RSS over the run's process tree, so it double-counts Chromium's

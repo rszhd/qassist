@@ -34,13 +34,18 @@ export function fillTemplate(text, variables, overrides) {
 /**
  * What a module or suite run actually did with its tests. The server starts as
  * many as the concurrency cap allows and queues the rest, so on a busy worker
- * "the rest run in the background" is only half the truth (US-027).
+ * "the rest run in the background" is only half the truth (US-027). A per-user
+ * cap (US-028) adds a third bucket: members over the cap that weren't started at
+ * all — a "wait", not a failure, so it reads in the same breath as the queue.
  */
-export function batchSummary({ total, queued }) {
+export function batchSummary({ total, queued, rejected = 0 }) {
   const tests = `${total} test${total === 1 ? '' : 's'}`;
   if (total === 1) return `${tests}, running below.`;
-  if (queued > 0) return `${tests}. Following the first below; ${queued} wait for a free slot.`;
-  return `${tests}. Following the first below; the rest run in the background.`;
+  const parts = ['Following the first below'];
+  if (queued > 0) parts.push(`${queued} wait for a free slot`);
+  if (rejected > 0) parts.push(`${rejected} over your limit — not started`);
+  if (queued === 0 && rejected === 0) parts.push('the rest run in the background');
+  return `${tests}. ${parts.join('; ')}.`;
 }
 
 /**

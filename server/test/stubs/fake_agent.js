@@ -30,7 +30,10 @@ function emit() {
 }
 
 // QA_STUB_HOLD_MS keeps a run in its slot long enough for the queue behind it
-// to be observed (queue.test.js); unset, the stub finishes at once.
-const holdMs = Number(process.env.QA_STUB_HOLD_MS || 0);
+// to be observed (queue.test.js); unset, the stub finishes at once. A per-run
+// `hold=<ms>` in the goal overrides it, so a test can free ONE specific slot
+// while others stay busy (concurrency-fairshare.test.js's dequeue case).
+const perRun = /\bhold=(\d+)/.exec(process.env.QA_GOAL || '');
+const holdMs = perRun ? Number(perRun[1]) : Number(process.env.QA_STUB_HOLD_MS || 0);
 if (holdMs) setTimeout(emit, holdMs);
 else emit();

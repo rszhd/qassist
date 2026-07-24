@@ -6,7 +6,7 @@ import express from 'express';
 import { db, currentUserId, isUuid } from '../db.js';
 import { createRun } from '../runs.js';
 import { DEFAULT_MAX_STEPS } from '../config.js';
-import { h, requireDb, requireAgentKey, TRIGGERS } from './helpers.js';
+import { h, requireDb, requireAgentKey, respondOverCap, TRIGGERS } from './helpers.js';
 import { normalizeDeclarations, validateReferences, resolveForRun } from '../variables.js';
 
 const COLS =
@@ -240,6 +240,7 @@ export function testsRouter({ checkToken }) {
         secrets: resolved.secrets,
         openai_api_key: /** @type {any} */ (req).runOpenaiKey,
       });
+      if ('rejected' in run) return respondOverCap(res, run);
       res.json({ runId: run.id, testId: test.id, status: run.status });
     })
   );

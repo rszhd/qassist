@@ -5,7 +5,13 @@ hosted service), **I want** each user capped to a few concurrent runs, **so
 that** one user cannot fill all the worker slots and leave everyone else on the
 instance staring at a queue.
 
-- **Status:** 📋 Planned (moved to current sprint on 2026-07-25)
+- **Status:** ✅ Shipped (2026-07-25). Decisions made while implementing:
+  batch = **partial accept** (first H start/queue, rest rejected in order);
+  scheduled bursts **queue past the cap** (never rejected, but held to `cap`
+  running by fair-share); the operator is **not** exempt (one env number for
+  everyone). Guarded assertion-first by `concurrency-{cap,fairshare,off}.test.js`
+  + the route contract in `concurrency-cap-route.test.js`; row in
+  `backlog/correctness-critical.md`.
 - **Priority:** P2 — the fair-use cap that makes a shared instance usable by
   more than one person at a time. Primary use case is an **organization
   self-hosting for its team**: several people share one box and no single

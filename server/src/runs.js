@@ -15,6 +15,7 @@ import { notifyRunFinished } from './notify.js';
 import { resolveForRun } from './variables.js';
 import {
   MAX_CONCURRENT,
+  MAX_CONCURRENT_PER_USER,
   DEFAULT_MAX_STEPS,
   RUN_TTL_MS,
   MAX_RUN_MEMORY_MB,
@@ -47,6 +48,51 @@ export function getRun(runId) {
 
 export function counts() {
   return { active, queued: queue.length };
+}
+
+// --- per-user concurrency cap (US-028) ---
+// Accounting is in-memory, scanned off the live registry: correct for one
+// worker, and deliberately not a distributed counter — enforcing the cap across
+// a fleet is US-015's shared-state problem, not this story's.
+
+/**
+ * The concurrent-run cap for a user, or null when uncapped (env unset = off).
+ * Resolved through a function, not the bare constant, so US-022 can turn it into
+ * a per-plan lookup without threading a new argument through the run engine.
+ * The `userId` is unused in v1 — every user on the box gets the same number.
+ * @param {string|null} userId
+ * @returns {number | null}
+ */
+export function getUserConcurrencyCap(userId) {
+  void userId;
+  return MAX_CONCURRENT_PER_USER;
+}
+
+/** How many of a user's runs are running OR queued — what admission counts. */
+function inFlightForUser(uid) {
+  let n = 0;
+  for (const run of runs.values()) {
+    if (run.user_id === uid && (run.status === 'running' || run.status === 'queued')) n++;
+  }
+  return n;
+}
+
+/** How many of a user's runs are running — what the start-gate and dequeue count. */
+function runningForUser(uid) {
+  let n = 0;
+  for (const run of runs.values()) {
+    if (run.user_id === uid && run.status === 'running') n++;
+  }
+  return n;
+}
+
+// A run may start when a global slot is free AND its owner is under their
+// running cap. The second clause is what holds a user (or a scheduled burst
+// that bypassed admission) to `cap` running even when global slots are free.
+function canStart(run) {
+  if (active >= MAX_CONCURRENT) return false;
+  const cap = getUserConcurrencyCap(run.user_id);
+  return cap == null || runningForUser(run.user_id) < cap;
 }
 
 /**
@@ -189,7 +235,10 @@ function maybeNotify(run) {
 // --- run lifecycle ---
 
 /**
- * Enqueue a run (starts immediately when under the concurrency cap).
+ * Enqueue a run (starts immediately when under the concurrency cap). Returns
+ * the run, or — when the caller is over their per-user cap (US-028) and the
+ * submit isn't a schedule/demo replay — a `{ rejected, cap, inFlight }` marker
+ * and no run: nothing is inserted or queued. Callers branch with `'rejected' in`.
  * @param {{ goal: string, start_url: string, max_steps?: number,
  *           model?: string | null, test_id?: string | null,
  *           trigger?: string, variables?: Record<string, string>,
@@ -197,6 +246,22 @@ function maybeNotify(run) {
  *           openai_api_key?: string | null }} fields
  */
 export function createRun(fields) {
+  // Explicit user_id for the scheduler (no request context); a request-borne run
+  // falls back to the caller resolved by the gate (currentUserId()).
+  const uid = fields.user_id ?? currentUserId();
+  const trigger = fields.trigger || 'api';
+  // Admission (US-028): an interactive submit over the user's in-flight cap is
+  // refused here, not queued — queueing silently would make the wait unbounded
+  // and US-027's position meaningless. Demo replays claim no slot, and a
+  // schedule must never be dropped (it fires with no human watching), so both
+  // bypass admission; a schedule instead queues past the cap and is held to
+  // `cap` running by canStart/startNext.
+  const cap = getUserConcurrencyCap(uid);
+  if (!demoMode() && trigger !== 'schedule' && cap != null) {
+    const inFlight = inFlightForUser(uid);
+    if (inFlight >= cap) return { rejected: true, cap, inFlight };
+  }
+
   const runId = randomUUID();
   const run = {
     id: runId,
@@ -213,10 +278,8 @@ export function createRun(fields) {
     // the agent as OPENAI_API_KEY in startRun; never a column, an event, or an
     // artifact — persistInsert/broadcast/generateReport never read this field.
     openai_api_key: fields.openai_api_key || null,
-    // Explicit user_id for the scheduler (no request context); a request-borne
-    // run falls back to the caller resolved by the gate (currentUserId()).
-    user_id: fields.user_id ?? currentUserId(),
-    trigger: fields.trigger || 'api',
+    user_id: uid,
+    trigger,
     status: 'queued',
     events: [],
     subscribers: new Set(),
@@ -232,7 +295,7 @@ export function createRun(fields) {
   // terminal verdict from a fixture, so it looks real in the visitor's history.
   if (demoMode()) {
     startReplay(run);
-  } else if (active < MAX_CONCURRENT) {
+  } else if (canStart(run)) {
     startRun(runId);
   } else {
     queue.push(runId);
@@ -274,6 +337,13 @@ export function runTests(tests, opts = {}) {
       user_id: opts.user_id,
       openai_api_key: opts.openai_api_key,
     });
+    // Partial accept (US-028): a batch over the cap starts what fits and reports
+    // the rest as rejected rather than failing wholesale. Admission is applied
+    // per member as it enqueues, so the first H (headroom) win and the rest are
+    // refused, in order. Distinct from the {error} a member that can't resolve gets.
+    if ('rejected' in run) {
+      return { testId: t.id, rejected: true, cap: run.cap, inFlight: run.inFlight };
+    }
     return { runId: run.id, testId: t.id, status: run.status };
   });
 }
@@ -543,7 +613,24 @@ function linkFixtureArtifacts(run, slug) {
 }
 
 function startNext() {
-  while (active < MAX_CONCURRENT && queue.length) startRun(queue.shift());
+  if (MAX_CONCURRENT_PER_USER == null) {
+    // No per-user cap: byte-for-byte the pre-US-028 FIFO drain.
+    while (active < MAX_CONCURRENT && queue.length) startRun(queue.shift());
+  } else {
+    // Fair-share (US-028): promote the first queued run whose owner is under
+    // their running cap, not simply the head — otherwise a user who queued a
+    // burst early would still drain the worker in order. A linear scan over a
+    // small queue; deliberately not a scheduler. A slot may be left idle when
+    // the only waiters are users already at their cap.
+    while (active < MAX_CONCURRENT) {
+      const i = queue.findIndex((id) => {
+        const run = runs.get(id);
+        return run && canStart(run);
+      });
+      if (i === -1) break;
+      startRun(queue.splice(i, 1)[0]);
+    }
+  }
   // Everyone still waiting moved up — tell them, so "2 ahead of you" counts
   // down in place rather than only on reload.
   queue.forEach((id, position) => {

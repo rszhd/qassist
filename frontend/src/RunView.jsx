@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Activity, AlertTriangle, Check, Download, KeyRound, Monitor, PanelLeftOpen, Play, Plus,
+  Activity, AlertTriangle, Check, Clock, Download, KeyRound, Monitor, PanelLeftOpen, Play, Plus,
   Undo2, X,
 } from 'lucide-react';
 import { api, openReport } from './api.js';
@@ -31,6 +31,9 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
   const [steps, setSteps] = useState([]);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
+  // US-028: over the per-user cap. A "wait a moment", not a failure — its own
+  // amber notice (the queued-copy family), never the red error banner.
+  const [capNotice, setCapNotice] = useState(null);
   const [tests, setTests] = useState([]);
   const [projects, setProjects] = useState([]);
   // 'all' | 'none' (Ungrouped) | a project id. Drives the ?project_id= filter.
@@ -188,6 +191,7 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
 
   function resetRunState() {
     setError(null);
+    setCapNotice(null);
     setResult(null);
     setSteps([]);
     setScreenshot(null);
@@ -212,9 +216,18 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
       setRunId(id);
       openSocket(id);
     } catch (err) {
+      if (err.status === 429) return atCap(err.message);
       setError(err.message);
       setStatus('error');
     }
+  }
+
+  // Over the per-user cap (US-028): no run started, so drop back to idle and
+  // show the amber wait notice rather than the red error state.
+  function atCap(message) {
+    setCapNotice(message);
+    setStatus('idle');
+    setActiveTestId(null);
   }
 
   // Create or update from whatever the dialog currently holds. max_steps/model
@@ -323,6 +336,7 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
       setRunId(id);
       openSocket(id);
     } catch (err) {
+      if (err.status === 429) return atCap(err.message);
       setError(err.message);
       setStatus('error');
       setActiveTestId(null);
@@ -341,14 +355,26 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
         method: 'POST',
         body: { trigger: 'ui' },
       });
+      // Partial accept (US-028): the batch may come back with some members
+      // refused for being over the cap. Follow the first that actually started;
+      // if none did, it's the same "wait a moment" as a single over-cap run.
+      const started = runs.filter((r) => r.runId);
+      const rejected = runs.filter((r) => r.rejected);
+      if (started.length === 0) {
+        return atCap(
+          `You're at your run limit, so none of ${group.name}'s ${runs.length} tests started — ` +
+            `wait for a run to finish, then try again.`
+        );
+      }
       setBatch({
         kind,
         name: group.name,
         total: runs.length,
-        queued: runs.filter((r) => r.status === 'queued').length,
+        queued: started.filter((r) => r.status === 'queued').length,
+        rejected: rejected.length,
       });
-      setRunId(runs[0].runId);
-      openSocket(runs[0].runId);
+      setRunId(started[0].runId);
+      openSocket(started[0].runId);
     } catch (err) {
       setError(`Run ${kind}: ${err.message}`);
       setStatus('error');
@@ -444,6 +470,13 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
         <div className="error page-error">
           <AlertTriangle size={14} aria-hidden="true" />
           <span>{error}</span>
+        </div>
+      )}
+
+      {capNotice && (
+        <div className="banner page-error">
+          <Clock size={14} aria-hidden="true" />
+          <span>{capNotice}</span>
         </div>
       )}
 

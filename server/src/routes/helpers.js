@@ -89,6 +89,24 @@ export function runTestsFromRequest(tests, body = {}, openaiApiKey = null) {
 }
 
 /**
+ * A single-run route's 429 when the caller is over their per-user cap (US-028).
+ * The message names the cap — this is a "wait a moment", not a failure, and the
+ * UI renders it as such. Batch routes don't use this: they partial-accept and
+ * report rejected members in their 200 array instead.
+ * @param {import('express').Response} res
+ * @param {{ cap: number, inFlight: number }} rejected the marker createRun returned
+ */
+export function respondOverCap(res, rejected) {
+  res.status(429).json({
+    error:
+      `you already have ${rejected.inFlight} run${rejected.inFlight === 1 ? '' : 's'} ` +
+      `in flight (limit ${rejected.cap}) — wait for one to finish`,
+    cap: rejected.cap,
+    inFlight: rejected.inFlight,
+  });
+}
+
+/**
  * URL-safe slug: lowercase, non-alphanumerics collapsed to single dashes.
  * Generated once at create time and independently editable afterwards — a
  * rename must never silently break a CI config (US-023 decision 8).
