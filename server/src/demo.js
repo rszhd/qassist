@@ -15,6 +15,7 @@ import { DEMO_DIR, DEMO_SPEED } from './config.js';
 
 const SLUG_RE = /^[a-z0-9][a-z0-9-]*$/;
 export const RECORDING_FILE = 'recording.mp4';
+export const REPORT_FILE = 'report.pdf';
 
 /**
  * Resolve a fixture directory, refusing anything that isn't a clean slug — the
@@ -62,16 +63,31 @@ export function loadDemo(slug) {
     name: meta.name || slug,
     description: meta.description || '',
     verdict: meta.verdict || null,
+    // The test definition behind the demo, so the frontend can show a
+    // read-only preview of the run form — informational, never runnable.
+    goal: meta.goal || '',
+    start_url: meta.start_url || '',
     hasRecording: fs.existsSync(path.join(dir, RECORDING_FILE)),
+    hasReport: fs.existsSync(path.join(dir, REPORT_FILE)),
     events,
   };
 }
 
 /** Absolute path to a fixture's recording, or null if there is none. */
 export function recordingPath(slug) {
+  return fixtureFile(slug, RECORDING_FILE);
+}
+
+/** Absolute path to a fixture's PDF report, or null if there is none. */
+export function reportPath(slug) {
+  return fixtureFile(slug, REPORT_FILE);
+}
+
+/** Resolve one file inside a fixture, or null if the slug or file is bad. */
+function fixtureFile(slug, name) {
   const dir = fixtureDir(slug);
   if (!dir) return null;
-  const file = path.join(dir, RECORDING_FILE);
+  const file = path.join(dir, name);
   return fs.existsSync(file) ? file : null;
 }
 
@@ -94,7 +110,10 @@ export function listDemos() {
       name: demo.name,
       description: demo.description,
       verdict: demo.verdict,
+      goal: demo.goal,
+      start_url: demo.start_url,
       hasRecording: demo.hasRecording,
+      hasReport: demo.hasReport,
     });
   }
   return demos;

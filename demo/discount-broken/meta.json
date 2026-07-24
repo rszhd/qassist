@@ -1,0 +1,7 @@
+{
+  "name": "Discount code is broken",
+  "description": "The agent adds an item, applies a valid promo code at checkout, and catches that the discount is accepted but never comes off the order total.",
+  "verdict": "fail",
+  "goal": "Add any item to the cart, apply the promo code SAVE20 at checkout, and confirm the 20% discount is deducted from the order total.",
+  "start_url": "https://shop.example/"
+}

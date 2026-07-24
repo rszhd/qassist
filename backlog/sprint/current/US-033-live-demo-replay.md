@@ -5,8 +5,9 @@ test and watch a real session play out, **so that** I know what the product
 does before deciding whether to pay for it — and **as the** operator, **I want**
 that to cost me nothing per visitor.
 
-- **Status:** 🚧 Backend shipped 2026-07-24 (frontend next). Pulled into the
-  current sprint 2026-07-23; originally next sprint, hosted tier.
+- **Status:** 🚧 Backend + frontend + a real pass fixture shipped 2026-07-24;
+  one real *fail* capture still to replace the fabricated placeholder. Pulled
+  into the current sprint 2026-07-23; originally next sprint, hosted tier.
 - **Priority:** P2 — not required to take payment, but it is the cheapest
   conversion work in the release and the only thing that answers "what does
   this actually look like?" without spending a browser slot or an API key.
@@ -142,15 +143,41 @@ Decisions resolved (the "while implementing" list above):
 - **CTA:** magic-link login when `auth_mode` is `multi`, else `DEMO_CTA_URL`
   (default `qassist.run`) — the list endpoint returns `ctaUrl` for the latter.
 
-Remaining (next session): the **frontend `DemoView`** (picker → press Run →
-`ws?demo` → play `recording.mp4` in the stage while `ActivityLog` streams;
-`Demo` badge, recorded-session note, no Edit/Re-run, signup CTA), the `/demo`
-nav entry gated on `health.demo`, and the **real fixtures** — recorded
-`demo/<slug>/` dirs (one pass, one fail) so the acceptance item "fixtures
-survive a fresh deploy" is met. The fixture format is settled: `meta.json`
-(name/description/verdict), `events.ndjson` (one event per line, each with
-`offset_ms`), `recording.mp4`. `server/test/fixtures/demo/sample-pass/` is a
-worked example.
+**Frontend shipped 2026-07-24.** `frontend/src/DemoView.jsx` — laid out as the
+Run view is: a collapsible left **rail** of demo choices beside the live stage.
+Press Run on a row → `ws?demo=<slug>` (no token) → the recording plays in the
+stage while `ActivityLog` streams the fixture's steps, ending on a verdict card
+(with a **PDF report** button when the fixture has one) and a signup CTA (in-app
+login when `auth_mode` is `multi`, else `ctaUrl`). Reuses the live stage
+vocabulary (`.browser`/`.screen`/`.stage-split`/`ActivityLog`/`.rail`); the
+video plays with no controls so it reads as a session, not a scrubber. A `Demo`
+badge rides the title and the browser chrome, with a "recorded session, not a
+live run" note under the video. Each row has an **Edit** button that opens the
+real `TestDialog` in a new `readOnly` mode — a visitor sees exactly how a test
+is written (name/URL/goal) but cannot save or run. Wired into `App.jsx` (a
+`/demo` route gated on `health.demo`, plus a standalone public render *before*
+the multi-mode login wall so a signed-out visitor can reach it — the catch-all
+redirect now waits for `health` so it doesn't eat `/demo` on first paint) and
+`TopBar.jsx` (a `Demo` nav entry gated on `health.demo`). CSS in `views.css`
+(§9). `npm run build` + `npm test` green.
+
+Backend follow-ons (same day): `GET /api/demo/:slug/report.pdf` (fixture PDF,
+rate-limited, `hasReport` on the card); `loadDemo` now also exposes
+`goal`/`start_url` for the read-only form preview.
+
+**Fixtures:** `demo/register-account/` is a real, checked-in pass demo — the
+`recording.mp4` + `report.pdf` from run `0fdc73fb`, with `events.ndjson`
+synthesised from that run's `report_data.json` step timings **scaled onto the
+recording's own 23s duration** (the screencast is condensed — frames only on
+repaint — so wall-clock `elapsed` offsets lag the video; scale to the mp4's
+`mvhd` duration to re-sync). `demo/discount-broken/` is a **fabricated** fail
+placeholder (events + meta, no recording → `DemoView` shows the spinner + steps,
+no PDF button). The one real capture path is settled and worked;
+`server/test/fixtures/demo/sample-pass/` remains the stubbed test fixture.
+
+Remaining: a **real fail** capture to replace `discount-broken` — a run where
+the agent reaches a `fail` verdict on the *site's* behaviour (with steps + a
+recording), not an infra/OOM failure. Then the story is done.
 
 ## Later
 

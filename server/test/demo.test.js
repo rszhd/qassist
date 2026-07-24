@@ -119,6 +119,7 @@ test('GET /api/demo lists the demos with replay metadata', async () => {
   const res = await request(app).get('/api/demo').expect(200);
   assert.equal(res.body.demos.length, 1);
   assert.equal(res.body.demos[0].slug, 'sample-pass');
+  assert.equal(res.body.demos[0].hasReport, true);
   assert.equal(res.body.speed, 1);
   assert.equal(res.body.ctaUrl, 'https://example.test/signup');
 });
@@ -127,6 +128,12 @@ test('GET /api/demo/:slug/recording serves the video, unknown slug 404s', async 
   const ok = await request(app).get('/api/demo/sample-pass/recording').expect(200);
   assert.match(ok.headers['content-type'], /video\/mp4/);
   await request(app).get('/api/demo/nope/recording').expect(404);
+});
+
+test('GET /api/demo/:slug/report.pdf serves the PDF, unknown slug 404s', async () => {
+  const ok = await request(app).get('/api/demo/sample-pass/report.pdf').expect(200);
+  assert.match(ok.headers['content-type'], /application\/pdf/);
+  await request(app).get('/api/demo/nope/report.pdf').expect(404);
 });
 
 test('the demo endpoints are rate-limited per IP', async () => {

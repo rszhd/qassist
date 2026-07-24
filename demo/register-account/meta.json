@@ -1,0 +1,7 @@
+{
+  "name": "Register an account",
+  "description": "The agent signs up for a new account on a live Discourse forum — opening the form, filling valid details, submitting, and confirming the activation-email prompt.",
+  "verdict": "pass",
+  "goal": "register account",
+  "start_url": "https://try.discourse.org/"
+}

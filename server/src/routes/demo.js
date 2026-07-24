@@ -4,7 +4,7 @@
 // so the recordings aren't a free bandwidth tap. Mounted only when DEMO_MODE is
 // on (server.js); off means these paths 404 like any other unknown route.
 import express from 'express';
-import { listDemos, recordingPath } from '../demo.js';
+import { listDemos, recordingPath, reportPath } from '../demo.js';
 import { DEMO_SPEED, DEMO_CTA_URL } from '../config.js';
 import { h } from './helpers.js';
 
@@ -62,6 +62,20 @@ export function demoRouter() {
       if (!file) return res.status(404).json({ error: 'no recording' });
       res.setHeader('Content-Type', 'video/mp4');
       res.setHeader('Content-Disposition', `inline; filename="qassist-demo-${req.params.slug}.mp4"`);
+      res.sendFile(file);
+    })
+  );
+
+  // The same PDF a real run produces, served straight off the fixture — the
+  // demo's verdict card offers it exactly as the run page does. Read-only, no
+  // auth, opened inline in a new tab (no bearer header, unlike a real run's).
+  r.get(
+    '/:slug/report.pdf',
+    h(async (req, res) => {
+      const file = reportPath(req.params.slug);
+      if (!file) return res.status(404).json({ error: 'no report' });
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="qassist-demo-${req.params.slug}.pdf"`);
       res.sendFile(file);
     })
   );
