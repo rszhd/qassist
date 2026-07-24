@@ -46,7 +46,7 @@ uuid — copy it from the URL in the UI.
 Both accept the same body and return the same shape:
 
 ```jsonc
-// -> {"start_url":"https://preview-abc123.example.com","trigger":"ci"}
+// body -> {"start_url":"https://preview-abc123.example.com","variables":{"env":"prod"},"trigger":"ci"}
 {
   "moduleId": "…",                                 // or "suiteId"
   "runs": [{ "runId": "…", "testId": "…", "status": "queued" }]
@@ -57,7 +57,7 @@ One run per member test, queued behind `MAX_CONCURRENT_SESSIONS` like every
 other run — a ten-test module on a two-session worker takes five run-lengths
 of wall clock, so size the job timeout accordingly.
 
-## The two things the body does
+## The three things the body does
 
 **`start_url`** overrides the saved `start_url` of *every* test in the batch,
 which is how one saved module tests a different preview deploy on each push.
@@ -67,6 +67,18 @@ starts at that preview's root, not at its `/login`. Tests you intend to run
 from CI should therefore be authored to navigate from the app root ("go to
 the login page, then …"), which is what you want anyway: the navigation is
 part of what's being tested.
+
+**`variables`** overrides the named variables a test declares (US-035) — the
+generalization of `start_url` to any per-environment value: a login user, an
+API base, a coupon code, a tenant id. A test whose goal reads
+`log in as {{user}} on {{env}}` runs against production when the body carries
+`{"variables": {"user": "ci-bot", "env": "prod"}}`, and against staging from a
+second pipeline that changes only those values — one saved test, one snippet,
+no per-environment clones. The map is sprayed across *every* test in a batch;
+each test substitutes the names it declares and fills the rest from its own
+defaults, so a name a given test doesn't declare is simply ignored. A variable
+the test marks required (referenced, no default) with no override rejects that
+run with a 400 rather than running with a hole in the goal.
 
 **`trigger: "ci"`** tags the runs, so History can filter to
 `?trigger=ci` and answer "what did the pipeline run" separately from what a
@@ -98,12 +110,15 @@ set -euo pipefail
 : "${QASSIST_TOKEN:?set QASSIST_TOKEN}"
 endpoint="$1"
 start_url="${2-}"
+vars="${QASSIST_VARS:-}"          # JSON object of variable overrides, e.g. {"env":"prod"}
 poll="${QASSIST_POLL_SECONDS:-10}"
 timeout="${QASSIST_TIMEOUT_SECONDS:-900}"   # per run, not for the batch
 
 auth=(-H "Authorization: Bearer $QASSIST_TOKEN" -H "Content-Type: application/json")
-body=$(jq -nc --arg u "$start_url" \
-  '{trigger:"ci"} + (if $u == "" then {} else {start_url:$u} end)')
+body=$(jq -nc --arg u "$start_url" --argjson v "${vars:-null}" \
+  '{trigger:"ci"}
+   + (if $u == "" then {} else {start_url:$u} end)
+   + (if $v == null then {} else {variables:$v} end)')
 
 runs=$(curl -fsS -X POST "$QASSIST_URL$endpoint" "${auth[@]}" -d "$body")
 ids=$(jq -r '.runs[].runId' <<<"$runs")
@@ -161,7 +176,11 @@ jobs:
         env:
           QASSIST_URL: ${{ secrets.QASSIST_URL }}
           QASSIST_TOKEN: ${{ secrets.QASSIST_TOKEN }}
+          QASSIST_VARS: '{"env":"prod","user":"ci-bot"}'   # overrides the test's declared variables
 ```
+
+Point a second environment at the same tests by changing only `QASSIST_VARS` —
+a staging job is this job with `'{"env":"staging",…}'`.
 
 A suite is the same job with the target swapped:
 
@@ -196,6 +215,7 @@ qa-smoke:
   timeout: 30m
   variables:
     QASSIST_TARGET: /api/projects/checkout/modules/auth/run
+    QASSIST_VARS: '{"env":"prod","user":"ci-bot"}'   # overrides the test's declared variables
   before_script:
     - apk add --no-cache bash curl jq
   script:

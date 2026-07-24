@@ -103,7 +103,7 @@ the secret path.
 - [ ] A saved test can declare named variables with defaults and a `secret`
       flag; the goal/`start_url` reference them
 - [ ] Starting a run pre-fills defaults and lets the user override per run
-- [ ] CI can override the same variables via the trigger body (one snippet,
+- [x] CI can override the same variables via the trigger body (one snippet,
       values as its only per-environment change) — generalizing US-008's
       `start_url`
 - [ ] A `secret` variable's value never appears un-redacted in frames, steps,
