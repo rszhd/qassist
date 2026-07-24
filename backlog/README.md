@@ -27,23 +27,20 @@ Workflow rule (`CLAUDE.md`) applies to.
   a released folder only ever contains finished work. A story with follow-up
   tiers left over gets those spun into a new story in `unscheduled/`.
 
-## Current sprint (the open-source self-host release) — `sprint/current/`
+## Current sprint — `sprint/current/`
 
 Scope decided 2026-07-22, extended the same day to include the hosted paid
-tier, and **narrowed back on 2026-07-23: the current sprint is the self-host
-release alone.** Saved tests, projects and modules, recording, run history,
-scheduling, failure emails and run permalinks are all shipped; what is left is
-not a feature at all but the four stories that turn a working app into a
-release someone else can run — public HTTPS (US-007), a CI snippet proven
-against it (US-008), a licence on a public repo (US-031), and a tested,
-published image (US-032).
+tier, then **narrowed on 2026-07-23 to the release-plumbing stories** once
+saved tests, projects and modules, recording, run history, scheduling,
+failure emails and run permalinks had all shipped: what was left was the four
+stories that turn a working app into a release someone else can run — public
+HTTPS (US-007), a CI snippet proven against it (US-008), a licence on a
+public repo (US-031), and a tested, published image (US-032).
 
-Why the split: everything still open in the sprint was **hosted**-tier work
-(signup, Stripe, BYOK, per-user concurrency) plus one report improvement, and
-none of it is what a self-hoster is waiting on. Holding the free release until
-billing works would ship it months late for no self-hoster's benefit. The
-hosted tier keeps its decisions and its stories intact — they move together
-into [the next sprint](#next-sprint-the-hosted-paid-tier--sprintnext).
+Sprints aren't split along a self-host/hosted-tier line — `sprint/current/`
+and `sprint/next/` are just now vs. later, reprioritized as needed. On
+2026-07-24, US-021 (signup & login) and US-033 (live demo replay) were pulled
+forward from `sprint/next/` into this sprint.
 
 | ID | Story | Status | Depends on |
 |---|---|---|---|
@@ -51,6 +48,8 @@ into [the next sprint](#next-sprint-the-hosted-paid-tier--sprintnext).
 | [US-008](sprint/current/US-008-cicd-integration.md) | CI/CD trigger: the documented pipeline step | 📝 Docs written, unverified | US-007, US-009 |
 | [US-031](sprint/current/US-031-license-and-public-repo.md) | License the code and open the repo | 📋 Planned | — |
 | [US-032](sprint/current/US-032-release-pipeline-and-image.md) | CI on every push, a published image on every tag | 📋 Planned | US-031 |
+| [US-021](sprint/current/US-021-signup-auth.md) | Signup & login (magic-link auth) | 📋 Planned | US-009, US-007 |
+| [US-033](sprint/current/US-033-live-demo-replay.md) | Live demo: a canned run that replays as if it were live | 📋 Planned (P2) | US-006, US-026 |
 | [US-035](sprint/current/done/US-035-run-variables.md) | Per-run variables (environment overrides) | ✅ Shipped (2026-07-24) — PDF display carved to US-020 | US-009 |
 | [US-009](sprint/current/done/US-009-control-plane-saved-tests.md) | Control plane: save & reuse tests | ✅ Done (2026-07-22) | — |
 | [US-023](sprint/current/done/US-023-projects-and-modules.md) | Projects & modules (organize saved tests) | ✅ Done (2026-07-22) | US-009 |
@@ -87,8 +86,8 @@ Added to the sprint 2026-07-23: **US-027**, one half of concurrency being
 invisible. `MAX_CONCURRENT_SESSIONS=4` queues everything past the cap, but the
 Run view rendered a queued run identically to a starting one. The other half —
 a per-user share of the queue ([US-028](sprint/next/US-028-per-user-concurrency-limit.md))
-— went to the next sprint with the hosted tier: it is a no-op until real users exist,
-and self-host keeps today's single global queue.
+— sits in the next sprint: it is a no-op until real users exist, and today's
+single global queue is enough until then.
 
 Added to the sprint 2026-07-23: **US-026**, so a past run explains itself in
 History rather than only in the PDF — the steps are already written to disk,
@@ -165,6 +164,11 @@ US-020/US-010/US-012 touch the frontend than after.
    a stranger will read, so they are cheaper once US-007 and US-008 have
    finished editing it. Cut `v1.0.0` when US-032's workflow goes green — that
    tag *is* the release.
+10. **US-021** — signup & login, pulled in from `sprint/next/` on 2026-07-24.
+    Depends on US-009 (has it) and US-007 (public HTTPS, still open above) for
+    the magic-link redirect to work over a real domain.
+11. **US-033** — the live demo replay, pulled in alongside US-021. Depends on
+    US-006 and US-026, both already shipped.
 
 **US-027** (queued-run visibility) sat outside this order: it depended on
 nothing, and every story above makes the queue busier. **Shipped 2026-07-23**,
@@ -175,12 +179,13 @@ the Run view has a queued state distinct from "Agent is starting…". US-028
 inherits that position and has to keep it honest once the dequeue stops being
 strict FIFO.
 
-## Next sprint (the hosted paid tier) — `sprint/next/`
+## Next sprint — `sprint/next/`
 
-Split out of the current sprint on 2026-07-23, unchanged in content: the four
-hosted stories plus the report improvement that was never gating anything. The
-current sprint ships the app; the next sprint turns it into a service other
-people pay for at qassist.run.
+Split out of the current sprint on 2026-07-23: the hosted-tier stories plus
+the report improvement that was never gating anything. Two of those stories
+(US-021, US-033) were pulled back into `sprint/current/` on 2026-07-24 — see
+above; what remains here is billing, BYOK, per-user concurrency, and the
+report v2 polish.
 
 Paid-tier ground rules (decided 2026-07-22, still standing): nothing extra
 beyond what payment requires. One plan, Stripe Checkout, **BYOK for LLM
@@ -193,41 +198,22 @@ rules live in [`docs/repo-model.md`](../docs/repo-model.md). Email provider:
 | ID | Story | Status | Depends on |
 |---|---|---|---|
 | [US-005](sprint/next/US-005-byok-user-api-keys.md) | Bring-your-own OpenAI key (BYOK) | 📋 Planned | — |
-| [US-021](sprint/next/US-021-signup-auth.md) | Signup & login (magic-link auth) | 📋 Planned | US-009, US-007 |
 | [US-022](sprint/next/US-022-stripe-billing.md) | Paid tier: Stripe billing | 📋 Planned | US-021, US-005 |
 | [US-028](sprint/next/US-028-per-user-concurrency-limit.md) | Per-user concurrent run limit (hosted) | 📋 Planned | US-021, US-022, US-027 |
-| [US-033](sprint/next/US-033-live-demo-replay.md) | Live demo: a canned run that replays as if it were live | 📋 Planned (P2) | US-006, US-026 |
 | [US-020](sprint/next/US-020-report-v2-screenshots-recording.md) | Report v2: step screenshots + recording | 📋 Planned (P2) | US-006 |
-
-Added to the sprint 2026-07-23: **US-033**, because "try before you
-subscribe" has no cheap answer otherwise. A real free trial spends a browser
-slot and LLM tokens per visitor, and BYOK (US-005) puts an API key in front of
-the evaluation anyway. The live stage is already fed by an event stream rather
-than by the agent, so a recorded run replayed at its original pace costs
-nothing per visitor — the story's work is mostly about keeping it honest and
-keeping it out of the database.
 
 ### Build order
 
 1. **US-005** — BYOK, before anyone but the operator can run tests
-2. **US-021 → US-022 → US-028** — signup, then billing, then the per-user
-   concurrency cap; launch when US-022 lands (US-028 can follow the launch —
-   it only bites once several subscribers share the box)
-3. **US-033** — the demo, beside US-022 rather than before it: it depends on
-   neither signup nor billing technically, but the replay ends on a "subscribe"
-   CTA that has nowhere to point until there is something to buy. Record the
-   fixtures earlier if convenient — they only need US-006, which shipped.
-4. **US-020** — the screenshots, into the report and hanging off a step in
+2. **US-022 → US-028** — billing, then the per-user concurrency cap. US-022
+   also depends on US-021, which now ships from `sprint/current/`; US-028 can
+   follow launch — it only bites once several subscribers share the box.
+3. **US-020** — the screenshots, into the report and hanging off a step in
    US-026's activity list. P2 since 2026-07-23: it makes a good report better
    rather than making anything possible, which is also why it left the current sprint.
    Its step section renders `Step {n}`, which is why `progress` events were
    left out of `report_data.json`; revisit that if the section stops being
    step-keyed.
-
-US-020 is the odd one out here — it is self-host work sitting in the next
-sprint, kept because P2 polish shouldn't hold the free launch and it is the
-next thing worth doing once it doesn't. Move it forward if a self-hoster asks
-for it before the hosted tier is real.
 
 ## Unscheduled — `unscheduled/`
 
