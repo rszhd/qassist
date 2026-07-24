@@ -6,7 +6,7 @@ import {
 import { api, openReport } from './api.js';
 import ActivityLog from './Activity.jsx';
 import SavedTests from './SavedTests.jsx';
-import { Button, CardHead, EmptyState, Field, Modal, PageHeader, Stat } from './ui.jsx';
+import { Button, CardHead, EmptyState, Field, IconButton, Modal, PageHeader, Stat } from './ui.jsx';
 
 // The default view: the live stage is the page, with the saved-test rail
 // beside it. Creating and editing tests happens in a dialog so the run form
@@ -37,11 +37,18 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
   // only follow one.
   const [batch, setBatch] = useState(null);
   const [activeTestId, setActiveTestId] = useState(null);
-  // Which dialog is open: 'run' (ad-hoc), 'create' or 'edit'. The URL and goal
-  // fields are shared with the running state, so the dialog edits them in
+  // Which dialog is open: 'run' (ad-hoc), 'create'/'edit' (a saved test), or
+  // 'vars' (override a variable'd test's values before it runs). The URL and
+  // goal fields are shared with the running state, so the dialog edits them in
   // place; `editing` carries only what a saved test adds on top.
   const [dialog, setDialog] = useState(null);
   const [editing, setEditing] = useState(null);
+  // US-035: the variable declarations being edited in the create/edit dialog,
+  // and — for the 'vars' dialog — the test being run plus this run's override
+  // values (seeded from each variable's default).
+  const [variables, setVariables] = useState([]);
+  const [runVars, setRunVars] = useState(null);
+  const [varValues, setVarValues] = useState({});
   const [savingTest, setSavingTest] = useState(false);
   const [reportBusy, setReportBusy] = useState(false);
   // The rail is a launcher, not something you read mid-run — minimizing it to
@@ -211,7 +218,7 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
     if (!name) return;
     setSavingTest(true);
     try {
-      const body = { name, goal, start_url: startUrl };
+      const body = { name, goal, start_url: startUrl, variables };
       // Send both halves of the grouping: setting project_id alone would clear
       // the module server-side (US-023 decision 4).
       if (projects.length) {
@@ -232,6 +239,7 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
   function closeDialog() {
     setDialog(null);
     setEditing(null);
+    setRunVars(null);
   }
 
   function editTest(test) {
@@ -244,6 +252,7 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
     });
     setGoal(test.goal);
     setStartUrl(test.start_url);
+    setVariables(test.variables || []);
     setDialog('edit');
   }
 
@@ -251,6 +260,7 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
   // surprising default when you are already working inside one.
   function newTest() {
     setEditing({ name: '', project_id: filterProjectId, module_id: null });
+    setVariables([]);
     setDialog('create');
   }
 
@@ -266,18 +276,34 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
     }
   }
 
-  // One-click re-run: the server reads goal/URL off the saved row, so we only
-  // mirror them into the form to show what's running.
-  async function runSavedTest(test) {
+  // Clicking Run on the rail. A test with no variables runs on one click,
+  // exactly as before (US-035 progressive disclosure). A test that declares
+  // variables opens the override dialog first, prefilled with each default.
+  function onRunTest(test) {
+    if (test.variables?.length) {
+      setRunVars(test);
+      setVarValues(Object.fromEntries(test.variables.map((v) => [v.name, v.value])));
+      setDialog('vars');
+    } else {
+      runSavedTest(test);
+    }
+  }
+
+  // One-click re-run: the server reads goal/URL off the saved row and resolves
+  // variables itself, so we only mirror the (locally substituted) values into
+  // the form to show what's running. `overrides` is this run's variable values
+  // from the override dialog; undefined ⇒ the test's own defaults.
+  async function runSavedTest(test, overrides) {
+    setDialog(null);
     resetRunState();
     setActiveTestId(test.id);
-    setGoal(test.goal);
-    setStartUrl(test.start_url);
+    setGoal(fillTemplate(test.goal, test.variables, overrides));
+    setStartUrl(fillTemplate(test.start_url, test.variables, overrides));
     try {
       const { runId: id } = await api(`/api/tests/${test.id}/run`, {
         token,
         method: 'POST',
-        body: { trigger: 'ui' },
+        body: { trigger: 'ui', variables: overrides },
       });
       setRunId(id);
       openSocket(id);
@@ -429,7 +455,7 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
               setFilter={setFilter}
               activeTestId={activeTestId}
               running={running}
-              onRun={runSavedTest}
+              onRun={onRunTest}
               onEdit={editTest}
               onNew={newTest}
               onRunModule={(m, n) => runBatch('module', m, n)}
@@ -579,7 +605,7 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
         </section>
       </div>
 
-      {dialog && (
+      {dialog && dialog !== 'vars' && (
         <TestDialog
           mode={dialog}
           goal={goal}
@@ -588,6 +614,8 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
           setStartUrl={setStartUrl}
           editing={editing}
           setEditing={setEditing}
+          variables={variables}
+          setVariables={setVariables}
           projects={projects}
           modules={editModules}
           hasDb={!!health?.db}
@@ -598,11 +626,36 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
           onDelete={deleteTest}
           onSwitchToSave={() => {
             setEditing({ name: '', project_id: filterProjectId, module_id: null });
+            setVariables([]);
             setDialog('create');
           }}
         />
       )}
+
+      {dialog === 'vars' && runVars && (
+        <RunVarsDialog
+          test={runVars}
+          values={varValues}
+          setValues={setVarValues}
+          onClose={closeDialog}
+          onRun={() => runSavedTest(runVars, varValues)}
+        />
+      )}
     </>
+  );
+}
+
+/**
+ * Fill a saved test's `{{name}}` placeholders for the stage display only — the
+ * server does the authoritative substitution. Overrides win over each
+ * variable's default; an unknown name is left as-is (the server would 400 it).
+ */
+function fillTemplate(text, variables, overrides) {
+  const values = {};
+  for (const v of variables || []) values[v.name] = v.value;
+  if (overrides) Object.assign(values, overrides);
+  return String(text ?? '').replace(/\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g, (whole, name) =>
+    Object.prototype.hasOwnProperty.call(values, name) ? values[name] : whole
   );
 }
 
@@ -625,7 +678,7 @@ function batchSummary({ total, queued }) {
  * is what the stage shows while the run happens.
  */
 function TestDialog({
-  mode, goal, setGoal, startUrl, setStartUrl, editing, setEditing,
+  mode, goal, setGoal, startUrl, setStartUrl, editing, setEditing, variables, setVariables,
   projects, modules, hasDb, saving, onClose, onRun, onSave, onDelete, onSwitchToSave,
 }) {
   const isRun = mode === 'run';
@@ -723,7 +776,96 @@ function TestDialog({
           <textarea rows={4} value={goal} onChange={(e) => setGoal(e.target.value)} />
         </Field>
 
+        {!isRun && <VariablesEditor variables={variables} setVariables={setVariables} />}
+
         {/* Enter in a text field submits the dialog. */}
+        <button type="submit" hidden />
+      </form>
+    </Modal>
+  );
+}
+
+/**
+ * Declare a saved test's variables (US-035). Kept out of the way for the basic
+ * case: with none declared it is a single quiet "Add variable" button, so a
+ * test that needs no variables looks exactly like the pre-US-035 dialog. Each
+ * variable is a name and a default value; the goal/URL reference it as
+ * `{{name}}` and a run can override it. (Secret/optional wait for the secret
+ * path — see US-035.)
+ */
+function VariablesEditor({ variables, setVariables }) {
+  const set = (i, key, val) =>
+    setVariables((cur) => cur.map((v, j) => (j === i ? { ...v, [key]: val } : v)));
+  const add = () => setVariables((cur) => [...cur, { name: '', value: '', secret: false, optional: false }]);
+  const remove = (i) => setVariables((cur) => cur.filter((_, j) => j !== i));
+
+  return (
+    <div className="vars">
+      {variables.length > 0 && (
+        <>
+          <span className="field-label">Variables</span>
+          <p className="field-hint">
+            Reference them in the goal or Start URL as <code>{'{{name}}'}</code>. Each run can
+            override the default.
+          </p>
+          {variables.map((v, i) => (
+            <div className="var-row" key={i}>
+              <input
+                className="var-name"
+                value={v.name}
+                placeholder="name"
+                aria-label={`Variable ${i + 1} name`}
+                onChange={(e) => set(i, 'name', e.target.value)}
+              />
+              <input
+                value={v.value}
+                placeholder="default value"
+                aria-label={`Variable ${i + 1} default value`}
+                onChange={(e) => set(i, 'value', e.target.value)}
+              />
+              <IconButton icon={Trash2} variant="danger" label="Remove variable" onClick={() => remove(i)} />
+            </div>
+          ))}
+        </>
+      )}
+      <Button size="sm" variant="ghost" icon={Plus} onClick={add} className="var-add">
+        Add variable
+      </Button>
+    </div>
+  );
+}
+
+/**
+ * Override a variable'd test's values for this one run (US-035), prefilled with
+ * each default. Only opens for a test that declares variables — the one-click
+ * run path is untouched for everything else.
+ */
+function RunVarsDialog({ test, values, setValues, onClose, onRun }) {
+  const submit = (e) => {
+    e.preventDefault();
+    onRun();
+  };
+  return (
+    <Modal
+      title={`Run ${test.name}`}
+      description="Set this run's variables, then run. Defaults are prefilled — a blank field runs empty."
+      onClose={onClose}
+      footer={
+        <>
+          <Button onClick={onClose}>Cancel</Button>
+          <Button variant="primary" icon={Play} onClick={submit}>Run test</Button>
+        </>
+      }
+    >
+      <form onSubmit={submit} className="modal-form">
+        {test.variables.map((v) => (
+          <Field key={v.name} label={v.name}>
+            <input
+              value={values[v.name] ?? ''}
+              onChange={(e) => setValues((cur) => ({ ...cur, [v.name]: e.target.value }))}
+            />
+          </Field>
+        ))}
         <button type="submit" hidden />
       </form>
     </Modal>

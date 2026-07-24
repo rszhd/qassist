@@ -103,6 +103,22 @@ export default function RunDetail({ run, token, onError, liveSteps, permalink })
         <dd>{run.trigger}</dd>
         <dt>URL</dt>
         <dd title={run.start_url}>{run.start_url}</dd>
+        {/* US-035: the resolved non-secret variables this run used, so a
+            failure is attributable to the environment it ran against. Absent
+            for a run with no variables — the dl is otherwise unchanged. */}
+        {run.variables && Object.keys(run.variables).length > 0 && (
+          <>
+            <dt>Variables</dt>
+            <dd className="detail-vars">
+              {Object.entries(run.variables).map(([name, value]) => (
+                <span className="var-chip" key={name}>
+                  <b>{name}</b>
+                  {value ? `=${value}` : ' (empty)'}
+                </span>
+              ))}
+            </dd>
+          </>
+        )}
       </dl>
 
       <p className="detail-goal">{run.goal}</p>

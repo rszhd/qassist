@@ -405,6 +405,15 @@ select {
 .field-row { display: flex; gap: var(--s3); }
 .field-row .field { flex: 1; min-width: 0; }
 
+/* US-035 variable declarations: a stack of name/default rows under the goal.
+   With none declared it collapses to the lone "Add variable" button, so the
+   dialog is unchanged for a test that needs no variables. */
+.vars { display: flex; flex-direction: column; gap: var(--s2); }
+.var-row { display: flex; align-items: center; gap: var(--s2); }
+.var-row input { flex: 1; min-width: 0; }
+.var-row .var-name { flex: 0 0 34%; }
+.var-add { align-self: flex-start; }
+
 /* A card stacks its blocks with a gap, never with a margin on whichever child
    happens to be there — that is what keeps a head, a filter row, a list and a
    footer form evenly spaced in every view, and it is why nothing below sets
@@ -786,6 +795,14 @@ button.row-main { background: transparent; border: 0; padding: 0; color: inherit
 .detail-facts { display: grid; grid-template-columns: auto 1fr; gap: var(--s15) var(--s4); margin: 0; font-size: var(--t-base); }
 .detail-facts dt { color: var(--faint); }
 .detail-facts dd { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The variables row is the one fact that can hold several values, so it wraps
+   into chips rather than truncating to one line like the others. */
+.detail-facts dd.detail-vars { overflow: visible; white-space: normal; display: flex; flex-wrap: wrap; gap: var(--s1); }
+.var-chip {
+  font-size: var(--t-sm); padding: 0 var(--s15); border-radius: var(--r-sm);
+  background: var(--sunken); border: 1px solid var(--border); color: var(--muted);
+}
+.var-chip b { font-weight: 600; color: var(--text); }
 .detail-goal { font-size: var(--t-base); line-height: 1.6; color: var(--muted); }
 .detail-screen { margin: 0; }
 
