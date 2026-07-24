@@ -218,6 +218,7 @@ export function testsRouter({ checkToken }) {
         test_id: test.id,
         trigger: TRIGGERS.has(body.trigger) ? body.trigger : 'api',
         variables: resolved.variables,
+        secrets: resolved.secrets,
       });
       res.json({ runId: run.id, testId: test.id, status: run.status });
     })

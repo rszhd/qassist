@@ -186,7 +186,8 @@ function maybeNotify(run) {
  * Enqueue a run (starts immediately when under the concurrency cap).
  * @param {{ goal: string, start_url: string, max_steps?: number,
  *           model?: string | null, test_id?: string | null,
- *           trigger?: string, variables?: Record<string, string> }} fields
+ *           trigger?: string, variables?: Record<string, string>,
+ *           secrets?: Record<string, string> }} fields
  */
 export function createRun(fields) {
   const runId = randomUUID();
@@ -198,6 +199,9 @@ export function createRun(fields) {
     model: fields.model || null,
     test_id: fields.test_id || null,
     variables: fields.variables || {},
+    // Real secret values, in-memory only — handed to the agent via QA_VARS in
+    // startRun and deliberately never persisted or serialized (US-035).
+    secrets: fields.secrets || {},
     user_id: getOperatorUserId(),
     trigger: fields.trigger || 'api',
     status: 'queued',
@@ -246,6 +250,7 @@ export function runTests(tests, opts = {}) {
       test_id: t.id,
       trigger: opts.trigger || 'api',
       variables: resolved.variables,
+      secrets: resolved.secrets,
     });
     return { runId: run.id, testId: t.id, status: run.status };
   });
@@ -323,6 +328,7 @@ function startRun(runId) {
       ...process.env,
       QA_GOAL: run.goal,
       QA_START_URL: run.start_url,
+      QA_VARS: JSON.stringify(run.secrets || {}),
       QA_MAX_STEPS: String(run.max_steps),
       QA_RUN_ID: run.id,
       BROWSER_USE_MODEL: run.model || MODEL,

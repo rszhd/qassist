@@ -65,11 +65,21 @@ disclosure: a variable-less test is unchanged; declaring lives behind a quiet
 "Add variable" affordance in the create/edit dialog; a variable'd test's Run
 opens a defaults-prefilled override dialog; RunDetail shows a run's resolved
 non-secret variables). The `secret` flag is deliberately kept out of the UI so
-you can't build a test the server would reject. The **secret** path itself is
-gated off in `resolveForRun` (a run referencing a secret returns 400) pending
-the maintainer's redaction assertion — registered in
-`backlog/correctness-critical.md`. Report (PDF) display of variables lands after
-the secret path.
+you can't build a test the server would reject.
+
+The **secret** path is now shipped (backend + agent), assertion-first: the
+maintainer reviewed the `resolveForRun` and `QA_VARS` assertions
+(`variables.test.js` secret block, `agent/tests/test_secret_vars.py`) before the
+implementation. A referenced secret's real value leaves `resolveForRun` only on
+a `secrets` channel — never the substituted goal/start_url, never the persisted
+`run.variables` (which carries it as the presence marker `'<secret>'`). The run
+engine hands `secrets` to the agent as an in-memory-only `QA_VARS` env (never
+persisted or serialized); `secret_vars.load` merges it into the browser-use
+`sensitive` dict so `<secret>name</secret>` substitutes at type-time and
+`redact.scrub` strips it from every emitted event. A secret referenced in
+`start_url` is rejected (a secret in a URL is the exact leak US-034's scrub
+patches). Still out of the UI (declaring a secret) and still remaining: **Report
+(PDF) display** of a run's non-secret variables.
 
 ## Open design decisions (raise before implementing)
 
@@ -106,7 +116,8 @@ the secret path.
 - [x] CI can override the same variables via the trigger body (one snippet,
       values as its only per-environment change) — generalizing US-008's
       `start_url`
-- [ ] A `secret` variable's value never appears un-redacted in frames, steps,
-      the report, or the persisted run (assertion-first, maintainer-owned)
+- [x] A `secret` variable's value never appears un-redacted in frames, steps,
+      the report, or the persisted run (assertion-first, maintainer-owned) —
+      routed via `secrets`→`QA_VARS`→`sensitive`, persisted as `'<secret>'`
 - [ ] History shows which environment/values a run used (non-secret)
 - [ ] A test with no variables is indistinguishable from today's Run view

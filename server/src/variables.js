@@ -8,10 +8,13 @@
 // the tests CRUD (declaration shape + reference validation) and the run engine
 // (resolve + substitute at enqueue).
 //
-// Secret variables are the redaction-critical half and are gated off here until
-// the maintainer's assertion lands (US-035 sequencing) — `resolveForRun`
-// rejects a run that actually references one. Declaring a secret is allowed;
-// only running against it waits.
+// Secret variables are the redaction-critical half (backlog/correctness-critical.md).
+// Their real value must never enter the substituted goal/start_url or the
+// `variables` map denormalized onto the persisted run — it leaves `resolveForRun`
+// only on the separate `secrets` channel, which the run engine hands to the
+// agent as `QA_VARS` (browser-use `sensitive_data`). The goal keeps a
+// `<secret>name</secret>` placeholder — the same one US-034 already teaches the
+// agent — so the browser substitutes the value at type-time, not the server.
 
 const NAME_RE = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
 // Deliberately the same identifier grammar as NAME_RE so a reference can only
@@ -89,26 +92,40 @@ export function validateReferences(variables, ...texts) {
 /**
  * Resolve a run's variables: overrides merged over the test's defaults, then
  * substituted into goal/start_url. Returns `{ error }` (→ 400) or the resolved
- * `{ goal, start_url, variables }` where `variables` is the non-secret map to
- * denormalize onto the run for history. Overrides naming a variable this test
- * doesn't declare are ignored — a group override sprays every member test and
- * each fills only the names it knows (US-035 group semantics).
+ * `{ goal, start_url, variables, secrets }`. `variables` is the map denormalized
+ * onto the run for history — non-secret values in full, a secret as the
+ * presence marker `'<secret>'` (never its value). `secrets` is the real
+ * name→value map of *referenced* secrets, routed to the agent as `QA_VARS` and
+ * never persisted. A secret's `{{name}}` becomes a `<secret>name</secret>`
+ * placeholder in the goal; a secret referenced in start_url is rejected (a
+ * secret in a URL is the exact leak US-034's scrub exists to patch). Overrides
+ * naming a variable this test doesn't declare are ignored — a group override
+ * sprays every member test and each fills only the names it knows (US-035 group
+ * semantics).
  * @param {{ variables?: Array<{name: string, value: string, secret: boolean, optional: boolean}>,
  *          overrides?: Record<string, string> | null, goal: string, start_url: string }} input
- * @returns {{ error: string } | { goal: string, start_url: string, variables: Record<string, string> }}
+ * @returns {{ error: string } | { goal: string, start_url: string, variables: Record<string, string>, secrets: Record<string, string> }}
  */
 export function resolveForRun({ variables = [], overrides, goal, start_url }) {
+  const usedInUrl = referencedNames(start_url);
   const used = referencedNames(goal, start_url);
   const resolved = {};
+  const secrets = {};
+  const subMap = {};
   for (const v of variables) {
     const override = overrides && Object.prototype.hasOwnProperty.call(overrides, v.name)
       ? overrides[v.name]
       : undefined;
     const value = override ?? v.value;
     if (v.secret) {
-      // Redaction-critical path — gated until the maintainer's assertion lands.
-      if (used.has(v.name) || override !== undefined) {
-        return { error: `secret variable ${v.name} is not yet supported` };
+      if (usedInUrl.has(v.name)) {
+        return { error: `secret variable ${v.name} cannot appear in start_url` };
+      }
+      resolved[v.name] = '<secret>';
+      if (used.has(v.name)) {
+        if (!v.optional && !value) return { error: `variable ${v.name} is required` };
+        secrets[v.name] = value;
+        subMap[v.name] = `<secret>${v.name}</secret>`;
       }
       continue;
     }
@@ -116,9 +133,10 @@ export function resolveForRun({ variables = [], overrides, goal, start_url }) {
       return { error: `variable ${v.name} is required` };
     }
     resolved[v.name] = value;
+    subMap[v.name] = value;
   }
   const sub = (text) => text.replace(PLACEHOLDER, (whole, name) =>
-    Object.prototype.hasOwnProperty.call(resolved, name) ? resolved[name] : whole
+    Object.prototype.hasOwnProperty.call(subMap, name) ? subMap[name] : whole
   );
-  return { goal: sub(goal), start_url: sub(start_url), variables: resolved };
+  return { goal: sub(goal), start_url: sub(start_url), variables: resolved, secrets };
 }

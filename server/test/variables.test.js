@@ -69,6 +69,7 @@ test('resolveForRun substitutes defaults and overrides into goal and start_url',
     goal: 'log in as alice on prod',
     start_url: 'https://prod.example.com',
     variables: { env: 'prod', user: 'alice' },
+    secrets: {},
   });
 });
 
@@ -85,6 +86,7 @@ test('resolveForRun lets an optional variable resolve empty', () => {
     goal: 'apply ',
     start_url: 'https://x',
     variables: { coupon: '' },
+    secrets: {},
   });
 });
 
@@ -99,8 +101,72 @@ test('resolveForRun ignores overrides for names this test does not declare', () 
   assert.deepEqual(/** @type {any} */ (r).variables, { env: 'prod' });
 });
 
-test('resolveForRun rejects a run that references a secret (gated until redaction assertion)', () => {
-  const variables = [{ name: 'pw', value: 's3cret', secret: true, optional: false }];
+// --- secret path (US-035, correctness-critical) ---
+// These pin the redaction boundary: a secret's real value leaves resolveForRun
+// only on the `secrets` channel (→ QA_VARS → the agent's browser-use
+// sensitive_data), and never enters the substituted goal/start_url or the
+// `variables` map that is denormalized onto the persisted run. The goal keeps a
+// `<secret>name</secret>` placeholder — the same one US-034 already teaches the
+// agent — so browser-use substitutes the value at type-time, not the server.
+//
+// Three decisions these encode (raise/tighten before the implementation):
+//   D1 resolveForRun gains a `secrets: {name: value}` return channel.
+//   D2 the persisted `variables` map carries a secret as presence-only
+//      (`'<secret>'`), so history shows which environment ran without the value.
+//   D3 a secret referenced in start_url is rejected — a secret in a URL is the
+//      exact leak US-034's scrub exists to patch.
+
+test('resolveForRun routes a secret as a placeholder, never inline', () => {
+  const variables = [
+    { name: 'env', value: 'prod', secret: false, optional: false },
+    { name: 'pw', value: 's3cret', secret: true, optional: false },
+  ];
+  const r = /** @type {any} */ (resolveForRun({
+    variables,
+    goal: 'log in on {{env}} with {{pw}}',
+    start_url: 'https://x',
+  }));
+  // D1: the value never appears in the text the prompt/report is built from.
+  assert.equal(r.goal, 'log in on prod with <secret>pw</secret>');
+  assert.doesNotMatch(r.goal, /s3cret/);
+  // D1: the real value leaves only on the secrets channel (→ QA_VARS).
+  assert.deepEqual(r.secrets, { pw: 's3cret' });
+  // D2: the persisted map carries presence, not value.
+  assert.deepEqual(r.variables, { env: 'prod', pw: '<secret>' });
+});
+
+test('resolveForRun never persists a secret value even under override', () => {
+  const variables = [{ name: 'pw', value: 'default-pw', secret: true, optional: false }];
+  const r = /** @type {any} */ (resolveForRun({
+    variables,
+    overrides: { pw: 'ci-injected' }, // CI trigger body supplies the real one
+    goal: 'type {{pw}}',
+    start_url: 'https://x',
+  }));
+  assert.equal(r.secrets.pw, 'ci-injected');
+  assert.doesNotMatch(JSON.stringify(r.variables), /ci-injected|default-pw/);
+  assert.doesNotMatch(r.goal, /ci-injected|default-pw/);
+});
+
+test('resolveForRun requires a referenced non-optional secret to resolve', () => {
+  const variables = [{ name: 'pw', value: '', secret: true, optional: false }];
   const r = resolveForRun({ variables, goal: 'type {{pw}}', start_url: 'https://x' });
-  assert.match(/** @type {any} */ (r).error, /secret variable pw is not yet supported/);
+  assert.match(/** @type {any} */ (r).error, /pw is required/);
+});
+
+test('resolveForRun lets an unreferenced secret sit unused without leaking', () => {
+  const variables = [{ name: 'pw', value: 's3cret', secret: true, optional: false }];
+  const r = /** @type {any} */ (resolveForRun({
+    variables,
+    goal: 'no secret here',
+    start_url: 'https://x',
+  }));
+  assert.deepEqual(r.secrets, {}); // not referenced ⇒ not routed
+  assert.doesNotMatch(JSON.stringify(r), /s3cret/);
+});
+
+test('resolveForRun rejects a secret referenced in start_url', () => {
+  const variables = [{ name: 'tok', value: 't', secret: true, optional: false }];
+  const r = resolveForRun({ variables, goal: 'go', start_url: 'https://x?t={{tok}}' });
+  assert.match(/** @type {any} */ (r).error, /secret .*tok.* cannot appear in start_url/i);
 });

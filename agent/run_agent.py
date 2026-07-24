@@ -45,6 +45,7 @@ from PIL import Image
 
 from email_codes import ImapMailbox
 from redact import scrub
+import secret_vars
 
 # Screencast tuning — keep bandwidth modest so stdout never backs up.
 FRAME_FORMAT = "jpeg"
@@ -294,14 +295,20 @@ async def main() -> int:
     # so real values never appear in steps, logs, or the report. get_email_code
     # adds the fetched code/link to `sensitive` at runtime — browser-use re-reads
     # the same dict on every action, so later steps can substitute them.
+    # Per-run secret variables (US-035) seed `sensitive` before the mailbox
+    # password joins it — both use the same browser-use channel and the same
+    # scrub, so they merge into one dict rather than compete for it.
+    run_secrets = secret_vars.load(os.environ)
     mailbox = ImapMailbox.from_env(os.environ)
     tools = None
-    sensitive: dict[str, str] | None = None
+    sensitive: dict[str, str] | None = dict(run_secrets) if run_secrets else None
     if mailbox:
         tools = Tools()
         tag = (run_id or pysecrets.token_hex(4)).replace("-", "")[:10]
         test_address = mailbox.generate_address(tag)
-        sensitive = {"qa_password": "Qa1!" + pysecrets.token_urlsafe(9)}
+        if sensitive is None:
+            sensitive = {}
+        sensitive["qa_password"] = "Qa1!" + pysecrets.token_urlsafe(9)
         mail_since = time.time() - 60  # small clock-skew allowance
 
         @tools.action(
