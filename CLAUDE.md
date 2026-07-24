@@ -21,7 +21,9 @@ engine + persistence), `routes/{runs,tests,suites,projects,modules,helpers}.js`.
 
 `frontend/src/` splits as: `App.jsx` (shell — token, health, the routes, the
 settings dialog), `TopBar.jsx` (header + view nav), `RunView.jsx` (a single
-run: WS socket, live stage, run/edit dialog) with `SavedTests.jsx`,
+run: WS socket + live stage) with `SavedTests.jsx`, its dialogs in
+`RunDialogs.jsx` (`TestDialog`/`RunVarsDialog`) and its pure helpers in
+`runHelpers.js` (`fillTemplate`/`referencedNames`/`batchSummary`/`useProjectList`),
 `HistoryView.jsx` (past runs: filters, paging, timeline) with `RunDetail.jsx`,
 `RunPage.jsx` (`/runs/<id>`, rendering that same `RunDetail`), and
 `ProjectsView.jsx` (project/module management) with `Suites.jsx`. Shared
