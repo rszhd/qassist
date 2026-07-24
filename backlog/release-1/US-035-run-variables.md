@@ -58,12 +58,18 @@ generalizes the one built-in override into arbitrary named variables:
   declares and fills the rest from its own defaults. A member that can't resolve
   is skipped with an `error` marker rather than blocking the batch.
 
-**Implementation status:** non-secret path shipped (migration, tests CRUD +
-validation, single + group run substitution, `runs.variables` persistence and
-history exposure). The **secret** path is gated off in `resolveForRun` (a run
-referencing a secret returns 400) pending the maintainer's redaction assertion —
-registered in `backlog/correctness-critical.md`. UI (progressive disclosure) and
-report display land after the secret path.
+**Implementation status:** non-secret path shipped end to end — backend
+(migration, tests CRUD + validation, single + group run substitution,
+`runs.variables` persistence and history exposure) **and UI** (progressive
+disclosure: a variable-less test is unchanged; declaring lives behind a quiet
+"Add variable" affordance in the create/edit dialog; a variable'd test's Run
+opens a defaults-prefilled override dialog; RunDetail shows a run's resolved
+non-secret variables). The `secret` flag is deliberately kept out of the UI so
+you can't build a test the server would reject. The **secret** path itself is
+gated off in `resolveForRun` (a run referencing a secret returns 400) pending
+the maintainer's redaction assertion — registered in
+`backlog/correctness-critical.md`. Report (PDF) display of variables lands after
+the secret path.
 
 ## Open design decisions (raise before implementing)
 
