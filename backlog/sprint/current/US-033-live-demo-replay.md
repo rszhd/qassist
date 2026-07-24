@@ -5,9 +5,12 @@ test and watch a real session play out, **so that** I know what the product
 does before deciding whether to pay for it — and **as the** operator, **I want**
 that to cost me nothing per visitor.
 
-- **Status:** 🚧 Backend + frontend + a real pass fixture shipped 2026-07-24;
-  one real *fail* capture still to replace the fabricated placeholder. Pulled
-  into the current sprint 2026-07-23; originally next sprint, hosted tier.
+- **Status:** ⛔ Superseded by [US-036](US-036-demo-sandbox.md) (2026-07-24).
+  The `/demo` single-route replay is replaced by a per-visitor demo-sandbox
+  deployment; US-036 **keeps this story's `replayDemo` engine and fixtures** and
+  removes its shell. Backend + frontend + a real pass fixture shipped 2026-07-24;
+  the outstanding real-*fail* capture carries over to US-036. Pulled into the
+  current sprint 2026-07-23; originally next sprint, hosted tier.
 - **Priority:** P2 — not required to take payment, but it is the cheapest
   conversion work in the release and the only thing that answers "what does
   this actually look like?" without spending a browser slot or an API key.
