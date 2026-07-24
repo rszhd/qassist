@@ -47,6 +47,11 @@ export const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 // prefs are still stored and editable, nothing is sent.
 export const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
 export const MAIL_FROM = process.env.MAIL_FROM || '';
+// Dev-only transport: log each message (sign-in links, reports) to the server
+// console instead of calling Resend, so the whole auth/email flow is testable
+// locally without an account. Counts as "mail configured" so auth can boot.
+// Never set this in production — nothing would actually be delivered.
+export const MAIL_DEV_CONSOLE = /^(1|true|yes)$/i.test(process.env.MAIL_DEV_CONSOLE || '');
 // Overridable so the tests can point the sender at a local server instead of
 // stubbing fetch — the request that goes out is then the real one.
 export const RESEND_API_URL = process.env.RESEND_API_URL || 'https://api.resend.com/emails';

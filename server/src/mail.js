@@ -5,11 +5,12 @@
 //
 // Who gets mail and why lives in notify.js; this file only knows how to hand
 // an already-composed message to the provider.
-import { RESEND_API_KEY, RESEND_API_URL, MAIL_FROM } from './config.js';
+import { RESEND_API_KEY, RESEND_API_URL, MAIL_FROM, MAIL_DEV_CONSOLE } from './config.js';
 
-/** Sending needs both a key and a verified sender; either missing = feature off. */
+/** Sending needs both a key and a verified sender; either missing = feature off.
+ *  The dev console transport (MAIL_DEV_CONSOLE) counts as configured on its own. */
 export function mailEnabled() {
-  return !!(RESEND_API_KEY && MAIL_FROM);
+  return MAIL_DEV_CONSOLE || !!(RESEND_API_KEY && MAIL_FROM);
 }
 
 /**
@@ -21,6 +22,13 @@ export function mailEnabled() {
  * @returns {Promise<string>} the provider's message id
  */
 export async function sendMail(msg) {
+  if (MAIL_DEV_CONSOLE) {
+    console.log(
+      `\n[mail:dev] to=${msg.to}  subject=${msg.subject}\n${msg.text}\n` +
+        (msg.attachments?.length ? `[${msg.attachments.length} attachment(s) omitted]\n` : '')
+    );
+    return 'dev-console';
+  }
   const res = await fetch(RESEND_API_URL, {
     method: 'POST',
     headers: {

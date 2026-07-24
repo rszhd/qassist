@@ -319,6 +319,31 @@ code { font-family: var(--mono); font-size: .92em; }
 
 .app { max-width: var(--page-w); margin: 0 auto; padding: 0 var(--s5) var(--s10); }
 
+/* Sign-in screen (US-021): the whole app is behind it in multi-user mode, so it
+   owns the viewport and centres one narrow card. */
+.auth { min-height: 100vh; display: grid; place-items: center; padding: var(--s5); }
+.auth-card {
+  width: 100%; max-width: 340px;
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--r-lg);
+  padding: var(--s6);
+}
+.auth-brand {
+  font-size: var(--t-lg); font-weight: 600; letter-spacing: -.006em;
+  text-align: center; padding-bottom: var(--s4);
+}
+.auth-body { display: flex; flex-direction: column; gap: var(--s3); align-items: flex-start; }
+.auth-lead { font-size: var(--t-lg); font-weight: 500; }
+.auth-sub { font-size: var(--t-base); line-height: 1.6; color: var(--muted); }
+.auth-error {
+  font-size: var(--t-sm); line-height: 1.5; color: var(--bad);
+  border: 1px solid var(--bad-line); background: var(--bad-bg);
+  border-radius: var(--r-md); padding: var(--s2) var(--s3); align-self: stretch;
+}
+.auth-body input, .auth-body .btn-block { align-self: stretch; }
+
+.settings-account { display: flex; align-items: center; gap: var(--s3); }
+.settings-account span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
 /* The header sits one gutter above the content, so the gap under the title
    matches the gap between the cards below it. */
 .page-head { display: flex; align-items: flex-start; gap: var(--s4); padding: var(--s6) 0 var(--s4); }

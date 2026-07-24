@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import HistoryView from './HistoryView.jsx';
+import Login from './Login.jsx';
 import ProjectsView from './ProjectsView.jsx';
 import RunPage from './RunPage.jsx';
 import RunView from './RunView.jsx';
 import SchedulesView from './SchedulesView.jsx';
 import TopBar from './TopBar.jsx';
+import { api } from './api.js';
 import { Button, Field, Modal } from './ui.jsx';
 
 // Shell: owns only what every view needs (the API token, server health, which
@@ -24,6 +26,10 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   // Mirrored up from RunView so the header can show it from either view.
   const [runState, setRunState] = useState({ status: 'idle', wsState: 'idle', runId: null });
+  // The signed-in user in multi-user mode (US-021): undefined while we check the
+  // session cookie, null when logged out, the user object once resolved. Stays
+  // null forever in token/open mode — there is no user concept there.
+  const [me, setMe] = useState(undefined);
 
   useEffect(() => {
     localStorage.setItem('qassist_token', token);
@@ -62,11 +68,48 @@ export default function App() {
     };
   }, []);
 
-  // The token is a deployment detail, not part of running a test, so it lives
-  // behind the gear rather than in the run form.
-  const needsToken = (!health || health.auth) && !token;
+  const multi = health?.auth_mode === 'multi';
 
-  const atRun = useLocation().pathname === '/';
+  // In multi-user mode the credential is the HTTP-only session cookie, resolved
+  // by asking /api/auth/me who the browser is. A 401 (or any failure) means no
+  // session — show the login screen. Skipped entirely outside multi mode.
+  useEffect(() => {
+    if (health == null) return undefined;
+    if (!multi) {
+      setMe(null);
+      return undefined;
+    }
+    let cancelled = false;
+    api('/api/auth/me')
+      .then((u) => !cancelled && setMe(u))
+      .catch(() => !cancelled && setMe(null));
+    return () => {
+      cancelled = true;
+    };
+  }, [health, multi]);
+
+  async function signOut() {
+    await api('/api/auth/logout', { method: 'POST' }).catch(() => {});
+    setMe(null);
+  }
+
+  const location = useLocation();
+
+  // The token is a deployment detail, not part of running a test, so it lives
+  // behind the gear rather than in the run form. In multi mode the session
+  // cookie is the credential, so no token is ever needed here.
+  const needsToken = !multi && (!health || health.auth) && !token;
+
+  const atRun = location.pathname === '/';
+
+  // Multi mode gates the whole app on a session: hold the render until /me
+  // resolves, then show the login screen when there is no user. Token/open
+  // mode never sets `multi`, so this is dead weight there and the app renders
+  // exactly as before.
+  if (multi && me === undefined) return null;
+  if (multi && me === null) {
+    return <Login invalid={new URLSearchParams(location.search).get('auth') === 'invalid'} />;
+  }
 
   return (
     <>
@@ -119,17 +162,28 @@ export default function App() {
           onClose={() => setSettingsOpen(false)}
           footer={<Button variant="primary" onClick={() => setSettingsOpen(false)}>Done</Button>}
         >
-          <Field
-            label="API token"
-            hint="The worker's WORKER_API_TOKEN. Required on every API and WebSocket call."
-          >
-            <input
-              type="password"
-              value={token}
-              placeholder="WORKER_API_TOKEN"
-              onChange={(e) => setToken(e.target.value)}
-            />
-          </Field>
+          {multi ? (
+            <Field label="Account" hint="Your session is a sign-in cookie, not a token.">
+              <div className="settings-account">
+                <span>{me?.email}</span>
+                <Button variant="secondary" size="sm" onClick={signOut}>
+                  Sign out
+                </Button>
+              </div>
+            </Field>
+          ) : (
+            <Field
+              label="API token"
+              hint="The worker's WORKER_API_TOKEN. Required on every API and WebSocket call."
+            >
+              <input
+                type="password"
+                value={token}
+                placeholder="WORKER_API_TOKEN"
+                onChange={(e) => setToken(e.target.value)}
+              />
+            </Field>
+          )}
           <Field label="Theme" hint="Dark is the default. Match system follows your OS setting.">
             <select value={theme} onChange={(e) => setTheme(e.target.value)}>
               <option value="dark">Dark</option>
@@ -144,7 +198,13 @@ export default function App() {
               <dt>Control plane</dt>
               <dd>{health.db ? 'Connected' : 'Not configured — saved tests and history are off'}</dd>
               <dt>Auth</dt>
-              <dd>{health.auth ? 'Token required' : 'Open (no token configured)'}</dd>
+              <dd>
+                {multi
+                  ? 'Multi-user (magic-link)'
+                  : health.auth
+                    ? 'Token required'
+                    : 'Open (no token configured)'}
+              </dd>
               <dt>Email</dt>
               <dd>{health.mail ? 'Configured' : 'Off — no RESEND_API_KEY / MAIL_FROM'}</dd>
             </dl>
