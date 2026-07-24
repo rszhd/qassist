@@ -10,53 +10,45 @@ import { Button, Field, IconButton, Modal } from './ui.jsx';
 export function TestDialog({
   mode, goal, setGoal, startUrl, setStartUrl, editing, setEditing, variables, setVariables,
   projects, modules, hasDb, saving, onClose, onRun, onSave, onDelete, onSwitchToSave,
-  readOnly = false,
 }) {
   const isRun = mode === 'run';
   const ready = startUrl.trim() && goal.trim() && (isRun || editing?.name.trim());
   const submit = (e) => {
     e.preventDefault();
-    if (readOnly) return;
     if (ready) (isRun ? onRun : onSave)();
   };
 
   return (
     <Modal
-      title={readOnly ? 'Test details' : isRun ? 'New run' : mode === 'edit' ? 'Edit test' : 'New test'}
+      title={isRun ? 'New run' : mode === 'edit' ? 'Edit test' : 'New test'}
       description={
-        readOnly
-          ? 'The test behind this demo — a read-only look at the form. Sign up to create and run your own.'
-          : isRun
-            ? 'Runs once, right now. Nothing is saved unless you ask for it.'
-            : 'Saved tests re-run with one click and keep their history.'
+        isRun
+          ? 'Runs once, right now. Nothing is saved unless you ask for it.'
+          : 'Saved tests re-run with one click and keep their history.'
       }
       onClose={onClose}
       footer={
-        readOnly ? (
-          <Button variant="primary" onClick={onClose}>Close</Button>
-        ) : (
-          <>
-            {mode === 'edit' && (
-              <Button variant="danger" icon={Trash2} onClick={() => onDelete(editing)}>
-                Delete
-              </Button>
-            )}
-            {isRun && hasDb && (
-              <Button variant="ghost" icon={Plus} onClick={onSwitchToSave} disabled={!ready}>
-                Save as test
-              </Button>
-            )}
-            <Button onClick={onClose}>Cancel</Button>
-            <Button
-              variant="primary"
-              icon={isRun ? Play : undefined}
-              onClick={submit}
-              disabled={!ready || saving}
-            >
-              {isRun ? 'Run test' : saving ? 'Saving…' : mode === 'edit' ? 'Save changes' : 'Save test'}
+        <>
+          {mode === 'edit' && (
+            <Button variant="danger" icon={Trash2} onClick={() => onDelete(editing)}>
+              Delete
             </Button>
-          </>
-        )
+          )}
+          {isRun && hasDb && (
+            <Button variant="ghost" icon={Plus} onClick={onSwitchToSave} disabled={!ready}>
+              Save as test
+            </Button>
+          )}
+          <Button onClick={onClose}>Cancel</Button>
+          <Button
+            variant="primary"
+            icon={isRun ? Play : undefined}
+            onClick={submit}
+            disabled={!ready || saving}
+          >
+            {isRun ? 'Run test' : saving ? 'Saving…' : mode === 'edit' ? 'Save changes' : 'Save test'}
+          </Button>
+        </>
       }
     >
       <form onSubmit={submit} className="modal-form">
@@ -64,15 +56,14 @@ export function TestDialog({
           <Field label="Name">
             <input
               value={editing.name}
-              autoFocus={!readOnly}
-              readOnly={readOnly}
+              autoFocus
               placeholder="Checkout flow works"
               onChange={(e) => setEditing((cur) => ({ ...cur, name: e.target.value }))}
             />
           </Field>
         )}
 
-        {!isRun && !readOnly && projects.length > 0 && (
+        {!isRun && projects.length > 0 && (
           <div className="field-row">
             <Field label="Project">
               <select
@@ -105,26 +96,17 @@ export function TestDialog({
         )}
 
         <Field label="Start URL">
-          <input
-            value={startUrl}
-            autoFocus={isRun}
-            readOnly={readOnly}
-            onChange={(e) => setStartUrl(e.target.value)}
-          />
+          <input value={startUrl} autoFocus={isRun} onChange={(e) => setStartUrl(e.target.value)} />
         </Field>
 
         <Field
           label="Goal"
-          hint={
-            readOnly
-              ? 'Plain English — the agent works out the steps.'
-              : 'Some sites (Reddit, Cloudflare-protected pages) block datacenter IPs and will fail from a server.'
-          }
+          hint="Some sites (Reddit, Cloudflare-protected pages) block datacenter IPs and will fail from a server."
         >
-          <textarea rows={4} value={goal} readOnly={readOnly} onChange={(e) => setGoal(e.target.value)} />
+          <textarea rows={4} value={goal} onChange={(e) => setGoal(e.target.value)} />
         </Field>
 
-        {!isRun && !readOnly && <VariablesEditor variables={variables} setVariables={setVariables} />}
+        {!isRun && <VariablesEditor variables={variables} setVariables={setVariables} />}
 
         {/* Enter in a text field submits the dialog. */}
         <button type="submit" hidden />

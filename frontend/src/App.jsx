@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import ApiKeys from './ApiKeys.jsx';
-import DemoView from './DemoView.jsx';
 import HistoryView from './HistoryView.jsx';
 import Login from './Login.jsx';
 import ProjectsView from './ProjectsView.jsx';
@@ -103,33 +102,12 @@ export default function App() {
   const needsToken = !multi && (!health || health.auth) && !token;
 
   const atRun = location.pathname === '/';
-  const atDemo = location.pathname === '/demo';
 
   // Multi mode gates the whole app on a session: hold the render until /me
   // resolves, then show the login screen when there is no user. Token/open
   // mode never sets `multi`, so this is dead weight there and the app renders
   // exactly as before.
   if (multi && me === undefined) return null;
-  // The demo (US-033) is the one surface a signed-out visitor may reach — it is
-  // the pre-signup front door, so in multi mode it renders standalone *before*
-  // the login wall, under its own minimal header rather than the app nav.
-  if (multi && me === null && atDemo && health?.demo) {
-    return (
-      <>
-        <header className="topbar">
-          <div className="topbar-inner">
-            <span className="brand">QAssist</span>
-            <div className="top-right">
-              <Button as={Link} to="/" variant="secondary" size="sm">Sign in</Button>
-            </div>
-          </div>
-        </header>
-        <div className="app">
-          <DemoView health={health} />
-        </div>
-      </>
-    );
-  }
   if (multi && me === null) {
     return <Login invalid={new URLSearchParams(location.search).get('auth') === 'invalid'} />;
   }
@@ -138,7 +116,6 @@ export default function App() {
     <>
       <TopBar
         showNav={!!health?.db}
-        showDemo={!!health?.demo}
         runState={runState}
         onOpenSettings={() => setSettingsOpen(true)}
       />
@@ -161,7 +138,6 @@ export default function App() {
           <Route path="/history" element={<HistoryView token={token} />} />
           <Route path="/schedules" element={<SchedulesView token={token} />} />
           <Route path="/projects" element={<ProjectsView token={token} health={health} />} />
-          {health?.demo && <Route path="/demo" element={<DemoView health={health} />} />}
           <Route
             path="/runs/:id"
             element={
@@ -176,9 +152,9 @@ export default function App() {
               it needs its own route, or the catch-all below would match it and
               redirect the app to itself forever. */}
           <Route path="/" element={null} />
-          {/* Hold the redirect until health resolves: routes gated on it (like
-              /demo) don't exist yet on the first paint, and redirecting now
-              would rewrite the URL out from under them before they register. */}
+          {/* Hold the redirect until health resolves, so a first paint that
+              lands on a real path isn't bounced to '/' before its route
+              registers. */}
           <Route path="*" element={health ? <Navigate to="/" replace /> : null} />
         </Routes>
       </div>

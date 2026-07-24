@@ -1,4 +1,4 @@
-import { CalendarClock, Film, FolderTree, History, Play, Settings } from 'lucide-react';
+import { CalendarClock, FolderTree, History, Play, Settings } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import { IconButton } from './ui.jsx';
 
@@ -16,10 +16,8 @@ const VIEWS = [
 // The nav only appears once the control plane is up — with no DB there are no
 // projects to open and no history to browse (US-023: nothing about grouping
 // renders before it exists).
-export default function TopBar({ showNav, showDemo, runState, onOpenSettings }) {
+export default function TopBar({ showNav, runState, onOpenSettings }) {
   const { status, wsState, runId } = runState;
-  // The demo (US-033) only earns a nav entry where it exists — DEMO_MODE on.
-  const views = showDemo ? [...VIEWS, ['/demo', 'Demo', Film]] : VIEWS;
   return (
     <header className="topbar">
       <div className="topbar-inner">
@@ -27,7 +25,7 @@ export default function TopBar({ showNav, showDemo, runState, onOpenSettings }) 
 
         {showNav && (
           <nav className="views">
-            {views.map(([to, label, Icon]) => (
+            {VIEWS.map(([to, label, Icon]) => (
               <NavLink
                 key={to}
                 to={to}

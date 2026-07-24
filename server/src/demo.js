@@ -1,17 +1,18 @@
 // @ts-check
-// Live demo replay (US-033). A canned run played back over the same event
-// stream a real run uses, so a visitor with no account can watch the product
-// work — with no Python process, no queue slot, no LLM call and no runs row.
+// Demo fixtures (US-033 engine, now driven by the US-036 sandbox interceptor).
+// A checked-in fixture is a recorded run the interceptor replays over the same
+// event stream a real run uses, so a demo tenant's run plays out for real with
+// no Python process, no queue slot and no LLM call. This module only reads and
+// matches fixtures; `runs.js` (`startReplay`) does the replaying over the relay.
 //
 // Fixtures are checked-in source under DEMO_DIR (`demo/<slug>/`), never
 // artifacts: meta.json (card copy + verdict), events.ndjson (one event per
 // line, each carrying `offset_ms` from run start) and recording.mp4 (the stage
-// visual — screencast frames are never persisted, so the demo plays the video
-// and fires the step events over it). This is the one unauthenticated surface;
-// it is read-only and fixture-backed by construction — it creates nothing.
+// visual — screencast frames are never persisted, so the replay plays the video
+// and fires the step events over it).
 import fs from 'node:fs';
 import path from 'node:path';
-import { DEMO_DIR, DEMO_SPEED } from './config.js';
+import { DEMO_DIR } from './config.js';
 
 const SLUG_RE = /^[a-z0-9][a-z0-9-]*$/;
 export const RECORDING_FILE = 'recording.mp4';
@@ -63,8 +64,8 @@ export function loadDemo(slug) {
     name: meta.name || slug,
     description: meta.description || '',
     verdict: meta.verdict || null,
-    // The test definition behind the demo, so the frontend can show a
-    // read-only preview of the run form — informational, never runnable.
+    // The test definition behind the fixture — how fixtureForRun matches a
+    // demo tenant's run to the clip it should replay (goal + start_url).
     goal: meta.goal || '',
     start_url: meta.start_url || '',
     hasRecording: fs.existsSync(path.join(dir, RECORDING_FILE)),
@@ -140,45 +141,4 @@ export function fixtureForRun({ goal = '', start_url = '' }) {
   const exact = demos.find((d) => norm(d.goal) === g && norm(d.start_url) === u);
   const byGoal = exact || demos.find((d) => norm(d.goal) === g);
   return byGoal?.slug || DEFAULT_FIXTURE;
-}
-
-/**
- * Play a fixture down `ws`, reusing the live event shape so the Run stage needs
- * no second code path. Each event is sent at its recorded offset (scaled by
- * DEMO_SPEED); a final `end` closes the run the way the engine's does. Returns
- * a cancel fn — call it when the socket closes so pending timers don't fire
- * into a dead socket. Sending nothing when the slug is bad is the caller's cue
- * that it already 404'd the upgrade.
- * @param {{ readyState:number, OPEN:number, send(data:string):void, close?():void }} ws
- * @param {string} slug
- * @param {(fn:()=>void, ms:number)=>any} [schedule] injectable timer, for tests
- * @returns {() => void}
- */
-export function replayDemo(ws, slug, schedule = setTimeout) {
-  const demo = loadDemo(slug);
-  if (!demo) {
-    if (ws.readyState === ws.OPEN) ws.send(JSON.stringify({ type: 'error', message: 'demo not found' }));
-    ws.close?.();
-    return () => {};
-  }
-
-  /** @type {any[]} */
-  const timers = [];
-  const send = (evt) => {
-    if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(evt));
-  };
-
-  let lastOffset = 0;
-  for (const { offset_ms, ...evt } of demo.events) {
-    const at = Math.max(0, Number(offset_ms) || 0) / DEMO_SPEED;
-    lastOffset = Math.max(lastOffset, at);
-    timers.push(schedule(() => send(evt), at));
-  }
-  // The engine ends a run with `end`; the fixture carries `done`/`error` but
-  // not `end` (that is the relay's, not the agent's), so synthesize it here.
-  timers.push(schedule(() => send({ type: 'end', status: 'completed', demo: true }), lastOffset));
-
-  return () => {
-    for (const t of timers) clearTimeout(t);
-  };
 }
