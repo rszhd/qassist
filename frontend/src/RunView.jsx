@@ -216,6 +216,15 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
   async function saveTest() {
     const name = (editing?.name || '').trim();
     if (!name) return;
+    // The server rejects a secret in start_url only at run time (a secret in a
+    // URL is the leak US-034's scrub patches); catch it at save so the UI can't
+    // build a test that would 400 on its first run (US-035).
+    const urlRefs = referencedNames(startUrl);
+    const badSecret = variables.find((v) => v.secret && urlRefs.has(v.name));
+    if (badSecret) {
+      setError(`Save: secret variable ${badSecret.name} cannot appear in the Start URL`);
+      return;
+    }
     setSavingTest(true);
     try {
       const body = { name, goal, start_url: startUrl, variables };
@@ -645,18 +654,34 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
   );
 }
 
+// Same identifier grammar the server matches on (server/src/variables.js).
+const PLACEHOLDER_RE = /\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g;
+
+/** The distinct `{{name}}` names a text references. */
+function referencedNames(text) {
+  return new Set([...String(text ?? '').matchAll(PLACEHOLDER_RE)].map((m) => m[1]));
+}
+
 /**
  * Fill a saved test's `{{name}}` placeholders for the stage display only — the
  * server does the authoritative substitution. Overrides win over each
  * variable's default; an unknown name is left as-is (the server would 400 it).
+ * A secret is shown as the `<secret>name</secret>` placeholder, never its value
+ * — the same masking the server applies, so a password never lands in the goal
+ * textarea (US-035 secret path).
  */
 function fillTemplate(text, variables, overrides) {
   const values = {};
-  for (const v of variables || []) values[v.name] = v.value;
+  const secret = new Set();
+  for (const v of variables || []) {
+    values[v.name] = v.value;
+    if (v.secret) secret.add(v.name);
+  }
   if (overrides) Object.assign(values, overrides);
-  return String(text ?? '').replace(/\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g, (whole, name) =>
-    Object.prototype.hasOwnProperty.call(values, name) ? values[name] : whole
-  );
+  return String(text ?? '').replace(PLACEHOLDER_RE, (whole, name) => {
+    if (secret.has(name)) return `<secret>${name}</secret>`;
+    return Object.prototype.hasOwnProperty.call(values, name) ? values[name] : whole;
+  });
 }
 
 /**
@@ -790,12 +815,13 @@ function TestDialog({
  * case: with none declared it is a single quiet "Add variable" button, so a
  * test that needs no variables looks exactly like the pre-US-035 dialog. Each
  * variable is a name and a default value; the goal/URL reference it as
- * `{{name}}` and a run can override it. (Secret/optional wait for the secret
- * path — see US-035.)
+ * `{{name}}` and a run can override it. A **secret** carries no stored default
+ * (its value arrives per run or from CI, never persisted); an **optional** one
+ * may resolve empty.
  */
 function VariablesEditor({ variables, setVariables }) {
-  const set = (i, key, val) =>
-    setVariables((cur) => cur.map((v, j) => (j === i ? { ...v, [key]: val } : v)));
+  const set = (i, changes) =>
+    setVariables((cur) => cur.map((v, j) => (j === i ? { ...v, ...changes } : v)));
   const add = () => setVariables((cur) => [...cur, { name: '', value: '', secret: false, optional: false }]);
   const remove = (i) => setVariables((cur) => cur.filter((_, j) => j !== i));
 
@@ -806,24 +832,51 @@ function VariablesEditor({ variables, setVariables }) {
           <span className="field-label">Variables</span>
           <p className="field-hint">
             Reference them in the goal or Start URL as <code>{'{{name}}'}</code>. Each run can
-            override the default.
+            override the default. A <b>secret</b> is never stored or shown — its value is set per
+            run or by CI; an <b>optional</b> one may resolve empty.
           </p>
           {variables.map((v, i) => (
             <div className="var-row" key={i}>
-              <input
-                className="var-name"
-                value={v.name}
-                placeholder="name"
-                aria-label={`Variable ${i + 1} name`}
-                onChange={(e) => set(i, 'name', e.target.value)}
-              />
-              <input
-                value={v.value}
-                placeholder="default value"
-                aria-label={`Variable ${i + 1} default value`}
-                onChange={(e) => set(i, 'value', e.target.value)}
-              />
-              <IconButton icon={Trash2} variant="danger" label="Remove variable" onClick={() => remove(i)} />
+              <div className="var-main">
+                <input
+                  className="var-name"
+                  value={v.name}
+                  placeholder="name"
+                  aria-label={`Variable ${i + 1} name`}
+                  onChange={(e) => set(i, { name: e.target.value })}
+                />
+                {v.secret ? (
+                  <span className="var-note">value set per run / CI</span>
+                ) : (
+                  <input
+                    value={v.value}
+                    placeholder="default value"
+                    aria-label={`Variable ${i + 1} default value`}
+                    onChange={(e) => set(i, { value: e.target.value })}
+                  />
+                )}
+                <IconButton icon={Trash2} variant="danger" label="Remove variable" onClick={() => remove(i)} />
+              </div>
+              <div className="var-flags">
+                <label className="var-flag">
+                  <input
+                    type="checkbox"
+                    checked={v.secret}
+                    // A secret carries no stored default — clear it on toggle so no
+                    // plaintext secret lands in tests.variables (US-035 secret path).
+                    onChange={(e) => set(i, e.target.checked ? { secret: true, value: '' } : { secret: false })}
+                  />
+                  Secret
+                </label>
+                <label className="var-flag">
+                  <input
+                    type="checkbox"
+                    checked={v.optional}
+                    onChange={(e) => set(i, { optional: e.target.checked })}
+                  />
+                  Optional
+                </label>
+              </div>
             </div>
           ))}
         </>
@@ -859,8 +912,13 @@ function RunVarsDialog({ test, values, setValues, onClose, onRun }) {
     >
       <form onSubmit={submit} className="modal-form">
         {test.variables.map((v) => (
-          <Field key={v.name} label={v.name}>
+          <Field
+            key={v.name}
+            label={v.name}
+            hint={v.secret ? 'Secret — never stored or shown after this run.' : undefined}
+          >
             <input
+              type={v.secret ? 'password' : 'text'}
               value={values[v.name] ?? ''}
               onChange={(e) => setValues((cur) => ({ ...cur, [v.name]: e.target.value }))}
             />

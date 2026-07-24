@@ -409,9 +409,14 @@ select {
    With none declared it collapses to the lone "Add variable" button, so the
    dialog is unchanged for a test that needs no variables. */
 .vars { display: flex; flex-direction: column; gap: var(--s2); }
-.var-row { display: flex; align-items: center; gap: var(--s2); }
-.var-row input { flex: 1; min-width: 0; }
-.var-row .var-name { flex: 0 0 34%; }
+.var-row { display: flex; flex-direction: column; gap: var(--s15); }
+.var-main { display: flex; align-items: center; gap: var(--s2); }
+.var-main input { flex: 1; min-width: 0; }
+.var-main .var-name { flex: 0 0 34%; }
+.var-note { flex: 1; min-width: 0; font-size: var(--t-sm); color: var(--faint); }
+.var-flags { display: flex; gap: var(--s3); padding-left: var(--s1); }
+.var-flag { display: flex; align-items: center; gap: var(--s1); font-size: var(--t-sm); color: var(--muted); cursor: pointer; }
+.var-flag input[type='checkbox'] { width: 14px; height: 14px; accent-color: var(--accent); }
 .var-add { align-self: flex-start; }
 
 /* A card stacks its blocks with a gap, never with a margin on whichever child

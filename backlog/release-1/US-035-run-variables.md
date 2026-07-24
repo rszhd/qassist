@@ -78,8 +78,17 @@ persisted or serialized); `secret_vars.load` merges it into the browser-use
 `sensitive` dict so `<secret>name</secret>` substitutes at type-time and
 `redact.scrub` strips it from every emitted event. A secret referenced in
 `start_url` is rejected (a secret in a URL is the exact leak US-034's scrub
-patches). Still out of the UI (declaring a secret) and still remaining: **Report
-(PDF) display** of a run's non-secret variables.
+patches).
+
+The **secret + optional UI** now ships too. The create/edit `VariablesEditor`
+carries a `Secret` and an `Optional` checkbox per variable; marking a variable
+secret drops its stored default (no plaintext secret is ever persisted — its
+value arrives per run or from CI). The per-run override dialog masks a secret's
+input (`type=password`) and the stage `fillTemplate` shows secrets as their
+`<secret>name</secret>` placeholder, never the value. Save is blocked
+client-side when a secret is referenced in the Start URL, so the UI still can't
+build a test the server would reject at run time (`RunView.test.jsx`). Still
+remaining: **Report (PDF) display** of a run's non-secret variables.
 
 ## Open design decisions (raise before implementing)
 
@@ -110,14 +119,15 @@ patches). Still out of the UI (declaring a secret) and still remaining: **Report
 
 ## Acceptance criteria (draft)
 
-- [ ] A saved test can declare named variables with defaults and a `secret`
+- [x] A saved test can declare named variables with defaults and a `secret`
       flag; the goal/`start_url` reference them
-- [ ] Starting a run pre-fills defaults and lets the user override per run
+- [x] Starting a run pre-fills defaults and lets the user override per run
 - [x] CI can override the same variables via the trigger body (one snippet,
       values as its only per-environment change) — generalizing US-008's
       `start_url`
 - [x] A `secret` variable's value never appears un-redacted in frames, steps,
       the report, or the persisted run (assertion-first, maintainer-owned) —
       routed via `secrets`→`QA_VARS`→`sensitive`, persisted as `'<secret>'`
-- [ ] History shows which environment/values a run used (non-secret)
-- [ ] A test with no variables is indistinguishable from today's Run view
+- [x] History shows which environment/values a run used (non-secret) —
+      RunDetail renders the run's resolved non-secret variables
+- [x] A test with no variables is indistinguishable from today's Run view

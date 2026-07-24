@@ -103,3 +103,47 @@ describe('RunView run dispatch (US-035)', () => {
     expect(runCalls(calls)[0].body.variables).toEqual({ base_url: 'https://prod.example.com' });
   });
 });
+
+// The secret flag has real editor logic worth pinning: marking a variable
+// secret drops its stored default (so no plaintext secret is persisted), and
+// saving a test that references a secret in the Start URL is blocked client-
+// side — the server only rejects that at run time (US-035 secret path).
+const writeCalls = (calls) =>
+  calls.filter((c) => c.url.startsWith('/api/tests') && (c.method === 'POST' || c.method === 'PUT'));
+
+async function openEnvTestEditor() {
+  const editButtons = await screen.findAllByLabelText('Edit');
+  // [Plain test, Env test] in list order — Env test is the one with variables.
+  fireEvent.click(editButtons[1]);
+  return screen.findByText('Edit test');
+}
+
+describe('VariablesEditor secret flag (US-035)', () => {
+  it('drops the stored default when a variable is marked secret', async () => {
+    stubEnv();
+    renderRunView();
+    await openEnvTestEditor();
+
+    expect(screen.getByDisplayValue('https://staging.example.com')).toBeTruthy();
+
+    fireEvent.click(screen.getByLabelText('Secret'));
+
+    // Default field is gone (nothing to persist) and the per-run note replaces it.
+    expect(screen.queryByDisplayValue('https://staging.example.com')).toBeNull();
+    expect(screen.getByText('value set per run / CI')).toBeTruthy();
+  });
+
+  it('blocks saving a test that references a secret in the Start URL', async () => {
+    const calls = stubEnv();
+    renderRunView();
+    await openEnvTestEditor();
+
+    // start_url is already `{{base_url}}/login`; marking base_url secret makes
+    // the save illegal.
+    fireEvent.click(screen.getByLabelText('Secret'));
+    fireEvent.click(screen.getByText('Save changes'));
+
+    await screen.findByText(/secret variable base_url cannot appear in the Start URL/i);
+    expect(writeCalls(calls)).toHaveLength(0);
+  });
+});
