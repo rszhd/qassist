@@ -102,9 +102,16 @@ function setScreencast(run, on) {
 
 // --- persistence (fire-and-forget: the live relay never waits on the DB) ---
 
+// Writes for one run are chained on `run.persisted` so they reach the DB in
+// program order. They are still fire-and-forget from the request's point of
+// view — nothing awaits the chain — but each query only issues once the
+// previous one has resolved. Without this, `persistInsert` and the `running`
+// `persistUpdate` fired back-to-back in `createRun`/`startRun` are two
+// independent pool queries: the UPDATE can reach a connection before the
+// INSERT commits, match zero rows, and leave the row stuck at `queued`.
 function persistInsert(run) {
   if (!db()) return;
-  db()
+  run.persisted = db()
     .query(
       `insert into runs (id, test_id, user_id, trigger, goal, start_url, max_steps, model, status)
        values ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
@@ -127,33 +134,35 @@ function persistUpdate(run) {
   if (!db()) return;
   const res = run.result || {};
   const failedOrError = run.status === 'error' || run.status === 'failed';
-  db()
-    .query(
-      `update runs
-          set status        = $2,
-              success       = $3,
-              final_result  = $4,
-              error         = $5,
-              steps_count   = $6,
-              started_at    = $7,
-              finished_at   = $8,
-              report_status = $9,
-              has_recording = $10
-        where id = $1`,
-      [
-        run.id,
-        run.status,
-        res.success ?? null,
-        res.final_result ?? res.message ?? null,
-        failedOrError ? res.message ?? null : null,
-        res.steps ?? run.events.filter((e) => e.type === 'step').length,
-        run.startedAt ? new Date(run.startedAt) : null,
-        run.finishedAt ? new Date(run.finishedAt) : null,
-        run.reportStatus || 'none',
-        !!run.recordingFile,
-      ]
-    )
-    .catch((err) => console.error(`db: update run ${run.id.slice(0, 8)} failed:`, err.message));
+  const update = () =>
+    db()
+      .query(
+        `update runs
+            set status        = $2,
+                success       = $3,
+                final_result  = $4,
+                error         = $5,
+                steps_count   = $6,
+                started_at    = $7,
+                finished_at   = $8,
+                report_status = $9,
+                has_recording = $10
+          where id = $1`,
+        [
+          run.id,
+          run.status,
+          res.success ?? null,
+          res.final_result ?? res.message ?? null,
+          failedOrError ? res.message ?? null : null,
+          res.steps ?? run.events.filter((e) => e.type === 'step').length,
+          run.startedAt ? new Date(run.startedAt) : null,
+          run.finishedAt ? new Date(run.finishedAt) : null,
+          run.reportStatus || 'none',
+          !!run.recordingFile,
+        ]
+      )
+      .catch((err) => console.error(`db: update run ${run.id.slice(0, 8)} failed:`, err.message));
+  run.persisted = (run.persisted || Promise.resolve()).then(update);
 }
 
 // A run is mailable (US-012) once it has finished *and* the report it would
