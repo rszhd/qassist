@@ -10,6 +10,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { db, getOperatorUserId } from './db.js';
 import { notifyRunFinished } from './notify.js';
+import { resolveForRun } from './variables.js';
 import {
   MAX_CONCURRENT,
   DEFAULT_MAX_STEPS,
@@ -113,8 +114,8 @@ function persistInsert(run) {
   if (!db()) return;
   run.persisted = db()
     .query(
-      `insert into runs (id, test_id, user_id, trigger, goal, start_url, max_steps, model, status)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      `insert into runs (id, test_id, user_id, trigger, goal, start_url, max_steps, model, status, variables)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
       [
         run.id,
         run.test_id,
@@ -125,6 +126,7 @@ function persistInsert(run) {
         run.max_steps,
         run.model,
         run.status,
+        JSON.stringify(run.variables || {}),
       ]
     )
     .catch((err) => console.error(`db: insert run ${run.id.slice(0, 8)} failed:`, err.message));
@@ -184,7 +186,7 @@ function maybeNotify(run) {
  * Enqueue a run (starts immediately when under the concurrency cap).
  * @param {{ goal: string, start_url: string, max_steps?: number,
  *           model?: string | null, test_id?: string | null,
- *           trigger?: string }} fields
+ *           trigger?: string, variables?: Record<string, string> }} fields
  */
 export function createRun(fields) {
   const runId = randomUUID();
@@ -195,6 +197,7 @@ export function createRun(fields) {
     max_steps: Number(fields.max_steps) || DEFAULT_MAX_STEPS,
     model: fields.model || null,
     test_id: fields.test_id || null,
+    variables: fields.variables || {},
     user_id: getOperatorUserId(),
     trigger: fields.trigger || 'api',
     status: 'queued',
@@ -218,19 +221,31 @@ export function createRun(fields) {
  * Start one run per test — the shared batch enqueue behind suite, module and
  * project triggering (US-023) and behind the scheduler (US-010). Tests arrive
  * already ordered; a `start_url` override applies to all of them (US-008:
- * point a whole group at a fresh preview URL).
- * @param {{ id: string, goal: string, start_url: string, max_steps: number, model: string|null }[]} tests
- * @param {{ start_url?: string|null, trigger?: string }} [opts]
+ * point a whole group at a fresh preview URL). A `variables` override (US-035)
+ * sprays every member: each test substitutes the names it declares and fills
+ * the rest from its own defaults. A test that can't resolve (a required
+ * variable with no value) is skipped with an `error` marker rather than
+ * starting a broken run — one misconfigured member never blocks the batch.
+ * @param {{ id: string, goal: string, start_url: string, max_steps: number, model: string|null, variables?: any }[]} tests
+ * @param {{ start_url?: string|null, trigger?: string, variables?: Record<string, string> }} [opts]
  */
 export function runTests(tests, opts = {}) {
   return tests.map((t) => {
-    const run = createRun({
+    const resolved = resolveForRun({
+      variables: t.variables || [],
+      overrides: opts.variables,
       goal: t.goal,
       start_url: opts.start_url || t.start_url,
+    });
+    if ('error' in resolved) return { testId: t.id, error: resolved.error };
+    const run = createRun({
+      goal: resolved.goal,
+      start_url: resolved.start_url,
       max_steps: t.max_steps,
       model: t.model,
       test_id: t.id,
       trigger: opts.trigger || 'api',
+      variables: resolved.variables,
     });
     return { runId: run.id, testId: t.id, status: run.status };
   });

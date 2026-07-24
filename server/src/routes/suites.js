@@ -178,7 +178,7 @@ export function suitesRouter({ checkToken }) {
       const { rowCount } = await db().query('select 1 from suites where id = $1', [req.params.id]);
       if (!rowCount) return res.status(404).json({ error: 'not found' });
       const { rows: tests } = await db().query(
-        `select t.id, t.goal, t.start_url, t.max_steps, t.model
+        `select t.id, t.goal, t.start_url, t.max_steps, t.model, t.variables
            from suite_tests st join tests t on t.id = st.test_id
           where st.suite_id = $1 order by st.position`,
         [req.params.id]

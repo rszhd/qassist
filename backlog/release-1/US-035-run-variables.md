@@ -35,6 +35,36 @@ generalizes the one built-in override into arbitrary named variables:
   it starts (like the existing `start_url` override in `startRunGroup`), with
   each test filling unreferenced names from its own defaults.
 
+## Decisions (resolved 2026-07-24)
+
+- **Storage:** `jsonb` on both tables — `tests.variables` (array of
+  `{name, value, secret, optional}` declarations) and `runs.variables` (the
+  resolved non-secret map, denormalized for history). Migration `005`. No child
+  table; matches the denormalize-at-enqueue pattern goal/start_url already use.
+- **Optional & default are both per-variable, user-set.** A variable may carry a
+  default `value` and/or be flagged `optional`. A referenced non-optional
+  variable that resolves empty (no default, no override) rejects the run; an
+  optional one substitutes empty.
+- **Substitution boundary:** `{{name}}` in goal/start_url. The server resolves
+  overrides-over-defaults at enqueue and substitutes **non-secret** values into
+  `QA_GOAL`/`QA_START_URL` (stored on `run.goal`). **Secret** values are *not*
+  substituted server-side — they route to the agent as placeholders + a
+  `QA_VARS` env (browser-use `sensitive_data`), so they never touch `QA_GOAL`,
+  the report, or the run row. Pure logic in `server/src/variables.js`.
+- **Validation:** reject at save time when goal/start_url references an
+  undeclared `{{name}}` (a silent literal is a false-green risk).
+- **Group override:** a suite/module/project/scheduler run sprays one
+  `variables` override across every member; each test substitutes the names it
+  declares and fills the rest from its own defaults. A member that can't resolve
+  is skipped with an `error` marker rather than blocking the batch.
+
+**Implementation status:** non-secret path shipped (migration, tests CRUD +
+validation, single + group run substitution, `runs.variables` persistence and
+history exposure). The **secret** path is gated off in `resolveForRun` (a run
+referencing a secret returns 400) pending the maintainer's redaction assertion —
+registered in `backlog/correctness-critical.md`. UI (progressive disclosure) and
+report display land after the secret path.
+
 ## Open design decisions (raise before implementing)
 
 - **Placeholder syntax & where substitution happens.** e.g. `{{name}}` in the

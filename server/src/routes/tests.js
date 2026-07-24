@@ -7,9 +7,10 @@ import { db, getOperatorUserId, isUuid } from '../db.js';
 import { createRun } from '../runs.js';
 import { DEFAULT_MAX_STEPS } from '../config.js';
 import { h, requireDb, requireAgentKey, TRIGGERS } from './helpers.js';
+import { normalizeDeclarations, validateReferences, resolveForRun } from '../variables.js';
 
 const COLS =
-  'id, name, goal, start_url, max_steps, model, project_id, module_id, created_at, updated_at';
+  'id, name, goal, start_url, max_steps, model, variables, project_id, module_id, created_at, updated_at';
 
 /**
  * Resolve the grouping a write asks for (US-023 decision 4): when module_id is
@@ -80,16 +81,20 @@ export function testsRouter({ checkToken }) {
   r.post(
     '/',
     h(async (req, res) => {
-      const { name, goal, start_url, max_steps, model } = req.body || {};
+      const { name, goal, start_url, max_steps, model, variables } = req.body || {};
       if (!name || !goal || !start_url) {
         return res.status(400).json({ error: 'name, goal and start_url are required' });
       }
+      const decl = normalizeDeclarations(variables);
+      if ('error' in decl) return res.status(400).json({ error: decl.error });
+      const refError = validateReferences(decl.variables, goal, start_url);
+      if (refError) return res.status(400).json({ error: refError });
       const group = await resolveGrouping(req.body || {});
       if (group.error) return res.status(400).json({ error: group.error });
       const { rows } = await db().query(
-        `insert into tests (user_id, name, goal, start_url, max_steps, model,
+        `insert into tests (user_id, name, goal, start_url, max_steps, model, variables,
                             project_id, module_id)
-         values ($1, $2, $3, $4, $5, $6, $7, $8) returning ${COLS}`,
+         values ($1, $2, $3, $4, $5, $6, $7, $8, $9) returning ${COLS}`,
         [
           getOperatorUserId(),
           name,
@@ -97,6 +102,7 @@ export function testsRouter({ checkToken }) {
           start_url,
           Number(max_steps) || DEFAULT_MAX_STEPS,
           model || null,
+          JSON.stringify(decl.variables),
           group.projectId ?? null,
           group.moduleId ?? null,
         ]
@@ -121,10 +127,28 @@ export function testsRouter({ checkToken }) {
     '/:id',
     h(async (req, res) => {
       if (!isUuid(req.params.id)) return res.status(404).json({ error: 'not found' });
-      const { name, goal, start_url, max_steps, model } = req.body || {};
+      const { name, goal, start_url, max_steps, model, variables } = req.body || {};
       const group = await resolveGrouping(req.body || {});
       if (group.error) return res.status(400).json({ error: group.error });
-      // $7/$9 carry "was this field present at all?" so a null can mean
+      // Variables and their {{name}} references validate against the *resulting*
+      // row (US-035): an edit that drops a variable still referenced by the
+      // unchanged goal must be rejected, so we resolve against current values
+      // for whichever of the two the request omits.
+      const current = await db().query('select goal, start_url, variables from tests where id = $1', [
+        req.params.id,
+      ]);
+      if (!current.rows.length) return res.status(404).json({ error: 'not found' });
+      const decl = variables === undefined
+        ? { variables: current.rows[0].variables }
+        : normalizeDeclarations(variables);
+      if ('error' in decl) return res.status(400).json({ error: decl.error });
+      const refError = validateReferences(
+        decl.variables,
+        goal ?? current.rows[0].goal,
+        start_url ?? current.rows[0].start_url
+      );
+      if (refError) return res.status(400).json({ error: refError });
+      // $7/$9/$11 carry "was this field present at all?" so a null can mean
       // "clear it" rather than "leave it alone" — coalesce can't express that.
       const { rows } = await db().query(
         `update tests
@@ -135,6 +159,7 @@ export function testsRouter({ checkToken }) {
                 model      = nullif(coalesce($6, model), ''),
                 project_id = case when $7 then $8 else project_id end,
                 module_id  = case when $9 then $10 else module_id end,
+                variables  = case when $11 then $12 else variables end,
                 updated_at = now()
           where id = $1 returning ${COLS}`,
         [
@@ -148,6 +173,8 @@ export function testsRouter({ checkToken }) {
           group.projectId ?? null,
           group.moduleId !== undefined,
           group.moduleId ?? null,
+          variables !== undefined,
+          variables !== undefined ? JSON.stringify(decl.variables) : null,
         ]
       );
       if (!rows.length) return res.status(404).json({ error: 'not found' });
@@ -176,13 +203,21 @@ export function testsRouter({ checkToken }) {
       if (!rows.length) return res.status(404).json({ error: 'not found' });
       const test = rows[0];
       const body = /** @type {any} */ (req.body || {});
-      const run = createRun({
+      const resolved = resolveForRun({
+        variables: test.variables,
+        overrides: body.variables,
         goal: test.goal,
         start_url: body.start_url || test.start_url,
+      });
+      if ('error' in resolved) return res.status(400).json({ error: resolved.error });
+      const run = createRun({
+        goal: resolved.goal,
+        start_url: resolved.start_url,
         max_steps: body.max_steps != null ? Number(body.max_steps) : test.max_steps,
         model: test.model,
         test_id: test.id,
         trigger: TRIGGERS.has(body.trigger) ? body.trigger : 'api',
+        variables: resolved.variables,
       });
       res.json({ runId: run.id, testId: test.id, status: run.status });
     })

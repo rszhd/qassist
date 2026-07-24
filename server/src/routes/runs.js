@@ -28,7 +28,7 @@ const MAX_LIMIT = 200;
 const LIST_COLS = `r.id, r.test_id, r.trigger, r.goal, r.start_url, r.status,
   r.success, r.final_result, r.error, r.steps_count, r.created_at, r.started_at,
   r.finished_at, r.report_status, r.has_recording, r.artifacts_deleted_at,
-  t.name as test_name, t.project_id, t.module_id`;
+  r.variables, t.name as test_name, t.project_id, t.module_id`;
 
 /**
  * Translate ?test_id/?status/?trigger/?project_id/?since/?until into a WHERE
@@ -134,6 +134,7 @@ function liveRow(run) {
     finished_at: run.finishedAt ? new Date(run.finishedAt) : null,
     report_status: run.reportStatus || 'none',
     has_recording: !!run.recordingFile,
+    variables: run.variables || {},
   };
 }
 

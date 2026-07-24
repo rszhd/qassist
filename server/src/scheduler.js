@@ -20,7 +20,7 @@ const TICK_MS = 60 * 1000;
 const COLS =
   'id, test_id, module_id, suite_id, project_id, kind, interval_hours, hour, minute, weekday, tz, next_run_at';
 
-const TEST_COLS = 'id, goal, start_url, max_steps, model';
+const TEST_COLS = 'id, goal, start_url, max_steps, model, variables';
 
 /**
  * Resolve a schedule's target to the tests it runs, in the order the matching
@@ -50,7 +50,7 @@ async function testsOf(schedule) {
     return { label: `project ${schedule.project_id.slice(0, 8)}`, tests: rows };
   }
   const { rows } = await db().query(
-    `select t.id, t.goal, t.start_url, t.max_steps, t.model
+    `select t.id, t.goal, t.start_url, t.max_steps, t.model, t.variables
        from suite_tests st join tests t on t.id = st.test_id
       where st.suite_id = $1 order by st.position`,
     [schedule.suite_id]

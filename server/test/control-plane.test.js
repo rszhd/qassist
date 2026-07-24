@@ -160,6 +160,61 @@ test('one-click run: linked to the test, persisted, start_url overridable', asyn
   assert.ok(row.finished_at);
 });
 
+test('variables: create validates references, run substitutes and persists them', async () => {
+  // A goal referencing an undeclared variable is rejected at save (US-035).
+  const bad = await makeTest({
+    name: 'undeclared',
+    goal: 'apply {{coupon}}',
+    variables: [],
+  }).expect(400);
+  assert.match(bad.body.error, /undefined variable \{\{coupon\}\}/);
+
+  const t = (
+    await makeTest({
+      name: 'per-env',
+      goal: 'log in as {{user}} on {{env}}',
+      start_url: 'https://{{env}}.example.com',
+      variables: [
+        { name: 'env', value: 'staging' },
+        { name: 'user', value: 'alice' },
+      ],
+    }).expect(201)
+  ).body;
+  assert.equal(t.variables.length, 2);
+
+  const started = (
+    await request(app)
+      .post(`/api/tests/${t.id}/run`)
+      .set(auth)
+      .send({ variables: { env: 'prod' } })
+      .expect(200)
+  ).body;
+
+  const live = (await request(app).get(`/api/runs/${started.runId}`).set(auth).expect(200)).body;
+  assert.equal(live.goal, 'log in as alice on prod');
+  assert.equal(live.start_url, 'https://prod.example.com');
+  assert.deepEqual(live.variables, { env: 'prod', user: 'alice' });
+
+  const row = await pollUntil(async () => {
+    const r = await pool.query('select * from runs where id = $1', [started.runId]);
+    return r.rows[0]?.status === 'passed' ? r.rows[0] : null;
+  });
+  assert.equal(row.goal, 'log in as alice on prod');
+  assert.deepEqual(row.variables, { env: 'prod', user: 'alice' });
+});
+
+test('variables: a required referenced variable with no value rejects the run', async () => {
+  const t = (
+    await makeTest({
+      name: 'needs-coupon',
+      goal: 'apply {{coupon}}',
+      variables: [{ name: 'coupon', value: '' }],
+    }).expect(201)
+  ).body;
+  const res = await request(app).post(`/api/tests/${t.id}/run`).set(auth).send({}).expect(400);
+  assert.match(res.body.error, /coupon is required/);
+});
+
 test('finished runs are readable from the DB after the relay forgets them', async () => {
   // Simulate the in-memory TTL eviction by asking for a run the Map never
   // had: insert a finished row directly, then GET it.
@@ -278,6 +333,52 @@ test('suites: CRUD, membership validation, one-shot run', async () => {
   await request(app).delete(`/api/suites/${suite.id}`).set(auth).expect(204);
   // deleting the suite never deletes its tests
   await request(app).get(`/api/tests/${a.id}`).set(auth).expect(200);
+});
+
+test('variables: a suite run sprays the override across every member', async () => {
+  const project = (
+    await request(app).post('/api/projects').set(auth).send({ name: 'Env Pack' }).expect(201)
+  ).body;
+  const a = (
+    await makeTest({
+      name: 'member a',
+      goal: 'check {{env}}',
+      project_id: project.id,
+      variables: [{ name: 'env', value: 'staging' }],
+    }).expect(201)
+  ).body;
+  const b = (
+    await makeTest({
+      name: 'member b',
+      goal: 'verify homepage on {{env}}',
+      project_id: project.id,
+      variables: [{ name: 'env', value: 'staging' }],
+    }).expect(201)
+  ).body;
+  const suite = (
+    await request(app)
+      .post('/api/suites')
+      .set(auth)
+      .send({ name: 'env suite', project_id: project.id, test_ids: [a.id, b.id] })
+      .expect(201)
+  ).body;
+
+  const runRes = (
+    await request(app)
+      .post(`/api/suites/${suite.id}/run`)
+      .set(auth)
+      .send({ variables: { env: 'prod' } })
+      .expect(200)
+  ).body;
+  assert.equal(runRes.runs.length, 2);
+  for (const r of runRes.runs) {
+    const row = await pollUntil(async () => {
+      const q = await pool.query('select goal, variables from runs where id = $1', [r.runId]);
+      return q.rows[0] || null;
+    });
+    assert.match(row.goal, /prod/);
+    assert.deepEqual(row.variables, { env: 'prod' });
+  }
 });
 
 test('running an empty suite is a 400', async () => {

@@ -51,12 +51,13 @@ export function requireDb(_req, res, next) {
  * The batch enqueue as an HTTP caller reaches it: same runs.js `runTests`, but
  * the trigger is whatever the request claimed, filtered to what a caller is
  * allowed to say it is. The scheduler calls runTests directly with 'schedule'.
- * @param {{ id: string, goal: string, start_url: string, max_steps: number, model: string|null }[]} tests
- * @param {{ start_url?: string, trigger?: string }} body
+ * @param {{ id: string, goal: string, start_url: string, max_steps: number, model: string|null, variables?: any }[]} tests
+ * @param {{ start_url?: string, trigger?: string, variables?: Record<string, string> }} body
  */
 export function runTestsFromRequest(tests, body = {}) {
   return runTests(tests, {
     start_url: body.start_url,
+    variables: body.variables,
     trigger: TRIGGERS.has(body.trigger) ? body.trigger : 'api',
   });
 }

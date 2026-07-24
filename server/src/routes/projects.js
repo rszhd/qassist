@@ -16,7 +16,7 @@ import { NOTIFY_MODES, cleanEmails } from '../notify.js';
 export const PROJECT_COLS =
   'id, name, slug, notify, notify_emails, created_at, updated_at';
 export const MODULE_COLS = 'id, project_id, name, slug, created_at, updated_at';
-const TEST_RUN_COLS = 'id, goal, start_url, max_steps, model';
+const TEST_RUN_COLS = 'id, goal, start_url, max_steps, model, variables';
 
 /**
  * Resolve a :project param (uuid or slug) to its row, or null.
