@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import ApiKeys from './ApiKeys.jsx';
+import OpenaiKey from './OpenaiKey.jsx';
 import DemoBanner from './DemoBanner.jsx';
 import HistoryView from './HistoryView.jsx';
 import Login from './Login.jsx';
@@ -209,6 +210,7 @@ export default function App() {
                   </Button>
                 </div>
               </Field>
+              <OpenaiKey />
               <ApiKeys />
             </>
           ) : (

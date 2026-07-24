@@ -238,6 +238,7 @@ export function testsRouter({ checkToken }) {
         trigger: TRIGGERS.has(body.trigger) ? body.trigger : 'api',
         variables: resolved.variables,
         secrets: resolved.secrets,
+        openai_api_key: /** @type {any} */ (req).runOpenaiKey,
       });
       res.json({ runId: run.id, testId: test.id, status: run.status });
     })

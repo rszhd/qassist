@@ -168,13 +168,13 @@ function emailsSql(emails, params) {
 }
 
 /** Start a run per member test of a module; `{ empty: true }` when it has none. */
-export async function runModule(mod, body) {
+export async function runModule(mod, body, openaiApiKey = null) {
   const { rows: tests } = await db().query(
     `select ${TEST_RUN_COLS} from tests where module_id = $1 order by created_at`,
     [mod.id]
   );
   if (!tests.length) return { empty: true };
-  return { moduleId: mod.id, runs: runTestsFromRequest(tests, body) };
+  return { moduleId: mod.id, runs: runTestsFromRequest(tests, body, openaiApiKey) };
 }
 
 /** @param {{ checkToken: import('express').RequestHandler }} deps */
@@ -296,7 +296,10 @@ export function projectsRouter({ checkToken }) {
         [project.id]
       );
       if (!tests.length) return res.status(400).json({ error: 'project has no tests' });
-      res.json({ projectId: project.id, runs: runTestsFromRequest(tests, req.body || {}) });
+      res.json({
+        projectId: project.id,
+        runs: runTestsFromRequest(tests, req.body || {}, /** @type {any} */ (req).runOpenaiKey),
+      });
     })
   );
 
@@ -333,7 +336,7 @@ export function projectsRouter({ checkToken }) {
       // @ts-expect-error — set by r.param
       const mod = await findModule(req.project.id, req.params.module);
       if (!mod) return res.status(404).json({ error: 'not found' });
-      const result = await runModule(mod, req.body || {});
+      const result = await runModule(mod, req.body || {}, /** @type {any} */ (req).runOpenaiKey);
       if (result.empty) return res.status(400).json({ error: 'module has no tests' });
       res.json(result);
     })

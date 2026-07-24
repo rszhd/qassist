@@ -18,6 +18,10 @@ export const RUN_TTL_MS = parseInt(process.env.RUN_TTL_SECONDS || '3600', 10) * 
 // recording vs 1076 MB without, which left only 23 MB under the old 1200.
 export const MAX_RUN_MEMORY_MB = parseInt(process.env.MAX_RUN_MEMORY_MB || '1600', 10);
 export const MEM_POLL_MS = 3000;
+// Hard wall-clock ceiling per run (US-005). MAX_STEPS bounds steps, not time —
+// a slow or rate-limited (429-retrying) BYOK key would otherwise squat a browser
+// slot indefinitely. The watchdog kills the tree and reports the run failed.
+export const RUN_TIMEOUT_MS = parseInt(process.env.RUN_TIMEOUT_SECONDS || '600', 10) * 1000;
 export const PYTHON_BIN = process.env.PYTHON_BIN || 'python3';
 export const AGENT_DIR = process.env.AGENT_DIR || path.join(__dirname, '..', '..', 'agent');
 export const AGENT_SCRIPT = process.env.AGENT_SCRIPT || path.join(AGENT_DIR, 'run_agent.py');
@@ -42,6 +46,13 @@ export const ARTIFACT_RETENTION_DAYS = parseInt(process.env.ARTIFACT_RETENTION_D
 // is a clear message at startup and on POST, not a Python traceback ~15s into
 // the first run. US-005 (BYOK) will extend this to per-request/stored keys.
 export const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
+
+// Encrypts users' stored BYOK keys at rest (US-005). Deliberately its OWN
+// secret, not SESSION_SECRET: rotating SESSION_SECRET is the documented
+// session-revocation lever (auth.js), and it must never silently make every
+// stored OpenAI key undecryptable. Unset = stored keys are disabled (the field
+// is hidden and per-request BYOK / the server key still work).
+export const KEY_ENCRYPTION_SECRET = process.env.KEY_ENCRYPTION_SECRET || '';
 
 // Email notifications (US-012). Unset key or sender = the feature is off:
 // prefs are still stored and editable, nothing is sent.

@@ -190,7 +190,13 @@ export function runsRouter({ checkToken, checkTokenOrQuery }) {
       return res.status(400).json({ error: 'goal and start_url are required' });
     }
     // user_id defaults to the gate-resolved caller (currentUserId) inside createRun.
-    const run = createRun({ goal, start_url, max_steps });
+    // openai_api_key is the key requireAgentKey resolved (request > stored > server).
+    const run = createRun({
+      goal,
+      start_url,
+      max_steps,
+      openai_api_key: /** @type {any} */ (req).runOpenaiKey,
+    });
     res.json({ runId: run.id, status: run.status });
   });
 

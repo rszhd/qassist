@@ -15,6 +15,7 @@ import {
   SESSION_COOKIE,
   SESSION_TTL_MS,
 } from '../auth.js';
+import { getUserOpenaiKeyStatus } from '../openaiKey.js';
 import { h } from './helpers.js';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@.]+\.[^\s@]+$/;
@@ -101,7 +102,10 @@ export function authRouter({ checkToken }) {
         /** @type {any} */ (req).userId,
       ]);
       if (!rows.length) return res.status(401).json({ error: 'unauthorized' });
-      res.json({ id: rows[0].id, email: rows[0].email });
+      // openai_key is set-state only (US-005) — the stored value is never
+      // returned by any read; the UI needs only whether one is stored.
+      const openaiKey = await getUserOpenaiKeyStatus(rows[0].id);
+      res.json({ id: rows[0].id, email: rows[0].email, openai_key: openaiKey });
     })
   );
 

@@ -374,6 +374,13 @@ code { font-family: var(--mono); font-size: .92em; }
 .api-key-label { font-size: var(--t-base); font-weight: 500; }
 .api-key-when { font-size: var(--t-sm); color: var(--faint); }
 
+.openai-key { display: flex; flex-direction: column; gap: var(--s2); }
+.openai-key-stored { display: flex; align-items: center; gap: var(--s3); }
+.openai-key-stored span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis;
+  font-size: var(--t-sm); color: var(--faint); }
+.openai-key-form { display: flex; flex-direction: column; gap: var(--s2); }
+.openai-key-actions { display: flex; gap: var(--s2); }
+
 /* The header sits one gutter above the content, so the gap under the title
    matches the gap between the cards below it. */
 .page-head { display: flex; align-items: flex-start; gap: var(--s4); padding: var(--s6) 0 var(--s4); }

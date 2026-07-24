@@ -196,7 +196,10 @@ export function suitesRouter({ checkToken }) {
         [req.params.id]
       );
       if (!tests.length) return res.status(400).json({ error: 'suite has no tests' });
-      res.json({ suiteId: req.params.id, runs: runTestsFromRequest(tests, req.body || {}) });
+      res.json({
+        suiteId: req.params.id,
+        runs: runTestsFromRequest(tests, req.body || {}, /** @type {any} */ (req).runOpenaiKey),
+      });
     })
   );
 

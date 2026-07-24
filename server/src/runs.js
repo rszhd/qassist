@@ -19,11 +19,13 @@ import {
   RUN_TTL_MS,
   MAX_RUN_MEMORY_MB,
   MEM_POLL_MS,
+  RUN_TIMEOUT_MS,
   PYTHON_BIN,
   AGENT_SCRIPT,
   REPORT_SCRIPT,
   ARTIFACTS_DIR,
   MODEL,
+  OPENAI_API_KEY,
   PUBLIC_BASE_URL,
   RECORDING_FILENAME,
   REPORT_DATA_FILENAME,
@@ -191,7 +193,8 @@ function maybeNotify(run) {
  * @param {{ goal: string, start_url: string, max_steps?: number,
  *           model?: string | null, test_id?: string | null,
  *           trigger?: string, variables?: Record<string, string>,
- *           secrets?: Record<string, string>, user_id?: string | null }} fields
+ *           secrets?: Record<string, string>, user_id?: string | null,
+ *           openai_api_key?: string | null }} fields
  */
 export function createRun(fields) {
   const runId = randomUUID();
@@ -206,6 +209,10 @@ export function createRun(fields) {
     // Real secret values, in-memory only — handed to the agent via QA_VARS in
     // startRun and deliberately never persisted or serialized (US-035).
     secrets: fields.secrets || {},
+    // BYOK key (US-005): request- or account-resolved, in-memory only. Handed to
+    // the agent as OPENAI_API_KEY in startRun; never a column, an event, or an
+    // artifact — persistInsert/broadcast/generateReport never read this field.
+    openai_api_key: fields.openai_api_key || null,
     // Explicit user_id for the scheduler (no request context); a request-borne
     // run falls back to the caller resolved by the gate (currentUserId()).
     user_id: fields.user_id ?? currentUserId(),
@@ -244,7 +251,7 @@ export function createRun(fields) {
  * variable with no value) is skipped with an `error` marker rather than
  * starting a broken run — one misconfigured member never blocks the batch.
  * @param {{ id: string, goal: string, start_url: string, max_steps: number, model: string|null, variables?: any }[]} tests
- * @param {{ start_url?: string|null, trigger?: string, variables?: Record<string, string>, user_id?: string|null }} [opts]
+ * @param {{ start_url?: string|null, trigger?: string, variables?: Record<string, string>, user_id?: string|null, openai_api_key?: string|null }} [opts]
  */
 export function runTests(tests, opts = {}) {
   return tests.map((t) => {
@@ -265,6 +272,7 @@ export function runTests(tests, opts = {}) {
       variables: resolved.variables,
       secrets: resolved.secrets,
       user_id: opts.user_id,
+      openai_api_key: opts.openai_api_key,
     });
     return { runId: run.id, testId: t.id, status: run.status };
   });
@@ -346,6 +354,9 @@ function startRun(runId) {
       QA_MAX_STEPS: String(run.max_steps),
       QA_RUN_ID: run.id,
       BROWSER_USE_MODEL: run.model || MODEL,
+      // BYOK (US-005): the run's resolved key wins over the server key. This is
+      // the only place the key travels — into the child's env, nowhere else.
+      OPENAI_API_KEY: run.openai_api_key || OPENAI_API_KEY,
       ARTIFACTS_DIR,
     },
   });
@@ -369,6 +380,23 @@ function startRun(runId) {
     generateReport(run);
     killRunTree(child, pids);
   }, MEM_POLL_MS);
+
+  // Wall-clock watchdog (US-005): MAX_STEPS bounds steps, not time. A stuck or
+  // rate-limited (429-retrying) run — likely on a throttled BYOK key — would
+  // otherwise squat a browser slot forever. Kill the tree at the ceiling and
+  // report failed; the 'close' path then frees the slot for the next run.
+  run.timeoutWatch = setTimeout(() => {
+    clearInterval(run.memWatch);
+    const secs = Math.round(RUN_TIMEOUT_MS / 1000);
+    const msg = `run exceeded the ${secs}s time limit and was stopped`;
+    console.error(`[watchdog ${runId.slice(0, 8)}] ${msg}`);
+    run.status = 'failed';
+    run.result = { success: false, message: msg };
+    broadcast(run, { type: 'error', message: msg });
+    generateReport(run);
+    killRunTree(child, processTree(child.pid).pids);
+  }, RUN_TIMEOUT_MS);
+  run.timeoutWatch.unref(); // never hold the process open for the ceiling alone
 
   let buf = '';
   child.stdout.on('data', (chunk) => {
@@ -407,6 +435,7 @@ function startRun(runId) {
   child.on('close', (code) => {
     active--;
     clearInterval(run.memWatch);
+    clearTimeout(run.timeoutWatch);
     if (!TERMINAL.has(run.status)) run.status = code === 0 ? 'completed' : 'error';
     run.finishedAt = Date.now();
     persistUpdate(run);

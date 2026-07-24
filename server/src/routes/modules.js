@@ -68,7 +68,7 @@ export function modulesRouter({ checkToken }) {
     h(async (req, res) => {
       const mod = await findModuleById(req.params.id);
       if (!mod) return res.status(404).json({ error: 'not found' });
-      const result = await runModule(mod, req.body || {});
+      const result = await runModule(mod, req.body || {}, /** @type {any} */ (req).runOpenaiKey);
       if (result.empty) return res.status(400).json({ error: 'module has no tests' });
       res.json(result);
     })

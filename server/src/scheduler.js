@@ -10,6 +10,7 @@
 // boot *is* the catch-up.
 import { db } from './db.js';
 import { runTests } from './runs.js';
+import { getUserOpenaiKey } from './openaiKey.js';
 import { nextSlot } from './schedule.js';
 import { OPENAI_API_KEY } from './config.js';
 
@@ -159,7 +160,14 @@ export async function tick(now = Date.now()) {
       continue;
     }
 
-    const started = runTests(ready, { trigger: 'schedule', user_id: schedule.user_id });
+    // BYOK (US-005): a scheduled run bills the owner's stored key, not the
+    // operator's, when they have one; startRun falls back to the server key.
+    const storedKey = schedule.user_id ? await getUserOpenaiKey(schedule.user_id) : null;
+    const started = runTests(ready, {
+      trigger: 'schedule',
+      user_id: schedule.user_id,
+      openai_api_key: storedKey,
+    });
     runs += started.length;
     console.log(
       `schedule ${schedule.id.slice(0, 8)}: ${label} → ${started.length} run(s)` +

@@ -1,7 +1,9 @@
 // @ts-check
-import { db } from '../db.js';
-import { demoMode } from '../auth.js';
+import { db, currentUserId } from '../db.js';
+import { authEnabled, demoMode } from '../auth.js';
 import { runTests } from '../runs.js';
+import { validOpenaiKeyShape } from '../crypto.js';
+import { getUserOpenaiKey, resolveRunKey } from '../openaiKey.js';
 import { OPENAI_API_KEY } from '../config.js';
 
 /** Triggers a caller may set; 'schedule' is US-010's, not callers'. */
@@ -24,22 +26,40 @@ export function h(fn) {
   return (req, res, next) => fn(req, res).catch(next);
 }
 
-// Fail fast and legibly rather than letting the agent die on the first LLM
-// call. Applies to every route that starts a run.
+// Resolve which OpenAI key a run will use and fail fast if there is none, rather
+// than letting the agent die on the first LLM call. Applies to every route that
+// starts a run. BYOK (US-005): a per-request `openai_api_key` wins over the
+// caller's stored key, which wins over the server key. The resolved value is
+// stashed on `req.runOpenaiKey` for the handler to pass into the run — never
+// echoed back. Async because the stored key is decrypted from the DB.
 /** @type {import('express').RequestHandler} */
-export function requireAgentKey(_req, res, next) {
+export function requireAgentKey(req, res, next) {
   // US-036: a demo deployment runs no agent — every run is a replay, so it needs
   // no model key. Waive the gate rather than force a dummy key into the env.
   if (demoMode()) return next();
-  if (!OPENAI_API_KEY) {
-    res.status(503).json({
-      error:
-        'OPENAI_API_KEY is not set — copy .env.example to .env, add your key, ' +
-        'then restart with: docker compose up -d',
-    });
+
+  const requestKey = String((req.body || {}).openai_api_key || '').trim();
+  if (requestKey && !validOpenaiKeyShape(requestKey)) {
+    res.status(400).json({ error: 'that does not look like an OpenAI key (expected sk-…)' });
     return;
   }
-  next();
+
+  (async () => {
+    const uid = authEnabled() ? currentUserId() : null;
+    const storedKey = uid ? await getUserOpenaiKey(uid) : null;
+    const key = resolveRunKey({ requestKey, storedKey });
+    if (!key && !OPENAI_API_KEY) {
+      res.status(503).json({
+        error: authEnabled()
+          ? 'no OpenAI key: add yours in Settings, or the operator can set OPENAI_API_KEY'
+          : 'OPENAI_API_KEY is not set — copy .env.example to .env, add your key, ' +
+            'then restart with: docker compose up -d',
+      });
+      return;
+    }
+    /** @type {any} */ (req).runOpenaiKey = key;
+    next();
+  })().catch(next);
 }
 
 /** @type {import('express').RequestHandler} */
@@ -57,12 +77,14 @@ export function requireDb(_req, res, next) {
  * allowed to say it is. The scheduler calls runTests directly with 'schedule'.
  * @param {{ id: string, goal: string, start_url: string, max_steps: number, model: string|null, variables?: any }[]} tests
  * @param {{ start_url?: string, trigger?: string, variables?: Record<string, string> }} body
+ * @param {string|null} [openaiApiKey] the run key requireAgentKey resolved (req.runOpenaiKey)
  */
-export function runTestsFromRequest(tests, body = {}) {
+export function runTestsFromRequest(tests, body = {}, openaiApiKey = null) {
   return runTests(tests, {
     start_url: body.start_url,
     variables: body.variables,
     trigger: TRIGGERS.has(body.trigger) ? body.trigger : 'api',
+    openai_api_key: openaiApiKey,
   });
 }
 

@@ -29,6 +29,7 @@ import { schedulesRouter } from './routes/schedules.js';
 import { notificationsRouter } from './routes/notifications.js';
 import { authRouter } from './routes/auth.js';
 import { keysRouter } from './routes/keys.js';
+import { accountRouter } from './routes/account.js';
 
 await initDb();
 
@@ -104,6 +105,7 @@ app.get('/api/health', (_req, res) => {
 // visitor has no credential yet. /me is gated. No-op (404) unless authEnabled().
 app.use('/api/auth', authRouter({ checkToken }));
 app.use('/api/keys', keysRouter({ checkToken }));
+app.use('/api/account', accountRouter({ checkToken }));
 
 app.use('/api/runs', runsRouter({ checkToken, checkTokenOrQuery }));
 app.use('/api/tests', testsRouter({ checkToken }));
