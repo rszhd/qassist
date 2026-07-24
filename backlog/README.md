@@ -48,6 +48,7 @@ forward from `sprint/next/` into this sprint.
 | [US-008](sprint/current/US-008-cicd-integration.md) | CI/CD trigger: the documented pipeline step | 📝 Docs written, unverified | US-007, US-009 |
 | [US-031](sprint/current/US-031-license-and-public-repo.md) | License the code and open the repo | 📋 Planned | — |
 | [US-032](sprint/current/US-032-release-pipeline-and-image.md) | CI on every push, a published image on every tag | 📋 Planned | US-031 |
+| [US-028](sprint/current/US-028-per-user-concurrency-limit.md) | Per-user concurrent run limit (self-host org cap; env-gated) | 📋 Planned | US-021, US-027 |
 | [US-005](sprint/current/done/US-005-byok-user-api-keys.md) | Bring-your-own OpenAI key (BYOK) — account-stored (encrypted) + per-request | ✅ Shipped (2026-07-25) | US-009 |
 | [US-036](sprint/current/done/US-036-demo-sandbox.md) | Demo sandbox: the whole app, per-visitor, on fake data | ✅ Shipped (2026-07-24) | US-021, US-033 engine |
 | [US-033](sprint/current/done/US-033-live-demo-replay.md) | Live demo: a canned run that replays as if it were live | ⛔ Superseded by US-036 (2026-07-24) — shell removed | US-006, US-026 |
@@ -87,9 +88,9 @@ release — US-032 is that sentence becoming a workflow.
 Added to the sprint 2026-07-23: **US-027**, one half of concurrency being
 invisible. `MAX_CONCURRENT_SESSIONS=4` queues everything past the cap, but the
 Run view rendered a queued run identically to a starting one. The other half —
-a per-user share of the queue ([US-028](sprint/next/US-028-per-user-concurrency-limit.md))
-— sits in the next sprint: it is a no-op until real users exist, and today's
-single global queue is enough until then.
+a per-user share of the queue ([US-028](sprint/current/US-028-per-user-concurrency-limit.md))
+— is a no-op until real users exist, and today's single global queue is enough
+until then.
 
 Added to the sprint 2026-07-23: **US-026**, so a past run explains itself in
 History rather than only in the PDF — the steps are already written to disk,
@@ -191,8 +192,7 @@ strict FIFO.
 Split out of the current sprint on 2026-07-23: the hosted-tier stories plus
 the report improvement that was never gating anything. Two of those stories
 (US-021, US-033) were pulled back into `sprint/current/` on 2026-07-24 — see
-above; what remains here is billing, BYOK, per-user concurrency, and the
-report v2 polish.
+above; what remains here is billing and the report v2 polish.
 
 Paid-tier ground rules (decided 2026-07-22, still standing): nothing extra
 beyond what payment requires. One plan, Stripe Checkout, **BYOK for LLM
@@ -205,15 +205,17 @@ rules live in [`docs/repo-model.md`](../docs/repo-model.md). Email provider:
 | ID | Story | Status | Depends on |
 |---|---|---|---|
 | [US-022](sprint/next/US-022-stripe-billing.md) | Paid tier: Stripe billing | 📋 Planned | US-021, US-005 |
-| [US-028](sprint/next/US-028-per-user-concurrency-limit.md) | Per-user concurrent run limit (hosted) | 📋 Planned | US-021, US-022, US-027 |
 | [US-020](sprint/next/US-020-report-v2-screenshots-recording.md) | Report v2: step screenshots + recording | 📋 Planned (P2) | US-006 |
 
 ### Build order
 
 1. **US-005** — BYOK, before anyone but the operator can run tests
-2. **US-022 → US-028** — billing, then the per-user concurrency cap. US-022
-   also depends on US-021, which now ships from `sprint/current/`; US-028 can
-   follow launch — it only bites once several subscribers share the box.
+2. **US-022** — billing. Depends on US-021, which now ships from
+   `sprint/current/`. The per-user concurrency cap
+   ([US-028](sprint/current/US-028-per-user-concurrency-limit.md)) is no longer
+   downstream of billing — it moved to `sprint/current/` on 2026-07-25 as an
+   env-gated self-host feature; US-022 later becomes one consumer of its
+   per-user cap lookup.
 3. **US-020** — the screenshots, into the report and hanging off a step in
    US-026's activity list. P2 since 2026-07-23: it makes a good report better
    rather than making anything possible, which is also why it left the current sprint.

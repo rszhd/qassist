@@ -1,19 +1,21 @@
-# US-028 — Per-user concurrent run limit (hosted plans)
+# US-028 — Per-user concurrent run limit
 
-**As the** operator of the hosted instance, **I want** each paying user capped
-to a few concurrent runs, **so that** one user cannot fill all four worker
-slots and leave every other subscriber staring at a queue.
+**As the** operator of an instance (a self-hosting organization, or later the
+hosted service), **I want** each user capped to a few concurrent runs, **so
+that** one user cannot fill all the worker slots and leave everyone else on the
+instance staring at a queue.
 
-- **Status:** 📋 Planned (moved to next sprint on 2026-07-23 with the rest of the
-  hosted tier)
-- **Priority:** P2 (next sprint, hosted only) — the fair-use half of US-022's
-  open "concurrency/fair-use caps per user" item. **The one to cut** if launch
-  scope tightens: it is not required to take payment, only to keep the first
-  handful of subscribers from starving each other.
+- **Status:** 📋 Planned (moved to current sprint on 2026-07-25)
+- **Priority:** P2 — the fair-use cap that makes a shared instance usable by
+  more than one person at a time. Primary use case is an **organization
+  self-hosting for its team**: several people share one box and no single
+  person should be able to monopolize it. The hosted paid tier (US-022) is a
+  *later* consumer of the same mechanism, not the reason it exists.
 - **Estimate:** ~half a day to a day
 - **Depends on:** US-021 (real users — until then every run belongs to the one
-  seeded operator, so any per-user cap is a no-op), US-022 (plans), US-027
-  (the queued state this reports through)
+  seeded operator, so any per-user cap is a no-op), US-027 (the queued state
+  this reports through). **Not** US-022 — this ships as an env-gated self-host
+  feature; plan-driven caps are a later refinement (see "Later").
 
 ## Background
 
@@ -21,26 +23,24 @@ slots and leave every other subscriber staring at a queue.
 behind it is strict FIFO (`runs.js:305`). Nothing is per-user. Today that is
 correct — `createRun()` stamps every run with `getOperatorUserId()`
 (`runs.js:144`), a single seeded operator. The moment US-021 admits real
-users, one person triggering a 12-test module takes all four slots and puts
-everyone else behind twelve runs.
+users — whether an org's team on a self-hosted box or subscribers on the
+hosted one — one person triggering a 12-test module takes all four slots and
+puts everyone else behind twelve runs.
 
-US-022 already names this ("a simple constant is fine for v1; the VPS's
-`MAX_CONCURRENT_SESSIONS=4` is the real global ceiling and oversubscription
-risk to watch at launch"). This story is that item, split out so billing can
-ship without it.
-
-**Self-host is unaffected.** Per the design principles, self-host is always
-free and ungated: with the cap env unset, behaviour is exactly what it is
-today — one global queue, no per-user accounting. Same gating shape as
-`STRIPE_*`.
+**Off by default, so self-host stays exactly as it is.** With the cap env
+unset, behaviour is byte-for-byte today's — one global queue, no per-user
+accounting. An org that wants the cap sets one env var; a solo self-hoster
+never touches it. Same gating shape as `STRIPE_*`, but this one is not tied to
+billing at all.
 
 ## Design
 
-1. **`MAX_CONCURRENT_PER_USER` in `config.js`, unset = off.** Self-host
-   default is unset. Read at import time like every other env. One number for
-   v1 (US-022 ships one plan); when plans multiply it becomes a lookup on the
-   subscription, which is why the cap should be resolved through a function
-   from the start rather than read as a constant at the call site.
+1. **`MAX_CONCURRENT_PER_USER` in `config.js`, unset = off.** Default is unset.
+   Read at import time like every other env. One instance-wide number: every
+   user on the box gets the same cap. Resolve it through a function
+   (`getUserConcurrencyCap(userId)`) rather than reading the constant at the
+   call site — that keeps the door open for a later per-plan lookup (US-022)
+   without threading a new argument through the run engine when it lands.
 2. **Cap counts running + queued, not just running.** Capping only in-flight
    runs lets a user park twenty in the queue and win the FIFO anyway.
 3. **Reject over the cap, don't queue.** `POST /api/runs` returns **429** with
@@ -65,9 +65,11 @@ today — one global queue, no per-user accounting. Same gating shape as
   two users saturate the box; 1 is harsh for anyone running a module. This
   wants a number picked against the real plan price and the VPS size, not
   guessed here.
-- **Does the operator get a cap?** Self-host and the operator's own runs on
-  the hosted box are the same code path. Simplest answer: the cap is per plan,
-  and no plan = no cap, which keeps self-host untouched by construction.
+- **Does the operator get a cap?** The seeded operator and ordinary users share
+  the same code path. Simplest answer: the cap is one env number applied to
+  every user including the operator; unset = no cap, which keeps a solo
+  self-hoster untouched by construction. If an org wants the operator exempt,
+  that is a later refinement, not v1.
 - **Scheduled runs (US-010) fire in bursts** and will hit this cap without a
   human watching. A 429 to a scheduler must not silently drop the run — decide
   whether schedules bypass the cap, retry, or surface a skipped-run record.
@@ -92,6 +94,10 @@ today — one global queue, no per-user accounting. Same gating shape as
 
 ## Later
 
-US-015 (horizontal scaling to ~100 concurrent) moves the queue out of one
-process; the per-user cap then has to be enforced across workers, which is a
-shared-state problem this story deliberately does not solve.
+- **Per-plan caps (US-022).** When the hosted paid tier exists, different plans
+  may buy different caps. `getUserConcurrencyCap(userId)` becomes a lookup on
+  the user's subscription instead of returning the one env number — the reason
+  step 1 resolves the cap through a function rather than a bare constant.
+- **Horizontal scaling (US-015).** Scaling to ~100 concurrent moves the queue
+  out of one process; the per-user cap then has to be enforced across workers,
+  which is a shared-state problem this story deliberately does not solve.
