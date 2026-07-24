@@ -5,7 +5,8 @@
 run, **so that** one test covers every environment — and CI can inject the
 right values per pipeline — instead of me cloning the test per environment.
 
-- **Status:** 📋 Planned
+- **Status:** ✅ Shipped (2026-07-24 — PDF variables display carved out to
+  US-020, which owns the report-v2 layout)
 - **Priority:** P1 (Release 1)
 - **Estimate:** TBD
 - **Depends on:** US-009 (saved tests) — the variable defaults live on a test.
@@ -87,8 +88,14 @@ value arrives per run or from CI). The per-run override dialog masks a secret's
 input (`type=password`) and the stage `fillTemplate` shows secrets as their
 `<secret>name</secret>` placeholder, never the value. Save is blocked
 client-side when a secret is referenced in the Start URL, so the UI still can't
-build a test the server would reject at run time (`RunView.test.jsx`). Still
-remaining: **Report (PDF) display** of a run's non-secret variables.
+build a test the server would reject at run time (`RunView.test.jsx`).
+
+**Report (PDF) display** of a run's non-secret variables is the one piece left,
+and it's deferred to [US-020](../release-2/US-020-report-v2-screenshots-recording.md):
+it needs the report-v2 layout rework rather than bolting onto the current
+verdict band, and it gates nothing (RunDetail already shows the same data
+in-app, and secrets already render redacted in the report via the agent's
+`scrub` path). With that carved out, US-035 is done.
 
 ## Open design decisions (raise before implementing)
 

@@ -28,6 +28,13 @@ layout (steps section / appendix pages), not bolting images onto the band.
   button works — the PDF links to the authed recording endpoint from US-006.
 - Retention: `runs/` now durably holds PNGs + video + PDF per run — add
   age-based cleanup or a size cap (was US-003's concern; it lands here).
+- **Non-secret variables block** (from US-035): render the run's resolved
+  non-secret variables — the environment it hit, e.g. `base_url=…` — so a
+  shared PDF is attributable without opening the app. The data is already on
+  `run.variables` (secret values are the marker `<secret>`, never the value);
+  RunDetail shows it in-app, the report doesn't yet. A small facts-row addition,
+  not a layout change — but it waits for the layout rework rather than bolting
+  onto the current verdict band.
 
 ## Acceptance criteria
 
@@ -35,3 +42,5 @@ layout (steps section / appendix pages), not bolting images onto the band.
 - [ ] "View recording" in the report opens the run's video
 - [ ] Report generation time stays reasonable (< a few seconds per run)
 - [ ] `runs/` cleanup keeps disk usage bounded
+- [ ] Report shows the run's non-secret variables (from US-035); secrets never
+      appear un-redacted
