@@ -51,6 +51,7 @@ into [Release 2](#release-2-the-hosted-paid-tier--release-2).
 | [US-008](release-1/US-008-cicd-integration.md) | CI/CD trigger: the documented pipeline step | 📝 Docs written, unverified | US-007, US-009 |
 | [US-031](release-1/US-031-license-and-public-repo.md) | License the code and open the repo | 📋 Planned | — |
 | [US-032](release-1/US-032-release-pipeline-and-image.md) | CI on every push, a published image on every tag | 📋 Planned | US-031 |
+| [US-035](release-1/US-035-run-variables.md) | Per-run variables (environment overrides) | 📋 Planned | US-009 |
 | [US-009](release-1/done/US-009-control-plane-saved-tests.md) | Control plane: save & reuse tests | ✅ Done (2026-07-22) | — |
 | [US-023](release-1/done/US-023-projects-and-modules.md) | Projects & modules (organize saved tests) | ✅ Done (2026-07-22) | US-009 |
 | [US-006](release-1/done/US-006-session-recording.md) | Session recording (record by default) | ✅ Done (2026-07-22) — CPU overhead unmeasured | — |
@@ -63,6 +64,14 @@ into [Release 2](#release-2-the-hosted-paid-tier--release-2).
 | [US-026](release-1/done/US-026-history-run-activity.md) | Run activity in the History detail panel | ✅ Done (2026-07-23) | US-011 |
 | [US-027](release-1/done/US-027-queued-run-visibility.md) | Tell the user their run is queued | ✅ Done (2026-07-23) | — |
 | [US-034](release-1/done/US-034-testing-practice-and-coverage.md) | Testing practice: selective TDD, owed agent/frontend coverage, mutmut audit | ✅ Done (2026-07-24) | — |
+
+Added to the release 2026-07-24: **US-035** (per-run variables) — the one
+feature in the release beyond the four release-plumbing stories. It pairs with
+US-008: CI already overrides `start_url` per environment, and this generalizes
+that single override into named variables so one saved test covers dev/staging/
+prod instead of being cloned per environment. Its secret-value handling is
+assertion-first (redaction) — register it in `correctness-critical.md` when
+scheduled within the release.
 
 Added to the release 2026-07-23: **US-031** and **US-032**, which is what the
 narrowing exposed. The product was ready to self-host and the *release* was
