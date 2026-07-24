@@ -7,14 +7,16 @@ what I'd be paying for before I sign up; and **as the** operator, **I want**
 every visitor isolated and self-cleaning so one sandbox never costs a real
 browser slot, an API token, or another visitor's session.
 
-- **Status:** 🚧 In progress. Supersedes US-033. Backend steps 1–4 shipped
+- **Status:** 🚧 In progress. Supersedes US-033. Backend steps 1–5 shipped
   (2026-07-24): the `demo` auth mode + config + `007_demo_tenants.sql` migration;
   per-visitor provision+seed (`demoTenant.js`, `POST /api/demo/session`); the
   run interceptor (`runs.js` `createRun`→`startReplay`, no-cost pinned in
   `demo-interceptor.test.js`); the reaper (`demoReaper.js`, completeness pinned
-  in `demo-reaper-postgres.test.js`). **Remaining: step 5** (per-IP rate limit +
-  total-tenant cap on the bootstrap — `liveTenantCount()`/config already in
-  place) **and step 6** (frontend banner/expiry/CTA + US-033 shell removal).
+  in `demo-reaper-postgres.test.js`); and the bootstrap ceiling (step 5) — a
+  total-tenant cap (503) + per-IP mint throttle (429) in `routes/demoSession.js`,
+  both bypassed by a returning cookie, pinned in `demo-cap.test.js` /
+  `demo-ip-throttle.test.js` (shared `test/helpers/demo-sandbox.js`). **Remaining:
+  step 6** (frontend banner/expiry/CTA + US-033 shell removal).
   Deviation from the plan, agreed with maintainer: seed is a JS seeder, not
   `demo/seed.sql`; the interceptor's no-cost assertion runs on pg-mem (it is
   DB-independent), only the reaper needs real Postgres.
@@ -151,7 +153,7 @@ maintainer writes the assertion first:
 - [ ] After `DEMO_TTL`, the reaper leaves zero rows for that user in every
       table and zero artifact dirs on disk (asserted, incl. the `runs`
       set-null case).
-- [ ] Tenant creation is rate-limited per IP and total live tenants are capped.
+- [x] Tenant creation is rate-limited per IP and total live tenants are capped.
 - [ ] Every screen is labelled a simulated demo and states the session expiry;
       the signup CTA is reachable throughout.
 - [ ] `cd server && npm test` covers: mode-off no-op, provision+seed, tenant

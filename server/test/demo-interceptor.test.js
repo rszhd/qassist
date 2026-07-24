@@ -57,6 +57,7 @@ before(async () => {
   process.env.SESSION_SECRET = 'demo-session-secret-0123456789';
   process.env.DEMO_SPEED = '1000'; // collapse the replay timeline so tests don't wait on it
   process.env.MAX_CONCURRENT_SESSIONS = '1'; // so "no queue past the cap" is observable with a 2-test suite
+  process.env.DEMO_IP_MAX = '1000'; // this file mints many tenants from one IP; the throttle is exercised in demo-ip-throttle.test.js
   delete process.env.AUTH_ENABLED;
   delete process.env.WORKER_API_TOKEN;
   // Deliberately NO OPENAI_API_KEY: a demo deployment needs none (property N).

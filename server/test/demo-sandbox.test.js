@@ -30,6 +30,7 @@ before(async () => {
   delete process.env.AUTH_ENABLED;
   delete process.env.WORKER_API_TOKEN;
   process.env.OPENAI_API_KEY = 'sk-test-not-a-real-key';
+  process.env.DEMO_IP_MAX = '1000'; // this file mints several tenants from one IP; the throttle is exercised in demo-ip-throttle.test.js
   process.env.PYTHON_BIN = process.execPath;
   process.env.AGENT_SCRIPT = path.join(__dirname, 'stubs', 'fake_agent.js');
   process.env.REPORT_SCRIPT = path.join(__dirname, 'stubs', 'fake_report.js');
