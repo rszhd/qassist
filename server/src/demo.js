@@ -119,6 +119,29 @@ export function listDemos() {
   return demos;
 }
 
+// The fixture a run replays when its test matches none — a real pass, so an
+// arbitrary/edited test in the sandbox still plays out as a plausible success
+// rather than an alarming failure. The two seeded fixture tests match exactly
+// (below) and never fall here.
+export const DEFAULT_FIXTURE = 'register-account';
+
+/**
+ * Pick the fixture slug a demo run replays: the one whose meta goal+start_url
+ * matches the test exactly (the two seeded fixture tests do), else a goal-only
+ * match, else DEFAULT_FIXTURE. Matching is trimmed/case-insensitive so trivial
+ * edits don't drop a test to the default.
+ * @param {{ goal?: string, start_url?: string }} run
+ */
+export function fixtureForRun({ goal = '', start_url = '' }) {
+  const norm = (/** @type {string} */ s) => (s || '').trim().toLowerCase();
+  const g = norm(goal);
+  const u = norm(start_url);
+  const demos = listDemos();
+  const exact = demos.find((d) => norm(d.goal) === g && norm(d.start_url) === u);
+  const byGoal = exact || demos.find((d) => norm(d.goal) === g);
+  return byGoal?.slug || DEFAULT_FIXTURE;
+}
+
 /**
  * Play a fixture down `ws`, reusing the live event shape so the Run stage needs
  * no second code path. Each event is sent at its recorded offset (scaled by

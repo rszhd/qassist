@@ -1,5 +1,6 @@
 // @ts-check
 import { db } from '../db.js';
+import { demoMode } from '../auth.js';
 import { runTests } from '../runs.js';
 import { OPENAI_API_KEY } from '../config.js';
 
@@ -27,6 +28,9 @@ export function h(fn) {
 // call. Applies to every route that starts a run.
 /** @type {import('express').RequestHandler} */
 export function requireAgentKey(_req, res, next) {
+  // US-036: a demo deployment runs no agent — every run is a replay, so it needs
+  // no model key. Waive the gate rather than force a dummy key into the env.
+  if (demoMode()) return next();
   if (!OPENAI_API_KEY) {
     res.status(503).json({
       error:

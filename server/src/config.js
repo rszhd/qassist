@@ -93,6 +93,25 @@ export const DEMO_SPEED = Math.max(0.1, parseFloat(process.env.DEMO_SPEED || '1'
 // own magic-link screen instead and this is unused.
 export const DEMO_CTA_URL = process.env.DEMO_CTA_URL || 'https://qassist.run';
 
+// Demo sandbox (US-036). AUTH_MODE=demo turns the whole deployment into a
+// per-visitor sandbox: anonymous cookie tenants, seeded fake data, every run a
+// replay. Any other value (including unset) leaves self-host and the magic-link
+// app byte-for-byte unchanged — none of the provision/seed/interceptor/reaper
+// machinery exists. demoMode() in auth.js ANDs the runtime preconditions
+// (control plane + SESSION_SECRET) the cookie tenants need.
+export const AUTH_MODE = (process.env.AUTH_MODE || '').toLowerCase();
+// A demo tenant's lifetime: created_at + DEMO_TTL is when the reaper deletes it
+// and its artifacts. Absolute for v1 (no last_seen bump). Default 1h.
+export const DEMO_TTL_MS = parseInt(process.env.DEMO_TTL_SECONDS || '3600', 10) * 1000;
+// Hard ceiling on concurrent live demo tenants. The provision endpoint is
+// public and writable, so it rejects past this rather than growing unbounded
+// between reaper passes.
+export const DEMO_MAX_TENANTS = parseInt(process.env.DEMO_MAX_TENANTS || '200', 10);
+// Per-IP throttle on tenant creation: at most DEMO_IP_MAX new tenants per
+// DEMO_IP_WINDOW, so one caller can't mint the whole cap.
+export const DEMO_IP_MAX = parseInt(process.env.DEMO_IP_MAX || '5', 10);
+export const DEMO_IP_WINDOW_MS = parseInt(process.env.DEMO_IP_WINDOW_SECONDS || '3600', 10) * 1000;
+
 // Control plane (US-009). No DATABASE_URL = legacy in-memory mode: ad-hoc
 // runs work, saved tests/suites respond 503.
 export const DATABASE_URL = process.env.DATABASE_URL || '';

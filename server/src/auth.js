@@ -11,7 +11,7 @@
 import crypto from 'node:crypto';
 import { db, sha256 } from './db.js';
 import { mailEnabled } from './mail.js';
-import { AUTH_ENABLED, SESSION_SECRET } from './config.js';
+import { AUTH_ENABLED, AUTH_MODE, SESSION_SECRET } from './config.js';
 
 /** Name of the cookie carrying the signed session. */
 export const SESSION_COOKIE = 'qassist_session';
@@ -28,6 +28,18 @@ export const LOGIN_TOKEN_TTL_MS = 15 * 60 * 1000;
  */
 export function authEnabled() {
   return AUTH_ENABLED && !!SESSION_SECRET && mailEnabled() && !!db();
+}
+
+/**
+ * Demo-sandbox mode (US-036): the deployment provisions an anonymous cookie
+ * tenant per visitor and replays every run. On only when explicitly asked for
+ * *and* the control plane + signing secret the cookie tenants need are present.
+ * Unlike authEnabled() it needs no mail sender — there is no login link, signup
+ * is silent. Mutually exclusive with authEnabled() in practice: a deployment is
+ * the magic-link app or the demo, not both.
+ */
+export function demoMode() {
+  return AUTH_MODE === 'demo' && !!SESSION_SECRET && !!db();
 }
 
 // --- session cookie: `${userId}.${expiresAtMs}.${hmac}` ---

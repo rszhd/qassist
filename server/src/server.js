@@ -11,15 +11,17 @@ import { WebSocketServer } from 'ws';
 import { createServer } from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { PORT, API_TOKEN, MAX_CONCURRENT, PUBLIC_DIR, OPENAI_API_KEY, AUTH_ENABLED, DEMO_MODE } from './config.js';
+import { PORT, API_TOKEN, MAX_CONCURRENT, PUBLIC_DIR, OPENAI_API_KEY, AUTH_ENABLED, AUTH_MODE, DEMO_MODE } from './config.js';
 import { db, initDb, getOperatorUserId, userContext } from './db.js';
 import { mailEnabled } from './mail.js';
-import { authEnabled, userFromRequest, userFromCredentials, SESSION_COOKIE } from './auth.js';
+import { authEnabled, demoMode, userFromRequest, userFromCredentials, SESSION_COOKIE } from './auth.js';
 import { getRun, counts, attachViewer } from './runs.js';
 import { loadDemo, replayDemo } from './demo.js';
 import { demoRouter } from './routes/demo.js';
+import { demoSessionRouter } from './routes/demoSession.js';
 import { startRetention } from './retention.js';
 import { startScheduler } from './scheduler.js';
+import { startDemoReaper } from './demoReaper.js';
 import { runsRouter } from './routes/runs.js';
 import { testsRouter } from './routes/tests.js';
 import { suitesRouter } from './routes/suites.js';
@@ -52,7 +54,11 @@ function makeGate(allowQueryToken) {
       /** @type {any} */ (req).userId = userId;
       userContext.run({ userId }, () => next());
     };
-    if (authEnabled()) {
+    // Cookie-auth modes: magic-link (multi) and the demo sandbox both scope every
+    // request to the session's user. In demo mode a visitor with no cookie is
+    // 401'd here just like multi — they bootstrap a tenant via the one
+    // unauthenticated POST /api/demo/session, which sets the cookie.
+    if (authEnabled() || demoMode()) {
       userFromRequest(req).then((uid) => {
         if (!uid) return res.status(401).json({ error: 'unauthorized' });
         proceed(uid);
@@ -81,9 +87,10 @@ app.get('/api/health', (_req, res) => {
     // Lets the UI tell "not configured yet" apart from "run failed".
     agent_ready: !!OPENAI_API_KEY,
     auth: !!API_TOKEN,
-    // 'multi' = magic-link login (US-021), 'token' = single WORKER_API_TOKEN,
-    // 'open' = no credential. The frontend shows a login screen only for 'multi'.
-    auth_mode: authEnabled() ? 'multi' : API_TOKEN ? 'token' : 'open',
+    // 'multi' = magic-link login (US-021), 'demo' = per-visitor sandbox (US-036),
+    // 'token' = single WORKER_API_TOKEN, 'open' = no credential. The frontend
+    // shows a login screen only for 'multi'; 'demo' bootstraps silently.
+    auth_mode: authEnabled() ? 'multi' : demoMode() ? 'demo' : API_TOKEN ? 'token' : 'open',
     // Same purpose for notifications: a project can hold recipients on an
     // instance that can't send, and the prefs UI says so rather than looking
     // like it saved something that works.
@@ -111,6 +118,10 @@ app.use('/api/notifications', notificationsRouter({ checkToken }));
 // US-033: the demo surface is unauthenticated by design, and only exists when
 // DEMO_MODE is set — off, these paths 404 like any other unknown /api route.
 if (DEMO_MODE) app.use('/api/demo', demoRouter());
+// US-036: the demo sandbox's one unauthenticated surface — bootstrap a tenant.
+// Only when AUTH_MODE=demo; distinct method/path from the US-033 router above,
+// so the two never collide even in the (transitional) case both are mounted.
+if (demoMode()) app.use('/api/demo', demoSessionRouter());
 
 app.use(express.static(PUBLIC_DIR));
 // SPA fallback: anything not matched above returns the React app.
@@ -156,9 +167,10 @@ server.on('upgrade', async (req, socket, head) => {
   // a programmatic client passes its per-user API key as ?token=. Otherwise the
   // legacy single-token behaviour: ?token= must match, or open when none is set.
   const token = url.searchParams.get('token') || '';
+  const cookieMode = authEnabled() || demoMode();
   /** @type {string | null} */
   let userId = null;
-  if (authEnabled()) {
+  if (cookieMode) {
     userId = await userFromCredentials({ cookieHeader: req.headers.cookie, bearer: token });
     if (!userId) {
       socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
@@ -172,7 +184,7 @@ server.on('upgrade', async (req, socket, head) => {
   const runId = url.searchParams.get('runId') || '';
   const run = getRun(runId);
   // A run the caller doesn't own is reported as absent, not forbidden.
-  if (!run || (authEnabled() && run.user_id !== userId)) {
+  if (!run || (cookieMode && run.user_id !== userId)) {
     socket.write('HTTP/1.1 404 Not Found\r\n\r\n');
     return socket.destroy();
   }
@@ -194,11 +206,20 @@ if (isMain) {
     console.error(`AUTH_ENABLED is set but auth can't run — missing: ${missing.join(', ')}.`);
     process.exit(1);
   }
+  // Same guard for the demo sandbox: AUTH_MODE=demo must not half-enable into
+  // open/token mode, which would serve an unauthenticated, unseeded app.
+  if (AUTH_MODE === 'demo' && !demoMode()) {
+    const missing = [!db() && 'DATABASE_URL', !process.env.SESSION_SECRET && 'SESSION_SECRET'].filter(Boolean);
+    console.error(`AUTH_MODE=demo is set but the sandbox can't run — missing: ${missing.join(', ')}.`);
+    process.exit(1);
+  }
   // Only when actually serving: tests drive the app in-process and would
   // otherwise sweep a temp dir — or start runs on a timer — on every import.
   // sweepArtifacts() and tick() are tested directly instead.
   startRetention();
   startScheduler();
+  // US-036: only a demo deployment provisions expiring tenants to reap.
+  if (demoMode()) startDemoReaper();
   server.listen(PORT, () => {
     console.log(
       `qassist server on :${PORT}  (max_concurrent=${MAX_CONCURRENT}, auth=${API_TOKEN ? 'on' : 'off'}, db=${db() ? 'on' : 'off'})`

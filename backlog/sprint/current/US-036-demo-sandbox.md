@@ -7,7 +7,17 @@ what I'd be paying for before I sign up; and **as the** operator, **I want**
 every visitor isolated and self-cleaning so one sandbox never costs a real
 browser slot, an API token, or another visitor's session.
 
-- **Status:** 📋 Planned. Supersedes US-033.
+- **Status:** 🚧 In progress. Supersedes US-033. Backend steps 1–4 shipped
+  (2026-07-24): the `demo` auth mode + config + `007_demo_tenants.sql` migration;
+  per-visitor provision+seed (`demoTenant.js`, `POST /api/demo/session`); the
+  run interceptor (`runs.js` `createRun`→`startReplay`, no-cost pinned in
+  `demo-interceptor.test.js`); the reaper (`demoReaper.js`, completeness pinned
+  in `demo-reaper-postgres.test.js`). **Remaining: step 5** (per-IP rate limit +
+  total-tenant cap on the bootstrap — `liveTenantCount()`/config already in
+  place) **and step 6** (frontend banner/expiry/CTA + US-033 shell removal).
+  Deviation from the plan, agreed with maintainer: seed is a JS seeder, not
+  `demo/seed.sql`; the interceptor's no-cost assertion runs on pg-mem (it is
+  DB-independent), only the reaper needs real Postgres.
 - **Priority:** P2 — same conversion slot as US-033, but a full product tour
   instead of one clip.
 - **Estimate:** ~3–4 days
