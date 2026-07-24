@@ -124,6 +124,25 @@ export async function consumeLoginToken(token, { now = Date.now() } = {}) {
   return { userId: u.rows[0].id, email };
 }
 
+// --- per-user API keys ---
+
+/**
+ * A recognizable prefix so a leaked key is greppable and secret-scanners can
+ * spot it. The stored hash covers the whole string, prefix included.
+ */
+export const API_KEY_PREFIX = 'qak_';
+
+/**
+ * A fresh API key and the hash to store. The plaintext is returned once at
+ * creation and never persisted; `userFromCredentials` matches on sha256 of the
+ * bearer, so the hash must be sha256 of the whole token.
+ * @returns {{ token: string, hash: string }}
+ */
+export function mintApiKey() {
+  const token = API_KEY_PREFIX + crypto.randomBytes(32).toString('base64url');
+  return { token, hash: sha256(token) };
+}
+
 /**
  * Resolve the authenticated user from raw credentials in multi-user mode: a
  * valid session cookie, else a live per-user API key (the bearer CI uses, and

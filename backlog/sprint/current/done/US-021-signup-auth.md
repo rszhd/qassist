@@ -2,9 +2,9 @@
 
 **As a** visitor, **I want** to sign up and log in to the hosted QAssist, **so that** I get my own tests, runs, and API keys without the operator provisioning anything by hand.
 
-- **Status:** 🚧 In progress — auth backend + tenant isolation shipped
-  (`6ec5f77`), login-screen frontend shipped (2026-07-24); per-user API-key
-  create/revoke UI is the remaining chunk.
+- **Status:** ✅ Done — auth backend + tenant isolation (`6ec5f77`),
+  login-screen frontend (2026-07-24), and per-user API-key create/revoke
+  (2026-07-24). All acceptance criteria met.
 - **Priority:** P1 (next sprint) — required for the hosted paid tier; also
   useful to self-hosters who want multiple users
 - **Estimate:** ~1–2 days
@@ -40,7 +40,7 @@ paid tier (US-022).
 - [x] New visitor can sign up with just an email and reach their dashboard
 - [x] Magic-link tokens are single-use and expire (≤15 min)
 - [x] A user only ever sees their own tests, runs, and artifacts
-- [ ] API keys can be created/revoked in the UI and work as bearer tokens
+- [x] API keys can be created/revoked in the UI and work as bearer tokens
 - [x] Self-host without auth configured behaves exactly as today
 
 ## Progress
@@ -55,8 +55,13 @@ paid tier (US-022).
   disclosure holds — token/open self-host renders exactly as before.
 - **Dev mail transport** (`MAIL_DEV_CONSOLE`): logs sign-in links to the
   server console so the flow is testable locally without Resend.
-- **Remaining:** per-user API-key create/revoke — backend routes
-  (mint returns the raw key once, only the hash is stored; the consume path in
-  `auth.js` already reads `api_keys.token_hash`) plus Settings UI. Key
-  generation + hashing is correctness-critical (same family as the session
-  cookie) — assertion-first: write the specs before implementing.
+- **Per-user API keys** (2026-07-24): `auth.mintApiKey` (prefixed `qak_`
+  token, sha256 hash stored, plaintext returned once), `routes/keys.js`
+  (create/list/revoke, tenant-scoped, 404 unless multi-user), and an
+  `ApiKeys.jsx` section in Settings. Assertion-first in `api-keys.test.js`
+  (plaintext-once, hash-only-stored, minted key authenticates, revoked key
+  refused, cross-tenant revoke 404) — added a row to
+  `backlog/correctness-critical.md`.
+- **Follow-up (US-008):** `CiCommand.jsx` still prints
+  `Authorization: Bearer $WORKER_API_TOKEN`; in multi-user mode CI should use a
+  per-user key from here instead. Left for the CI story.

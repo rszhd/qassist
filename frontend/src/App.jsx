@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import ApiKeys from './ApiKeys.jsx';
 import HistoryView from './HistoryView.jsx';
 import Login from './Login.jsx';
 import ProjectsView from './ProjectsView.jsx';
@@ -163,14 +164,17 @@ export default function App() {
           footer={<Button variant="primary" onClick={() => setSettingsOpen(false)}>Done</Button>}
         >
           {multi ? (
-            <Field label="Account" hint="Your session is a sign-in cookie, not a token.">
-              <div className="settings-account">
-                <span>{me?.email}</span>
-                <Button variant="secondary" size="sm" onClick={signOut}>
-                  Sign out
-                </Button>
-              </div>
-            </Field>
+            <>
+              <Field label="Account" hint="Your session is a sign-in cookie, not a token.">
+                <div className="settings-account">
+                  <span>{me?.email}</span>
+                  <Button variant="secondary" size="sm" onClick={signOut}>
+                    Sign out
+                  </Button>
+                </div>
+              </Field>
+              <ApiKeys />
+            </>
           ) : (
             <Field
               label="API token"

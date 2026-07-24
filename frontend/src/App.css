@@ -344,6 +344,20 @@ code { font-family: var(--mono); font-size: .92em; }
 .settings-account { display: flex; align-items: center; gap: var(--s3); }
 .settings-account span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
+.api-keys { display: flex; flex-direction: column; gap: var(--s3); }
+.api-keys-head { display: flex; align-items: center; gap: var(--s3); }
+.api-keys-head .field-label { flex: 1; }
+.api-key-fresh { display: flex; flex-direction: column; gap: var(--s2); padding: var(--s3);
+  background: var(--sunken); border: 1px solid var(--border); border-radius: var(--r-md); }
+.api-key-reveal { display: flex; align-items: center; gap: var(--s2); }
+.api-key-reveal code { flex: 1; min-width: 0; overflow-x: auto; white-space: nowrap; }
+.api-key-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.api-key-list li { display: flex; align-items: center; gap: var(--s3); padding: var(--s2) 0; }
+.api-key-list li + li { border-top: 1px solid var(--border); }
+.api-key-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--s05); }
+.api-key-label { font-size: var(--t-base); font-weight: 500; }
+.api-key-when { font-size: var(--t-sm); color: var(--faint); }
+
 /* The header sits one gutter above the content, so the gap under the title
    matches the gap between the cards below it. */
 .page-head { display: flex; align-items: flex-start; gap: var(--s4); padding: var(--s6) 0 var(--s4); }
