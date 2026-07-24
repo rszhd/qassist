@@ -442,6 +442,13 @@ function startReplay(run) {
   run.demoSlug = slug;
   linkFixtureArtifacts(run, slug);
 
+  // A demo run has no live screencast — the fixture's recording *is* the stage
+  // feed. Announce it up front (durable, so a viewer connecting mid-replay still
+  // gets it) so the frontend plays the video from the start instead of waiting
+  // on frames that never arrive. `demo: true` tells it to show the video live
+  // rather than only offering it as a post-run button.
+  if (run.recordingFile) broadcast(run, { type: 'recording', demo: true });
+
   let last = 0;
   for (const { offset_ms, ...evt } of demo.events) {
     const at = Math.max(0, Number(offset_ms) || 0) / DEMO_SPEED;

@@ -120,7 +120,10 @@ function assertNoSlot() {
 async function waitTerminal(runId, ms = 3000) {
   const t0 = Date.now();
   for (;;) {
-    const { rows } = await pool.query('select status, success, user_id from runs where id = $1', [runId]);
+    const { rows } = await pool.query(
+      'select status, success, user_id, has_recording from runs where id = $1',
+      [runId]
+    );
     if (rows.length && TERMINAL.has(rows[0].status)) return rows[0];
     if (Date.now() - t0 > ms) throw new Error(`run ${runId} not terminal in ${ms}ms (was ${rows[0]?.status})`);
     await new Promise((r) => setTimeout(r, 10));
@@ -221,6 +224,11 @@ test('the fixture is chosen to match the test: register passes, discount fails',
   assert.equal(pass.success, true);
   assert.equal(fail.status, 'failed');
   assert.equal(fail.success, false);
+  // register-account ships a recording — the demo run surfaces it as the stage
+  // feed (the frontend plays it live off this flag). discount-broken has none
+  // yet (deferred capture), so it replays steps-only.
+  assert.equal(pass.has_recording, true, 'the pass fixture links its recording onto the run');
+  assert.equal(fail.has_recording, false, 'the fail fixture has no recording yet');
 });
 
 test('a test matching no fixture replays the default and still reaches terminal', async () => {

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import ApiKeys from './ApiKeys.jsx';
+import DemoBanner from './DemoBanner.jsx';
 import HistoryView from './HistoryView.jsx';
 import Login from './Login.jsx';
 import ProjectsView from './ProjectsView.jsx';
@@ -31,6 +32,11 @@ export default function App() {
   // session cookie, null when logged out, the user object once resolved. Stays
   // null forever in token/open mode — there is no user concept there.
   const [me, setMe] = useState(undefined);
+  // US-036 demo sandbox: null until the on-mount bootstrap resolves, then
+  // { expiresAt } once a tenant is provisioned (or recognised from the cookie),
+  // or { error } when the deployment is at capacity / rate-limited. Only ever
+  // set in demo mode.
+  const [demoSession, setDemoSession] = useState(null);
 
   useEffect(() => {
     localStorage.setItem('qassist_token', token);
@@ -70,6 +76,22 @@ export default function App() {
   }, []);
 
   const multi = health?.auth_mode === 'multi';
+  const demo = health?.auth_mode === 'demo';
+
+  // In demo mode the very first request from a cookieless visitor mints a seeded
+  // tenant and drops the session cookie every later API/WS call authenticates
+  // with. So the app render is held (below) until this resolves — otherwise the
+  // views would mount and fetch before the cookie exists and 401.
+  useEffect(() => {
+    if (!demo) return undefined;
+    let cancelled = false;
+    api('/api/demo/session', { method: 'POST' })
+      .then((s) => !cancelled && setDemoSession({ expiresAt: s.expiresAt }))
+      .catch((err) => !cancelled && setDemoSession({ error: err.message }));
+    return () => {
+      cancelled = true;
+    };
+  }, [demo]);
 
   // In multi-user mode the credential is the HTTP-only session cookie, resolved
   // by asking /api/auth/me who the browser is. A 401 (or any failure) means no
@@ -111,6 +133,10 @@ export default function App() {
   if (multi && me === null) {
     return <Login invalid={new URLSearchParams(location.search).get('auth') === 'invalid'} />;
   }
+  // Hold the demo app until the tenant is provisioned and its cookie set, so the
+  // views don't fetch before they're authenticated. A capacity error still
+  // resolves demoSession (to `{ error }`), so this doesn't hang the app.
+  if (demo && demoSession === null) return null;
 
   return (
     <>
@@ -119,6 +145,13 @@ export default function App() {
         runState={runState}
         onOpenSettings={() => setSettingsOpen(true)}
       />
+      {demo && (
+        <DemoBanner
+          expiresAt={demoSession?.expiresAt}
+          ctaUrl={health?.cta_url}
+          error={demoSession?.error}
+        />
+      )}
       <div className="app">
         {/* Run sits outside <Routes> and only hides: unmounting would drop the
             live WebSocket and the finished run's result. The routed views are

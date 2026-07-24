@@ -161,6 +161,10 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
       case 'recording':
         // Emitted before done/error, so the button is ready when the run ends.
         setHasRecording(true);
+        // A demo replay carries no live frames — the recording is the stage
+        // feed. Show it playing from the start rather than leaving the browser
+        // pane on a spinner waiting for a frame that never comes.
+        if (evt.demo) setShowRecording(true);
         break;
       case 'done':
         setResult(evt);
@@ -391,6 +395,7 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
   const waitingForFirstFrame = running && !queued && !screenshot;
   const liveUrl = [...steps].reverse().find((s) => s.url)?.url || startUrl;
   const hasFrame = (showRecording && runId) || !!screenshot;
+  const isDemo = health?.auth_mode === 'demo';
 
   return (
     <>
@@ -422,7 +427,7 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
         </div>
       )}
 
-      {health && !health.agent_ready && (
+      {health && !health.agent_ready && !isDemo && (
         <div className="banner page-error">
           <AlertTriangle size={14} aria-hidden="true" />
           <span>
@@ -508,7 +513,11 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
                     <video
                       key={runId}
                       src={`/api/runs/${runId}/recording${token ? `?token=${encodeURIComponent(token)}` : ''}`}
-                      controls
+                      // While a demo run is still "playing out", the recording is
+                      // standing in for a live browser feed — scrubbing/pausing
+                      // would give the game away (and let you skip to the verdict),
+                      // so no controls until it reaches terminal.
+                      controls={!(isDemo && running)}
                       autoPlay
                       onError={() => setError('Recording could not be loaded.')}
                     />
@@ -585,7 +594,7 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
                     <Button icon={Download} onClick={downloadReport} disabled={reportBusy}>
                       {reportBusy ? 'Preparing PDF…' : 'PDF report'}
                     </Button>
-                    {hasRecording && (
+                    {hasRecording && !isDemo && (
                       <Button
                         icon={showRecording ? Undo2 : Play}
                         onClick={() => setShowRecording((v) => !v)}

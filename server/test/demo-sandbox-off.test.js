@@ -49,9 +49,10 @@ before(async () => {
   ({ app } = await import('../src/server.js'));
 });
 
-test('auth_mode is not demo', async () => {
+test('auth_mode is not demo, and no signup CTA leaks into health', async () => {
   const res = await request(app).get('/api/health').expect(200);
   assert.notEqual(res.body.auth_mode, 'demo');
+  assert.equal(res.body.cta_url, null);
 });
 
 test('the bootstrap endpoint does not exist', async () => {

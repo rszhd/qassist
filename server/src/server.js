@@ -11,7 +11,7 @@ import { WebSocketServer } from 'ws';
 import { createServer } from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { PORT, API_TOKEN, MAX_CONCURRENT, PUBLIC_DIR, OPENAI_API_KEY, AUTH_ENABLED, AUTH_MODE } from './config.js';
+import { PORT, API_TOKEN, MAX_CONCURRENT, PUBLIC_DIR, OPENAI_API_KEY, AUTH_ENABLED, AUTH_MODE, DEMO_CTA_URL } from './config.js';
 import { db, initDb, getOperatorUserId, userContext } from './db.js';
 import { mailEnabled } from './mail.js';
 import { authEnabled, demoMode, userFromRequest, userFromCredentials, SESSION_COOKIE } from './auth.js';
@@ -93,6 +93,10 @@ app.get('/api/health', (_req, res) => {
     // instance that can't send, and the prefs UI says so rather than looking
     // like it saved something that works.
     mail: mailEnabled(),
+    // US-036: in demo mode the SPA shows a persistent "simulated results" banner
+    // whose signup CTA points here (the hosted app's marketing/login page). Null
+    // off demo mode, so nothing about the sandbox leaks into a normal deployment.
+    cta_url: demoMode() ? DEMO_CTA_URL : null,
   });
 });
 

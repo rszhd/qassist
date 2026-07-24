@@ -317,6 +317,22 @@ code { font-family: var(--mono); font-size: .92em; }
 .badge-queued { color: var(--warn); border-color: var(--warn-line); background: var(--warn-bg); }
 .badge-running { color: var(--accent-hi); border-color: var(--accent-line); background: var(--accent-bg); }
 
+/* US-036: the demo-sandbox honesty strip. Sticky just under the top bar so no
+   screen can be mistaken for the real product; warn palette because it is a
+   caution ("this is simulated"), not an error. */
+.demo-bar {
+  position: sticky; top: var(--topbar-h); z-index: 19;
+  border-bottom: 1px solid var(--warn-line); background: var(--warn-bg);
+}
+.demo-bar-inner {
+  max-width: var(--page-w); margin: 0 auto; padding: var(--s15) var(--s5);
+  display: flex; align-items: center; gap: var(--s2);
+}
+.demo-bar-inner > svg { flex: 0 0 auto; color: var(--warn); }
+.demo-bar-msg { flex: 1; min-width: 0; font-size: var(--t-sm); color: var(--warn-soft); }
+.demo-bar-msg strong { color: var(--warn); font-weight: 600; }
+.demo-bar-cta { flex: 0 0 auto; }
+
 .app { max-width: var(--page-w); margin: 0 auto; padding: 0 var(--s5) var(--s10); }
 
 /* Sign-in screen (US-021): the whole app is behind it in multi-user mode, so it

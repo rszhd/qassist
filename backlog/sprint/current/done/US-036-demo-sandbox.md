@@ -7,19 +7,25 @@ what I'd be paying for before I sign up; and **as the** operator, **I want**
 every visitor isolated and self-cleaning so one sandbox never costs a real
 browser slot, an API token, or another visitor's session.
 
-- **Status:** 🚧 In progress. Supersedes US-033. Backend steps 1–5 shipped
-  (2026-07-24): the `demo` auth mode + config + `007_demo_tenants.sql` migration;
-  per-visitor provision+seed (`demoTenant.js`, `POST /api/demo/session`); the
-  run interceptor (`runs.js` `createRun`→`startReplay`, no-cost pinned in
-  `demo-interceptor.test.js`); the reaper (`demoReaper.js`, completeness pinned
-  in `demo-reaper-postgres.test.js`); and the bootstrap ceiling (step 5) — a
-  total-tenant cap (503) + per-IP mint throttle (429) in `routes/demoSession.js`,
-  both bypassed by a returning cookie, pinned in `demo-cap.test.js` /
-  `demo-ip-throttle.test.js` (shared `test/helpers/demo-sandbox.js`). **Remaining:
-  step 6** (frontend banner/expiry/CTA + US-033 shell removal).
+- **Status:** ✅ Shipped (2026-07-24). Supersedes US-033. Steps 1–6 done:
+  the `demo` auth mode + config + `007_demo_tenants.sql` migration; per-visitor
+  provision+seed (`demoTenant.js`, `POST /api/demo/session`); the run interceptor
+  (`runs.js` `createRun`→`startReplay`, no-cost pinned in `demo-interceptor.test.js`);
+  the reaper (`demoReaper.js`, completeness pinned in `demo-reaper-postgres.test.js`);
+  the bootstrap ceiling — a total-tenant cap (503) + per-IP mint throttle (429) in
+  `routes/demoSession.js`, both bypassed by a returning cookie, pinned in
+  `demo-cap.test.js` / `demo-ip-throttle.test.js`; and **step 6** — the SPA
+  bootstraps a tenant on mount (holding render until the cookie is set), a
+  persistent "Demo — simulated results" strip (`DemoBanner.jsx`) states the reset
+  expiry and carries the signup CTA (`cta_url` in `/api/health`), and the US-033
+  shell was removed in one deletion commit. A demo run plays the fixture's
+  recording as the stage feed (interceptor broadcasts a `recording` event;
+  controls off while it stands in for a live run).
   Deviation from the plan, agreed with maintainer: seed is a JS seeder, not
   `demo/seed.sql`; the interceptor's no-cost assertion runs on pg-mem (it is
-  DB-independent), only the reaper needs real Postgres.
+  DB-independent), only the reaper needs real Postgres. `replayDemo` (US-033's
+  WS replayer) was deleted rather than kept — the interceptor's `startReplay`
+  superseded it, so the "keep" note in *What US-033 leaves behind* is moot.
 - **Priority:** P2 — same conversion slot as US-033, but a full product tour
   instead of one clip.
 - **Estimate:** ~3–4 days
@@ -139,27 +145,31 @@ maintainer writes the assertion first:
 
 ## Acceptance criteria
 
-- [ ] With `AUTH_MODE` ≠ `demo`, none of this exists: no auto-provisioning, no
+- [x] With `AUTH_MODE` ≠ `demo`, none of this exists: no auto-provisioning, no
       seed, no interceptor — self-host and the magic-link app are byte-for-byte
       unchanged.
-- [ ] In `demo` mode, a visitor with no cookie lands, is silently provisioned a
+- [x] In `demo` mode, a visitor with no cookie lands, is silently provisioned a
       seeded tenant, and can browse History, Projects, Suites, Schedules and
       Settings populated with fake data.
-- [ ] The visitor can create, edit, delete and run, and every action is scoped
+- [x] The visitor can create, edit, delete and run, and every action is scoped
       to their tenant — a second concurrent visitor sees none of it.
-- [ ] Pressing Run replays a fixture in the real Run stage, writes a run row in
+- [x] Pressing Run replays a fixture in the real Run stage, writes a run row in
       *their* History, and spawns no Python, no queue slot, no LLM call
       (asserted).
-- [ ] After `DEMO_TTL`, the reaper leaves zero rows for that user in every
+- [x] After `DEMO_TTL`, the reaper leaves zero rows for that user in every
       table and zero artifact dirs on disk (asserted, incl. the `runs`
       set-null case).
 - [x] Tenant creation is rate-limited per IP and total live tenants are capped.
-- [ ] Every screen is labelled a simulated demo and states the session expiry;
+- [x] Every screen is labelled a simulated demo and states the session expiry;
       the signup CTA is reachable throughout.
-- [ ] `cd server && npm test` covers: mode-off no-op, provision+seed, tenant
+- [x] `cd server && npm test` covers: mode-off no-op, provision+seed, tenant
       isolation, the interceptor no-cost assertion, and the reaper completeness
       assertion; `npm run check` clean. Interceptor + reaper get a real-Postgres
       test (pg-mem won't model the cascade/set-null correctly).
+
+**Follow-up (not blocking):** `demo/discount-broken` has no `recording.mp4` yet,
+so the fail fixture replays steps-only (no stage video) until it is captured —
+the carried-over "outstanding real fail capture" dependency from US-033.
 
 ## Decisions to make while implementing
 
