@@ -4,7 +4,7 @@
 
 - **Status:** ✅ Done (2026-07-22) — persistence had already shipped with
   US-009; the list endpoint, the History view and retention landed here
-- **Priority:** P2 (Release 1) — moved out of `unscheduled/` on 2026-07-22
+- **Priority:** P2 (current sprint) — moved out of `unscheduled/` on 2026-07-22
 - **Estimate:** ~1 day for the endpoint + view; retention was separate
 - **Depends on:** US-009 (Postgres, done); richer with US-006 (recordings)
 

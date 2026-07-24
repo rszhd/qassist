@@ -7,7 +7,7 @@
   currently only ever run when I remember to run them.
 
 - **Status:** 📋 Planned
-- **Priority:** P1 (Release 1) — `docs/repo-model.md` rule 1 makes the
+- **Priority:** P1 (current sprint) — `docs/repo-model.md` rule 1 makes the
   published image *the* artifact the product ships
 - **Estimate:** ~half a day (the image build is slow to iterate on)
 - **Depends on:** [US-031](US-031-license-and-public-repo.md) — Actions and

@@ -11,62 +11,62 @@ Workflow rule (`CLAUDE.md`) applies to.
 
 ## Folder layout
 
-- `release-1/` … `release-N/` — stories scoped to that upcoming release. The
-  lowest-numbered folder is the one being worked on.
-- `release-N/done/` — stories in that release that are finished. **What sits
-  in the release folder itself is exactly the work left to do**, so a glance
-  at `ls release-1/` answers "what's still open?". Move a story here (`git mv`
-  + README table update) the moment it ships, not at release time. A tiered
-  story moves once the tier that this release owes is done, even if later
+- `sprint/current/` — stories scoped to the sprint being worked on now.
+- `sprint/next/` — stories queued for the sprint after this one.
+- `sprint/<name>/done/` — stories in that sprint that are finished. **What sits
+  in the sprint folder itself is exactly the work left to do**, so a glance
+  at `ls sprint/current/` answers "what's still open?". Move a story here (`git mv`
+  + README table update) the moment it ships, not at sprint's end. A tiered
+  story moves once the tier that this sprint owes is done, even if later
   tiers stay planned in its file.
-- `unscheduled/` — stories with no release assigned yet.
+- `unscheduled/` — stories with no sprint assigned yet.
 - `released/<name>/` — shipped releases, moved here wholesale when the release
   goes out (e.g. `released/prototype/`), `done/` subfolder and all. Anything
-  still sitting in the release folder root at that point never shipped: move
-  it into the next release folder (or `unscheduled/`) before the `git mv`, so
+  still sitting in the sprint folder root at that point never shipped: move
+  it into `sprint/next/` (or `unscheduled/`) before the `git mv`, so
   a released folder only ever contains finished work. A story with follow-up
   tiers left over gets those spun into a new story in `unscheduled/`.
 
-## Release 1 (the open-source self-host release) — `release-1/`
+## Current sprint (the open-source self-host release) — `sprint/current/`
 
 Scope decided 2026-07-22, extended the same day to include the hosted paid
-tier, and **narrowed back on 2026-07-23: Release 1 is the self-host release
-alone.** Saved tests, projects and modules, recording, run history,
+tier, and **narrowed back on 2026-07-23: the current sprint is the self-host
+release alone.** Saved tests, projects and modules, recording, run history,
 scheduling, failure emails and run permalinks are all shipped; what is left is
 not a feature at all but the four stories that turn a working app into a
 release someone else can run — public HTTPS (US-007), a CI snippet proven
 against it (US-008), a licence on a public repo (US-031), and a tested,
 published image (US-032).
 
-Why the split: everything still open in the release was **hosted**-tier work
+Why the split: everything still open in the sprint was **hosted**-tier work
 (signup, Stripe, BYOK, per-user concurrency) plus one report improvement, and
 none of it is what a self-hoster is waiting on. Holding the free release until
 billing works would ship it months late for no self-hoster's benefit. The
 hosted tier keeps its decisions and its stories intact — they move together
-into [Release 2](#release-2-the-hosted-paid-tier--release-2).
+into [the next sprint](#next-sprint-the-hosted-paid-tier--sprintnext).
 
 | ID | Story | Status | Depends on |
 |---|---|---|---|
-| [US-007](release-1/US-007-https-reverse-proxy.md) | Public HTTPS via reverse proxy (and the Resend sender domain) | 📋 Planned | domain (owned) |
-| [US-008](release-1/US-008-cicd-integration.md) | CI/CD trigger: the documented pipeline step | 📝 Docs written, unverified | US-007, US-009 |
-| [US-031](release-1/US-031-license-and-public-repo.md) | License the code and open the repo | 📋 Planned | — |
-| [US-032](release-1/US-032-release-pipeline-and-image.md) | CI on every push, a published image on every tag | 📋 Planned | US-031 |
-| [US-035](release-1/done/US-035-run-variables.md) | Per-run variables (environment overrides) | ✅ Shipped (2026-07-24) — PDF display carved to US-020 | US-009 |
-| [US-009](release-1/done/US-009-control-plane-saved-tests.md) | Control plane: save & reuse tests | ✅ Done (2026-07-22) | — |
-| [US-023](release-1/done/US-023-projects-and-modules.md) | Projects & modules (organize saved tests) | ✅ Done (2026-07-22) | US-009 |
-| [US-006](release-1/done/US-006-session-recording.md) | Session recording (record by default) | ✅ Done (2026-07-22) — CPU overhead unmeasured | — |
-| [US-011](release-1/done/US-011-run-history.md) | Run history | ✅ Done (2026-07-22) | US-009 |
-| [US-010](release-1/done/US-010-scheduled-runs.md) | Scheduled runs | ✅ Done (2026-07-23) | US-009 |
-| [US-012](release-1/done/US-012-email-reports.md) | Failure email notifications | ✅ Done (2026-07-23) — the real send is now a US-007 criterion | US-009 |
-| [US-030](release-1/done/US-030-run-permalink.md) | A run has its own page (`/runs/<id>`) | ✅ Done (2026-07-23) | US-011, US-026 |
-| [US-013](release-1/done/US-013-registration-flow-verification.md) | Registration-flow verification — email tier | ✅ Tier 1 done | — |
-| [US-025](release-1/done/US-025-ui-consistency-pass-2.md) | UI consistency pass 2: type scale, sizes, dead space | ✅ Done (2026-07-23) | — |
-| [US-026](release-1/done/US-026-history-run-activity.md) | Run activity in the History detail panel | ✅ Done (2026-07-23) | US-011 |
-| [US-027](release-1/done/US-027-queued-run-visibility.md) | Tell the user their run is queued | ✅ Done (2026-07-23) | — |
-| [US-034](release-1/done/US-034-testing-practice-and-coverage.md) | Testing practice: selective TDD, owed agent/frontend coverage, mutmut audit | ✅ Done (2026-07-24) | — |
+| [US-007](sprint/current/US-007-https-reverse-proxy.md) | Public HTTPS via reverse proxy (and the Resend sender domain) | 📋 Planned | domain (owned) |
+| [US-008](sprint/current/US-008-cicd-integration.md) | CI/CD trigger: the documented pipeline step | 📝 Docs written, unverified | US-007, US-009 |
+| [US-031](sprint/current/US-031-license-and-public-repo.md) | License the code and open the repo | 📋 Planned | — |
+| [US-032](sprint/current/US-032-release-pipeline-and-image.md) | CI on every push, a published image on every tag | 📋 Planned | US-031 |
+| [US-035](sprint/current/done/US-035-run-variables.md) | Per-run variables (environment overrides) | ✅ Shipped (2026-07-24) — PDF display carved to US-020 | US-009 |
+| [US-009](sprint/current/done/US-009-control-plane-saved-tests.md) | Control plane: save & reuse tests | ✅ Done (2026-07-22) | — |
+| [US-023](sprint/current/done/US-023-projects-and-modules.md) | Projects & modules (organize saved tests) | ✅ Done (2026-07-22) | US-009 |
+| [US-006](sprint/current/done/US-006-session-recording.md) | Session recording (record by default) | ✅ Done (2026-07-22) — CPU overhead unmeasured | — |
+| [US-011](sprint/current/done/US-011-run-history.md) | Run history | ✅ Done (2026-07-22) | US-009 |
+| [US-010](sprint/current/done/US-010-scheduled-runs.md) | Scheduled runs | ✅ Done (2026-07-23) | US-009 |
+| [US-012](sprint/current/done/US-012-email-reports.md) | Failure email notifications | ✅ Done (2026-07-23) — the real send is now a US-007 criterion | US-009 |
+| [US-030](sprint/current/done/US-030-run-permalink.md) | A run has its own page (`/runs/<id>`) | ✅ Done (2026-07-23) | US-011, US-026 |
+| [US-013](sprint/current/done/US-013-registration-flow-verification.md) | Registration-flow verification — email tier | ✅ Tier 1 done | — |
+| [US-025](sprint/current/done/US-025-ui-consistency-pass-2.md) | UI consistency pass 2: type scale, sizes, dead space | ✅ Done (2026-07-23) | — |
+| [US-026](sprint/current/done/US-026-history-run-activity.md) | Run activity in the History detail panel | ✅ Done (2026-07-23) | US-011 |
+| [US-027](sprint/current/done/US-027-queued-run-visibility.md) | Tell the user their run is queued | ✅ Done (2026-07-23) | — |
+| [US-034](sprint/current/done/US-034-testing-practice-and-coverage.md) | Testing practice: selective TDD, owed agent/frontend coverage, mutmut audit | ✅ Done (2026-07-24) | — |
 
-Added to the release 2026-07-24: **US-035** (per-run variables) — the one
-feature in the release beyond the four release-plumbing stories. It pairs with
+Added to the sprint 2026-07-24: **US-035** (per-run variables) — the one
+feature in the sprint beyond the four release-plumbing stories. It pairs with
 US-008: CI already overrides `start_url` per environment, and this generalizes
 that single override into named variables so one saved test covers dev/staging/
 prod instead of being cloned per environment. Its secret-value handling was
@@ -75,7 +75,7 @@ assertion-first (redaction). **Shipped 2026-07-24** — backend, agent and UI
 (PDF) display of a run's non-secret variables, moved to US-020, which owns the
 report-v2 layout it needs and which gates nothing.
 
-Added to the release 2026-07-23: **US-031** and **US-032**, which is what the
+Added to the sprint 2026-07-23: **US-031** and **US-032**, which is what the
 narrowing exposed. The product was ready to self-host and the *release* was
 not: no LICENSE (so nobody may legally run it), no CI (so nothing but memory
 says `dev` is green), and no published image (so `docker compose up` means a
@@ -83,20 +83,20 @@ says `dev` is green), and no published image (so `docker compose up` means a
 already said the public repo's CI publishes a versioned image per tagged
 release — US-032 is that sentence becoming a workflow.
 
-Added to the release 2026-07-23: **US-027**, one half of concurrency being
+Added to the sprint 2026-07-23: **US-027**, one half of concurrency being
 invisible. `MAX_CONCURRENT_SESSIONS=4` queues everything past the cap, but the
 Run view rendered a queued run identically to a starting one. The other half —
-a per-user share of the queue ([US-028](release-2/US-028-per-user-concurrency-limit.md))
-— went to Release 2 with the hosted tier: it is a no-op until real users exist,
+a per-user share of the queue ([US-028](sprint/next/US-028-per-user-concurrency-limit.md))
+— went to the next sprint with the hosted tier: it is a no-op until real users exist,
 and self-host keeps today's single global queue.
 
-Added to the release 2026-07-23: **US-026**, so a past run explains itself in
+Added to the sprint 2026-07-23: **US-026**, so a past run explains itself in
 History rather than only in the PDF — the steps are already written to disk,
 so it is a read path, not new persistence.
 
-Added to the release 2026-07-23: **US-025**, the follow-up to that day's
+Added to the sprint 2026-07-23: **US-025**, the follow-up to that day's
 spacing pass. It is polish, not new scope — but every UI story left in the
-release inherits the type and size tokens it settles, so it is cheaper before
+sprint inherits the type and size tokens it settles, so it is cheaper before
 US-020/US-010/US-012 touch the frontend than after.
 
 ### Build order
@@ -110,7 +110,7 @@ US-020/US-010/US-012 touch the frontend than after.
    after moving the topbar tint, the modal scrim and `status.js`'s seven
    literal hexes into tokens.
 1. **US-009** — foundation: Postgres, saved tests/suites, run APIs (everything
-   else in the release hangs off it)
+   else in the sprint hangs off it)
 2. **US-023** — projects + modules on top of saved tests (pulled ahead
    2026-07-22 at the user's request; US-008 will document module triggering).
    Shipped 2026-07-22, backend and frontend: a `Run` / `Library` split that
@@ -175,12 +175,12 @@ the Run view has a queued state distinct from "Agent is starting…". US-028
 inherits that position and has to keep it honest once the dequeue stops being
 strict FIFO.
 
-## Release 2 (the hosted paid tier) — `release-2/`
+## Next sprint (the hosted paid tier) — `sprint/next/`
 
-Split out of Release 1 on 2026-07-23, unchanged in content: the four hosted
-stories plus the report improvement that was never gating anything. Release 1
-ships the app; Release 2 turns it into a service other people pay for at
-qassist.run.
+Split out of the current sprint on 2026-07-23, unchanged in content: the four
+hosted stories plus the report improvement that was never gating anything. The
+current sprint ships the app; the next sprint turns it into a service other
+people pay for at qassist.run.
 
 Paid-tier ground rules (decided 2026-07-22, still standing): nothing extra
 beyond what payment requires. One plan, Stripe Checkout, **BYOK for LLM
@@ -192,14 +192,14 @@ rules live in [`docs/repo-model.md`](../docs/repo-model.md). Email provider:
 
 | ID | Story | Status | Depends on |
 |---|---|---|---|
-| [US-005](release-2/US-005-byok-user-api-keys.md) | Bring-your-own OpenAI key (BYOK) | 📋 Planned | — |
-| [US-021](release-2/US-021-signup-auth.md) | Signup & login (magic-link auth) | 📋 Planned | US-009, US-007 |
-| [US-022](release-2/US-022-stripe-billing.md) | Paid tier: Stripe billing | 📋 Planned | US-021, US-005 |
-| [US-028](release-2/US-028-per-user-concurrency-limit.md) | Per-user concurrent run limit (hosted) | 📋 Planned | US-021, US-022, US-027 |
-| [US-033](release-2/US-033-live-demo-replay.md) | Live demo: a canned run that replays as if it were live | 📋 Planned (P2) | US-006, US-026 |
-| [US-020](release-2/US-020-report-v2-screenshots-recording.md) | Report v2: step screenshots + recording | 📋 Planned (P2) | US-006 |
+| [US-005](sprint/next/US-005-byok-user-api-keys.md) | Bring-your-own OpenAI key (BYOK) | 📋 Planned | — |
+| [US-021](sprint/next/US-021-signup-auth.md) | Signup & login (magic-link auth) | 📋 Planned | US-009, US-007 |
+| [US-022](sprint/next/US-022-stripe-billing.md) | Paid tier: Stripe billing | 📋 Planned | US-021, US-005 |
+| [US-028](sprint/next/US-028-per-user-concurrency-limit.md) | Per-user concurrent run limit (hosted) | 📋 Planned | US-021, US-022, US-027 |
+| [US-033](sprint/next/US-033-live-demo-replay.md) | Live demo: a canned run that replays as if it were live | 📋 Planned (P2) | US-006, US-026 |
+| [US-020](sprint/next/US-020-report-v2-screenshots-recording.md) | Report v2: step screenshots + recording | 📋 Planned (P2) | US-006 |
 
-Added to the release 2026-07-23: **US-033**, because "try before you
+Added to the sprint 2026-07-23: **US-033**, because "try before you
 subscribe" has no cheap answer otherwise. A real free trial spends a browser
 slot and LLM tokens per visitor, and BYOK (US-005) puts an API key in front of
 the evaluation anyway. The live stage is already fed by an event stream rather
@@ -219,13 +219,13 @@ keeping it out of the database.
    fixtures earlier if convenient — they only need US-006, which shipped.
 4. **US-020** — the screenshots, into the report and hanging off a step in
    US-026's activity list. P2 since 2026-07-23: it makes a good report better
-   rather than making anything possible, which is also why it left Release 1.
+   rather than making anything possible, which is also why it left the current sprint.
    Its step section renders `Step {n}`, which is why `progress` events were
    left out of `report_data.json`; revisit that if the section stops being
    step-keyed.
 
-US-020 is the odd one out here — it is self-host work sitting in the hosted
-release, kept because P2 polish shouldn't hold the free launch and it is the
+US-020 is the odd one out here — it is self-host work sitting in the next
+sprint, kept because P2 polish shouldn't hold the free launch and it is the
 next thing worth doing once it doesn't. Move it forward if a self-hoster asks
 for it before the hosted tier is real.
 
@@ -233,7 +233,7 @@ for it before the hosted tier is real.
 
 | ID | Story | Status | Priority | Depends on |
 |---|---|---|---|---|
-| [US-013](release-1/done/US-013-registration-flow-verification.md) | Registration-flow tiers 2 (SMS) + 3 (social) | 📋 Planned | P3 | — |
+| [US-013](sprint/current/done/US-013-registration-flow-verification.md) | Registration-flow tiers 2 (SMS) + 3 (social) | 📋 Planned | P3 | — |
 | [US-029](unscheduled/US-029-cicd-action-and-github-app.md) | CI/CD: reusable Action + GitHub App | 📋 Planned | P2 | US-008 |
 | [US-014](unscheduled/US-014-block-heavy-resources.md) | Block heavy page resources | 📋 Planned | P3 | — |
 | [US-015](unscheduled/US-015-horizontal-scaling-100-concurrent.md) | Horizontal scaling to ~100 concurrent | 📋 Planned | P3 | US-005, US-009 |
@@ -244,11 +244,11 @@ for it before the hosted tier is real.
 | [US-024](unscheduled/US-024-memory-watchdog-pss-metric.md) | Memory watchdog: measure PSS, not summed RSS | 📋 Planned | P2 | — |
 
 A tiered story keeps one file while its later tiers are still hypothetical:
-US-013's email tier shipped, so the file sits in `release-1/done/` with the
+US-013's email tier shipped, so the file sits in `sprint/current/done/` with the
 SMS and social tiers recorded inside it. It gets split once the out-of-scope
 tiers are real enough to plan, which is what happened to **US-008 on
-2026-07-23** — two of its three tiers were work Release 1 does not owe, and a
-story whose acceptance criteria are mostly out of scope makes `ls release-1/`
+2026-07-23** — two of its three tiers were work the current sprint does not owe, and a
+story whose acceptance criteria are mostly out of scope makes `ls sprint/current/`
 overstate what is left. US-008 is now the CI step alone; [US-029](unscheduled/US-029-cicd-action-and-github-app.md)
 carries the Action and the App.
 
@@ -277,7 +277,7 @@ fork it. US-018 would realize US-005 (BYOK) on desktop.
 - Body: Details, Acceptance criteria (checkboxes), plus Results/Tradeoffs for
   finished work. Record measured numbers — they drive sizing decisions.
 - Moving a story between folders is a `git mv` + README table update. Finish a
-  story ⇒ same commit moves it into `release-N/done/` and flips its Status.
-- Fix relative links after a move: links between stories in the same release
+  story ⇒ same commit moves it into `sprint/<name>/done/` and flips its Status.
+- Fix relative links after a move: links between stories in the same sprint
   cross the `done/` boundary (`done/US-0xx-….md` from the root, `../US-0xx-….md`
   from inside `done/`).

@@ -5,12 +5,12 @@
 - **Status:** ✅ Done (2026-07-23) — schema, sender, prefs API, unsubscribe,
   prefs dialog, docs. Unproven against Resend itself until US-007 verifies the
   sender domain; see "Still to do".
-- **Priority:** P1 (Release 1 — on-failure notification only)
+- **Priority:** P1 (current sprint — on-failure notification only)
 - **Estimate:** ~1 day
 - **Depends on:** US-009 (Postgres for recipients/prefs); pairs with US-010
 
-**Release-1 scope:** on-failure email only (the default). "Always"/"never"
-prefs are cheap to include; digest mode stays out of Release 1.
+**current-sprint scope:** on-failure email only (the default). "Always"/"never"
+prefs are cheap to include; digest mode stays out of current sprint.
 
 ## Details
 
@@ -50,7 +50,7 @@ prefs are cheap to include; digest mode stays out of Release 1.
    whether to mail; there is no rollup for a suite, module or project trigger
    that started ten of them. `notifications` from 001 already has that shape —
    one row per `(run_id, recipient)`, which is also what makes a retry
-   harmless. A digest is the answer to volume, and it stays out of Release 1.
+   harmless. A digest is the answer to volume, and it stays out of current sprint.
 
 3. **Ad-hoc runs never mail.** A run with no `test_id` was started from the Run
    view and is being watched live; mailing its result is noise, and it has no
@@ -101,7 +101,7 @@ prefs are cheap to include; digest mode stays out of Release 1.
 10. **Account-level prefs wait for US-021.** The recipient chain already has an
     account tier — `notify.js` joins `users.email` as the last fallback, and
     `db.js` seeds that row from `OPERATOR_EMAIL` — so the question is only
-    whether the UI can edit it, and the answer for Release 1 is no. "Account"
+    whether the UI can edit it, and the answer for the current sprint is no. "Account"
     does not mean anything yet: there is one seeded user and no login, so an
     account-settings surface today would edit the same operator row that holds
     the BYOK key and will receive magic-links, before the story that gives it
@@ -110,7 +110,7 @@ prefs are cheap to include; digest mode stays out of Release 1.
     Left behind for whoever picks this up: `OPERATOR_EMAIL` defaults to
     `operator@qassist.local` (`config.js:68`), so on an instance with no
     project recipients and no `NOTIFY_EMAILS` the send resolves to an address
-    that cannot receive. Documenting the variable is the Release-1 fix; making
+    that cannot receive. Documenting the variable is the current-sprint fix; making
     it settable is US-021's.
 
 ## Progress (2026-07-23)

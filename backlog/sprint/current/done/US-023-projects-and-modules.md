@@ -7,7 +7,7 @@
   filters; `npm test` 28/28 and `npm run check` green. Frontend: `App.jsx`
   split into `RunView` / `LibraryView`, progressive reveal in Run, full
   project / module / suite management in Library.
-- **Priority:** P1 (Release 1) — pulled ahead of US-006 at the user's request
+- **Priority:** P1 (current sprint) — pulled ahead of US-006 at the user's request
 - **Estimate:** ~2 days (schema + routes ~0.5d; the frontend carries projects,
   modules *and* suite CRUD, which US-009 had deferred)
 - **Depends on:** US-009 (control plane)

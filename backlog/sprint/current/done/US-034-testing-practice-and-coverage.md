@@ -5,7 +5,7 @@ testing practice and the test surfaces we deliberately skipped filled in, **so
 that** correctness-critical logic is specified before it's implemented and the
 agent core stops being the one untested part of the product.
 
-- **Status:** ✅ Done (2026-07-24), folded into Release 1 — spun out 2026-07-24 when the three test *gaps*
+- **Status:** ✅ Done (2026-07-24), folded into current sprint — spun out 2026-07-24 when the three test *gaps*
   were closed (agent `email_codes` under pytest, frontend `status.js` under
   Vitest, the "red test is fixed in the code" rule in CLAUDE.md). This story is
   the work those three did **not** cover. Landed so far: `scrub` lifted to

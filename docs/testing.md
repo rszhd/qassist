@@ -139,7 +139,7 @@ survivors.
 
 ## Where this should go next
 
-Tracked in [US-034](../backlog/release-1/done/US-034-testing-practice-and-coverage.md):
+Tracked in [US-034](../backlog/sprint/current/done/US-034-testing-practice-and-coverage.md):
 the owed agent coverage (redaction, report formatters, judge fixture) and the
 frontend mount-smoke test have landed. Selective TDD is now a standing CLAUDE.md
 rule (Workflow rules) rather than only a mitigation here — written as a *forward*

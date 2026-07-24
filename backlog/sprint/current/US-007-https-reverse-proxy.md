@@ -3,7 +3,7 @@
 **As a** user or CI pipeline, **I want** to reach the QAssist UI/API over HTTPS without an SSH tunnel, **so that** the service is usable from anywhere and integrations become possible.
 
 - **Status:** 📋 Planned
-- **Priority:** P1 (Release 1) — hard dependency of US-008 tier 1 (CI must reach the API); unblocks any external users
+- **Priority:** P1 (current sprint) — hard dependency of US-008 tier 1 (CI must reach the API); unblocks any external users
 - **Estimate:** ~2 h (plus domain/DNS)
 - **Depends on:** app domain is **qassist.run** (decided 2026-07-22) — point it
   at the VPS. `arang.space` stays dedicated to US-013's catch-all test mail via

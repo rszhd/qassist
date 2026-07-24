@@ -5,14 +5,14 @@
 - **Status:** 📋 Planned
 - **Priority:** P2
 - **Estimate:** tier 2 ~1–2 days, tier 3 ~1 week+
-- **Depends on:** [US-008](../release-1/US-008-cicd-integration.md) tier 1
+- **Depends on:** [US-008](../sprint/current/US-008-cicd-integration.md) tier 1
   (the documented `curl` snippet is what both tiers wrap)
 
 ## Why this is its own story
 
-Split out of US-008 on 2026-07-23. Release 1 owes the CI step and nothing
+Split out of US-008 on 2026-07-23. The current sprint owes the CI step and nothing
 more, and a story whose acceptance criteria are two-thirds out of scope makes
-the release folder lie about what is left — `ls release-1/` is supposed to be
+the release folder lie about what is left — `ls sprint/current/` is supposed to be
 the remaining work. US-008 keeps tier 1 and ships; this file carries the rest,
 unscheduled until there is demand for it.
 

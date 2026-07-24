@@ -7,10 +7,10 @@ right values per pipeline — instead of me cloning the test per environment.
 
 - **Status:** ✅ Shipped (2026-07-24 — PDF variables display carved out to
   US-020, which owns the report-v2 layout)
-- **Priority:** P1 (Release 1)
+- **Priority:** P1 (current sprint)
 - **Estimate:** TBD
 - **Depends on:** US-009 (saved tests) — the variable defaults live on a test.
-  Pairs with [US-008](US-008-cicd-integration.md), whose CI snippet is the
+  Pairs with [US-008](../US-008-cicd-integration.md), whose CI snippet is the
   second consumer.
 
 ## Why
@@ -91,7 +91,7 @@ client-side when a secret is referenced in the Start URL, so the UI still can't
 build a test the server would reject at run time (`RunView.test.jsx`).
 
 **Report (PDF) display** of a run's non-secret variables is the one piece left,
-and it's deferred to [US-020](../release-2/US-020-report-v2-screenshots-recording.md):
+and it's deferred to [US-020](../../next/US-020-report-v2-screenshots-recording.md):
 it needs the report-v2 layout rework rather than bolting onto the current
 verdict band, and it gates nothing (RunDetail already shows the same data
 in-app, and secrets already render redacted in the report via the agent's

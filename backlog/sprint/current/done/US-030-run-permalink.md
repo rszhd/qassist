@@ -3,7 +3,7 @@
 **As a** user, **I want** every run to live at its own URL, **so that** I can open the one a notification is about, and send it to someone.
 
 - **Status:** ✅ Done (2026-07-23)
-- **Priority:** P1 (Release 1 — US-012's email is the thing that needs it)
+- **Priority:** P1 (current sprint — US-012's email is the thing that needs it)
 - **Estimate:** ~half a day
 - **Depends on:** US-011 (history + `GET /api/runs/:id`), US-026 (steps read path)
 

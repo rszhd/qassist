@@ -5,7 +5,7 @@ test and watch a real session play out, **so that** I know what the product
 does before deciding whether to pay for it — and **as the** operator, **I want**
 that to cost me nothing per visitor.
 
-- **Status:** 📋 Planned (Release 2, hosted tier — added 2026-07-23)
+- **Status:** 📋 Planned (next sprint, hosted tier — added 2026-07-23)
 - **Priority:** P2 — not required to take payment, but it is the cheapest
   conversion work in the release and the only thing that answers "what does
   this actually look like?" without spending a browser slot or an API key.

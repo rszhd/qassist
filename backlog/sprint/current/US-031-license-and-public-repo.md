@@ -3,7 +3,7 @@
 **As a** self-hoster, **I want** QAssist to carry a real open-source license in a public repository, **so that** I am legally allowed to run, modify and deploy it — and can see what I am running before I trust it with a browser and an API key.
 
 - **Status:** 📋 Planned
-- **Priority:** P1 (Release 1) — nothing else in the release means anything
+- **Priority:** P1 (current sprint) — nothing else in the release means anything
   while the code is private and unlicensed
 - **Estimate:** ~2 h (the scan is most of it)
 - **Depends on:** — (but do it *last*, after US-007/US-008 have finished

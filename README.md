@@ -395,49 +395,49 @@ Fronting it with HTTPS (Caddy on 443) for public/API access is a [roadmap](#road
 ## Roadmap
 
 Planned work lives in [`backlog/`](backlog/README.md) — one file per user
-story, organized by release folder (`release-1/`, `release-2/`,
+story, organized by sprint folder (`sprint/current/`, `sprint/next/`,
 `unscheduled/`, `released/`), with status, dependencies, and acceptance
 criteria. Finished
-stories move into `release-N/done/`, so the release folder itself always lists
+stories move into `sprint/<name>/done/`, so the sprint folder itself always lists
 exactly the work that is left.
 
-**Release 1 — the self-host release** (in
-[`backlog/release-1/`](backlog/README.md)). Shipped and in the app today:
+**Current sprint — the self-host release** (in
+[`backlog/sprint/current/`](backlog/README.md)). Shipped and in the app today:
 
 - **Control plane** (Postgres) — saved tests & suites
-  ([US-009](backlog/release-1/done/US-009-control-plane-saved-tests.md)), projects
-  & modules ([US-023](backlog/release-1/done/US-023-projects-and-modules.md)), run
-  history ([US-011](backlog/release-1/done/US-011-run-history.md)), scheduled runs
-  ([US-010](backlog/release-1/done/US-010-scheduled-runs.md)), failure email
-  notifications ([US-012](backlog/release-1/done/US-012-email-reports.md)), and a
-  page per run ([US-030](backlog/release-1/done/US-030-run-permalink.md)).
+  ([US-009](backlog/sprint/current/done/US-009-control-plane-saved-tests.md)), projects
+  & modules ([US-023](backlog/sprint/current/done/US-023-projects-and-modules.md)), run
+  history ([US-011](backlog/sprint/current/done/US-011-run-history.md)), scheduled runs
+  ([US-010](backlog/sprint/current/done/US-010-scheduled-runs.md)), failure email
+  notifications ([US-012](backlog/sprint/current/done/US-012-email-reports.md)), and a
+  page per run ([US-030](backlog/sprint/current/done/US-030-run-permalink.md)).
 - **Session recording** — an MP4 per run
-  ([US-006](backlog/release-1/done/US-006-session-recording.md)).
+  ([US-006](backlog/sprint/current/done/US-006-session-recording.md)).
 - **Registration-flow verification** — email-confirmation signups
-  ([US-013](backlog/release-1/done/US-013-registration-flow-verification.md)).
+  ([US-013](backlog/sprint/current/done/US-013-registration-flow-verification.md)).
 
 Left before the release is cut:
 
 - **Public HTTPS** — Caddy on 443 terminating TLS; unblocks CI/CD
-  ([US-007](backlog/release-1/US-007-https-reverse-proxy.md)).
+  ([US-007](backlog/sprint/current/US-007-https-reverse-proxy.md)).
 - **CI/CD trigger** — GitHub/GitLab run a module or a suite via a documented
   curl step
-  ([US-008](backlog/release-1/US-008-cicd-integration.md), needs US-009); a
+  ([US-008](backlog/sprint/current/US-008-cicd-integration.md), needs US-009); a
   reusable Action and a GitHub App are a later story
   ([US-029](backlog/unscheduled/US-029-cicd-action-and-github-app.md)).
 - **A licensed, public repo** — AGPL-3.0
-  ([US-031](backlog/release-1/US-031-license-and-public-repo.md)) and a CI
+  ([US-031](backlog/sprint/current/US-031-license-and-public-repo.md)) and a CI
   pipeline that publishes a versioned image per tag, so self-hosting is a pull
   rather than a build
-  ([US-032](backlog/release-1/US-032-release-pipeline-and-image.md)).
+  ([US-032](backlog/sprint/current/US-032-release-pipeline-and-image.md)).
 
-**Release 2 — the hosted paid tier** (in
-[`backlog/release-2/`](backlog/README.md)): bring-your-own OpenAI key
-([US-005](backlog/release-2/US-005-byok-user-api-keys.md)), magic-link signup
-([US-021](backlog/release-2/US-021-signup-auth.md)), Stripe subscriptions
-([US-022](backlog/release-2/US-022-stripe-billing.md)), and a report with
+**Next sprint — the hosted paid tier** (in
+[`backlog/sprint/next/`](backlog/README.md)): bring-your-own OpenAI key
+([US-005](backlog/sprint/next/US-005-byok-user-api-keys.md)), magic-link signup
+([US-021](backlog/sprint/next/US-021-signup-auth.md)), Stripe subscriptions
+([US-022](backlog/sprint/next/US-022-stripe-billing.md)), and a report with
 per-step screenshots
-([US-020](backlog/release-2/US-020-report-v2-screenshots-recording.md)).
+([US-020](backlog/sprint/next/US-020-report-v2-screenshots-recording.md)).
 **Self-hosting stays free** — billing is env-gated and off by default.
 
 Later ([`backlog/unscheduled/`](backlog/README.md)): SMS/social

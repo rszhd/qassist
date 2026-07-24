@@ -137,9 +137,9 @@ is exactly the pre-US-023 UI — keep it that way when adding features.
 
 ## Roadmap & docs
 
-- `backlog/` — one file per user story, organized by release folder;
-  `release-1/` is current scope, and `release-1/done/` holds the ones already
-  shipped, so the release folder itself is the remaining work. Story files
+- `backlog/` — one file per user story, organized by sprint folder;
+  `sprint/current/` is current scope, and `sprint/current/done/` holds the ones already
+  shipped, so the sprint folder itself is the remaining work. Story files
   record design decisions with rationale — read the relevant US-xxx before
   implementing it; when a story is finished, `git mv` it into `done/` and
   update `backlog/README.md` in the same commit.

@@ -4,9 +4,9 @@
 to a few concurrent runs, **so that** one user cannot fill all four worker
 slots and leave every other subscriber staring at a queue.
 
-- **Status:** 📋 Planned (moved to Release 2 on 2026-07-23 with the rest of the
+- **Status:** 📋 Planned (moved to next sprint on 2026-07-23 with the rest of the
   hosted tier)
-- **Priority:** P2 (Release 2, hosted only) — the fair-use half of US-022's
+- **Priority:** P2 (next sprint, hosted only) — the fair-use half of US-022's
   open "concurrency/fair-use caps per user" item. **The one to cut** if launch
   scope tightens: it is not required to take payment, only to keep the first
   handful of subscribers from starving each other.

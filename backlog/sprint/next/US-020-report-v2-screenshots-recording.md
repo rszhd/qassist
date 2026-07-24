@@ -2,9 +2,9 @@
 
 **As a** user, **I want** the report to show per-step screenshots and give me the session recording, **so that** I can see exactly what the agent did — especially on failures — without rerunning the test.
 
-- **Status:** 📋 Planned (moved to Release 2 on 2026-07-23 — Release 1 is the
+- **Status:** 📋 Planned (moved to next sprint on 2026-07-23 — current sprint is the
   self-host launch, and a better report is not what gates it)
-- **Priority:** P2 (Release 2 — lowered 2026-07-23: it blocks nothing, so it
+- **Priority:** P2 (next sprint — lowered 2026-07-23: it blocks nothing, so it
   yielded to US-010/US-012 and then out of the release entirely)
 - **Estimate:** ~1–2 days
 - **Depends on:** US-006 (recording must exist to link/embed)
@@ -12,7 +12,7 @@
 ## Context
 
 Supersedes **US-003**: the per-step PNGs the agent already saves in
-`runs/<runId>/step_N.png` were slated for deletion as unused; the release-1
+`runs/<runId>/step_N.png` were slated for deletion as unused; the current-sprint
 report makes them a feature instead. The current report is a deliberate
 single-page "verdict band" design — embedding screenshots means evolving the
 layout (steps section / appendix pages), not bolting images onto the band.

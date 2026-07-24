@@ -4,7 +4,7 @@
 
 - **Status:** ✅ Done (2026-07-23) — schema, scheduler, API and the Schedules
   view
-- **Priority:** P1 (Release 1)
+- **Priority:** P1 (current sprint)
 - **Estimate:** ~1–2 days
 - **Depends on:** US-009 (saved tests + Postgres)
 

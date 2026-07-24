@@ -23,7 +23,7 @@ the register only stays useful if it grows with the code.
 | Slot math | `server/src/schedule.js` | off-by-one at minute / hour / day / weekday boundaries and across DST and timezone; the next slot must land strictly in the future | `schedule.test.js` (pure) |
 | Redaction | `agent/redact.py` (`scrub`) | a secret leaks through — inside a URL, as a substring, or because `sensitive` was empty and the guard was wrong | `agent/tests/test_redact.py` (pure) |
 | Secret variables (US-035) | `server/src/variables.js` (`resolveForRun`) + the agent `QA_VARS` path | a `secret` variable's value reaches `QA_GOAL`/the persisted `run.goal`/`run.variables` because it was substituted inline instead of routed as a placeholder, or the agent never adds it to `sensitive` so `scrub` can't strip it from frames/steps/report | `variables.test.js` (secret block — value never enters goal/persisted map, routes on `secrets` channel, rejected in start_url) + `agent/tests/test_secret_vars.py` (`QA_VARS` fails closed, loaded secret is scrub-redactable); assertion maintainer-reviewed before implementation |
-| Billing gates | (Release 2 — US-022) | a paid-only path opens when `STRIPE_*` is unset, or the self-host free tier gets gated by mistake | not built yet |
+| Billing gates | (next sprint — US-022) | a paid-only path opens when `STRIPE_*` is unset, or the self-host free tier gets gated by mistake | not built yet |
 
 ## What a row owes
 

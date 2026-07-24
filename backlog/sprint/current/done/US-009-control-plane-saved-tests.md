@@ -3,7 +3,7 @@
 **As a** user, **I want** to save a test (URL + goal + settings) and re-run it with one click, **so that** I don't retype goals and can build a regression suite over time.
 
 - **Status:** ✅ Done (2026-07-22) — backend + UI; suite screen deliberately out of scope
-- **Priority:** P1 (Release 1) — first control-plane feature; establishes Postgres; foundation for the rest of the release
+- **Priority:** P1 (current sprint) — first control-plane feature; establishes Postgres; foundation for the rest of the release
 - **Estimate:** ~2–3 days (includes standing up Postgres + auth model)
 - **Depends on:** — (foundation for US-010/011/012 run history, scheduling, email)
 

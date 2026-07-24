@@ -2,9 +2,9 @@
 
 **As the** operator, **I want** users to pay a subscription before running tests on the hosted instance, **so that** the cloud version has revenue from day one without me invoicing anyone.
 
-- **Status:** 📋 Planned (moved to Release 2 on 2026-07-23 with the rest of the
+- **Status:** 📋 Planned (moved to next sprint on 2026-07-23 with the rest of the
   hosted tier)
-- **Priority:** P1 (Release 2) — last story before the hosted launch
+- **Priority:** P1 (next sprint) — last story before the hosted launch
 - **Estimate:** ~1–2 days
 - **Depends on:** US-021 (auth), US-007 (public HTTPS — Stripe webhooks),
   US-005 (BYOK — the paid plan covers hosting, not LLM tokens)

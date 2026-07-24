@@ -5,12 +5,12 @@
 - **Status:** 📝 Docs written (`docs/ci.md`, 2026-07-23) — **unverified**: no
   runner can reach the box until US-007 ships, so the snippets have not been
   executed from a real pipeline. Not done until they have been.
-- **Priority:** P1 (Release 1)
+- **Priority:** P1 (current sprint)
 - **Estimate:** ~half a day including docs, once US-009 is in
 - **Depends on:** US-007 (public HTTPS) + US-009 (saved tests) — both hard requirements
-- **Followed by:** [US-029](../unscheduled/US-029-cicd-action-and-github-app.md)
+- **Followed by:** [US-029](../../unscheduled/US-029-cicd-action-and-github-app.md)
   — the reusable Action and the GitHub App, split out 2026-07-23 so this story
-  is exactly what Release 1 owes
+  is exactly what the current sprint owes
 
 ## Design decisions
 

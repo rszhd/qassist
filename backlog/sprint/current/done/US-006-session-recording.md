@@ -3,7 +3,7 @@
 **As a** user, **I want** a video recording of every test run, **so that** I can review exactly what the agent did after the fact — especially for failures.
 
 - **Status:** ✅ Done (2026-07-22) — CPU overhead still unmeasured on the VPS
-- **Priority:** P1 (Release 1)
+- **Priority:** P1 (current sprint)
 - **Estimate:** ~half a day
 - **Depends on:** — (US-003 superseded; `runs/` retention now lives in US-020)
 
