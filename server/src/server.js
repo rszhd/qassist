@@ -11,11 +11,13 @@ import { WebSocketServer } from 'ws';
 import { createServer } from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { PORT, API_TOKEN, MAX_CONCURRENT, PUBLIC_DIR, OPENAI_API_KEY, AUTH_ENABLED } from './config.js';
+import { PORT, API_TOKEN, MAX_CONCURRENT, PUBLIC_DIR, OPENAI_API_KEY, AUTH_ENABLED, DEMO_MODE } from './config.js';
 import { db, initDb, getOperatorUserId, userContext } from './db.js';
 import { mailEnabled } from './mail.js';
 import { authEnabled, userFromRequest, userFromCredentials, SESSION_COOKIE } from './auth.js';
 import { getRun, counts, attachViewer } from './runs.js';
+import { loadDemo, replayDemo } from './demo.js';
+import { demoRouter } from './routes/demo.js';
 import { startRetention } from './retention.js';
 import { startScheduler } from './scheduler.js';
 import { runsRouter } from './routes/runs.js';
@@ -86,6 +88,9 @@ app.get('/api/health', (_req, res) => {
     // instance that can't send, and the prefs UI says so rather than looking
     // like it saved something that works.
     mail: mailEnabled(),
+    // US-033: is the (unauthenticated) demo replay available? Off = the
+    // frontend shows no /demo nav entry and the route doesn't exist server-side.
+    demo: DEMO_MODE,
   });
 });
 
@@ -103,6 +108,9 @@ app.use('/api/schedules', schedulesRouter({ checkToken }));
 // Not wrapped in checkToken as a whole: /unsubscribe is reached by a recipient
 // from their inbox and carries its own signature (routes/notifications.js).
 app.use('/api/notifications', notificationsRouter({ checkToken }));
+// US-033: the demo surface is unauthenticated by design, and only exists when
+// DEMO_MODE is set — off, these paths 404 like any other unknown /api route.
+if (DEMO_MODE) app.use('/api/demo', demoRouter());
 
 app.use(express.static(PUBLIC_DIR));
 // SPA fallback: anything not matched above returns the React app.
@@ -128,6 +136,21 @@ const wss = new WebSocketServer({ noServer: true });
 server.on('upgrade', async (req, socket, head) => {
   const url = new URL(req.url || '/', `http://${req.headers.host}`);
   if (url.pathname !== '/ws') return socket.destroy();
+
+  // US-033: a demo replay is the one socket that carries no credential. It
+  // reads a checked-in fixture and touches neither the run registry nor auth,
+  // so it branches out before any of the token/cookie handling below.
+  const demoSlug = DEMO_MODE ? url.searchParams.get('demo') : null;
+  if (demoSlug) {
+    if (!loadDemo(demoSlug)) {
+      socket.write('HTTP/1.1 404 Not Found\r\n\r\n');
+      return socket.destroy();
+    }
+    return wss.handleUpgrade(req, socket, head, (ws) => {
+      const cancel = replayDemo(ws, demoSlug);
+      ws.on('close', cancel);
+    });
+  }
 
   // In multi-user mode the browser attaches its session cookie to the upgrade;
   // a programmatic client passes its per-user API key as ?token=. Otherwise the

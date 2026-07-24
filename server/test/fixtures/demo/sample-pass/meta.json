@@ -1,0 +1,5 @@
+{
+  "name": "Checkout completes",
+  "description": "Agent adds an item, checks out, and verifies the confirmation page.",
+  "verdict": "pass"
+}

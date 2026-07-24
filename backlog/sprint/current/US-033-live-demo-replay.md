@@ -5,7 +5,8 @@ test and watch a real session play out, **so that** I know what the product
 does before deciding whether to pay for it — and **as the** operator, **I want**
 that to cost me nothing per visitor.
 
-- **Status:** 📋 Planned (next sprint, hosted tier — added 2026-07-23)
+- **Status:** 🚧 Backend shipped 2026-07-24 (frontend next). Pulled into the
+  current sprint 2026-07-23; originally next sprint, hosted tier.
 - **Priority:** P2 — not required to take payment, but it is the cheapest
   conversion work in the release and the only thing that answers "what does
   this actually look like?" without spending a browser slot or an API key.
@@ -118,6 +119,38 @@ recorded event log played back with the original inter-event delays.
 - [ ] The replay ends on a signup CTA
 - [ ] `cd server && npm test` covers gate-off, gate-on replay, and the
       no-DB-row assertion; `npm run check` clean
+
+## Progress
+
+**Backend shipped 2026-07-24.** `DEMO_MODE` gate (`config.js`, off by default —
+no route, no `/ws?demo` branch, no `demo` flag in `/api/health`), `src/demo.js`
+(fixture reader + `replayDemo`), `routes/demo.js` (`GET /api/demo` cards +
+`GET /api/demo/:slug/recording`, per-IP rate-limited), an unauthenticated
+`/ws?demo=<slug>` upgrade branch in `server.js` that sits before all
+token/cookie handling and never touches the run registry, and tests
+(`demo.test.js` incl. the no-cost assertion — a replay leaves `counts()` at
+`{active:0,queued:0}` and creates no run — plus `demo-off.test.js` for the gate).
+
+Decisions resolved (the "while implementing" list above):
+
+- **Transport:** WS-timed replay, reusing the live event path — `replayDemo`
+  fires the fixture's events at their recorded offsets (scaled by `DEMO_SPEED`)
+  and synthesizes the closing `end`. Short fixtures instead of compression; the
+  video autoplays on its own clock beside the streaming steps.
+- **URL:** `/demo` as a frontend route (US-030's router already serves
+  `index.html` for any non-`/api` path).
+- **CTA:** magic-link login when `auth_mode` is `multi`, else `DEMO_CTA_URL`
+  (default `qassist.run`) — the list endpoint returns `ctaUrl` for the latter.
+
+Remaining (next session): the **frontend `DemoView`** (picker → press Run →
+`ws?demo` → play `recording.mp4` in the stage while `ActivityLog` streams;
+`Demo` badge, recorded-session note, no Edit/Re-run, signup CTA), the `/demo`
+nav entry gated on `health.demo`, and the **real fixtures** — recorded
+`demo/<slug>/` dirs (one pass, one fail) so the acceptance item "fixtures
+survive a fresh deploy" is met. The fixture format is settled: `meta.json`
+(name/description/verdict), `events.ndjson` (one event per line, each with
+`offset_ms`), `recording.mp4`. `server/test/fixtures/demo/sample-pass/` is a
+worked example.
 
 ## Later
 

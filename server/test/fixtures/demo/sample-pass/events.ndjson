@@ -1,0 +1,5 @@
+{"offset_ms":0,"type":"status","status":"running"}
+{"offset_ms":5,"type":"step","step":1,"next_goal":"Open the store and add an item to the cart","url":"https://shop.example/","evaluation":"success"}
+{"offset_ms":10,"type":"step","step":2,"next_goal":"Proceed to checkout and confirm the order","url":"https://shop.example/checkout","evaluation":"success"}
+{"offset_ms":15,"type":"recording","file":"recording.mp4"}
+{"offset_ms":15,"type":"done","success":true,"steps":2,"duration_seconds":42,"final_result":"Order confirmed — reached the thank-you page."}

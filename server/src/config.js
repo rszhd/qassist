@@ -78,6 +78,21 @@ export const AUTH_ENABLED = /^(1|true|yes)$/i.test(process.env.AUTH_ENABLED || '
 // instances — so auth stays off until it is set explicitly.
 export const SESSION_SECRET = process.env.SESSION_SECRET || '';
 
+// Live demo replay (US-033). Off by default: an unset DEMO_MODE means no demo
+// route, no /ws?demo branch, no `demo` flag in /api/health — the one
+// unauthenticated surface simply doesn't exist. Fixtures live in DEMO_DIR
+// (checked-in `demo/<slug>/`, outside runs/ so retention never sees them).
+export const DEMO_MODE = /^(1|true|yes)$/i.test(process.env.DEMO_MODE || '');
+export const DEMO_DIR = process.env.DEMO_DIR || path.join(__dirname, '..', '..', 'demo');
+// Wall-clock scale for the replay: >1 plays faster than recorded. The frontend
+// says "condensed replay" whenever this isn't 1, rather than quietly lying
+// about how fast a run really is (US-033 decision 3).
+export const DEMO_SPEED = Math.max(0.1, parseFloat(process.env.DEMO_SPEED || '1') || 1);
+// Where the end-of-replay signup CTA points when the instance can't offer its
+// own login (token/open mode). In multi-user mode the CTA links to the app's
+// own magic-link screen instead and this is unused.
+export const DEMO_CTA_URL = process.env.DEMO_CTA_URL || 'https://qassist.run';
+
 // Control plane (US-009). No DATABASE_URL = legacy in-memory mode: ad-hoc
 // runs work, saved tests/suites respond 503.
 export const DATABASE_URL = process.env.DATABASE_URL || '';

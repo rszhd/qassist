@@ -48,7 +48,7 @@ forward from `sprint/next/` into this sprint.
 | [US-008](sprint/current/US-008-cicd-integration.md) | CI/CD trigger: the documented pipeline step | 📝 Docs written, unverified | US-007, US-009 |
 | [US-031](sprint/current/US-031-license-and-public-repo.md) | License the code and open the repo | 📋 Planned | — |
 | [US-032](sprint/current/US-032-release-pipeline-and-image.md) | CI on every push, a published image on every tag | 📋 Planned | US-031 |
-| [US-033](sprint/current/US-033-live-demo-replay.md) | Live demo: a canned run that replays as if it were live | 📋 Planned (P2) | US-006, US-026 |
+| [US-033](sprint/current/US-033-live-demo-replay.md) | Live demo: a canned run that replays as if it were live | 🚧 Backend shipped (2026-07-24); frontend + fixtures left | US-006, US-026 |
 | [US-021](sprint/current/done/US-021-signup-auth.md) | Signup & login (magic-link auth + per-user API keys) | ✅ Done (2026-07-24) | US-009, US-007 |
 | [US-035](sprint/current/done/US-035-run-variables.md) | Per-run variables (environment overrides) | ✅ Shipped (2026-07-24) — PDF display carved to US-020 | US-009 |
 | [US-009](sprint/current/done/US-009-control-plane-saved-tests.md) | Control plane: save & reuse tests | ✅ Done (2026-07-22) | — |
@@ -169,7 +169,10 @@ US-020/US-010/US-012 touch the frontend than after.
     Code-complete against US-009; still needs US-007 (public HTTPS, open above)
     before the magic-link redirect works over a real domain in production.
 11. **US-033** — the live demo replay, pulled in alongside US-021. Depends on
-    US-006 and US-026, both already shipped.
+    US-006 and US-026, both already shipped. **Backend shipped 2026-07-24**
+    (gate, fixture reader + WS-timed replayer, demo routes, unauthenticated
+    `/ws?demo` branch, tests); the frontend `DemoView` and the real recorded
+    fixtures are the remaining work.
 
 **US-027** (queued-run visibility) sat outside this order: it depended on
 nothing, and every story above makes the queue busier. **Shipped 2026-07-23**,
