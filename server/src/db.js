@@ -5,22 +5,46 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import pg from 'pg';
-import { DATABASE_URL, MIGRATIONS_DIR, OPERATOR_EMAIL, API_TOKEN } from './config.js';
+import { DATABASE_URL, MIGRATIONS_DIR, OPERATOR_EMAIL, API_TOKEN, AUTH_ENABLED } from './config.js';
 
 /** @type {pg.Pool | null} */
 let pool = null;
 /** @type {string | null} */
 let operatorUserId = null;
 
+/**
+ * The user a request is running as (US-021). The gate in server.js opens a
+ * store per request; query helpers read currentUserId() instead of threading
+ * the id through every signature, so a route can't silently forget to scope and
+ * leak another tenant's rows. Outside a request (the scheduler) there is no
+ * store — those callers pass the owning user_id explicitly.
+ * @type {AsyncLocalStorage<{ userId: string | null }>}
+ */
+export const userContext = new AsyncLocalStorage();
+
 /** The active pool, or null when no DATABASE_URL is configured. */
 export function db() {
   return pool;
 }
 
-/** All rows are owned by the seeded operator user until real auth (US-021). */
+/**
+ * The seeded operator user. Owns everything created before auth existed, and is
+ * the sole user whenever auth is off — so it is also the fallback for a request
+ * with no user context (auth-off mode, where every request is the operator).
+ */
 export function getOperatorUserId() {
   return operatorUserId;
+}
+
+/**
+ * The user the current request is scoped to: the request's store when one is
+ * open, else the operator (auth-off mode). This is what user-scoped queries
+ * filter on.
+ */
+export function currentUserId() {
+  return userContext.getStore()?.userId ?? operatorUserId;
 }
 
 /** @param {string} value */
@@ -84,7 +108,11 @@ async function seedOperator(p) {
     r = await p.query('insert into users (email) values ($1) returning id', [OPERATOR_EMAIL]);
   }
   const userId = r.rows[0].id;
-  if (API_TOKEN) {
+  // The shared WORKER_API_TOKEN becomes an operator API key only in single-user
+  // mode. With auth on it must stop working (US-021), so it is not seeded — the
+  // operator reaches their pre-auth data by requesting a login link for
+  // OPERATOR_EMAIL and creates per-user keys through the UI.
+  if (API_TOKEN && !AUTH_ENABLED) {
     const hash = sha256(API_TOKEN);
     const k = await p.query('select 1 from api_keys where token_hash = $1', [hash]);
     if (!k.rowCount) {

@@ -3,7 +3,7 @@
 // US-008 CI calls. Running a suite creates one run per member test and
 // returns the run ids; callers poll each run (no suite_runs table).
 import express from 'express';
-import { db, getOperatorUserId, isUuid } from '../db.js';
+import { db, currentUserId, isUuid } from '../db.js';
 import { h, requireDb, requireAgentKey, runTestsFromRequest } from './helpers.js';
 
 const COLS = 'id, name, project_id, created_at, updated_at';
@@ -51,7 +51,7 @@ async function projectExists(projectId) {
   if (typeof projectId !== 'string' || !isUuid(projectId)) return false;
   const { rowCount } = await db().query(
     'select 1 from projects where id = $1 and user_id = $2',
-    [projectId, getOperatorUserId()]
+    [projectId, currentUserId()]
   );
   return !!rowCount;
 }
@@ -82,10 +82,15 @@ export function suitesRouter({ checkToken }) {
       if (filtered && !isUuid(project_id)) {
         return res.status(400).json({ error: 'invalid project_id' });
       }
+      const params = [currentUserId()];
+      let where = 'where user_id = $1';
+      if (filtered) {
+        params.push(project_id);
+        where += ' and project_id = $2';
+      }
       const { rows } = await db().query(
-        `select ${COLS} from suites ${filtered ? 'where project_id = $1' : ''}
-         order by created_at desc`,
-        filtered ? [project_id] : []
+        `select ${COLS} from suites ${where} order by created_at desc`,
+        params
       );
       const members = await memberIdsBySuite();
       res.json({ suites: rows.map((s) => ({ ...s, test_ids: members.get(s.id) || [] })) });
@@ -105,7 +110,7 @@ export function suitesRouter({ checkToken }) {
       const { rows } = await db().query(
         `insert into suites (user_id, name, project_id) values ($1, $2, $3)
          returning ${COLS}`,
-        [getOperatorUserId(), name, project_id]
+        [currentUserId(), name, project_id]
       );
       await setMembers(rows[0].id, test_ids);
       res.status(201).json({ ...rows[0], test_ids });
@@ -116,8 +121,9 @@ export function suitesRouter({ checkToken }) {
     '/:id',
     h(async (req, res) => {
       if (!isUuid(req.params.id)) return res.status(404).json({ error: 'not found' });
-      const { rows } = await db().query(`select ${COLS} from suites where id = $1`, [
+      const { rows } = await db().query(`select ${COLS} from suites where id = $1 and user_id = $2`, [
         req.params.id,
+        currentUserId(),
       ]);
       if (!rows.length) return res.status(404).json({ error: 'not found' });
       const { rows: tests } = await db().query(
@@ -138,8 +144,8 @@ export function suitesRouter({ checkToken }) {
       // A suite never changes project — membership is scoped to it, so moving
       // one would invalidate every member at once. Delete and recreate instead.
       const { rows: existing } = await db().query(
-        'select project_id from suites where id = $1',
-        [req.params.id]
+        'select project_id from suites where id = $1 and user_id = $2',
+        [req.params.id, currentUserId()]
       );
       if (!existing.length) return res.status(404).json({ error: 'not found' });
       if (test_ids !== undefined) {
@@ -148,8 +154,8 @@ export function suitesRouter({ checkToken }) {
       }
       const { rows } = await db().query(
         `update suites set name = coalesce($2, name), updated_at = now()
-          where id = $1 returning ${COLS}`,
-        [req.params.id, name ?? null]
+          where id = $1 and user_id = $3 returning ${COLS}`,
+        [req.params.id, name ?? null, currentUserId()]
       );
       if (!rows.length) return res.status(404).json({ error: 'not found' });
       if (test_ids !== undefined) await setMembers(req.params.id, test_ids);
@@ -162,7 +168,10 @@ export function suitesRouter({ checkToken }) {
     '/:id',
     h(async (req, res) => {
       if (!isUuid(req.params.id)) return res.status(404).json({ error: 'not found' });
-      const { rowCount } = await db().query('delete from suites where id = $1', [req.params.id]);
+      const { rowCount } = await db().query('delete from suites where id = $1 and user_id = $2', [
+        req.params.id,
+        currentUserId(),
+      ]);
       if (!rowCount) return res.status(404).json({ error: 'not found' });
       res.status(204).end();
     })
@@ -175,7 +184,10 @@ export function suitesRouter({ checkToken }) {
     requireAgentKey,
     h(async (req, res) => {
       if (!isUuid(req.params.id)) return res.status(404).json({ error: 'not found' });
-      const { rowCount } = await db().query('select 1 from suites where id = $1', [req.params.id]);
+      const { rowCount } = await db().query('select 1 from suites where id = $1 and user_id = $2', [
+        req.params.id,
+        currentUserId(),
+      ]);
       if (!rowCount) return res.status(404).json({ error: 'not found' });
       const { rows: tests } = await db().query(
         `select t.id, t.goal, t.start_url, t.max_steps, t.model, t.variables

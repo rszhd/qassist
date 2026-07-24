@@ -9,7 +9,7 @@
 // The module-side query helpers live here because every one of them needs the
 // project resolver; routes/modules.js imports them.
 import express from 'express';
-import { db, getOperatorUserId, isUuid } from '../db.js';
+import { db, currentUserId, isUuid } from '../db.js';
 import { h, requireDb, requireAgentKey, runTestsFromRequest, slugify } from './helpers.js';
 import { NOTIFY_MODES, cleanEmails } from '../notify.js';
 
@@ -26,7 +26,7 @@ async function findProject(ref) {
   const where = isUuid(ref) ? 'id = $2' : 'slug = $2';
   const { rows } = await db().query(
     `select ${PROJECT_COLS} from projects where user_id = $1 and ${where}`,
-    [getOperatorUserId(), ref]
+    [currentUserId(), ref]
   );
   return rows[0] || null;
 }
@@ -52,7 +52,7 @@ export async function findModuleById(id) {
     `select m.${MODULE_COLS.split(', ').join(', m.')} from modules m
        join projects p on p.id = m.project_id
       where m.id = $1 and p.user_id = $2`,
-    [id, getOperatorUserId()]
+    [id, currentUserId()]
   );
   return rows[0] || null;
 }
@@ -83,7 +83,7 @@ export async function listModules(projectId = null) {
        join projects p on p.id = m.project_id
       where p.user_id = $1 ${projectId ? 'and m.project_id = $2' : ''}
       order by m.created_at`,
-    projectId ? [getOperatorUserId(), projectId] : [getOperatorUserId()]
+    projectId ? [currentUserId(), projectId] : [currentUserId()]
   );
   const counts = await testCounts('module_id');
   return rows.map((m) => ({ ...m, test_count: counts.get(m.id) || 0 }));
@@ -204,7 +204,7 @@ export function projectsRouter({ checkToken }) {
     h(async (_req, res) => {
       const { rows } = await db().query(
         `select ${PROJECT_COLS} from projects where user_id = $1 order by created_at desc`,
-        [getOperatorUserId()]
+        [currentUserId()]
       );
       const tests = await testCounts('project_id');
       const { rows: mods } = await db().query(
@@ -226,7 +226,7 @@ export function projectsRouter({ checkToken }) {
     h(async (req, res) => {
       const { name } = req.body || {};
       if (!name) return res.status(400).json({ error: 'name is required' });
-      const userId = getOperatorUserId();
+      const userId = currentUserId();
       const slug = await uniqueSlug('projects', 'user_id', userId, name);
       const { rows } = await db().query(
         `insert into projects (user_id, name, slug) values ($1, $2, $3)
@@ -257,7 +257,7 @@ export function projectsRouter({ checkToken }) {
       // @ts-expect-error — set by r.param
       const project = req.project;
       const body = req.body || {};
-      const slug = await resolveSlug(body, project, 'projects', 'user_id', getOperatorUserId());
+      const slug = await resolveSlug(body, project, 'projects', 'user_id', currentUserId());
       if (slug.error) return res.status(400).json({ error: slug.error });
       const notify = resolveNotify(body);
       if (notify.error) return res.status(400).json({ error: notify.error });

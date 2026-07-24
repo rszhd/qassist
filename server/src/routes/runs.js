@@ -9,7 +9,7 @@
 import express from 'express';
 import fs from 'node:fs';
 import path from 'node:path';
-import { db, isUuid } from '../db.js';
+import { db, isUuid, currentUserId } from '../db.js';
 import { createRun, getRun, stepsOf } from '../runs.js';
 import { ARTIFACTS_DIR, RECORDING_FILENAME, REPORT_DATA_FILENAME } from '../config.js';
 import { h, requireDb, requireAgentKey, STORED_TRIGGERS } from './helpers.js';
@@ -149,6 +149,33 @@ function shapeRun(row) {
 }
 
 /**
+ * A live (in-memory) run only when it belongs to the caller — else null, so a
+ * guessed runId can't reach another tenant's live run or its artifacts. In
+ * auth-off mode every run is the operator's, so this never narrows.
+ * @param {string} id
+ */
+function ownedLiveRun(id) {
+  const run = getRun(id);
+  return run && run.user_id === currentUserId() ? run : null;
+}
+
+/**
+ * Whether a persisted run belongs to the caller. Guards the on-disk artifacts
+ * (report, recording, steps) that are served by runId, which is otherwise
+ * unguessable but not a permission. No control plane = legacy in-memory mode,
+ * where there is nothing to scope.
+ * @param {string} id
+ */
+async function runOwned(id) {
+  if (!db()) return true;
+  const { rowCount } = await db().query('select 1 from runs where id = $1 and user_id = $2', [
+    id,
+    currentUserId(),
+  ]);
+  return !!rowCount;
+}
+
+/**
  * @param {{
  *   checkToken: import('express').RequestHandler,
  *   checkTokenOrQuery: import('express').RequestHandler,
@@ -162,6 +189,7 @@ export function runsRouter({ checkToken, checkTokenOrQuery }) {
     if (!goal || !start_url) {
       return res.status(400).json({ error: 'goal and start_url are required' });
     }
+    // user_id defaults to the gate-resolved caller (currentUserId) inside createRun.
     const run = createRun({ goal, start_url, max_steps });
     res.json({ runId: run.id, status: run.status });
   });
@@ -179,16 +207,21 @@ export function runsRouter({ checkToken, checkTokenOrQuery }) {
       const paging = buildPaging(req.query);
       if (paging.error) return res.status(400).json({ error: paging.error });
 
+      // Scope to the caller: history only ever lists a user's own runs.
+      const params = [...filters.params, currentUserId()];
+      const where = filters.where
+        ? `${filters.where} and r.user_id = $${params.length}`
+        : `where r.user_id = $${params.length}`;
       const from = 'from runs r left join tests t on t.id = r.test_id';
       const { rows: totals } = await db().query(
-        `select count(*)::int as total ${from} ${filters.where}`,
-        filters.params
+        `select count(*)::int as total ${from} ${where}`,
+        params
       );
       const { rows } = await db().query(
-        `select ${LIST_COLS} ${from} ${filters.where}
+        `select ${LIST_COLS} ${from} ${where}
           order by r.created_at desc
-          limit $${filters.params.length + 1} offset $${filters.params.length + 2}`,
-        [...filters.params, paging.limit, paging.offset]
+          limit $${params.length + 1} offset $${params.length + 2}`,
+        [...params, paging.limit, paging.offset]
       );
       res.json({
         runs: rows.map(shapeRun),
@@ -207,12 +240,13 @@ export function runsRouter({ checkToken, checkTokenOrQuery }) {
     '/:id',
     checkToken,
     h(async (req, res) => {
-      const live = getRun(req.params.id);
+      const live = ownedLiveRun(req.params.id);
       let row = null;
       if (db() && isUuid(req.params.id)) {
         const { rows } = await db().query(
-          `select ${LIST_COLS} from runs r left join tests t on t.id = r.test_id where r.id = $1`,
-          [req.params.id]
+          `select ${LIST_COLS} from runs r left join tests t on t.id = r.test_id
+            where r.id = $1 and r.user_id = $2`,
+          [req.params.id, currentUserId()]
         );
         if (rows.length) row = shapeRun(rows[0]);
       }
@@ -252,9 +286,10 @@ export function runsRouter({ checkToken, checkTokenOrQuery }) {
     '/:id/steps',
     checkToken,
     h(async (req, res) => {
-      const run = getRun(req.params.id);
+      const run = ownedLiveRun(req.params.id);
       if (run) return res.json({ steps: stepsOf(run) });
       if (!isUuid(req.params.id)) return res.status(404).json({ error: 'not found' });
+      if (!(await runOwned(req.params.id))) return res.status(404).json({ error: 'not found' });
       const file = path.join(ARTIFACTS_DIR, req.params.id, REPORT_DATA_FILENAME);
       if (!fs.existsSync(file)) return res.status(404).json({ error: 'no steps' });
       const data = JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -271,6 +306,7 @@ export function runsRouter({ checkToken, checkTokenOrQuery }) {
     checkTokenOrQuery,
     h(async (req, res) => {
       if (!isUuid(req.params.id)) return res.status(404).json({ error: 'not found' });
+      if (!(await runOwned(req.params.id))) return res.status(404).json({ error: 'not found' });
       const file = path.join(ARTIFACTS_DIR, req.params.id, RECORDING_FILENAME);
       if (!fs.existsSync(file)) return res.status(404).json({ error: 'no recording' });
       res.setHeader('Content-Type', 'video/mp4');
@@ -286,7 +322,7 @@ export function runsRouter({ checkToken, checkTokenOrQuery }) {
     '/:id/report.pdf',
     checkToken,
     h(async (req, res) => {
-      const run = getRun(req.params.id);
+      const run = ownedLiveRun(req.params.id);
       const pdfPath = run?.reportPath || path.join(ARTIFACTS_DIR, req.params.id, 'report.pdf');
       /** @param {string} status */
       const answer = (status) => {
@@ -304,9 +340,10 @@ export function runsRouter({ checkToken, checkTokenOrQuery }) {
       };
       if (run) return answer(run.reportStatus);
       if (!db() || !isUuid(req.params.id)) return res.status(404).json({ error: 'not found' });
-      const { rows } = await db().query('select report_status from runs where id = $1', [
-        req.params.id,
-      ]);
+      const { rows } = await db().query(
+        'select report_status from runs where id = $1 and user_id = $2',
+        [req.params.id, currentUserId()]
+      );
       if (!rows.length) return res.status(404).json({ error: 'not found' });
       answer(rows[0].report_status);
     })

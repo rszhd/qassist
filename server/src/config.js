@@ -62,6 +62,17 @@ export const NOTIFY_MODE = process.env.NOTIFY_MODE || 'failure';
 export const NOTIFY_SECRET =
   process.env.NOTIFY_SECRET || API_TOKEN || crypto.randomBytes(32).toString('hex');
 
+// Multi-user auth (US-021). Off by default: an unset AUTH_ENABLED keeps the
+// single-token / open behavior unchanged. When on, it needs the control plane
+// (to store users/keys), a mail sender (to send login links) and SESSION_SECRET
+// (to sign cookies) — server.js refuses to boot without all three so the switch
+// can't half-enable. authEnabled() in auth.js ANDs those runtime preconditions.
+export const AUTH_ENABLED = /^(1|true|yes)$/i.test(process.env.AUTH_ENABLED || '');
+// Signs stateless session cookies. No fallback: a rotating secret would sign
+// everyone out on restart, and a shared default would forge sessions across
+// instances — so auth stays off until it is set explicitly.
+export const SESSION_SECRET = process.env.SESSION_SECRET || '';
+
 // Control plane (US-009). No DATABASE_URL = legacy in-memory mode: ad-hoc
 // runs work, saved tests/suites respond 503.
 export const DATABASE_URL = process.env.DATABASE_URL || '';

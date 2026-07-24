@@ -8,7 +8,7 @@ import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { db, getOperatorUserId } from './db.js';
+import { db, currentUserId } from './db.js';
 import { notifyRunFinished } from './notify.js';
 import { resolveForRun } from './variables.js';
 import {
@@ -187,7 +187,7 @@ function maybeNotify(run) {
  * @param {{ goal: string, start_url: string, max_steps?: number,
  *           model?: string | null, test_id?: string | null,
  *           trigger?: string, variables?: Record<string, string>,
- *           secrets?: Record<string, string> }} fields
+ *           secrets?: Record<string, string>, user_id?: string | null }} fields
  */
 export function createRun(fields) {
   const runId = randomUUID();
@@ -202,7 +202,9 @@ export function createRun(fields) {
     // Real secret values, in-memory only — handed to the agent via QA_VARS in
     // startRun and deliberately never persisted or serialized (US-035).
     secrets: fields.secrets || {},
-    user_id: getOperatorUserId(),
+    // Explicit user_id for the scheduler (no request context); a request-borne
+    // run falls back to the caller resolved by the gate (currentUserId()).
+    user_id: fields.user_id ?? currentUserId(),
     trigger: fields.trigger || 'api',
     status: 'queued',
     events: [],
@@ -231,7 +233,7 @@ export function createRun(fields) {
  * variable with no value) is skipped with an `error` marker rather than
  * starting a broken run — one misconfigured member never blocks the batch.
  * @param {{ id: string, goal: string, start_url: string, max_steps: number, model: string|null, variables?: any }[]} tests
- * @param {{ start_url?: string|null, trigger?: string, variables?: Record<string, string> }} [opts]
+ * @param {{ start_url?: string|null, trigger?: string, variables?: Record<string, string>, user_id?: string|null }} [opts]
  */
 export function runTests(tests, opts = {}) {
   return tests.map((t) => {
@@ -251,6 +253,7 @@ export function runTests(tests, opts = {}) {
       trigger: opts.trigger || 'api',
       variables: resolved.variables,
       secrets: resolved.secrets,
+      user_id: opts.user_id,
     });
     return { runId: run.id, testId: t.id, status: run.status };
   });

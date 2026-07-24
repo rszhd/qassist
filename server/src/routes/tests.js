@@ -3,7 +3,7 @@
 // unit (goal + start_url + settings); running one denormalizes those fields
 // into the runs row so history survives edits/deletes.
 import express from 'express';
-import { db, getOperatorUserId, isUuid } from '../db.js';
+import { db, currentUserId, isUuid } from '../db.js';
 import { createRun } from '../runs.js';
 import { DEFAULT_MAX_STEPS } from '../config.js';
 import { h, requireDb, requireAgentKey, TRIGGERS } from './helpers.js';
@@ -17,16 +17,21 @@ const COLS =
  * set, project_id is derived from that module so a test can never sit in
  * module `auth` of project A while claiming project B. Returns
  * `{ error }`, or `{ projectId, moduleId }` where `undefined` means "leave
- * unchanged" and `null` means "clear".
+ * unchanged" and `null` means "clear". Grouping targets are scoped to `uid` so
+ * a test can't be filed under another user's project or module.
  * @param {{ project_id?: string|null, module_id?: string|null }} body
+ * @param {string|null} uid
  */
-async function resolveGrouping(body) {
+async function resolveGrouping(body, uid) {
   const { project_id, module_id } = body;
   if (module_id) {
     if (!isUuid(module_id)) return { error: 'unknown module_id' };
-    const { rows } = await db().query('select id, project_id from modules where id = $1', [
-      module_id,
-    ]);
+    const { rows } = await db().query(
+      `select m.id, m.project_id from modules m
+         join projects p on p.id = m.project_id
+        where m.id = $1 and p.user_id = $2`,
+      [module_id, uid]
+    );
     if (!rows.length) return { error: 'unknown module_id' };
     return { projectId: rows[0].project_id, moduleId: rows[0].id };
   }
@@ -35,7 +40,10 @@ async function resolveGrouping(body) {
   if (project_id === undefined) return { projectId: undefined, moduleId };
   if (project_id === null || project_id === '') return { projectId: null, moduleId: null };
   if (!isUuid(project_id)) return { error: 'unknown project_id' };
-  const { rowCount } = await db().query('select 1 from projects where id = $1', [project_id]);
+  const { rowCount } = await db().query('select 1 from projects where id = $1 and user_id = $2', [
+    project_id,
+    uid,
+  ]);
   if (!rowCount) return { error: 'unknown project_id' };
   // Setting a project without naming a module always clears the module: the
   // old one may belong to a different project, and one predictable rule beats
@@ -54,8 +62,8 @@ export function testsRouter({ checkToken }) {
     '/',
     h(async (req, res) => {
       const { project_id, module_id } = req.query;
-      const where = [];
-      const params = [];
+      const params = [currentUserId()];
+      const where = ['user_id = $1'];
       if (project_id === 'none') where.push('project_id is null');
       else if (typeof project_id === 'string' && project_id) {
         if (!isUuid(project_id)) return res.status(400).json({ error: 'invalid project_id' });
@@ -69,9 +77,7 @@ export function testsRouter({ checkToken }) {
         where.push(`module_id = $${params.length}`);
       }
       const { rows } = await db().query(
-        `select ${COLS} from tests
-         ${where.length ? `where ${where.join(' and ')}` : ''}
-         order by created_at desc`,
+        `select ${COLS} from tests where ${where.join(' and ')} order by created_at desc`,
         params
       );
       res.json({ tests: rows });
@@ -89,14 +95,14 @@ export function testsRouter({ checkToken }) {
       if ('error' in decl) return res.status(400).json({ error: decl.error });
       const refError = validateReferences(decl.variables, goal, start_url);
       if (refError) return res.status(400).json({ error: refError });
-      const group = await resolveGrouping(req.body || {});
+      const group = await resolveGrouping(req.body || {}, currentUserId());
       if (group.error) return res.status(400).json({ error: group.error });
       const { rows } = await db().query(
         `insert into tests (user_id, name, goal, start_url, max_steps, model, variables,
                             project_id, module_id)
          values ($1, $2, $3, $4, $5, $6, $7, $8, $9) returning ${COLS}`,
         [
-          getOperatorUserId(),
+          currentUserId(),
           name,
           goal,
           start_url,
@@ -115,7 +121,10 @@ export function testsRouter({ checkToken }) {
     '/:id',
     h(async (req, res) => {
       if (!isUuid(req.params.id)) return res.status(404).json({ error: 'not found' });
-      const { rows } = await db().query(`select ${COLS} from tests where id = $1`, [req.params.id]);
+      const { rows } = await db().query(`select ${COLS} from tests where id = $1 and user_id = $2`, [
+        req.params.id,
+        currentUserId(),
+      ]);
       if (!rows.length) return res.status(404).json({ error: 'not found' });
       res.json(rows[0]);
     })
@@ -128,15 +137,18 @@ export function testsRouter({ checkToken }) {
     h(async (req, res) => {
       if (!isUuid(req.params.id)) return res.status(404).json({ error: 'not found' });
       const { name, goal, start_url, max_steps, model, variables } = req.body || {};
-      const group = await resolveGrouping(req.body || {});
+      const uid = currentUserId();
+      const group = await resolveGrouping(req.body || {}, uid);
       if (group.error) return res.status(400).json({ error: group.error });
       // Variables and their {{name}} references validate against the *resulting*
       // row (US-035): an edit that drops a variable still referenced by the
       // unchanged goal must be rejected, so we resolve against current values
-      // for whichever of the two the request omits.
-      const current = await db().query('select goal, start_url, variables from tests where id = $1', [
-        req.params.id,
-      ]);
+      // for whichever of the two the request omits. Scoped to the owner, so a
+      // cross-user edit 404s here before the update runs.
+      const current = await db().query(
+        'select goal, start_url, variables from tests where id = $1 and user_id = $2',
+        [req.params.id, uid]
+      );
       if (!current.rows.length) return res.status(404).json({ error: 'not found' });
       const decl = variables === undefined
         ? { variables: current.rows[0].variables }
@@ -161,7 +173,7 @@ export function testsRouter({ checkToken }) {
                 module_id  = case when $9 then $10 else module_id end,
                 variables  = case when $11 then $12 else variables end,
                 updated_at = now()
-          where id = $1 returning ${COLS}`,
+          where id = $1 and user_id = $13 returning ${COLS}`,
         [
           req.params.id,
           name ?? null,
@@ -175,6 +187,7 @@ export function testsRouter({ checkToken }) {
           group.moduleId ?? null,
           variables !== undefined,
           variables !== undefined ? JSON.stringify(decl.variables) : null,
+          uid,
         ]
       );
       if (!rows.length) return res.status(404).json({ error: 'not found' });
@@ -186,7 +199,10 @@ export function testsRouter({ checkToken }) {
     '/:id',
     h(async (req, res) => {
       if (!isUuid(req.params.id)) return res.status(404).json({ error: 'not found' });
-      const { rowCount } = await db().query('delete from tests where id = $1', [req.params.id]);
+      const { rowCount } = await db().query('delete from tests where id = $1 and user_id = $2', [
+        req.params.id,
+        currentUserId(),
+      ]);
       if (!rowCount) return res.status(404).json({ error: 'not found' });
       res.status(204).end();
     })
@@ -199,7 +215,10 @@ export function testsRouter({ checkToken }) {
     requireAgentKey,
     h(async (req, res) => {
       if (!isUuid(req.params.id)) return res.status(404).json({ error: 'not found' });
-      const { rows } = await db().query(`select ${COLS} from tests where id = $1`, [req.params.id]);
+      const { rows } = await db().query(`select ${COLS} from tests where id = $1 and user_id = $2`, [
+        req.params.id,
+        currentUserId(),
+      ]);
       if (!rows.length) return res.status(404).json({ error: 'not found' });
       const test = rows[0];
       const body = /** @type {any} */ (req.body || {});

@@ -11,9 +11,10 @@ import { WebSocketServer } from 'ws';
 import { createServer } from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { PORT, API_TOKEN, MAX_CONCURRENT, PUBLIC_DIR, OPENAI_API_KEY } from './config.js';
-import { db, initDb } from './db.js';
+import { PORT, API_TOKEN, MAX_CONCURRENT, PUBLIC_DIR, OPENAI_API_KEY, AUTH_ENABLED } from './config.js';
+import { db, initDb, getOperatorUserId, userContext } from './db.js';
 import { mailEnabled } from './mail.js';
+import { authEnabled, userFromRequest, userFromCredentials, SESSION_COOKIE } from './auth.js';
 import { getRun, counts, attachViewer } from './runs.js';
 import { startRetention } from './retention.js';
 import { startScheduler } from './scheduler.js';
@@ -24,30 +25,47 @@ import { projectsRouter } from './routes/projects.js';
 import { modulesRouter } from './routes/modules.js';
 import { schedulesRouter } from './routes/schedules.js';
 import { notificationsRouter } from './routes/notifications.js';
+import { authRouter } from './routes/auth.js';
 
 await initDb();
 
 const app = express();
 app.use(express.json({ limit: '1mb' }));
 
-/** @type {import('express').RequestHandler} */
-function checkToken(req, res, next) {
-  if (!API_TOKEN) return next(); // no token configured => open (dev only)
-  if (req.headers.authorization === `Bearer ${API_TOKEN}`) return next();
-  res.status(401).json({ error: 'unauthorized' });
+// Resolve the caller and run the rest of the request as them: sets req.userId
+// and opens an AsyncLocalStorage store so user-scoped queries filter on it
+// (currentUserId() in db.js) without every handler threading the id. Two modes:
+//   - multi-user (authEnabled()): a session cookie or a per-user API key; the
+//     legacy shared WORKER_API_TOKEN is not accepted.
+//   - single-token / open (unchanged): the WORKER_API_TOKEN bearer, or open
+//     when none is configured. `allowQueryToken` adds the ?token= fallback for
+//     media the browser loads by URL (a <video> can't send headers) — only in
+//     this mode; multi-user media rides the session cookie the browser sends.
+/** @param {boolean} allowQueryToken */
+function makeGate(allowQueryToken) {
+  /** @type {import('express').RequestHandler} */
+  return (req, res, next) => {
+    const proceed = (/** @type {string|null} */ userId) => {
+      /** @type {any} */ (req).userId = userId;
+      userContext.run({ userId }, () => next());
+    };
+    if (authEnabled()) {
+      userFromRequest(req).then((uid) => {
+        if (!uid) return res.status(401).json({ error: 'unauthorized' });
+        proceed(uid);
+      }, next);
+      return;
+    }
+    if (!API_TOKEN) return proceed(getOperatorUserId()); // open (dev only)
+    const ok =
+      req.headers.authorization === `Bearer ${API_TOKEN}` ||
+      (allowQueryToken && req.query.token === API_TOKEN);
+    if (!ok) return res.status(401).json({ error: 'unauthorized' });
+    proceed(getOperatorUserId());
+  };
 }
-
-/** @type {import('express').RequestHandler} */
-// For media the browser loads by URL: a <video> element can't send headers, so
-// the token may also arrive as ?token=, exactly as the /ws upgrade accepts it.
-// Deliberately not the default — query tokens leak into access logs, browser
-// history and Referer headers.
-function checkTokenOrQuery(req, res, next) {
-  if (!API_TOKEN) return next();
-  if (req.headers.authorization === `Bearer ${API_TOKEN}`) return next();
-  if (req.query.token === API_TOKEN) return next();
-  res.status(401).json({ error: 'unauthorized' });
-}
+const checkToken = makeGate(false);
+const checkTokenOrQuery = makeGate(true);
 
 app.get('/api/health', (_req, res) => {
   const { active, queued } = counts();
@@ -60,12 +78,19 @@ app.get('/api/health', (_req, res) => {
     // Lets the UI tell "not configured yet" apart from "run failed".
     agent_ready: !!OPENAI_API_KEY,
     auth: !!API_TOKEN,
+    // 'multi' = magic-link login (US-021), 'token' = single WORKER_API_TOKEN,
+    // 'open' = no credential. The frontend shows a login screen only for 'multi'.
+    auth_mode: authEnabled() ? 'multi' : API_TOKEN ? 'token' : 'open',
     // Same purpose for notifications: a project can hold recipients on an
     // instance that can't send, and the prefs UI says so rather than looking
     // like it saved something that works.
     mail: mailEnabled(),
   });
 });
+
+// Auth endpoints (US-021): request-link and verify carry no bearer — the
+// visitor has no credential yet. /me is gated. No-op (404) unless authEnabled().
+app.use('/api/auth', authRouter({ checkToken }));
 
 app.use('/api/runs', runsRouter({ checkToken, checkTokenOrQuery }));
 app.use('/api/tests', testsRouter({ checkToken }));
@@ -98,17 +123,31 @@ app.use(onError);
 const server = createServer(app);
 const wss = new WebSocketServer({ noServer: true });
 
-server.on('upgrade', (req, socket, head) => {
+server.on('upgrade', async (req, socket, head) => {
   const url = new URL(req.url || '/', `http://${req.headers.host}`);
   if (url.pathname !== '/ws') return socket.destroy();
+
+  // In multi-user mode the browser attaches its session cookie to the upgrade;
+  // a programmatic client passes its per-user API key as ?token=. Otherwise the
+  // legacy single-token behaviour: ?token= must match, or open when none is set.
   const token = url.searchParams.get('token') || '';
-  if (API_TOKEN && token !== API_TOKEN) {
+  /** @type {string | null} */
+  let userId = null;
+  if (authEnabled()) {
+    userId = await userFromCredentials({ cookieHeader: req.headers.cookie, bearer: token });
+    if (!userId) {
+      socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+      return socket.destroy();
+    }
+  } else if (API_TOKEN && token !== API_TOKEN) {
     socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
     return socket.destroy();
   }
+
   const runId = url.searchParams.get('runId') || '';
   const run = getRun(runId);
-  if (!run) {
+  // A run the caller doesn't own is reported as absent, not forbidden.
+  if (!run || (authEnabled() && run.user_id !== userId)) {
     socket.write('HTTP/1.1 404 Not Found\r\n\r\n');
     return socket.destroy();
   }
@@ -119,6 +158,17 @@ server.on('upgrade', (req, socket, head) => {
 // and drive it in-process without opening a port.
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMain) {
+  // AUTH_ENABLED must not half-enable: refuse to serve unless everything auth
+  // needs is present, naming what is missing rather than 401-ing every request.
+  if (AUTH_ENABLED && !authEnabled()) {
+    const missing = [
+      !db() && 'DATABASE_URL',
+      !mailEnabled() && 'a mail sender (RESEND_API_KEY + MAIL_FROM)',
+      !process.env.SESSION_SECRET && 'SESSION_SECRET',
+    ].filter(Boolean);
+    console.error(`AUTH_ENABLED is set but auth can't run — missing: ${missing.join(', ')}.`);
+    process.exit(1);
+  }
   // Only when actually serving: tests drive the app in-process and would
   // otherwise sweep a temp dir — or start runs on a timer — on every import.
   // sweepArtifacts() and tick() are tested directly instead.

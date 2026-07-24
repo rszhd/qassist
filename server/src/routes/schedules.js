@@ -6,7 +6,7 @@
 // Every write recomputes next_run_at from the preset, so the scheduler's claim
 // marker can never disagree with the schedule the user is looking at.
 import express from 'express';
-import { db, getOperatorUserId, isUuid } from '../db.js';
+import { db, currentUserId, isUuid } from '../db.js';
 import { validateSchedule, nextSlot } from '../schedule.js';
 import { h, requireDb } from './helpers.js';
 
@@ -55,7 +55,15 @@ async function resolveTarget(body) {
   const [column, table] = named[0];
   const id = String(body[column]);
   if (!isUuid(id)) return { error: `unknown ${column}` };
-  const { rowCount } = await db().query(`select 1 from ${table} where id = $1`, [id]);
+  // Scope the target to the caller — a schedule can only point at something the
+  // user owns. Modules carry no user_id of their own, so reach it through the
+  // project (the same join the module routes use).
+  const sql =
+    table === 'modules'
+      ? `select 1 from modules m join projects p on p.id = m.project_id
+          where m.id = $1 and p.user_id = $2`
+      : `select 1 from ${table} where id = $1 and user_id = $2`;
+  const { rowCount } = await db().query(sql, [id, currentUserId()]);
   if (!rowCount) return { error: `unknown ${column}` };
   return { column, id };
 }
@@ -70,8 +78,8 @@ export function schedulesRouter({ checkToken }) {
   r.get(
     '/',
     h(async (req, res) => {
-      const where = [];
-      const params = [];
+      const params = [currentUserId()];
+      const where = ['s.user_id = $1'];
       for (const [column] of TARGETS) {
         const value = req.query[column];
         if (typeof value !== 'string' || !value) continue;
@@ -80,9 +88,7 @@ export function schedulesRouter({ checkToken }) {
         where.push(`s.${column} = $${params.length}`);
       }
       const { rows } = await db().query(
-        `${LIST_QUERY}
-         ${where.length ? `where ${where.join(' and ')}` : ''}
-         order by s.next_run_at nulls last`,
+        `${LIST_QUERY} where ${where.join(' and ')} order by s.next_run_at nulls last`,
         params
       );
       res.json({ schedules: rows });
@@ -105,7 +111,7 @@ export function schedulesRouter({ checkToken }) {
                                 minute, weekday, tz, enabled, next_run_at)
          values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) returning ${COLS}`,
         [
-          getOperatorUserId(),
+          currentUserId(),
           target.id,
           schedule.kind,
           schedule.interval_hours,
@@ -128,9 +134,10 @@ export function schedulesRouter({ checkToken }) {
     '/:id',
     h(async (req, res) => {
       if (!isUuid(req.params.id)) return res.status(404).json({ error: 'not found' });
-      const { rows: existing } = await db().query(`select ${COLS} from schedules where id = $1`, [
-        req.params.id,
-      ]);
+      const { rows: existing } = await db().query(
+        `select ${COLS} from schedules where id = $1 and user_id = $2`,
+        [req.params.id, currentUserId()]
+      );
       if (!existing.length) return res.status(404).json({ error: 'not found' });
 
       const body = req.body || {};
@@ -147,7 +154,7 @@ export function schedulesRouter({ checkToken }) {
         `update schedules
             set kind = $2, interval_hours = $3, hour = $4, minute = $5, weekday = $6,
                 tz = $7, enabled = $8, next_run_at = $9, updated_at = now()
-          where id = $1 returning ${COLS}`,
+          where id = $1 and user_id = $10 returning ${COLS}`,
         [
           req.params.id,
           schedule.kind,
@@ -158,6 +165,7 @@ export function schedulesRouter({ checkToken }) {
           schedule.tz,
           enabled,
           nextSlot(schedule),
+          currentUserId(),
         ]
       );
       res.json(rows[0]);
@@ -168,7 +176,10 @@ export function schedulesRouter({ checkToken }) {
     '/:id',
     h(async (req, res) => {
       if (!isUuid(req.params.id)) return res.status(404).json({ error: 'not found' });
-      const { rowCount } = await db().query('delete from schedules where id = $1', [req.params.id]);
+      const { rowCount } = await db().query('delete from schedules where id = $1 and user_id = $2', [
+        req.params.id,
+        currentUserId(),
+      ]);
       if (!rowCount) return res.status(404).json({ error: 'not found' });
       res.status(204).end();
     })

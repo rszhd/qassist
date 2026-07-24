@@ -25,6 +25,8 @@ let pool;
 /** @type {(now?: number) => Promise<{ pruned: number, skipped: number }>} */
 let sweepArtifacts;
 let artifactsDir;
+/** The seeded operator — the owner of runs inserted directly, as createRun sets. */
+let operatorId;
 
 before(async () => {
   artifactsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'qassist-cp-test-'));
@@ -55,9 +57,10 @@ before(async () => {
   const { Pool } = mem.adapters.createPg();
   pool = new Pool();
 
-  const { runMigrations, initDb } = await import('../src/db.js');
+  const { runMigrations, initDb, getOperatorUserId } = await import('../src/db.js');
   await runMigrations(pool, { skipIndexes: true });
   await initDb(pool);
+  operatorId = getOperatorUserId();
   ({ app } = await import('../src/server.js'));
   ({ sweepArtifacts } = await import('../src/retention.js'));
 });
@@ -220,9 +223,9 @@ test('finished runs are readable from the DB after the relay forgets them', asyn
   // had: insert a finished row directly, then GET it.
   const id = randomUUID();
   await pool.query(
-    `insert into runs (id, goal, start_url, max_steps, status, success, final_result, report_status)
-     values ($1, 'g', 'https://example.com', 60, 'passed', true, 'ok', 'error')`,
-    [id]
+    `insert into runs (id, user_id, goal, start_url, max_steps, status, success, final_result, report_status)
+     values ($1, $2, 'g', 'https://example.com', 60, 'passed', true, 'ok', 'error')`,
+    [id, operatorId]
   );
   const res = await request(app).get(`/api/runs/${id}`).set(auth).expect(200);
   assert.equal(res.body.status, 'passed');
@@ -740,9 +743,9 @@ test('run history paginates and reports the unpaginated total', async () => {
 test('run history filters by date range', async () => {
   const id = randomUUID();
   await pool.query(
-    `insert into runs (id, goal, start_url, max_steps, status, created_at)
-     values ($1, 'dated', 'https://example.com', 60, 'passed', '2020-01-15T00:00:00Z')`,
-    [id]
+    `insert into runs (id, user_id, goal, start_url, max_steps, status, created_at)
+     values ($1, $2, 'dated', 'https://example.com', 60, 'passed', '2020-01-15T00:00:00Z')`,
+    [id, operatorId]
   );
   const inRange = (
     await request(app)
@@ -767,9 +770,9 @@ test('run history filters by trigger, including the scheduler its callers cannot
   for (const trigger of ['ui', 'api', 'ci', 'schedule']) {
     ids[trigger] = randomUUID();
     await pool.query(
-      `insert into runs (id, goal, start_url, max_steps, status, trigger)
-       values ($1, 'triggered', 'https://example.com', 60, 'passed', $2)`,
-      [ids[trigger], trigger]
+      `insert into runs (id, user_id, goal, start_url, max_steps, status, trigger)
+       values ($1, $3, 'triggered', 'https://example.com', 60, 'passed', $2)`,
+      [ids[trigger], trigger, operatorId]
     );
   }
 
@@ -791,10 +794,10 @@ test('run history filters by trigger, including the scheduler its callers cannot
 test('run history hides artifact links once retention prunes the directory', async () => {
   const id = randomUUID();
   await pool.query(
-    `insert into runs (id, goal, start_url, max_steps, status, report_status,
+    `insert into runs (id, user_id, goal, start_url, max_steps, status, report_status,
                        has_recording, artifacts_deleted_at)
-     values ($1, 'pruned', 'https://example.com', 60, 'passed', 'ready', true, now())`,
-    [id]
+     values ($1, $2, 'pruned', 'https://example.com', 60, 'passed', 'ready', true, now())`,
+    [id, operatorId]
   );
   const list = (await request(app).get('/api/runs?limit=200').set(auth).expect(200)).body;
   const row = list.runs.find((r) => r.id === id);
@@ -819,10 +822,10 @@ test('retention prunes old artifact dirs, stamps the row and keeps history', asy
   const fresh = randomUUID();
   for (const [id, status] of [[old, 'passed'], [fresh, 'passed']]) {
     await pool.query(
-      `insert into runs (id, goal, start_url, max_steps, status, success, final_result,
+      `insert into runs (id, user_id, goal, start_url, max_steps, status, success, final_result,
                          steps_count, report_status, has_recording)
-       values ($1, 'kept forever', 'https://example.com', 60, $2, true, 'ok', 7, 'ready', true)`,
-      [id, status]
+       values ($1, $3, 'kept forever', 'https://example.com', 60, $2, true, 'ok', 7, 'ready', true)`,
+      [id, status, operatorId]
     );
   }
   const oldDir = makeArtifacts(old, 30);

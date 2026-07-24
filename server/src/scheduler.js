@@ -18,7 +18,7 @@ import { OPENAI_API_KEY } from './config.js';
 const TICK_MS = 60 * 1000;
 
 const COLS =
-  'id, test_id, module_id, suite_id, project_id, kind, interval_hours, hour, minute, weekday, tz, next_run_at';
+  'id, user_id, test_id, module_id, suite_id, project_id, kind, interval_hours, hour, minute, weekday, tz, next_run_at';
 
 const TEST_COLS = 'id, goal, start_url, max_steps, model, variables';
 
@@ -159,7 +159,7 @@ export async function tick(now = Date.now()) {
       continue;
     }
 
-    const started = runTests(ready, { trigger: 'schedule' });
+    const started = runTests(ready, { trigger: 'schedule', user_id: schedule.user_id });
     runs += started.length;
     console.log(
       `schedule ${schedule.id.slice(0, 8)}: ${label} → ${started.length} run(s)` +
