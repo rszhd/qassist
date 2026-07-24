@@ -39,63 +39,11 @@ of *live* state that must survive navigation goes outside `<Routes>` like Run.
 Express already answers any non-`/api` path with `index.html`, so a new path
 needs no server change.
 
-**UI conventions.** `ui.jsx` holds the shared vocabulary — `Button`
-(variant/size, lucide icon), `IconButton`, `Field`, `CardHead`, `EmptyState`,
-`Stat`, `PageHeader`, `Modal` — and every view is built from it rather than
-from raw `<button>`/`<label>`. Icons come from `lucide-react`, never text
-glyphs. `App.css` is one sheet in two halves: tokens + primitives, then
-per-view layout; colours, spacing, sizes, type steps and radii always resolve
-to a token, so the theme is swappable from `:root` alone — the light theme
-lives in one `:root[data-theme='light']` block that overrides tokens and
-nothing else, and needing a colour there that `:root` doesn't already declare
-means some rule is reaching past the tokens. **Dark is the default and the
-app's identity**; light is opt-in via the theme select in Settings (Dark /
-Light / Match system, stored in `qassist_theme`), never inferred from
-`prefers-color-scheme` — App.jsx resolves "Match system" to a concrete
-`dark`/`light` so the palette stays written once. Each view opens
-with a `PageHeader` carrying its primary action; creating and editing happen
-in a `Modal`, and destructive/secondary row actions hide behind `.row-actions`
-until the row is hovered or focused.
-
-**Type.** Five steps, and each is a role rather than a nudge: `--t-xs` (11px)
-uppercase micro-labels, `--t-sm` (12px) anything secondary to the line above
-it, `--t-base` (13px) every primary run of text and every control, `--t-lg`
-(16px) a heading or a number worth reading first, `--t-xl` (20px) the page
-title alone. A sixth step is almost always the wrong emphasis asked for the
-wrong way.
-
-**Spacing.** Every margin, padding and gap is a token — no raw pixels. The
-scale is `--s05` (2px) through `--s10` (40px), all multiples of 4 including
-the `--s05`/`--s15` half-steps, which exist so component interiors stop
-inventing 5/7/9/11px. Three rhythms and only three: `--s2` inside a `.group`,
-`--s3` between the blocks of a card, `--s4` between cards and between form
-fields. A card sets that distance with `gap` — `.card`, `.suites`,
-`.run-detail` and `.group` are flex columns — so **nothing adds `margin-top`
-to separate itself from a sibling**; a new block dropped into a card is
-spaced correctly by existing there. Dividers inside a card (`.card > .hint`,
-`.detail-goal`, `.suites`) are a `border-top` plus `padding-top: var(--s3)`,
-the gap above supplying the matching half. Anything one line tall — button,
-input, select — is `--ctl` (32px) or `--ctl-sm` (28px), set as a height rather
-than padded to it, which is what keeps an input level with the button beside
-it. Sticky columns use `--sticky-top`/`--sticky-h`, so they sit one gutter
-under the bar like any other card.
-
-**Sizes.** A number that appears in two rules is a measurement and gets a
-name; a number that appears once stays a literal with a line saying what set
-it. The named ones are `--col-side` (every column flanking the main content —
-the Run rail and activity panel, History's detail, the Projects list),
-`--rail-strip`, `--scroll-cap` (how tall a list grows inside a card before it
-scrolls itself) and `--dot` (status dots). Media-query breakpoints can't read
-tokens, so 900px and 1150px each carry a comment saying what they protect.
-
-The palette is near-monochrome by design: one neutral ramp, a single accent
-spent only on the primary button, focus and the live pulse, and verdict
-colours held below full saturation. That holds in both themes — the ramp
-inverts, the constraints don't. Depth comes from hairline borders, not from
-gradients or shadows — cards carry neither. A run status renders as a tinted
-`.badge-<status>` pill; `statusColor()` in `status.js` maps a status to a
-`--fill-*` token for the solid dots and timeline bars, so the two can't drift
-and a theme swap carries the dots with it.
+**Visual design — the UI vocabulary, type scale, spacing rhythms, named sizes
+and palette — lives in `docs/design-system.md`. Read it before changing
+`App.css` or `ui.jsx`, or adding a view.** The rules there are load-bearing:
+tokens over raw pixels, `ui.jsx` primitives over raw elements, dark as the
+default identity, a near-monochrome palette.
 
 Saved tests can be grouped into a **project**, and within it into at most one
 **module**; a **suite** is the many-to-many alternative, scoped to one project.
@@ -144,6 +92,7 @@ is exactly the pre-US-023 UI — keep it that way when adding features.
   implementing it; when a story is finished, `git mv` it into `done/` and
   update `backlog/README.md` in the same commit.
 - `db/README.md` — control-plane schema ground rules.
+- `docs/design-system.md` — UI vocabulary, type/spacing/size tokens, palette.
 - `docs/repo-model.md` — open-source vs paid-cloud boundary.
 - `docs/testing.md` — testing philosophy: what we test and why, what we skip,
   and how AI-pair authorship changes the risk (and the mitigations).
@@ -151,80 +100,68 @@ is exactly the pre-US-023 UI — keep it that way when adding features.
 ## Run / develop
 
 - Full stack: `cp .env.example .env` then `docker compose up --build` → :8080.
-- Dev: `cd server && npm run dev` (hot reload on :8081; loads `../.env`,
-  points `PYTHON_BIN` at `agent/.venv`, auto-starts the compose `db` service
-  and defaults `DATABASE_URL` to it on :5433); `cd frontend && npm run dev` (Vite
-  proxies /api and /ws to :8081). Setup steps: README "Local development". API examples: README.md.
-- **One dev server per port.** `predev` runs `scripts/check-port.mjs` and
-  aborts if :8081 is taken, because `node --watch` does *not* exit when its
-  child dies of `EADDRINUSE` — it waits for the next file change and restarts.
-  A duplicate start therefore becomes a permanent watcher, and every save has
-  them racing to bind the port; the winner may hold an older module graph, so
-  an edited route goes on 404ing while the file on disk is correct. If a change
-  isn't live, look for duplicate watchers (`pstree -sp <pid>`; parent
-  `systemd(1)` and TTY `?` = orphaned) before re-reading the code. Kill them by
-  PID, npm parents first.
-- **Verify server changes:** `cd server && npm test` (node --test + supertest,
-  in-process app with stubbed agent/report — no Python/browser needed) and
-  `npm run check` (tsc over the JSDoc-typed JS). Run both after editing
-  `server/src/`; add a test when adding an endpoint.
-- **pg-mem is not Postgres.** The suite runs on it, and it differs in ways that
-  make a broken query pass: partial indexes return wrong rows (hence
-  `skipIndexes`), array parameters don't bind, and timestamps hold only
-  milliseconds — which hid a `where next_run_at = $1` claim that could never
-  match a microsecond value real Postgres had written. SQL whose correctness
-  depends on the database's own semantics — precision, index behaviour,
-  concurrency — needs a real server: `scheduler-postgres.test.js` is the
-  pattern, creating and dropping its own database (never a schema inside an
-  existing one — the migration runner finds `schema_migrations` through the
-  search path and silently adopts the surrounding database) and skipping with a
-  reason when none answers.
-- **Verify agent changes:** `cd agent && .venv/bin/python -m pytest` (pure
-  stdlib unit tests over the parsing/extraction logic — no browser, IMAP or
-  network; `email_codes.py` is covered, the browser-driving core is not).
-  Install the runner once with `uv pip install --python .venv/bin/python -r
-  requirements-dev.txt`. Add a case when you touch a pure helper. Sensitivity
-  audit: `.venv/bin/mutmut run` then `mutmut results` (config `agent/setup.cfg`)
-  — survivors mean a mutation the suite didn't catch; read them, don't chase
-  zero (some are equivalent mutants). See `docs/testing.md`.
-- **Verify frontend changes:** `cd frontend && npm test` (Vitest: pure-helper
-  tests over `status.js` in node, plus jsdom mount-smoke tests that render the
-  shell and the run-detail card — `App.test.jsx`, `RunDetail.test.jsx`, which
-  opt into jsdom per-file so `status.test.js` stays DOM-free) and `npm run
-  build`. Exercise a new endpoint
-  with `curl` against the dev server on :8081
-  before wiring it into a view. For visual changes, **ask before screenshotting
-  — often it is quicker for me to look myself.** When asked to: `agent/.venv`
-  already has Playwright, so a short `sync_playwright` script against the Vite
-  port renders the actual views (Chromium, at `device_scale_factor=2`) with
-  live data from :8081. Several Vite servers are usually running; start your
-  own, note its port, and kill it **by PID** — never `pkill -f vite`.
-- Report iteration: render against `sample-report.pdf` locally; don't burn
-  real runs to tweak the report.
+- Dev: `cd server && npm run dev` (hot reload :8081; loads `../.env`, points
+  `PYTHON_BIN` at `agent/.venv`, auto-starts the compose `db` and defaults
+  `DATABASE_URL` to it on :5433); `cd frontend && npm run dev` (Vite proxies
+  /api and /ws to :8081). Setup + API examples: README "Local development".
+- **One dev server per port.** `predev` runs `scripts/check-port.mjs` and aborts
+  if :8081 is taken: `node --watch` doesn't exit on its child's `EADDRINUSE` —
+  it waits and restarts, so a duplicate becomes a permanent watcher racing to
+  bind the port, and the winner may serve a stale module graph (an edited route
+  keeps 404ing while the file is correct). If a change isn't live, hunt
+  duplicate watchers (`pstree -sp <pid>`; parent `systemd(1)` + TTY `?` =
+  orphaned) before re-reading code. Kill by PID, npm parents first.
+- **Verify server:** `cd server && npm test` (node --test + supertest,
+  in-process app, stubbed agent/report — no Python/browser) and `npm run check`
+  (tsc over JSDoc). Run both after editing `server/src/`; add a test per new
+  endpoint.
+- **pg-mem is not Postgres.** It diverges in ways that let a broken query pass:
+  partial indexes return wrong rows (hence `skipIndexes`), array params don't
+  bind, timestamps hold only ms (this hid a `where next_run_at = $1` that could
+  never match Postgres's microsecond value). SQL whose correctness needs real DB
+  semantics (precision, indexes, concurrency) needs a real server —
+  `scheduler-postgres.test.js` is the pattern: create/drop its own database
+  (never a schema inside an existing DB — the migration runner finds
+  `schema_migrations` via the search path and adopts the surrounding database),
+  skip with a reason when none answers.
+- **Verify agent:** `cd agent && .venv/bin/python -m pytest` (pure stdlib units
+  over parsing/extraction — no browser/IMAP/network; `email_codes.py` covered,
+  browser core not). Install once: `uv pip install --python .venv/bin/python -r
+  requirements-dev.txt`. Add a case per pure helper touched. Sensitivity audit:
+  `.venv/bin/mutmut run` then `mutmut results` (config `agent/setup.cfg`) —
+  survivors are uncaught mutations; read them, don't chase zero (some are
+  equivalent). See `docs/testing.md`.
+- **Verify frontend:** `cd frontend && npm test` (Vitest: pure `status.js` units
+  in node + jsdom mount-smoke of shell and run-detail — `App.test.jsx`,
+  `RunDetail.test.jsx` opt into jsdom per-file so `status.test.js` stays
+  DOM-free) and `npm run build`. `curl` a new endpoint against :8081 before
+  wiring it into a view. For visual changes, **ask before screenshotting — often
+  quicker for me to look myself.** When asked: `agent/.venv` has Playwright, so a
+  short `sync_playwright` script against the Vite port renders the real views
+  (Chromium, `device_scale_factor=2`) with live :8081 data. Several Vite servers
+  usually run; start your own, note its port, kill it **by PID** — never
+  `pkill -f vite`.
+- Report iteration: render against `sample-report.pdf` locally; don't burn real
+  runs to tweak the report.
 
 ## Workflow rules
 
 - **Never auto-deploy.** Always ask before deploying to the server.
-- **A red test is fixed in the code, not the assertion.** When a test fails,
-  the default is that it caught a real regression — change the implementation
-  until it passes. Editing a test's expected value to match new behaviour is
-  only legitimate when the behaviour was *meant* to change, and then the commit
-  message says which behaviour and why. Never loosen or delete an assertion, or
-  skip a test, to get to green. This guards the one thing that makes the suite
-  worth running: the test says what the code should do, not the reverse.
-- **Assertion-first for the correctness-critical, easy-to-get-subtly-wrong
-  pieces** — scheduler claim, slot math, redaction, billing gates when they
-  arrive. There the assertion is the maintainer's to write or tighten *first* and
-  review, and only then is the implementation written against it, so the test
-  is a spec the code can't quietly bend to. Deciding which work is in this class
-  is **Claude's job, not the maintainer's** — they won't always catch it, so surface the
-  candidate, wait for the reviewed assertion before implementing, and don't
-  assume a piece is ordinary just because it wasn't called out. CRUD and wiring
-  stay test-alongside. This is the same-mind failure the "*red test is fixed in
-  the code*" rule guards, taken one step earlier: there a human owns the
-  disagreement, here a human owns the spec. The known surfaces are registered in
-  `backlog/correctness-critical.md` (non-exhaustive — add a row when new work
-  joins the class); full reasoning: `docs/testing.md`.
+- **A red test is fixed in the code, not the assertion.** Default: a failure
+  caught a real regression — change the implementation until it passes. Editing
+  the expected value is legitimate only when the behaviour was *meant* to change,
+  and the commit says which and why. Never loosen, delete, or skip an assertion
+  to reach green — the test says what the code should do, not the reverse.
+- **Assertion-first for correctness-critical, easy-to-get-subtly-wrong pieces**
+  (scheduler claim, slot math, redaction, billing gates). There the maintainer
+  writes/tightens and reviews the assertion *first*, then the implementation is
+  written against it, so the code can't quietly bend the spec — the same-mind
+  failure the red-test rule guards, taken one step earlier. Spotting this class
+  is **Claude's job, not the maintainer's** — surface the candidate, wait for the
+  reviewed assertion, don't assume a piece is ordinary just because it wasn't
+  called out. CRUD/wiring stay test-alongside. Known surfaces:
+  `backlog/correctness-critical.md` (add a row when new work joins); reasoning:
+  `docs/testing.md`.
 - Don't commit or push unless asked. `dev` is the working branch; PRs → `main`.
 - Never log or commit secrets; `.env` stays untracked. Bearer token required
   on every API/WS call.
