@@ -173,19 +173,26 @@ self-host. So `OPENAI_API_KEY` was **blanked in `.env.staging`** (backup at
 recreated; `/api/health` now reports `agent_ready:false`, and staging is
 BYOK-only — `KEY_ENCRYPTION_SECRET` is set there, so the Settings key field
 works and users add their own. The proper fix is
-[US-039](US-039-byok-only-no-server-key.md), which removes the server key from
+[US-039](done/US-039-byok-only-no-server-key.md), which removes the server key from
 the product entirely.
 
-Two side effects of the blanking, both living until US-039 lands:
+Two side effects of the blanking lived until US-039 landed (2026-07-26), which
+removed the server key from the product and with it both symptoms:
 
-- **Staging's scheduler does not start.** `startScheduler()` returns before
-  `setInterval` when `OPENAI_API_KEY` is unset (`scheduler.js:197`), so *no*
-  schedule fires — including one whose owner has their own key, which the guard
-  predates. The seeded daily schedule is the one affected. US-039 replaces the
-  boot-time global check with a per-schedule skip.
-- **The Run view shows "Add it to `.env` and restart"** (`RunView.jsx:499`) —
-  operator advice shown to a registrant who has no `.env`. The correct
-  instruction is "add your key in Settings"; US-039 rewrites it.
+- **Staging's scheduler did not start.** `startScheduler()` returned before
+  `setInterval` when the server key was unset, so *no* schedule fired —
+  including one whose owner had their own key, which the guard predated. US-039
+  replaced the boot-time global check with a per-schedule skip: the ticker
+  always runs, and a slot whose owner has no stored key is claimed, skipped and
+  logged.
+- **The Run view showed "Add it to `.env` and restart"** — operator advice
+  shown to a registrant who has no `.env`. US-039 rewired the banner onto the
+  caller's own key state (`GET /api/account/openai-key`) and it now says to add
+  a key in Settings.
+
+Deploying a US-039 build to staging also retires the blanking itself: the
+variable can stay in or out of `.env.staging` with no effect, which is the
+story's own acceptance test for the fallback being gone.
 
 `MAX_CONCURRENT_SESSIONS=1`, and after two concurrent-ish suites the box still
 had ~6.4 GB available and 53 GB free — staging is not what will run it out.

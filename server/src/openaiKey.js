@@ -61,8 +61,9 @@ export async function getUserOpenaiKey(userId) {
 }
 
 /**
- * Which key a run uses: a per-request key wins over the user's stored key. When
- * neither exists this returns null and startRun falls back to the server key.
+ * Which key a run uses: a per-request key wins over the user's stored key, and
+ * there is no third tier (US-039). Null means the run does not start — the
+ * instance has no key of its own to spend on a caller who brought none.
  * Pure precedence — the two inputs are resolved by the caller.
  * @param {{ requestKey?: string | null, storedKey?: string | null }} keys
  * @returns {string | null}

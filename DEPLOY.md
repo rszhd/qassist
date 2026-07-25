@@ -70,8 +70,15 @@ APP_HOST=app.qassist.run
 PUBLIC_BASE_URL=https://app.qassist.run    # must agree with APP_HOST
 ACME_EMAIL=you@example.com
 QASSIST_IMAGE=ghcr.io/<owner>/qassist:<tag>
-OPENAI_API_KEY=sk-...
+KEY_ENCRYPTION_SECRET=<openssl rand -hex 32>
 ```
+
+There is deliberately no server-wide OpenAI key variable (US-039): every run is
+funded by the key its caller stored in Settings, encrypted under
+`KEY_ENCRYPTION_SECRET`.
+Generate that secret once and keep it with the volume — losing it makes every
+stored key undecryptable. A deployed instance holds no key of its own, so a
+hostname anyone can register on cannot spend yours.
 
 `PUBLIC_BASE_URL` is not cosmetic: it is what puts a working recording link in
 the PDF, a working run link in notification mail, and — because it is how the
@@ -85,11 +92,10 @@ lands at **3 for production and 1 for staging**, not the 6 the rule alone would
 suggest.
 
 If this instance runs multi-user auth, also set `AUTH_ENABLED=1`,
-`SESSION_SECRET`, `KEY_ENCRYPTION_SECRET`, `RESEND_API_KEY` and `MAIL_FROM`; the
-app refuses to boot with auth on and any of the first three missing. Generate
-each secret with `openssl rand -hex 32`, and generate them *separately* —
-`KEY_ENCRYPTION_SECRET` is deliberately not `SESSION_SECRET`, so that rotating
-sessions never makes every stored BYOK key undecryptable.
+`SESSION_SECRET`, `RESEND_API_KEY` and `MAIL_FROM`; the app refuses to boot
+with auth on and any of them missing. Generate `SESSION_SECRET` with
+`openssl rand -hex 32`, *separately* from `KEY_ENCRYPTION_SECRET` — rotating
+sessions must never make every stored BYOK key undecryptable.
 
 **4. Up.**
 

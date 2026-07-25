@@ -24,7 +24,6 @@ export async function createDemoHarness({ maxTenants, ipMax } = {}) {
   process.env.SESSION_SECRET = 'demo-session-secret-0123456789';
   delete process.env.AUTH_ENABLED;
   delete process.env.WORKER_API_TOKEN;
-  process.env.OPENAI_API_KEY = 'sk-test-not-a-real-key';
   process.env.PYTHON_BIN = process.execPath;
   process.env.AGENT_SCRIPT = path.join(__dirname, '..', 'stubs', 'fake_agent.js');
   process.env.REPORT_SCRIPT = path.join(__dirname, '..', 'stubs', 'fake_report.js');

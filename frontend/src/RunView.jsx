@@ -16,7 +16,7 @@ import { Button, CardHead, EmptyState, PageHeader, Stat } from './ui.jsx';
 // never competes with the thing you are actually here to watch.
 //
 // Owns everything about a single run (WS socket, steps, result, report).
-export default function RunView({ token, health, visible, needsToken, onOpenSettings, onRunState }) {
+export default function RunView({ token, health, keyStatus, visible, needsToken, onOpenSettings, onRunState }) {
   const [goal, setGoal] = useState('Verify the page loads and find the main heading text');
   const [startUrl, setStartUrl] = useState('https://news.ycombinator.com');
   const [status, setStatus] = useState('idle');
@@ -496,16 +496,17 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
         </div>
       )}
 
-      {health && !health.agent_ready && !isDemo && (
+      {/* Readiness is per-user (US-039): runs are funded by your stored key.
+          keyStatus is null until App has actually asked, so this never flashes
+          before the answer — and never shows in demo mode, which runs no agent. */}
+      {keyStatus && !keyStatus.set && !isDemo && (
         <div className="banner page-error">
           <AlertTriangle size={14} aria-hidden="true" />
           <span>
             <strong>Setup needed</strong>
-            <span>
-              No <code>OPENAI_API_KEY</code> on the server — runs will be rejected. Add it to{' '}
-              <code>.env</code> and restart.
-            </span>
+            <span>No OpenAI key stored — runs will be rejected until you add yours.</span>
           </span>
+          <Button size="sm" className="spacer" onClick={onOpenSettings}>Add key</Button>
         </div>
       )}
 

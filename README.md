@@ -89,7 +89,8 @@ you never see the source.
 ```bash
 curl -O https://raw.githubusercontent.com/rszhd/qassist/main/docker-compose.release.yml
 curl -o .env https://raw.githubusercontent.com/rszhd/qassist/main/.env.example
-# add your OPENAI_API_KEY to .env, then:
+# generate the one secret .env needs, then start it:
+sed -i "s/^KEY_ENCRYPTION_SECRET=$/KEY_ENCRYPTION_SECRET=$(openssl rand -hex 32)/" .env
 docker compose -f docker-compose.release.yml up -d
 ```
 
@@ -104,7 +105,8 @@ that tag and re-running the command, and the schema migrates itself at boot.
 Clone the repo, then:
 
 ```bash
-cp .env.example .env      # add your OPENAI_API_KEY
+cp .env.example .env      # then generate its one required secret:
+sed -i "s/^KEY_ENCRYPTION_SECRET=$/KEY_ENCRYPTION_SECRET=$(openssl rand -hex 32)/" .env
 docker compose up --build
 ```
 
@@ -114,10 +116,12 @@ expose a **Download PDF report** button.
 
 Two things worth knowing on a fresh clone:
 
-- **`OPENAI_API_KEY` is the one value you must supply.** The agent is
-  bring-your-own-key. Without it the app still starts and the UI loads, but
-  starting a run answers `503` telling you the key is missing — set it in
-  `.env` and `docker compose up -d` to pick it up.
+- **Your OpenAI key goes in the app, not in `.env`.** The agent is
+  bring-your-own-key: open Settings → OpenAI key and paste yours — it is
+  stored encrypted (that is what `KEY_ENCRYPTION_SECRET` is for) and every run
+  you start is funded by it. Until then, starting a run answers `503` pointing
+  you at Settings. The server holds no key of its own, so an instance you
+  share can never spend your tokens on someone else's runs (US-039).
 - **`WORKER_API_TOKEN` is optional for local use.** Leave it unset and the API
   needs no token, so there's nothing to paste into the UI. The server logs a
   warning at startup because this leaves the port open to your network — set a
@@ -133,7 +137,6 @@ Set in `.env` (see `.env.example`):
 | Variable | Default | Purpose |
 |---|---|---|
 | `WORKER_API_TOKEN` | — | Bearer token required on every API/WS call |
-| `OPENAI_API_KEY` | — | Drives the browser agent |
 | `BROWSER_USE_MODEL` | `gpt-4.1` | OpenAI model |
 | `MAX_CONCURRENT_SESSIONS` | `4` | Concurrent browser cap — the real throttle. Rule: `floor((RAM_GB − 1.5) / 1)`. Runs over the cap wait in an in-memory FIFO and are told their position live; the queue is not durable, so a restart marks everything still waiting `error` |
 | `MAX_STEPS` | `60` | Safety ceiling on agent steps per run |
@@ -142,7 +145,8 @@ Set in `.env` (see `.env.example`):
 | `QA_RECORD` | `1` | Record every session to `runs/<runId>/recording.mp4`. `0` disables it — frame capture is then skipped entirely while nobody is watching the run |
 | `ARTIFACT_RETENTION_DAYS` | `7` | How long `runs/<runId>/` (report PDF + mp4 recording) is kept. Swept at startup and every 6 h; the history row and its verdict are kept forever regardless. `0` = never prune |
 | `PUBLIC_BASE_URL` | — | Public address of this instance (`https://qa.example.com`). Only used to make the PDF report's "View recording" link resolvable; the recording is served either way |
-| `DATABASE_URL` | — | Postgres control plane (saved tests, suites, run history). Set for you in both paths — `docker compose` points it at its own `db` service, `npm run dev` at the same container on `localhost:5433`. Unset = in-memory mode: ad-hoc runs still work, saved tests/suites answer 503 |
+| `KEY_ENCRYPTION_SECRET` | — | **Required.** Encrypts stored OpenAI keys at rest. Generate once (`openssl rand -hex 32`) and keep it — losing it makes every stored key undecryptable |
+| `DATABASE_URL` | — | **Required** — Postgres control plane (saved tests, run history, and the users row a stored key lives on). Set for you in both paths — `docker compose` points it at its own `db` service, `npm run dev` at the same container on `localhost:5433`. Without it the server refuses to boot |
 | `RESEND_API_KEY` | — | Resend key for result email. Unset (or `MAIL_FROM` unset) = notifications off: prefs still save, nothing sends. `/api/health` reports this as `mail` |
 | `MAIL_FROM` | — | Sender address, on a domain verified with Resend (`QAssist <qa@example.com>`) |
 | `NOTIFY_EMAILS` | — | Comma-separated fallback recipients, used when a project names none |
@@ -420,7 +424,7 @@ so Docker has to be running even when you aren't using the full stack.
 One-time setup:
 
 ```bash
-cp .env.example .env      # set WORKER_API_TOKEN and OPENAI_API_KEY
+cp .env.example .env      # set WORKER_API_TOKEN and KEY_ENCRYPTION_SECRET
 
 # agent venv (browser-use + Playwright Chromium); needs python3-venv or uv
 cd agent && uv venv .venv && uv pip install -r requirements.txt --python .venv/bin/python \
@@ -451,9 +455,9 @@ keeping the two in sync.
 `npm run dev` runs `docker compose up -d --wait db` first, so Postgres is
 already healthy by the time the server boots; pending migrations in
 `db/migrations/` are then applied automatically. You don't set `DATABASE_URL`
-— the dev script defaults it to the container on `127.0.0.1:5433`. Startup
-logs `db=on` when the control plane is live (`db=off` means it fell back to
-in-memory mode, where saved tests and suites answer 503).
+— the dev script defaults it to the container on `127.0.0.1:5433`. The
+control plane is required (US-039): if Postgres isn't reachable the server
+refuses to boot and says so, rather than serving a half-app.
 
 - **Port 5433 already taken?** It's mapped that way to avoid colliding with a
   local Postgres on 5432. To use a different database entirely, pass the URL

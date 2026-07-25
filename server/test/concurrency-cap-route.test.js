@@ -21,7 +21,6 @@ let app;
 before(async () => {
   delete process.env.WORKER_API_TOKEN;
   delete process.env.DATABASE_URL;
-  process.env.OPENAI_API_KEY = 'sk-test-route'; // so the agent-key gate passes and we reach the cap
   process.env.MAX_CONCURRENT_SESSIONS = '2'; // above the per-user cap, so the 2nd run is refused by the CAP, not queued globally
   process.env.MAX_CONCURRENT_PER_USER = '1';
   process.env.QA_STUB_HOLD_MS = '500'; // keep the first run in flight while the second POST arrives
@@ -32,8 +31,11 @@ before(async () => {
   ({ app } = await import('../src/server.js'));
 });
 
+// A per-request key so the agent-key gate passes (US-039) and we reach the cap.
 const post = () =>
-  request(app).post('/api/runs').send({ goal: 'g', start_url: 'https://example.test' });
+  request(app)
+    .post('/api/runs')
+    .send({ goal: 'g', start_url: 'https://example.test', openai_api_key: 'sk-test-route-key-0123456789012345678901234567' });
 
 test('a single-run POST over the cap answers 429 naming the cap; the first is accepted', async () => {
   const first = await post().expect(200); // takes the user's one slot

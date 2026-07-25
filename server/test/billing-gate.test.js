@@ -72,6 +72,7 @@ import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import request from 'supertest';
 import { newDb, DataType } from 'pg-mem';
+import { registerDecode, seedStoredKey } from './helpers/stored-key.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SECRET = 'test-session-secret-0123456789';
@@ -115,7 +116,11 @@ before(async () => {
   delete process.env.BILLING_EXEMPT_EMAILS;
   delete process.env.AUTH_MODE;
   delete process.env.MAX_CONCURRENT_PER_USER;
-  process.env.OPENAI_API_KEY = 'sk-test-not-a-real-key';
+  // BYOK-only (US-039): a subscriber funds runs with their stored key, so every
+  // fixture user gets one (makeUser). The billing gate is what is under test —
+  // it must answer before the key gate ever gets a say (D3 there, D4 in
+  // byok-only.test.js).
+  process.env.KEY_ENCRYPTION_SECRET = 'test-key-encryption-secret-0123456789';
   process.env.PYTHON_BIN = process.execPath;
   process.env.AGENT_SCRIPT = path.join(__dirname, 'stubs', 'fake_agent.js');
   process.env.REPORT_SCRIPT = path.join(__dirname, 'stubs', 'fake_report.js');
@@ -130,6 +135,7 @@ before(async () => {
       impure: true,
     });
   });
+  registerDecode(mem);
   const { Pool } = mem.adapters.createPg();
   pool = new Pool();
 
@@ -137,6 +143,7 @@ before(async () => {
   await runMigrations(pool, { skipIndexes: true });
   await initDb(pool);
   OPERATOR_ID = /** @type {string} */ (getOperatorUserId());
+  await seedStoredKey(pool, OPERATOR_ID);
   auth = await import('../src/auth.js');
   billing = await import('../src/billing.js');
   ({ counts, TERMINAL } = await import('../src/runs.js'));
@@ -152,6 +159,7 @@ before(async () => {
 
 async function makeUser(email) {
   const { rows } = await pool.query('insert into users (email) values ($1) returning id', [email]);
+  await seedStoredKey(pool, rows[0].id);
   return rows[0].id;
 }
 

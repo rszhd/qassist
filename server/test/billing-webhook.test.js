@@ -87,7 +87,6 @@ before(async () => {
   process.env.STRIPE_PRICE_ID = 'price_test_123';
   process.env.PUBLIC_BASE_URL = 'https://qassist.test';
   delete process.env.AUTH_MODE;
-  process.env.OPENAI_API_KEY = 'sk-test-not-a-real-key';
   process.env.PYTHON_BIN = process.execPath;
   process.env.AGENT_SCRIPT = path.join(__dirname, 'stubs', 'fake_agent.js');
   process.env.REPORT_SCRIPT = path.join(__dirname, 'stubs', 'fake_report.js');

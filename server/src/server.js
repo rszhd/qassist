@@ -11,8 +11,10 @@ import { WebSocketServer } from 'ws';
 import { createServer } from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { PORT, API_TOKEN, MAX_CONCURRENT, PUBLIC_DIR, OPENAI_API_KEY, AUTH_ENABLED, AUTH_MODE, DEMO_CTA_URL } from './config.js';
+import { PORT, API_TOKEN, MAX_CONCURRENT, PUBLIC_DIR, AUTH_ENABLED, AUTH_MODE, DEMO_CTA_URL } from './config.js';
 import { db, initDb, getOperatorUserId, userContext } from './db.js';
+import { missingBootRequirements } from './boot.js';
+import { keyEncryptionEnabled } from './crypto.js';
 import { mailEnabled } from './mail.js';
 import { authEnabled, demoMode, userFromRequest, userFromCredentials, SESSION_COOKIE } from './auth.js';
 import { getRun, counts, attachViewer } from './runs.js';
@@ -95,8 +97,9 @@ app.get('/api/health', (_req, res) => {
     queued,
     max_concurrent: MAX_CONCURRENT,
     db: !!db(),
-    // Lets the UI tell "not configured yet" apart from "run failed".
-    agent_ready: !!OPENAI_API_KEY,
+    // No agent_ready: since US-039 a run is funded by its caller's key, so
+    // readiness is per-user and this endpoint is ungated (it opens no user
+    // context). GET /api/account/openai-key is what answers it, per caller.
     auth: !!API_TOKEN,
     // 'multi' = magic-link login (US-021), 'demo' = per-visitor sandbox (US-036),
     // 'token' = single WORKER_API_TOKEN, 'open' = no credential. The frontend
@@ -194,22 +197,21 @@ server.on('upgrade', async (req, socket, head) => {
 // and drive it in-process without opening a port.
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMain) {
-  // AUTH_ENABLED must not half-enable: refuse to serve unless everything auth
-  // needs is present, naming what is missing rather than 401-ing every request.
-  if (AUTH_ENABLED && !authEnabled()) {
-    const missing = [
-      !db() && 'DATABASE_URL',
-      !mailEnabled() && 'a mail sender (RESEND_API_KEY + MAIL_FROM)',
-      !process.env.SESSION_SECRET && 'SESSION_SECRET',
-    ].filter(Boolean);
-    console.error(`AUTH_ENABLED is set but auth can't run — missing: ${missing.join(', ')}.`);
-    process.exit(1);
-  }
-  // Same guard for the demo sandbox: AUTH_MODE=demo must not half-enable into
-  // open/token mode, which would serve an unauthenticated, unseeded app.
-  if (AUTH_MODE === 'demo' && !demoMode()) {
-    const missing = [!db() && 'DATABASE_URL', !process.env.SESSION_SECRET && 'SESSION_SECRET'].filter(Boolean);
-    console.error(`AUTH_MODE=demo is set but the sandbox can't run — missing: ${missing.join(', ')}.`);
+  // Refuse to serve rather than half-enable: a missing requirement is named and
+  // the process exits, instead of 401-ing every request (auth), serving an
+  // unauthenticated unseeded app (demo) or accepting runs nobody can fund
+  // (US-039). The predicate is pure so the matrix is testable — config is read
+  // at import time, so one process can only ever exercise one row of it.
+  const missing = missingBootRequirements({
+    hasDb: !!db(),
+    hasKeyEncryption: keyEncryptionEnabled(),
+    authRequested: AUTH_ENABLED,
+    mailReady: mailEnabled(),
+    hasSessionSecret: !!process.env.SESSION_SECRET,
+    demoRequested: AUTH_MODE === 'demo',
+  });
+  if (missing.length) {
+    console.error(`qassist can't start — missing: ${missing.join(', ')}.`);
     process.exit(1);
   }
   // Only when actually serving: tests drive the app in-process and would
@@ -223,13 +225,6 @@ if (isMain) {
     console.log(
       `qassist server on :${PORT}  (max_concurrent=${MAX_CONCURRENT}, auth=${API_TOKEN ? 'on' : 'off'}, db=${db() ? 'on' : 'off'})`
     );
-    // First-run guidance: a fresh clone starts with no .env at all.
-    if (!OPENAI_API_KEY) {
-      console.warn(
-        'WARNING: OPENAI_API_KEY is not set — the UI loads but runs will be refused.\n' +
-          '         Copy .env.example to .env, add your key, then: docker compose up -d'
-      );
-    }
     if (!API_TOKEN) {
       console.warn(
         'WARNING: WORKER_API_TOKEN is not set — the API and live feed are open to\n' +

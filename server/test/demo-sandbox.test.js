@@ -29,7 +29,6 @@ before(async () => {
   process.env.SESSION_SECRET = 'demo-session-secret-0123456789';
   delete process.env.AUTH_ENABLED;
   delete process.env.WORKER_API_TOKEN;
-  process.env.OPENAI_API_KEY = 'sk-test-not-a-real-key';
   process.env.DEMO_IP_MAX = '1000'; // this file mints several tenants from one IP; the throttle is exercised in demo-ip-throttle.test.js
   process.env.DEMO_CTA_URL = 'https://signup.test';
   process.env.PYTHON_BIN = process.execPath;

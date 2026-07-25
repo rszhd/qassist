@@ -51,14 +51,14 @@ try {
   console.log(`scheduler-postgres: skipped — ${skip}`);
 }
 
-/** @type {(now?: number) => Promise<{ fired: number, runs: number, skipped: number, blocked: number }>} */
+/** @type {(now?: number) => Promise<{ fired: number, runs: number, skipped: number, blocked: number, keyless: number }>} */
 let tick;
 let userId;
 
 before(async () => {
   if (skip || !pool) return;
   process.env.WORKER_API_TOKEN = 'test-token';
-  process.env.OPENAI_API_KEY = 'sk-test-not-a-real-key';
+  process.env.KEY_ENCRYPTION_SECRET = 'test-key-encryption-secret-0123456789';
   process.env.PYTHON_BIN = process.execPath;
   process.env.AGENT_SCRIPT = path.join(__dirname, 'stubs', 'fake_agent.js');
   process.env.REPORT_SCRIPT = path.join(__dirname, 'stubs', 'fake_report.js');
@@ -69,6 +69,10 @@ before(async () => {
 
   const { rows } = await pool.query('select id from users limit 1');
   userId = rows[0].id;
+  // BYOK-only (US-039): the claim under test is only reached when the owner has
+  // a stored key — a keyless owner is skipped right after it.
+  const { setUserOpenaiKey } = await import('../src/openaiKey.js');
+  await setUserOpenaiKey(userId, 'sk-test-' + 'a'.repeat(40));
 });
 
 after(async () => {
@@ -116,7 +120,11 @@ test('a next_run_at written by Postgres is still claimable', { skip }, async () 
   assert.equal(equality.rowCount, 0, 'a JS Date cannot match a microsecond timestamp');
 
   const firedAfter = Date.now();
-  assert.deepEqual(await tick(), { fired: 0, runs: 0, skipped: 0, blocked: 0 }, 'claimed, ran nothing');
+  assert.deepEqual(
+    await tick(),
+    { fired: 0, runs: 0, skipped: 0, blocked: 0, keyless: 0 },
+    'claimed, ran nothing'
+  );
 
   const { rows: claimed } = await pool.query(
     'select next_run_at, last_run_at from schedules where id = $1',

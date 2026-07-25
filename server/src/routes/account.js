@@ -2,10 +2,14 @@
 // Account settings (US-005): the caller's stored BYOK OpenAI key. Set/replace,
 // clear, and read its set-state — the value is never returned by any read. The
 // crypto and persistence live in ../crypto.js and ../openaiKey.js; this is the
-// tenant-scoped HTTP surface (currentUserId), a multi-user feature like keys.js.
+// tenant-scoped HTTP surface (currentUserId).
+//
+// Reachable in every mode since US-039: with no server key to fall back on this
+// is the only way to supply one, and currentUserId() resolves to the seeded
+// operator when auth is off — so a solo self-host uses the same surface a
+// tenant does.
 import express from 'express';
 import { currentUserId } from '../db.js';
-import { authEnabled } from '../auth.js';
 import { validOpenaiKeyShape, keyEncryptionEnabled } from '../crypto.js';
 import { setUserOpenaiKey, clearUserOpenaiKey, getUserOpenaiKeyStatus } from '../openaiKey.js';
 import { requireDb, h } from './helpers.js';
@@ -13,7 +17,6 @@ import { requireDb, h } from './helpers.js';
 /** @param {{ checkToken: import('express').RequestHandler }} deps */
 export function accountRouter({ checkToken }) {
   const r = express.Router();
-  r.use((_req, res, next) => (authEnabled() ? next() : res.status(404).json({ error: 'auth is not enabled' })));
   r.use(checkToken, requireDb);
 
   r.get(

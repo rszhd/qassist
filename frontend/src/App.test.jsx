@@ -40,7 +40,7 @@ afterEach(() => {
 describe('App shell', () => {
   it('mounts with the control plane up and shows the view nav', async () => {
     stubApi({
-      '/api/health': { auth: false, db: true, agent_ready: true, mail: false },
+      '/api/health': { auth: false, db: true, mail: false },
       '/api/tests': { tests: [] },
       '/api/projects': { projects: [] },
     });
@@ -58,7 +58,7 @@ describe('App shell', () => {
   });
 
   it('mounts with no control plane and hides the nav', async () => {
-    stubApi({ '/api/health': { auth: false, db: false, agent_ready: true, mail: false } });
+    stubApi({ '/api/health': { auth: false, db: false, mail: false } });
 
     render(
       <MemoryRouter initialEntries={['/']}>

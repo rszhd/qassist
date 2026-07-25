@@ -64,8 +64,7 @@ export default function App() {
   }, [theme]);
 
   // /api/health is unauthenticated — it tells us whether a token is even
-  // needed (auth), whether runs can work at all (agent_ready) and whether the
-  // control plane is up (db).
+  // needed (auth) and whether the control plane is up (db).
   useEffect(() => {
     let cancelled = false;
     fetch('/api/health')
@@ -79,6 +78,22 @@ export default function App() {
 
   const multi = health?.auth_mode === 'multi';
   const demo = health?.auth_mode === 'demo';
+
+  // Whether the caller has an OpenAI key stored (US-039): runs are funded by
+  // it, so the Run view's "setup needed" banner keys off this — health can't
+  // say it, readiness is per-user now. Null until known (or unknowable: a demo
+  // runs no agent, a missing token can't ask), so the banner never flashes on
+  // a guess. Reloaded after every change in the Settings key field.
+  const [keyStatus, setKeyStatus] = useState(null);
+  const loadKeyStatus = () =>
+    api('/api/account/openai-key', { token })
+      .then(setKeyStatus)
+      .catch(() => setKeyStatus(null));
+  useEffect(() => {
+    if (!health || demo) return;
+    if (multi && !me) return;
+    loadKeyStatus();
+  }, [health, demo, multi, me, token]);
 
   // In demo mode the very first request from a cookieless visitor mints a seeded
   // tenant and drops the session cookie every later API/WS call authenticates
@@ -163,6 +178,7 @@ export default function App() {
           <RunView
             token={token}
             health={health}
+            keyStatus={keyStatus}
             visible={atRun}
             needsToken={needsToken}
             onOpenSettings={() => setSettingsOpen(true)}
@@ -214,7 +230,6 @@ export default function App() {
               {/* US-022: only when the instance actually bills. Unset STRIPE_*
                   leaves health.billing false and the dialog is what it was. */}
               {health?.billing && <Billing />}
-              <OpenaiKey />
               <ApiKeys />
             </>
           ) : (
@@ -230,6 +245,10 @@ export default function App() {
               />
             </Field>
           )}
+          {/* Every mode with an agent (US-039): runs are funded by the caller's
+              stored key, in a solo self-host exactly like a tenant. A demo runs
+              no agent, so it has no key to manage. */}
+          {!demo && <OpenaiKey token={token} status={keyStatus} onReload={loadKeyStatus} />}
           <Field label="Theme" hint="Dark is the default. Match system follows your OS setting.">
             <select value={theme} onChange={(e) => setTheme(e.target.value)}>
               <option value="dark">Dark</option>
@@ -239,8 +258,6 @@ export default function App() {
           </Field>
           {health && (
             <dl className="detail-facts">
-              <dt>Agent</dt>
-              <dd>{health.agent_ready ? 'Ready' : 'No OPENAI_API_KEY on the server'}</dd>
               <dt>Control plane</dt>
               <dd>{health.db ? 'Connected' : 'Not configured — saved tests and history are off'}</dd>
               <dt>Auth</dt>

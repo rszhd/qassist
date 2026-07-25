@@ -12,6 +12,7 @@ import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import request from 'supertest';
 import { newDb, DataType } from 'pg-mem';
+import { registerDecode, seedStoredKey } from './stored-key.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TOKEN = 'test-token';
@@ -36,7 +37,7 @@ export async function createHarness() {
   const artifactsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'qassist-cp-test-'));
   // Config is read at import time, so env must be set before importing.
   process.env.WORKER_API_TOKEN = TOKEN;
-  process.env.OPENAI_API_KEY = 'sk-test-not-a-real-key'; // gates run creation
+  process.env.KEY_ENCRYPTION_SECRET = 'test-key-encryption-secret-0123456789';
   process.env.PYTHON_BIN = process.execPath;
   process.env.AGENT_SCRIPT = path.join(__dirname, '..', 'stubs', 'fake_agent.js');
   process.env.REPORT_SCRIPT = path.join(__dirname, '..', 'stubs', 'fake_report.js');
@@ -58,6 +59,7 @@ export async function createHarness() {
     returns: DataType.text,
     implementation: (a, b) => (a === b ? null : a),
   });
+  registerDecode(mem);
   const { Pool } = mem.adapters.createPg();
   const pool = new Pool();
 
@@ -65,6 +67,8 @@ export async function createHarness() {
   await runMigrations(pool, { skipIndexes: true });
   await initDb(pool);
   const operatorId = getOperatorUserId();
+  // BYOK-only (US-039): run creation is gated on the caller's stored key.
+  await seedStoredKey(pool, /** @type {string} */ (operatorId));
   const { app } = await import('../../src/server.js');
   const { sweepArtifacts } = await import('../../src/retention.js');
 

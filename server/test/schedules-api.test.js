@@ -26,7 +26,6 @@ let artifactsDir;
 before(async () => {
   artifactsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'qassist-sched-api-'));
   process.env.WORKER_API_TOKEN = TOKEN;
-  process.env.OPENAI_API_KEY = 'sk-test-not-a-real-key';
   process.env.PYTHON_BIN = process.execPath;
   process.env.AGENT_SCRIPT = path.join(__dirname, 'stubs', 'fake_agent.js');
   process.env.REPORT_SCRIPT = path.join(__dirname, 'stubs', 'fake_report.js');

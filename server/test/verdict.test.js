@@ -24,7 +24,6 @@ let artifactsDir;
 before(async () => {
   artifactsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'qassist-verdict-'));
   process.env.WORKER_API_TOKEN = TOKEN;
-  process.env.OPENAI_API_KEY = 'sk-test-not-a-real-key';
   process.env.PYTHON_BIN = process.execPath;
   process.env.AGENT_SCRIPT = path.join(__dirname, 'stubs', 'replay_agent.js');
   process.env.REPORT_SCRIPT = path.join(__dirname, 'stubs', 'fake_report.js');
@@ -41,7 +40,12 @@ async function replay(transcript) {
   const created = await request(app)
     .post('/api/runs')
     .set(auth)
-    .send({ goal: 'recorded goal', start_url: 'https://example.com' })
+    // Per-request key: no DB in this file, so the stored-key path never applies (US-039).
+    .send({
+      goal: 'recorded goal',
+      start_url: 'https://example.com',
+      openai_api_key: 'sk-test-verdict-key-01234567890123456789012345',
+    })
     .expect(200);
   const { runId } = created.body;
 

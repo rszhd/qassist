@@ -15,7 +15,10 @@
 //        returns a wrong plaintext (an attacker can't flip bits undetected).
 //   S1 — validOpenaiKeyShape accepts an `sk-` key and rejects empty / non-`sk-`
 //        garbage, so a malformed key is refused before it is ever stored.
-//   P1 — resolveRunKey precedence is exactly request > stored > server(null).
+//   P1 — resolveRunKey precedence is exactly request > stored, and NOTHING
+//        else: with no key from either, the answer is null even when the
+//        process has a live-looking OPENAI_API_KEY in its environment (US-039
+//        deleted the third tier — the server no longer funds anyone's run).
 import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -28,8 +31,14 @@ let openaiKey;
 // real credential.
 const SAMPLE_KEY = 'sk-proj-' + 'A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8S9t0';
 
+// A live-looking server key, set on purpose. Every assertion about "no key"
+// below is made with this in the environment, so it proves the fallback was
+// REMOVED rather than merely left unconfigured (US-039 AC #6).
+const SERVER_KEY = 'sk-proj-' + 'ServerFallbackMustNeverFundARun0123456789';
+
 before(async () => {
   process.env.KEY_ENCRYPTION_SECRET = 'test-key-encryption-secret-0123456789';
+  process.env.OPENAI_API_KEY = SERVER_KEY;
   crypto = await import('../src/crypto.js');
   openaiKey = await import('../src/openaiKey.js');
 });
@@ -89,7 +98,7 @@ test('validOpenaiKeyShape accepts sk- keys and rejects malformed input', () => {
 
 // --- P1: resolution precedence ---
 
-test('resolveRunKey precedence is request > stored > null', () => {
+test('resolveRunKey precedence is request > stored, and there is no third tier', () => {
   assert.equal(
     openaiKey.resolveRunKey({ requestKey: 'sk-req', storedKey: 'sk-stored' }),
     'sk-req',
@@ -108,6 +117,19 @@ test('resolveRunKey precedence is request > stored > null', () => {
   assert.equal(
     openaiKey.resolveRunKey({ requestKey: null, storedKey: null }),
     null,
-    'no user key at all falls through to the server key (handled by startRun)'
+    'no caller key means no run — the operator does not fund strangers (US-039)'
+  );
+  // The assertion the story turns on: this process HAS a server key, and it
+  // still resolves to null. A run is funded by its caller or it does not start.
+  assert.equal(process.env.OPENAI_API_KEY, SERVER_KEY);
+  assert.equal(openaiKey.resolveRunKey({}), null);
+});
+
+test('config no longer exports a server key for anything to fall back to', async () => {
+  const config = await import('../src/config.js');
+  assert.equal(
+    'OPENAI_API_KEY' in config,
+    false,
+    'an unread export is still a second way to fund a run; US-039 removes the concept'
   );
 });

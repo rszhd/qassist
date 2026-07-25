@@ -5,9 +5,16 @@ a key the *caller* supplied, **so that** standing the app up in front of other
 people cannot spend my tokens — and so that "BYOK on every tier" is a property
 of the code rather than a promise in a README.
 
-- **Status:** 📝 Filed 2026-07-25. Assertions drafted, awaiting maintainer
-  review before implementation (`resolveRunKey` is a listed correctness-critical
-  surface — see `backlog/correctness-critical.md`).
+- **Status:** ✅ Shipped 2026-07-26. Assertion-first as required
+  (`resolveRunKey` is a listed correctness-critical surface): the specs —
+  `server/test/byok-only.test.js` (refusals, multi-user), `byok-solo.test.js`
+  (refusals, auth off), `byok-postgres.test.js` (the positive half — needs a
+  real server, see below), `boot.test.js` (the two newly mandatory env vars)
+  and a tightened `openai-key.test.js` — were written, reviewed (decisions
+  `D1`–`D14` in their headers) and red before the implementation. All six
+  acceptance criteria hold; the last one (key restored with no effect) is
+  structural — every spec file runs with a live-looking `OPENAI_API_KEY` in the
+  environment. Not yet deployed to staging.
 - **Priority:** P1 (current sprint) — staging is live and publicly registrable
   today, and the interim mitigation is a blank `OPENAI_API_KEY` in
   `.env.staging`, which silently disables its scheduler. That is a workaround
@@ -102,6 +109,46 @@ undecryptable.
   ("Add it to `.env` and restart") must not survive either way.
 - **Docs** — `.env.example`, README's env table and in-memory-mode notes,
   `DEPLOY.md`, and US-038's mitigation paragraph.
+
+## What writing the assertions surfaced (2026-07-25)
+
+Three things the plan above did not account for. The first is a live defect the
+story would otherwise have shipped:
+
+**1. Deleting the fallback from `runs.js` is not enough.** `startRun` spawns the
+agent with `env: { ...process.env, OPENAI_API_KEY: run.openai_api_key || … }`.
+Changing that expression to `run.openai_api_key` alone leaves the spread in
+place, so a null key means the child inherits the *server's own* ambient
+`OPENAI_API_KEY` — the fallback survives at the exact layer where the money is
+spent, and every assertion above it still passes. Confirmed against today's
+code: the child receives the ambient key. The key must be set explicitly and
+removed when there is none.
+
+**2. pg-mem cannot store an encrypted key**, so the positive half of the claim
+needs a real Postgres. It round-trips `bytea` through a string: a 72-byte
+AES-GCM ciphertext comes back 120 bytes with UTF-8 replacement characters, and
+`decryptSecret` throws. Nothing on pg-mem can assert on a *stored* key, which
+means an implementation could pass a refusals-only test file while being unable
+to run a keyed user at all. Hence the split: refusals on pg-mem
+(`byok-only`/`byok-solo`), everything that needs a key to decrypt on a real
+server (`byok-postgres`). Same class of discovery as US-022's ledger claim —
+found by writing the assertion first, and not findable any other way.
+
+**3. The ripple through the existing suite was wider than "mostly deletion" —
+and narrower than feared.** Every test that started a run over HTTP funded it
+with the server key. The way out of the pg-mem trap for *them* (not for the
+spec files): the corruption is in the bytea **parameter** path only, so a
+registered `decode(hex)` function returns a Buffer that pg-mem stores intact —
+`test/helpers/stored-key.js`. Harnesses with a DB now seed their user a stored
+key (`api`, the control-plane helper, `billing-gate`, `billing-off`, `notify`,
+`scheduler.test.js` — whose schedules have no request to carry a key); DB-less
+files pass a per-request key (`concurrency-cap-route`, `verdict`).
+`first-run.test.js` changed subject entirely: with `DATABASE_URL` mandatory, "a
+fresh clone with no `.env`" no longer boots, so it now pins the documented
+minimum config instead. All meant-to-change, and the commit says which and why.
+One true regression caught red: the scheduler's keyless skip had to be waived
+in demo mode (`demo-interceptor.test.js` failed) — a demo run is a replay, so
+there is no LLM call for a key to fund, same waiver as `requireAgentKey`.
 
 ## Acceptance criteria
 
