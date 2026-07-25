@@ -306,6 +306,16 @@ rules live in [`docs/repo-model.md`](../docs/repo-model.md). Email provider:
 | [US-019](unscheduled/US-019-installers-signing-autoupdate.md) | Installers, code signing, auto-update | 📋 Planned | TBD | US-016..018 |
 | [US-024](unscheduled/US-024-memory-watchdog-pss-metric.md) | Memory watchdog: measure PSS, not summed RSS | 📋 Planned | P2 | — |
 | [US-037](unscheduled/US-037-enterprise-stack-and-readiness.md) | Enterprise stack & readiness: what to adopt, what to refuse | 📋 Planned (tiered) | P2 | US-021, US-007 |
+| [US-041](unscheduled/US-041-judge-verdict-and-ground-truth.md) | The judge decides the verdict, and a test can state what it must prove | 📋 Planned | P1 | — |
+| [US-042](unscheduled/US-042-agent-navigation-confinement.md) | Confine where the agent may navigate | 📋 Planned | P1 | US-021 |
+| [US-043](unscheduled/US-043-reusable-authenticated-sessions.md) | Test what is behind the login (reusable sessions) | 📋 Planned | P2 | US-035, US-021 |
+| [US-044](unscheduled/US-044-network-and-console-evidence.md) | Say *why* it failed: network and console evidence | 📋 Planned | P2 | US-020, US-026 |
+| [US-045](unscheduled/US-045-model-provider-choice.md) | Bring your own key, to your own provider (incl. local) | 📋 Planned | P2 | US-005, US-039 |
+| [US-046](unscheduled/US-046-token-usage-and-cost.md) | What did that run cost? (token usage + cost) | 📋 Planned | P3 | US-039 |
+| [US-047](unscheduled/US-047-stop-a-run.md) | Stop a run | 📋 Planned | P3 | — |
+| [US-048](unscheduled/US-048-file-upload-in-test-flows.md) | Test a flow that uploads a file | 📋 Planned | P3 | US-035, US-023 |
+| [US-049](unscheduled/US-049-typed-assertions.md) | Assert on a value, not on a paragraph | 📋 Planned | P3 | US-041 |
+| [US-050](unscheduled/US-050-fast-run-mode.md) | A fast, cheap mode for tests that already pass | 📋 Planned | P3 | US-046 |
 
 A tiered story keeps one file while its later tiers are still hypothetical:
 US-013's email tier shipped, so the file sits in `sprint/current/done/` with the
@@ -315,6 +325,54 @@ tiers are real enough to plan, which is what happened to **US-008 on
 story whose acceptance criteria are mostly out of scope makes `ls sprint/current/`
 overstate what is left. US-008 is now the CI step alone; [US-029](unscheduled/US-029-cicd-action-and-github-app.md)
 carries the Action and the App.
+
+**US-041..US-050 (added 2026-07-26)** came out of one question — *what is
+browser-use already capable of that we do not use?* — answered by reading the
+installed 0.13.6 against `agent/run_agent.py` rather than the docs. They are
+unscheduled on purpose: the current sprint is release plumbing, and this is
+product. Two of them are P1 and are pull-forward candidates the moment the
+sprint clears.
+
+The headline is **US-041**, which is closer to a defect than a feature.
+`Agent(use_judge=…)` defaults to `True` and we never override it, so every run
+already pays for a vision-heavy judge call over the trace and the last ten
+screenshots — and then reports `history.is_successful()`, which is the *agent's
+self-report*, and drops the judgement on the floor. browser-use is explicit that
+the two are separate values and that the judge deliberately does not override
+the self-report. So the product's leading claim ("judges pass/fail") is
+currently the agent grading its own homework, at the cost of a judge call we buy
+and discard. `ground_truth` — per-test acceptance criteria the judge grades
+against — is the feature that follows from fixing it, and it is what turns a
+goal into a specification.
+
+**US-042** is the one with a security shape. `BrowserProfile` carries
+`allowed_domains`, `prohibited_domains` and `block_ip_addresses` (default
+`False`), enforced by a `SecurityWatchdog` that is written to survive redirect
+chains; we pass none of them, and `POST /api/runs` checks `start_url` for
+presence only. Note what this is *not*: the demo is unaffected, because
+US-036's interceptor replays a fixture for every trigger path and never launches
+Chromium. The exposure is the ordinary multi-user instance — staging is publicly
+registrable today. US-039 raises the bar considerably (an attacker must bring
+and spend their own key), which is why this is P1-unscheduled rather than a
+hotfix, but funding is not a fence.
+
+The rest, briefly: **US-043** (`storage_state`) is the largest expansion of what
+the product can test, because most software worth testing is behind a login and
+every run currently logs in from cold. **US-044** turns "the goal failed" into
+"the goal failed and `POST /api/checkout` returned 500", off CDP subscriptions
+the screencast machinery already makes cheap. **US-045** notices that having
+just made BYOK the only funding path (US-039), *which* provider is the obvious
+next question — and that `ChatOllama` makes a fully-local instance a claim no
+competitor can match. **US-047** is a plain absence: there is no stop endpoint
+anywhere in `server/src`, so a user watching a run go wrong can only wait, and
+the only kill we have is the watchdog's `SIGKILL`, which destroys the recording
+it was about to finalize.
+
+Three of these owe rows in [`correctness-critical.md`](correctness-critical.md)
+when scheduled — US-041 and US-049 define what "pass" means, US-042 is a fence
+that is worse than useless if it is believed and leaky. Rows are deliberately
+*not* added yet: the register's own rule is that a row is added as part of doing
+the work, and a table of speculative rows is what makes it stop being read.
 
 **US-037 (added 2026-07-25)** is a decision as much as a story: it settles which
 "enterprise standard" stack pieces we adopt and — more usefully — which we
