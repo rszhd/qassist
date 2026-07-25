@@ -51,7 +51,7 @@ release-plumbing stories turned out to share an unstated fifth.
 | [US-038](sprint/current/US-038-staging-environment.md) | Staging environment (`staging.qassist.run`) | 🧱 Repo side shipped (2026-07-25) — needed no overlay branch; DNS + the box left | US-007 |
 | [US-008](sprint/current/US-008-cicd-integration.md) | CI/CD trigger: the documented pipeline step | 📝 Docs written, unverified | US-007, US-009 |
 | [US-031](sprint/current/done/US-031-license-and-public-repo.md) | License the code and open the repo | ✅ Shipped (2026-07-25) — AGPL `LICENSE`, DCO, gitleaks clean over all 114 commits, repo public and renamed to `qassist` | — |
-| [US-032](sprint/current/US-032-release-pipeline-and-image.md) | CI on every push, a published image on every tag | 🧱 CI green, release path unexercised (2026-07-25) — `ci.yml` passing on `dev`; no tag cut, nothing on ghcr | US-031 |
+| [US-032](sprint/current/US-032-release-pipeline-and-image.md) | CI on every push, a published image on every tag | 🧱 4/5 (2026-07-25) — `v0.1.0` published to ghcr, anonymously pullable; only the run-on-a-clean-machine check left, which lands on the box | US-031 |
 | [US-022](sprint/current/done/US-022-stripe-billing.md) | Paid tier: Stripe billing | ✅ Shipped (2026-07-25) — live test-mode round trip still to smoke-test | US-021, US-005, US-007 |
 | [US-028](sprint/current/done/US-028-per-user-concurrency-limit.md) | Per-user concurrent run limit (self-host org cap; env-gated) | ✅ Shipped (2026-07-25) | US-021, US-027 |
 | [US-005](sprint/current/done/US-005-byok-user-api-keys.md) | Bring-your-own OpenAI key (BYOK) — account-stored (encrypted) + per-request | ✅ Shipped (2026-07-25) | US-009 |
