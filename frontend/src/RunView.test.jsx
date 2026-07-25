@@ -52,7 +52,8 @@ function renderRunView() {
   return render(
     <RunView
       token="t"
-      health={{ db: true, agent_ready: true }}
+      health={{ db: true }}
+      keyStatus={{ set: true, updated_at: null }}
       visible
       needsToken={false}
       onOpenSettings={() => {}}

@@ -13,6 +13,7 @@ import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import request from 'supertest';
 import { newDb, DataType } from 'pg-mem';
+import { registerDecode, seedStoredKey } from './helpers/stored-key.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TOKEN = 'test-token';
@@ -54,7 +55,7 @@ before(async () => {
   await new Promise((resolve) => mailServer.listen(0, '127.0.0.1', resolve));
 
   process.env.WORKER_API_TOKEN = TOKEN;
-  process.env.OPENAI_API_KEY = 'sk-test-not-a-real-key';
+  process.env.KEY_ENCRYPTION_SECRET = 'test-key-encryption-secret-0123456789';
   process.env.PYTHON_BIN = process.execPath;
   process.env.AGENT_SCRIPT = path.join(__dirname, 'stubs', 'fake_agent.js');
   process.env.REPORT_SCRIPT = path.join(__dirname, 'stubs', 'fake_report.js');
@@ -80,12 +81,15 @@ before(async () => {
     returns: DataType.text,
     implementation: (a, b) => (a === b ? null : a),
   });
+  registerDecode(mem);
   const { Pool } = mem.adapters.createPg();
   pool = new Pool();
 
-  const { runMigrations, initDb } = await import('../src/db.js');
+  const { runMigrations, initDb, getOperatorUserId } = await import('../src/db.js');
   await runMigrations(pool, { skipIndexes: true });
   await initDb(pool);
+  // BYOK-only (US-039): API-started runs are funded by the caller's stored key.
+  await seedStoredKey(pool, /** @type {string} */ (getOperatorUserId()));
   notify = await import('../src/notify.js');
   ({ app } = await import('../src/server.js'));
 });

@@ -23,6 +23,7 @@ import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import request from 'supertest';
 import { newDb, DataType } from 'pg-mem';
+import { registerDecode, seedStoredKey } from './helpers/stored-key.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TOKEN = 'test-token';
@@ -51,7 +52,9 @@ before(async () => {
   delete process.env.AUTH_ENABLED;
   delete process.env.AUTH_MODE;
   process.env.WORKER_API_TOKEN = TOKEN;
-  process.env.OPENAI_API_KEY = 'sk-test-not-a-real-key';
+  // BYOK-only (US-039): the operator funds runs with a stored key, exactly as
+  // a self-hoster now does.
+  process.env.KEY_ENCRYPTION_SECRET = 'test-key-encryption-secret-0123456789';
   process.env.PYTHON_BIN = process.execPath;
   process.env.AGENT_SCRIPT = path.join(__dirname, 'stubs', 'fake_agent.js');
   process.env.REPORT_SCRIPT = path.join(__dirname, 'stubs', 'fake_report.js');
@@ -66,6 +69,7 @@ before(async () => {
       impure: true,
     });
   });
+  registerDecode(mem);
   const { Pool } = mem.adapters.createPg();
   pool = new Pool();
 
@@ -78,6 +82,7 @@ before(async () => {
   ({ app } = await import('../src/server.js'));
 
   const uid = getOperatorUserId();
+  await seedStoredKey(pool, /** @type {string} */ (uid));
   const project = (
     await pool.query('insert into projects (user_id, name, slug) values ($1, $2, $3) returning id, slug', [
       uid, 'proj', 'proj',

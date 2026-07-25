@@ -46,7 +46,6 @@ before(async () => {
   process.env.RESEND_API_KEY = 'test-resend-key';
   process.env.MAIL_FROM = 'QAssist <test@qassist.run>';
   process.env.WORKER_API_TOKEN = 'legacy-shared-token';
-  process.env.OPENAI_API_KEY = 'sk-test-not-a-real-key';
   process.env.PYTHON_BIN = process.execPath;
   process.env.AGENT_SCRIPT = path.join(__dirname, 'stubs', 'fake_agent.js');
   process.env.REPORT_SCRIPT = path.join(__dirname, 'stubs', 'fake_report.js');

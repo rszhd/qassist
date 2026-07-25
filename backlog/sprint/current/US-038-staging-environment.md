@@ -2,13 +2,22 @@
 
 **As the** maintainer, **I want** a staging deployment at `staging.qassist.run` that is the production stack with production's data swapped out, **so that** a release, a migration, a Stripe round trip and a CI snippet can all be proven against something real before the thing real users are on.
 
-- **Status:** 🧱 Repo side shipped, **DNS done** (2026-07-25) —
-  `.env.staging.example`, the `DEPLOY.md` staging + promotion sections, the
-  `noindex` middleware and `server/scripts/seed-staging.mjs`. The overlay needed
-  no staging branch, as planned. `staging.qassist.run` resolves to the VPS and
-  the sender domain is verified in Resend (US-007), which both stacks share.
-  What is left is the box: standing the stack up, and the criteria below that
-  only a running staging environment can meet.
+- **Status:** 🟢 **Staging is up and serving** (2026-07-25) —
+  `https://staging.qassist.run` runs `ghcr.io/rszhd/qassist:0.1.0` behind the
+  shared Traefik proxy on its own Let's Encrypt certificate, with its own
+  Postgres, its own `runs-staging/` artifacts and a seeded tenant. Five of the
+  eight criteria below are met, including the two this story exists to close:
+  **US-008's CI snippet now passes for real against staging** (`docs/ci.md`'s
+  script, verbatim, exit 0 on a green suite and exit 1 on a mixed one) and a
+  failing run **mailed its report through Resend** from staging's own config.
+
+  **Production was deliberately not stood up** (maintainer's call, 2026-07-25),
+  so the box currently runs `qassist-proxy` + `qassist-staging` and nothing else.
+  Three criteria stay open because of that, not because of staging: the
+  cross-stack cookie/API-key refusal, production's half of the `down -v` proof,
+  and the Stripe test-mode round trip (staging's `STRIPE_*` are deliberately
+  **empty** rather than placeheld — `config.js` reads all three unset as billing
+  off, whereas a placeholder key switches billing *on* with a broken secret).
 - **Priority:** P1 (current sprint, added 2026-07-25) — it blocks nothing by
   itself, but it is where three other stories in this sprint finish: each of
   US-022, US-008 and US-032 currently has "verify against production" as its
@@ -123,27 +132,157 @@ exists to prevent. The prod overlay now overrides `env_file` to
 `DEPLOY.md` makes `printenv PUBLIC_BASE_URL` in the running container a
 stand-up step.
 
+## What is on the box (2026-07-25)
+
+Recorded here because nothing about the deployment may live only on the box. The
+box had **no QAssist on it at all** before this — no `qassist-edge` network, no
+proxy, no `pgdata` volume, no checkout. It shares a 4 vCPU / 8 GB VPS with an
+unrelated MySQL stack, which is why staging's cap is 1.
+
+| | |
+|---|---|
+| Checkout | `~/qassist`, `main` at `eb07990` — the three compose files are byte-identical to `dev`'s, so the tracked branch is a docs detail, not a deploy one |
+| Projects up | `qassist-proxy` (Traefik v3.7.9) and `qassist-staging`. **No `qassist` project** |
+| Image | `ghcr.io/rszhd/qassist:0.1.0`, pulled anonymously — the box has never built the source |
+| Env files | `.env.staging` (complete, 0600) and a `.env` carrying **only** `ACME_EMAIL`, commented as the proxy's file rather than production's |
+| Seeded | `seed-staging.mjs` against the operator address: 1 project, 1 module, 4 tests, 1 suite, 1 schedule, 5 finished runs. Idempotent — a second run reported "already owns tests or projects". `demo_expires_at` is null, so the demo reaper cannot sweep it |
+| Verification leftovers | `.staging-api-key` (0600, a real `qak_` key labelled "US-038 stand-up verification" — **revocable from Settings**), `~/qassist-run.sh`, two extra tests and two suites named `US-038 …`, and the runs with their artifacts |
+
+**The magic-link path works too**, proven by accident and worth keeping: the
+maintainer signed up on staging with a second address (`mharith.dev@…`) while the
+stand-up was running, received the login mail, and started a run from the Run
+view. So `AUTH_ENABLED=1` + Resend delivers login links from staging's config to
+an address that is not the Resend account owner's — the same claim US-012 and
+US-007 each owe, evidenced here on a second recipient.
+
+**A consequence to be deliberate about:** signup *is* login, so staging accepts
+registrations from anyone who finds the hostname, and with `STRIPE_*` empty
+`requireEntitled` gates nothing — a stranger could register and spend the
+server's `OPENAI_API_KEY`. `noindex` keeps it out of search results, which is
+obscurity, not a control. Tolerable while the hostname is unadvertised and the
+cap is 1, and it disappears the moment staging carries Stripe test keys (the
+criterion below) because the gate turns on. If staging is ever left up and idle,
+the cheap mitigation is `BILLING_EXEMPT_EMAILS` narrowed to the maintainer plus
+test keys present, not a second auth layer — "one door, not two" still holds.
+
+**Mitigated on the box, same day, and then escalated into its own story.**
+Waiting for Stripe test keys was judged the wrong shape — it makes *not being
+robbed* contingent on billing being configured, which is never true on a free
+self-host. So `OPENAI_API_KEY` was **blanked in `.env.staging`** (backup at
+`.env.staging.bak-20260725`, 0600, which still holds the value) and the stack
+recreated; `/api/health` now reports `agent_ready:false`, and staging is
+BYOK-only — `KEY_ENCRYPTION_SECRET` is set there, so the Settings key field
+works and users add their own. The proper fix is
+[US-039](done/US-039-byok-only-no-server-key.md), which removes the server key from
+the product entirely.
+
+Two side effects of the blanking lived until US-039 landed (2026-07-26), which
+removed the server key from the product and with it both symptoms:
+
+- **Staging's scheduler did not start.** `startScheduler()` returned before
+  `setInterval` when the server key was unset, so *no* schedule fired —
+  including one whose owner had their own key, which the guard predated. US-039
+  replaced the boot-time global check with a per-schedule skip: the ticker
+  always runs, and a slot whose owner has no stored key is claimed, skipped and
+  logged.
+- **The Run view showed "Add it to `.env` and restart"** — operator advice
+  shown to a registrant who has no `.env`. US-039 rewired the banner onto the
+  caller's own key state (`GET /api/account/openai-key`) and it now says to add
+  a key in Settings.
+
+Deploying a US-039 build to staging also retires the blanking itself: the
+variable can stay in or out of `.env.staging` with no effect, which is the
+story's own acceptance test for the fallback being gone.
+
+`MAX_CONCURRENT_SESSIONS=1`, and after two concurrent-ish suites the box still
+had ~6.4 GB available and 53 GB free — staging is not what will run it out.
+
+## What the stand-up turned up (2026-07-25)
+
+Two more failures of the same family as the `--env-file` trap above — both were
+in the shipped repo, and neither could have been caught without a real box.
+
+**1. `docker-compose.proxy.yml` pinned `traefik:v3.3`, which cannot talk to
+Docker Engine 29.** Traefik pinned Docker API version 1.24 until v3.7; Engine 29
+refuses anything below 1.40. The provider never initialised, so there were no
+routers and no ACME — and because entrypoint redirects are *static* config, the
+HTTP→HTTPS redirect kept working while HTTPS served `TRAEFIK DEFAULT CERT`. That
+reads as a DNS or Let's Encrypt problem and is neither. Pinned to `v3.7` (running
+v3.7.9), with the symptom written into `DEPLOY.md` next to the ACME note, because
+the log line (`client version 1.24 is too old`) is the only thing that says so.
+
+**2. `DEPLOY.md`'s own stand-up command rebuilt the trap this story documents.**
+It read `ENV_FILE=.env.staging docker compose … --env-file "$ENV_FILE"`. A
+command *prefix* assignment lands in the environment of the command being run,
+but the shell expands that command's own arguments first — while `ENV_FILE` is
+still unset. So `--env-file` gets an empty string, interpolation falls back to
+`.env`, and you get a stack named `qassist-staging` wearing **production's**
+hostname and secrets: precisely the silent failure the trap section warns about,
+rebuilt out of shell semantics instead of compose ones. Now `export ENV_FILE=…`
+on its own line, in both the stand-up and the promotion snippets. It surfaced
+only because the stand-up ran under `set -eu`, which turned a silent
+production-config boot into `ENV_FILE: unbound variable` — so `DEPLOY.md` now
+recommends `set -u` for the stand-up.
+
+The seed command had a milder version of the same thing: naming the compose files
+means they get interpolated, so `exec` needs `--env-file` too, or `APP_HOST:?`
+aborts on a box where production is not up.
+
 ## Acceptance criteria
 
-- [ ] `https://staging.qassist.run` serves the UI over its own certificate, and
-      the API + WebSocket live view work through it
+- [x] `https://staging.qassist.run` serves the UI over its own certificate, and
+      the API + WebSocket live view work through it — Let's Encrypt cert issued
+      (`CN = staging.qassist.run`, expires 2026-10-23), `http` 308s to `https`,
+      `/api/health` OK, `/api/runs` 401 unauthed and 200 with a per-user key, JS
+      and CSS bundles 200, and react-router paths (`/history`, `/runs/<id>`) fall
+      back to `index.html`. The WebSocket was the part to distrust: a run started
+      through the public API upgraded in **28 ms** through Traefik and streamed
+      `status`/`start`/`frame`/`step`/`recording`/`done`. Report PDF and `.mp4`
+      recording both serve over TLS
 - [x] Staging and production run from the **same** compose files — the only
       difference is `-p`, `--env-file`, and the image tag. Verified by rendering
       `docker compose config` both ways: distinct routers, networks, `pgdata`
       volumes and artifact directories, no published ports, no build context,
-      and no production value reaching the staging container
+      and no production value reaching the staging container. Re-confirmed on the
+      box: `printenv PUBLIC_BASE_URL` inside the running container returns
+      staging's, and `ss -tlnp` finds nothing on 8080 or 5433 — only 22, 80, 443
 - [ ] `docker compose -p qassist-staging down -v` destroys staging's database
-      and leaves production's untouched (proves the volumes are separate)
+      and leaves production's untouched (proves the volumes are separate).
+      **Half-proven, and by a better test:** a *third* stack from the same two
+      files (`-p qassist-scratch`) got its own `qassist-scratch_pgdata`, and
+      `down -v` on it removed only that volume — `qassist-staging_pgdata`
+      survived with all its rows and staging never stopped serving. That is the
+      project-scoping this criterion is really about, and it cost no wipe. The
+      production half needs production
 - [ ] A staging session cookie and a staging API key are both refused by
-      production, and vice versa
-- [ ] A run on staging that fails mails its report from staging's config, and no
-      production recipient receives it
+      production, and vice versa — **needs production.** What holds so far: the
+      four signing secrets are distinct values (generated separately on the box),
+      the two stacks have separate databases, and API keys are rows in one of
+      them. Staging also refuses the legacy shared `WORKER_API_TOKEN` with 401,
+      which is `userFromCredentials` deliberately not consulting it in multi-user
+      mode
+- [x] A run on staging that fails mails its report from staging's config, and no
+      production recipient receives it — two failing runs each produced one
+      `notifications` row, `status=sent`, no error, to the maintainer-only
+      address, from staging's `MAIL_FROM` with the PDF attached. One mail per
+      (run, recipient), so the idempotency guard holds. No production recipient
+      exists to receive it, and none is configured on staging
 - [ ] A **Stripe test-mode** subscription completes end-to-end on staging:
       Checkout → webhook → entitlement, closing US-022's outstanding round trip
       without touching live keys — and production's webhook endpoint never sees
-      the test event
-- [ ] US-008's CI snippet is run for real against staging (not production) and
-      the story's criterion is satisfied there
+      the test event. **Not started:** staging boots with `STRIPE_*` empty
+      (`/api/health` reports `billing:false`). Needs test keys, a test price, and
+      a Stripe webhook endpoint at `https://staging.qassist.run/api/billing/webhook`
+      with *that endpoint's* signing secret. Note when doing it:
+      `BILLING_EXEMPT_EMAILS` defaults to `OPERATOR_EMAIL`, so subscribing must
+      use a **non-operator** address or the gate is bypassed and proves nothing
+- [x] US-008's CI snippet is run for real against staging (not production) and
+      the story's criterion is satisfied there — `docs/ci.md`'s `qassist-run.sh`
+      extracted **verbatim** from the doc (not retyped) and run against two
+      suites: a green one exited **0**, a mixed one exited **1** and printed the
+      failing run's permalink. It batched two runs from one `POST
+      /api/suites/<id>/run`, polled `/api/runs/<id>`, and the second run queued
+      behind the first at `MAX_CONCURRENT_SESSIONS=1`
 - [x] `DEPLOY.md` documents standing staging up, promoting a tag from staging to
       production, and the config table above; nothing about staging lives only
       on the box

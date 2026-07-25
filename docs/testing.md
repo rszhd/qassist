@@ -35,6 +35,16 @@ rule that decides which of the four test shapes a given check gets:
   microsecond value real Postgres wrote. When the property under test is the
   fake's blind spot, you need the real thing.
 
+  Another blind spot, found by US-039: **pg-mem corrupts a `bytea`
+  parameter.** The adapter squeezes the buffer through a UTF-8 string, so
+  AES-GCM ciphertext (high bytes) comes back with replacement characters and
+  never decrypts — an encrypted-at-rest write path simply cannot be exercised
+  there (`byok-postgres.test.js` is the real-server counterpart). The escape
+  hatch for tests whose subject is *not* key storage: a **registered function
+  returns a Buffer that pg-mem stores intact**, so
+  `test/helpers/stored-key.js` seeds a decryptable stored key by registering
+  `decode` and inlining the ciphertext as hex in the SQL text.
+
 That last pair is the whole philosophy in miniature: **same feature, two
 tests, because the shortcut one layer takes lies about the thing the other
 must verify.** Use the fake by default; drop to reality only for the specific

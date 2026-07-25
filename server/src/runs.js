@@ -26,7 +26,6 @@ import {
   REPORT_SCRIPT,
   ARTIFACTS_DIR,
   MODEL,
-  OPENAI_API_KEY,
   PUBLIC_BASE_URL,
   RECORDING_FILENAME,
   REPORT_DATA_FILENAME,
@@ -414,21 +413,28 @@ function startRun(runId) {
   broadcast(run, { type: 'status', status: 'running' });
   persistUpdate(run);
 
+  // BYOK (US-005/US-039): the run's resolved key is the only key, and this is
+  // the only place it travels — into the child's env, nowhere else. Deleted
+  // rather than left unset when there is none: the spread below carries the
+  // server's own environment, so an absent key would silently inherit whatever
+  // OPENAI_API_KEY this process happens to hold and fund the run out of the
+  // operator's pocket at the one layer that actually spends money.
+  const childEnv = {
+    ...process.env,
+    QA_GOAL: run.goal,
+    QA_START_URL: run.start_url,
+    QA_VARS: JSON.stringify(run.secrets || {}),
+    QA_MAX_STEPS: String(run.max_steps),
+    QA_RUN_ID: run.id,
+    BROWSER_USE_MODEL: run.model || MODEL,
+    OPENAI_API_KEY: run.openai_api_key,
+    ARTIFACTS_DIR,
+  };
+  if (!run.openai_api_key) delete childEnv.OPENAI_API_KEY;
+
   const child = spawn(PYTHON_BIN, [AGENT_SCRIPT], {
     detached: true, // own process group, so the watchdog can kill the whole tree
-    env: {
-      ...process.env,
-      QA_GOAL: run.goal,
-      QA_START_URL: run.start_url,
-      QA_VARS: JSON.stringify(run.secrets || {}),
-      QA_MAX_STEPS: String(run.max_steps),
-      QA_RUN_ID: run.id,
-      BROWSER_USE_MODEL: run.model || MODEL,
-      // BYOK (US-005): the run's resolved key wins over the server key. This is
-      // the only place the key travels — into the child's env, nowhere else.
-      OPENAI_API_KEY: run.openai_api_key || OPENAI_API_KEY,
-      ARTIFACTS_DIR,
-    },
+    env: childEnv,
   });
   run.child = child;
   // Viewer may have attached while the run sat in the queue.

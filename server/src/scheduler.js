@@ -9,11 +9,11 @@
 // restart loses no schedule and needs no catch-up pass. The first tick after
 // boot *is* the catch-up.
 import { db } from './db.js';
+import { demoMode } from './auth.js';
 import { runTests } from './runs.js';
 import { isEntitled } from './billing.js';
 import { getUserOpenaiKey } from './openaiKey.js';
 import { nextSlot } from './schedule.js';
-import { OPENAI_API_KEY } from './config.js';
 
 // Fine enough for "within a few minutes of its slot" (the story's acceptance
 // criterion) at one indexed query a minute.
@@ -111,10 +111,10 @@ async function claim(schedule, now) {
 /**
  * One pass: fire every schedule whose slot has arrived.
  * @param {number} [now] injectable clock, for tests
- * @returns {Promise<{ fired: number, runs: number, skipped: number, blocked: number }>}
+ * @returns {Promise<{ fired: number, runs: number, skipped: number, blocked: number, keyless: number }>}
  */
 export async function tick(now = Date.now()) {
-  if (!db()) return { fired: 0, runs: 0, skipped: 0, blocked: 0 };
+  if (!db()) return { fired: 0, runs: 0, skipped: 0, blocked: 0, keyless: 0 };
 
   const { rows: due } = await db().query(
     `select ${COLS} from schedules
@@ -127,6 +127,7 @@ export async function tick(now = Date.now()) {
   let runs = 0;
   let skipped = 0;
   let blocked = 0;
+  let keyless = 0;
 
   for (const schedule of due) {
     // A row that has never been dated isn't late — it just doesn't know when
@@ -160,6 +161,26 @@ export async function tick(now = Date.now()) {
       continue;
     }
 
+    // BYOK-only (US-039): a scheduled run is funded by its owner's stored key,
+    // so an owner without one has nothing to fire. Checked after the claim for
+    // the same reason billing is: a keyless month must not accumulate slots
+    // that all fire at once the moment a key is stored. Skipping here rather
+    // than at boot is what lets one owner's schedules run while another's wait
+    // — the old global refusal stopped the ticker for everyone. Waived in demo
+    // mode exactly like requireAgentKey: every demo run is a replay, so there
+    // is no LLM call for a key to fund.
+    let storedKey = null;
+    if (!demoMode()) {
+      storedKey = await getUserOpenaiKey(schedule.user_id);
+      if (!storedKey) {
+        keyless++;
+        console.log(
+          `schedule ${schedule.id.slice(0, 8)}: owner has no OpenAI key — slot skipped`
+        );
+        continue;
+      }
+    }
+
     const { label, tests } = await testsOf(schedule);
     if (!tests.length) {
       console.log(`schedule ${schedule.id.slice(0, 8)}: ${label} has no tests — nothing to run`);
@@ -175,9 +196,6 @@ export async function tick(now = Date.now()) {
       continue;
     }
 
-    // BYOK (US-005): a scheduled run bills the owner's stored key, not the
-    // operator's, when they have one; startRun falls back to the server key.
-    const storedKey = schedule.user_id ? await getUserOpenaiKey(schedule.user_id) : null;
     const started = runTests(ready, {
       trigger: 'schedule',
       user_id: schedule.user_id,
@@ -190,18 +208,12 @@ export async function tick(now = Date.now()) {
     );
   }
 
-  return { fired, runs, skipped, blocked };
+  return { fired, runs, skipped, blocked, keyless };
 }
 
 /** Tick every TICK_MS, starting now. Unref'd so it never holds the process open. */
 export function startScheduler() {
   if (!db()) return null;
-  if (!OPENAI_API_KEY) {
-    // Every run would fail on its first LLM call; firing them on a timer would
-    // just fill the history with identical errors nobody asked for.
-    console.warn('scheduler: OPENAI_API_KEY is not set — schedules are stored but will not fire');
-    return null;
-  }
   const run = () => tick().catch((err) => console.error('scheduler tick failed:', err));
   run();
   const timer = setInterval(run, TICK_MS);

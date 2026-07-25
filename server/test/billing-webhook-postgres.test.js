@@ -66,7 +66,6 @@ before(async () => {
   process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test_billing';
   process.env.STRIPE_PRICE_ID = 'price_test_123';
   process.env.PUBLIC_BASE_URL = 'https://qassist.test';
-  process.env.OPENAI_API_KEY = 'sk-test-not-a-real-key';
   process.env.PYTHON_BIN = process.execPath;
   process.env.AGENT_SCRIPT = path.join(__dirname, 'stubs', 'fake_agent.js');
 

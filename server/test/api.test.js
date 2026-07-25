@@ -10,6 +10,8 @@ import os from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import request from 'supertest';
+import { newDb, DataType } from 'pg-mem';
+import { registerDecode, seedStoredKey } from './helpers/stored-key.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TOKEN = 'test-token';
@@ -18,16 +20,40 @@ const auth = { Authorization: `Bearer ${TOKEN}` };
 /** @type {import('express').Express} */
 let app;
 let artifactsDir;
+/** @type {any} */
+let pool;
+let operatorId = '';
 
 before(async () => {
   artifactsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'qassist-test-'));
   // Config is read at import time, so env must be set before importing the app.
   process.env.WORKER_API_TOKEN = TOKEN;
-  process.env.OPENAI_API_KEY = 'sk-test-not-a-real-key'; // gates run creation
+  process.env.KEY_ENCRYPTION_SECRET = 'test-key-encryption-secret-0123456789';
   process.env.PYTHON_BIN = process.execPath; // stubs are .js, run them with node
   process.env.AGENT_SCRIPT = path.join(__dirname, 'stubs', 'fake_agent.js');
   process.env.REPORT_SCRIPT = path.join(__dirname, 'stubs', 'fake_report.js');
   process.env.ARTIFACTS_DIR = artifactsDir;
+
+  // The control plane is a boot requirement since US-039 (a run's key lives on
+  // a users row), so the app is always driven with one.
+  const mem = newDb();
+  mem.registerExtension('pgcrypto', (schema) => {
+    schema.registerFunction({
+      name: 'gen_random_uuid',
+      returns: DataType.uuid,
+      implementation: () => randomUUID(),
+      impure: true,
+    });
+  });
+  registerDecode(mem);
+  const { Pool } = mem.adapters.createPg();
+  pool = new Pool();
+  const { runMigrations, initDb, getOperatorUserId } = await import('../src/db.js');
+  await runMigrations(pool, { skipIndexes: true });
+  await initDb(pool);
+  operatorId = /** @type {string} */ (getOperatorUserId());
+  // BYOK-only (US-039): runs are funded by the caller's stored key.
+  await seedStoredKey(pool, operatorId);
   ({ app } = await import('../src/server.js'));
 });
 
@@ -67,14 +93,6 @@ test('rejects a run without goal or start_url', async () => {
 
 test('unknown run id is 404', async () => {
   await request(app).get('/api/runs/does-not-exist').set(auth).expect(404);
-});
-
-test('saved tests/suites answer 503 without DATABASE_URL (legacy mode)', async () => {
-  const res = await request(app).get('/api/tests').set(auth).expect(503);
-  assert.match(res.body.error, /DATABASE_URL/);
-  await request(app).post('/api/suites').set(auth).send({ name: 'x' }).expect(503);
-  const health = await request(app).get('/api/health').expect(200);
-  assert.equal(health.body.db, false);
 });
 
 test('full lifecycle: run passes and serves a PDF report', async () => {
@@ -130,8 +148,14 @@ test('full lifecycle: run passes and serves a PDF report', async () => {
 
 test('steps of a run that has left the relay are read from report_data.json', async () => {
   // RUN_TTL keeps test runs in memory for an hour, so the disk branch is
-  // reached the way a restarted server reaches it: a run dir with no run.
+  // reached the way a restarted server reaches it: a run dir with no run in
+  // the relay — but a persisted row, which is what scopes the artifact to its
+  // owner (runOwned).
   const runId = randomUUID();
+  await pool.query(
+    `insert into runs (id, user_id, goal, start_url, max_steps, status) values ($1, $2, 'g', 'u', 1, 'passed')`,
+    [runId, operatorId]
+  );
   const steps = [{ step: 1, elapsed: 0.4, next_goal: 'open page', evaluation: null, url: 'https://example.com', screenshot_file: 'step_01.png' }];
   fs.mkdirSync(path.join(artifactsDir, runId), { recursive: true });
   fs.writeFileSync(

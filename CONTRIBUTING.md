@@ -9,7 +9,7 @@ patch you send.
 Two paths, and which one you want depends on what you're changing:
 
 - **Just running it** — Docker only: `cp .env.example .env`, set
-  `WORKER_API_TOKEN` and `OPENAI_API_KEY`, then `docker compose up --build`
+  `WORKER_API_TOKEN` and `KEY_ENCRYPTION_SECRET`, then `docker compose up --build`
   and open <http://localhost:8080>. Full detail: [Run it](README.md#run-it).
 - **Working on it** — Node 22+, Python 3.11+ and Docker on the host. The
   one-time setup (agent venv with Playwright Chromium, `npm install` in

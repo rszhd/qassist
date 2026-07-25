@@ -1,36 +1,29 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Button } from './ui.jsx';
 import { api } from './api.js';
 import { formatWhen } from './status.js';
 
-// Bring-your-own OpenAI key (US-005): a per-user key the agent runs on, stored
-// encrypted server-side. Shown only in multi-user mode. The value leaves the
-// browser exactly once per save and is never read back — the UI only ever knows
-// whether a key is stored and when it was set.
-export default function OpenaiKey() {
-  const [status, setStatus] = useState(null); // { set, updated_at }
+// Bring-your-own OpenAI key (US-005): the key the agent runs on, stored
+// encrypted server-side. Since US-039 it is the ONLY way a run is funded, so
+// this renders in every mode with an agent — the solo self-hoster's key lands
+// on the seeded operator the same way a tenant's lands on their row. The value
+// leaves the browser exactly once per save and is never read back; App owns
+// the { set, updated_at } status (the Run view's setup banner reads it too)
+// and hands it down with the reload that keeps both in step.
+export default function OpenaiKey({ token, status, onReload }) {
   const [value, setValue] = useState('');
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
 
-  const load = () =>
-    api('/api/account/openai-key')
-      .then(setStatus)
-      .catch((e) => setError(e.message));
-
-  useEffect(() => {
-    load();
-  }, []);
-
   async function save() {
     setBusy(true);
     setError(null);
     try {
-      await api('/api/account/openai-key', { method: 'PUT', body: { key: value.trim() } });
+      await api('/api/account/openai-key', { token, method: 'PUT', body: { key: value.trim() } });
       setValue('');
       setEditing(false);
-      await load();
+      onReload();
     } catch (e) {
       setError(e.message);
     } finally {
@@ -41,10 +34,10 @@ export default function OpenaiKey() {
   async function remove() {
     setError(null);
     try {
-      await api('/api/account/openai-key', { method: 'DELETE' });
+      await api('/api/account/openai-key', { token, method: 'DELETE' });
       setValue('');
       setEditing(false);
-      await load();
+      onReload();
     } catch (e) {
       setError(e.message);
     }

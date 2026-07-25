@@ -27,7 +27,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-const HEALTH = { auth: true, auth_mode: 'multi', db: true, agent_ready: true, mail: true };
+const HEALTH = { auth: true, auth_mode: 'multi', db: true, mail: true };
 
 // Every request the shell makes in multi mode, plus whatever the test wants
 // billing to answer. Returns the call log so a test can assert on what was

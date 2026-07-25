@@ -70,8 +70,15 @@ APP_HOST=app.qassist.run
 PUBLIC_BASE_URL=https://app.qassist.run    # must agree with APP_HOST
 ACME_EMAIL=you@example.com
 QASSIST_IMAGE=ghcr.io/<owner>/qassist:<tag>
-OPENAI_API_KEY=sk-...
+KEY_ENCRYPTION_SECRET=<openssl rand -hex 32>
 ```
+
+There is deliberately no server-wide OpenAI key variable (US-039): every run is
+funded by the key its caller stored in Settings, encrypted under
+`KEY_ENCRYPTION_SECRET`.
+Generate that secret once and keep it with the volume — losing it makes every
+stored key undecryptable. A deployed instance holds no key of its own, so a
+hostname anyone can register on cannot spend yours.
 
 `PUBLIC_BASE_URL` is not cosmetic: it is what puts a working recording link in
 the PDF, a working run link in notification mail, and — because it is how the
@@ -85,11 +92,10 @@ lands at **3 for production and 1 for staging**, not the 6 the rule alone would
 suggest.
 
 If this instance runs multi-user auth, also set `AUTH_ENABLED=1`,
-`SESSION_SECRET`, `KEY_ENCRYPTION_SECRET`, `RESEND_API_KEY` and `MAIL_FROM`; the
-app refuses to boot with auth on and any of the first three missing. Generate
-each secret with `openssl rand -hex 32`, and generate them *separately* —
-`KEY_ENCRYPTION_SECRET` is deliberately not `SESSION_SECRET`, so that rotating
-sessions never makes every stored BYOK key undecryptable.
+`SESSION_SECRET`, `RESEND_API_KEY` and `MAIL_FROM`; the app refuses to boot
+with auth on and any of them missing. Generate `SESSION_SECRET` with
+`openssl rand -hex 32`, *separately* from `KEY_ENCRYPTION_SECRET` — rotating
+sessions must never make every stored BYOK key undecryptable.
 
 **4. Up.**
 
@@ -106,6 +112,14 @@ a different database.
 The first request to the hostname is what triggers certificate issuance; give it
 a few seconds. `docker compose -p qassist-proxy logs traefik` shows the ACME
 exchange if it doesn't.
+
+**If the hostname answers HTTPS with a `TRAEFIK DEFAULT CERT` and the HTTP→HTTPS
+redirect still works, the Docker provider is down, not ACME.** The redirect is
+static entrypoint config, so it survives a provider that never loaded — which
+makes this look like a certificate problem when it is a discovery problem. The
+log says so plainly (`client version 1.24 is too old`): Traefik before v3.7
+pinned Docker API 1.24 and Engine 29 requires ≥1.40, which is why
+`docker-compose.proxy.yml` pins v3.7. Seen on this box, 2026-07-25.
 
 ## Verifying a deployment
 
@@ -184,11 +198,12 @@ The ones that matter most:
   on staging may carry a stranger's. `MAIL_DEV_CONSOLE` stays **off**: the point
   is to prove the Resend path works, and console-logging proves nothing.
 
-**3. Up.** Name the env file once, in a shell variable, and pass it to both
-`--env-file` and the container:
+**3. Up.** Name the env file once, in an **exported** shell variable, and pass
+it to both `--env-file` and the container:
 
 ```sh
-ENV_FILE=.env.staging docker compose -p qassist-staging \
+export ENV_FILE=.env.staging
+docker compose -p qassist-staging \
   -f docker-compose.yml -f docker-compose.prod.yml \
   --env-file "$ENV_FILE" up -d
 ```
@@ -198,6 +213,17 @@ the compose files — it does not change which file is loaded *into* the
 container. `ENV_FILE` is what does that, and passing one variable to both is
 what stops them disagreeing. Production needs neither: `ENV_FILE` defaults to
 `.env`.
+
+`export` on its own line is load-bearing, and the obvious one-liner is wrong.
+In `ENV_FILE=.env.staging docker compose … --env-file "$ENV_FILE"` the
+assignment is a *command prefix*: it goes into the environment of the command
+being run, but the shell expands that command's own arguments first, while
+`ENV_FILE` is still unset. So `--env-file` receives an empty string,
+interpolation falls back to `.env`, and you get a stack named
+`qassist-staging` running **production's** hostname and secrets — the trap
+below, rebuilt out of shell semantics instead of compose ones. Caught on the
+box, 2026-07-25. `set -u` turns it into an error instead of a silent
+production-config boot, which is a good reason to run the stand-up under it.
 
 Confirm it took, because this is the failure that looks like success:
 
@@ -211,8 +237,13 @@ docker compose -p qassist-staging exec qassist printenv PUBLIC_BASE_URL
 
 ```sh
 docker compose -p qassist-staging -f docker-compose.yml -f docker-compose.prod.yml \
+  --env-file "$ENV_FILE" \
   exec qassist node /app/server/scripts/seed-staging.mjs you@example.com
 ```
+
+`--env-file` is needed even for `exec`: naming the compose files means they get
+interpolated, and without it `APP_HOST` comes from `.env` — which on a box where
+production is not up is unset, so the overlay's `APP_HOST:?` guard aborts.
 
 That seeds a project, a module, four tests, a suite, a schedule and five
 finished runs — the demo sandbox's dataset (US-036), minus the TTL, so the demo
@@ -265,7 +296,8 @@ Staging green is what earns a tag production's `.env`:
 ```sh
 # 1. staging runs the candidate
 #    .env.staging: QASSIST_IMAGE=ghcr.io/<owner>/qassist:1.4.0
-ENV_FILE=.env.staging docker compose -p qassist-staging \
+export ENV_FILE=.env.staging          # exported, not a command prefix — see above
+docker compose -p qassist-staging \
   -f docker-compose.yml -f docker-compose.prod.yml --env-file "$ENV_FILE" up -d
 
 # 2. it comes up healthy against a populated database, and migrations applied

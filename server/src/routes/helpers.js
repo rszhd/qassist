@@ -1,11 +1,10 @@
 // @ts-check
 import { db, currentUserId } from '../db.js';
-import { authEnabled, demoMode } from '../auth.js';
+import { demoMode } from '../auth.js';
 import { runTests } from '../runs.js';
 import { validOpenaiKeyShape } from '../crypto.js';
 import { getUserOpenaiKey, resolveRunKey } from '../openaiKey.js';
 import { billingEnabled, billingStateFor } from '../billing.js';
-import { OPENAI_API_KEY } from '../config.js';
 
 /** Triggers a caller may set; 'schedule' is US-010's, not callers'. */
 export const TRIGGERS = new Set(['ui', 'api', 'ci']);
@@ -27,10 +26,11 @@ export function h(fn) {
   return (req, res, next) => fn(req, res).catch(next);
 }
 
-// Resolve which OpenAI key a run will use and fail fast if there is none, rather
-// than letting the agent die on the first LLM call. Applies to every route that
-// starts a run. BYOK (US-005): a per-request `openai_api_key` wins over the
-// caller's stored key, which wins over the server key. The resolved value is
+// Resolve which OpenAI key a run will use and refuse the run if there is none,
+// rather than letting the agent die on the first LLM call. Applies to every
+// route that starts a run. BYOK (US-005/US-039): a per-request `openai_api_key`
+// wins over the caller's stored key, and there is nothing after that — the
+// instance never funds a run out of its own pocket. The resolved value is
 // stashed on `req.runOpenaiKey` for the handler to pass into the run — never
 // echoed back. Async because the stored key is decrypted from the DB.
 /** @type {import('express').RequestHandler} */
@@ -46,16 +46,16 @@ export function requireAgentKey(req, res, next) {
   }
 
   (async () => {
-    const uid = authEnabled() ? currentUserId() : null;
-    const storedKey = uid ? await getUserOpenaiKey(uid) : null;
+    // The stored key is the request user's when auth is on and the seeded
+    // operator's when it is off (currentUserId covers both), so a solo
+    // self-host stores its key exactly like a tenant does. Not decrypted when
+    // a request key is present — precedence says it could never win.
+    const storedKey = requestKey ? null : await getUserOpenaiKey(currentUserId());
     const key = resolveRunKey({ requestKey, storedKey });
-    if (!key && !OPENAI_API_KEY) {
-      res.status(503).json({
-        error: authEnabled()
-          ? 'no OpenAI key: add yours in Settings, or the operator can set OPENAI_API_KEY'
-          : 'OPENAI_API_KEY is not set — copy .env.example to .env, add your key, ' +
-            'then restart with: docker compose up -d',
-      });
+    if (!key) {
+      // One message for every mode. Someone who registered on an instance they
+      // don't operate has no `.env` to edit; Settings is what they can act on.
+      res.status(503).json({ error: 'no OpenAI key: add yours in Settings' });
       return;
     }
     /** @type {any} */ (req).runOpenaiKey = key;

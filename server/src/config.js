@@ -49,16 +49,17 @@ export const REPORT_DATA_FILENAME = 'report_data.json';
 // what has to go. 0 disables pruning (keep artifacts until the disk fills).
 export const ARTIFACT_RETENTION_DAYS = parseInt(process.env.ARTIFACT_RETENTION_DAYS || '7', 10);
 
-// The agent can't run without a model key. Checked up front so a missing key
-// is a clear message at startup and on POST, not a Python traceback ~15s into
-// the first run. US-005 (BYOK) will extend this to per-request/stored keys.
-export const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
+// There is deliberately no OPENAI_API_KEY here (US-039). A run is funded by the
+// key its caller supplied — per-request, else the caller's stored one — and by
+// nothing else, so that standing this app up in front of other people cannot
+// spend the operator's tokens. One way to fund a run, not two plus a rule about
+// which applies when.
 
 // Encrypts users' stored BYOK keys at rest (US-005). Deliberately its OWN
 // secret, not SESSION_SECRET: rotating SESSION_SECRET is the documented
 // session-revocation lever (auth.js), and it must never silently make every
-// stored OpenAI key undecryptable. Unset = stored keys are disabled (the field
-// is hidden and per-request BYOK / the server key still work).
+// stored OpenAI key undecryptable. Required since US-039 — with no server key
+// to fall back on, blank would leave no way to supply a key at all (boot.js).
 export const KEY_ENCRYPTION_SECRET = process.env.KEY_ENCRYPTION_SECRET || '';
 
 // Email notifications (US-012). Unset key or sender = the feature is off:
@@ -124,8 +125,10 @@ export const DEMO_MAX_TENANTS = parseInt(process.env.DEMO_MAX_TENANTS || '200', 
 export const DEMO_IP_MAX = parseInt(process.env.DEMO_IP_MAX || '5', 10);
 export const DEMO_IP_WINDOW_MS = parseInt(process.env.DEMO_IP_WINDOW_SECONDS || '3600', 10) * 1000;
 
-// Control plane (US-009). No DATABASE_URL = legacy in-memory mode: ad-hoc
-// runs work, saved tests/suites respond 503.
+// Control plane (US-009). Required since US-039: a run needs its caller's key,
+// and that key lives on a `users` row — so without the control plane there is
+// nothing this app can do. The legacy in-memory mode is gone; server.js refuses
+// to boot rather than serving a half-app (boot.js).
 export const DATABASE_URL = process.env.DATABASE_URL || '';
 export const OPERATOR_EMAIL = process.env.OPERATOR_EMAIL || 'operator@qassist.local';
 export const MIGRATIONS_DIR =
