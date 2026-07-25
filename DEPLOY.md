@@ -369,12 +369,20 @@ docker compose -p qassist-demo exec qassist ls /app/demo
 **1. DNS.** An `A` record for `demo.qassist.run` → the same IP. (Added alongside
 production's in step 1 above.)
 
-**2. Configure.** `cp .env .env.demo`, then work through
-[`.env.demo.example`](.env.demo.example) — the diff from production, not a
-second copy. Two to get right twice: `SESSION_SECRET`, because `demoMode()` ANDs
-it in and a blank one means this hostname is not serving what you think it is;
-and `TRUST_PROXY=1`, without which `DEMO_IP_MAX` counts Traefik's address rather
+**2. Configure.** Copy a *complete app* env and work through
+[`.env.demo.example`](.env.demo.example) — the diff from that, not a second copy.
+`cp .env .env.demo` is right only once production exists: on a box that runs the
+proxy plus staging, `.env` holds `ACME_EMAIL` for the proxy project and nothing
+else, so copying it yields an env missing everything. `--env-file` replaces
+rather than merges, so start from whichever complete app env the box has.
+
+Two to get right twice: `SESSION_SECRET`, because `demoMode()` ANDs it in and a
+blank one means this hostname is not serving what you think it is; and
+`TRUST_PROXY=1`, without which `DEMO_IP_MAX` counts Traefik's address rather
 than each visitor's and the demo turns away its sixth stranger of the hour.
+
+Every secret must be **freshly generated**, not inherited from the stack you
+copied — the isolation check below is what catches it if not.
 
 **3. Up.** Same shape as staging, and the exported `ENV_FILE` is load-bearing
 for the same reason (see [Standing it up](#standing-it-up) under Staging — the
@@ -417,7 +425,20 @@ curl -sSI https://demo.qassist.run | grep -i x-robots-tag        # all
 Then in a browser: History, Projects, Suites, Schedules and Settings are all
 populated, Run streams a replay over the WebSocket and writes into *that*
 tenant's history, and a second browser (or a private window) sees none of it.
-While a demo run plays, `docker stats` shows no Chromium.
+While a demo run plays, no Chromium exists — the container is running `sh` and
+`node` and nothing else.
+
+To check the WebSocket from the shell instead, **force HTTP/1.1**. Over HTTP/2
+curl negotiates away the upgrade, Express never matches `/ws`, and you get a 404
+that reads like a broken route:
+
+```sh
+curl -sSi -N --http1.1 -b /tmp/demo.jar \
+  -H 'Connection: Upgrade' -H 'Upgrade: websocket' \
+  -H 'Sec-WebSocket-Version: 13' -H "Sec-WebSocket-Key: $(openssl rand -base64 16)" \
+  "https://demo.qassist.run/ws?runId=<id>"
+# 101 Switching Protocols, then the fixture's step events
+```
 
 **The reaper is the one thing only the box can prove.** Its rows-and-disk halves
 are pinned assertion-first in the test suite, but the disk half is only real

@@ -6,11 +6,19 @@ that** I can decide whether to sign up; and **as the** operator, **I want** that
 surface to be a third isolated stack that can neither reach production's data
 nor spend anything.
 
-- **Status:** 🧱 Repo side done (2026-07-26) — the image carries `demo/`,
-  `TRUST_PROXY` makes the per-IP throttle per-*visitor* behind the proxy
-  (assertion-first), and `.env.demo.example` + `DEPLOY.md`'s Demo section
-  document the stand-up. What is left is the box: DNS, a tag built after
-  `v0.2.0`, and the criteria only a live deployment can close.
+- **Status:** 🟢 **Live at `https://demo.qassist.run`** (2026-07-26) on
+  `ghcr.io/rszhd/qassist:0.2.1` — the tag cut for this, since `v0.2.0` predates
+  the fixture `COPY` and would have booted healthy and failed every run. Ten of
+  eleven criteria closed on the box, including the two only a deployment can
+  prove: the reaper's disk half, and the per-visitor throttle (which a passing
+  stranger proved for us — see below).
+
+  **One thing open, and it is the point of the story: the CTA is dead.**
+  `DEMO_CTA_URL=https://qassist.run` and that apex has no DNS record, so the
+  banner renders a "Sign up free" button that leads nowhere. The conversion
+  surface is live with its conversion path broken, which argues for not
+  publicising the demo until it points somewhere real. It is a one-line `.env`
+  change, no rebuild — see the CTA criterion below.
 - **Priority:** P1 — [US-036](done/US-036-demo-sandbox.md) shipped the whole
   sandbox on 2026-07-24 and **nothing runs it**. `AUTH_MODE=demo` is set on no
   deployment, so the provisioner, the seeder, the interceptor and the reaper are
@@ -139,33 +147,101 @@ from production, not a second copy. ✅ Written 2026-07-26. `DEPLOY.md` gains a
 - [x] The published image contains `demo/`, and `DEMO_DIR` resolves inside the
       container (`docker compose exec qassist ls /app/demo` lists both fixtures)
       — the `COPY` landed 2026-07-26 and the context was proven to carry both
-      fixture dirs; the `exec` half re-checks it on the box, on the first tag
-      built after `v0.2.0`
+      fixture dirs; the `exec` half was re-checked on the box against `0.2.1`
+      the same day and lists `discount-broken` and `register-account`
 - [x] A visitor is throttled by *their* address, not by Traefik's — the
       `TRUST_PROXY` fix above, without which `DEMO_IP_MAX` caps the whole
-      deployment (2026-07-26; the box half is two networks, e.g. a laptop and a
-      phone off wifi, since one machine sees the same refusal either way)
-- [ ] `https://demo.qassist.run` serves the UI on its own Let's Encrypt
-      certificate through the shared proxy, `http` 308s to `https`, and
+      deployment. **Proven on the box 2026-07-26, and the second network arrived
+      on its own.** Within six minutes of the Let's Encrypt cert hitting the
+      public CT logs, four tenants were minted from an address that was not
+      mine. So the sequence through one Traefik container was: 2 mine, 4
+      theirs, then 3 more mine — my sixth mint refused at exactly `DEMO_IP_MAX`
+      while a stranger's succeeded in between. Under a deployment-wide bucket
+      the seventh mint overall would have been refused and those visitors would
+      have been turned away by *my* testing. That is the criterion, measured.
+
+      The same run also shows the cap is not spoofable: `X-Forwarded-For`
+      headers I wrote myself did **not** open new buckets (201, 201, then 429 on
+      an address I claimed was fresh), because one hop counts the address the
+      proxy vouched for. This is why `TRUST_PROXY=1` and not `true` — see above.
+
+      Operational note for whoever announces this: a new public hostname is
+      found through certificate transparency within minutes, and each scanner
+      that executes the SPA burns a tenant. `DEMO_MAX_TENANTS=200` against a
+      1 h TTL has the headroom, but the baseline is not zero.
+- [x] `https://demo.qassist.run` serves the UI on its own Let's Encrypt
+      certificate through the shared proxy, `http` redirects to `https`, and
       `printenv PUBLIC_BASE_URL` inside the container says `demo.qassist.run`
-      (US-038's failure-that-looks-like-success check)
-- [ ] A visitor with no cookie lands and is inside a seeded tenant with no login
+      (US-038's failure-that-looks-like-success check) — 2026-07-26. Cert
+      `CN = demo.qassist.run`, issuer Let's Encrypt, expires 2026-10-23.
+      The redirect is **301, not the 308 this line and US-038's claimed**;
+      staging returns 301 too, so the deployments agree and the number in both
+      stories was the guess. Traefik's `redirectScheme` with `permanent: true`
+      is a 301 — nothing to fix but the docs
+- [x] A visitor with no cookie lands and is inside a seeded tenant with no login
       wall: History, Projects, Suites, Schedules and Settings all populated
-- [ ] Pressing Run streams a replay over the WebSocket through Traefik and
-      writes a run into *their* history — and `docker stats` shows no Chromium,
-      `/api/health` reports `agent_ready:false`, and no LLM call is made
-- [ ] Two browsers (or one plus a private window) get two tenants that cannot
-      see each other's tests or runs
+      (2026-07-26 — `POST /api/demo/session` 201s with an `expiresAt`, and all
+      five collections come back populated on the cookie it sets)
+- [x] Pressing Run streams a replay over the WebSocket through Traefik and
+      writes a run into *their* history — and no Chromium, and no LLM call is
+      made (2026-07-26). The WS upgrade through Traefik needs HTTP/1.1: over
+      HTTP/2 the handshake headers are meaningless and Express 404s the path,
+      which looks like a routing bug and isn't. On 1.1 it is `101 Switching
+      Protocols` followed by the fixture's `recording`, five `step`s and
+      `{"type":"end","status":"passed","demo":true}`. Process names inside the
+      container during a live replay are exactly `sh` and `node` — no Chromium,
+      no agent, so no key was ever needed. Artifacts are symlinks into
+      `/app/demo` (2 runs = 12 KB) and `report.pdf` still serves, 79 KB, through
+      the app. **`/api/health` no longer carries `agent_ready`** — US-039 removed
+      it, so that clause of this criterion was stale when written
+- [x] Two browsers (or one plus a private window) get two tenants that cannot
+      see each other's tests or runs (2026-07-26 — two cookie jars, 4 tests /
+      5 runs / 1 project each, **zero shared ids**, and a run started by one is
+      absent from the other's history)
 - [ ] The demo banner names the expiry and its CTA links to the real signup page
-- [ ] After `DEMO_TTL_SECONDS`, the reaper has deleted an expired tenant's rows
+      — **half.** `POST /api/demo/session` returns the `expiresAt` the banner
+      phrases, and `/api/health` carries `cta_url`, so the banner renders. But
+      `DEMO_CTA_URL=https://qassist.run` and the apex **has no DNS record at
+      all** — the one button the deployment exists to drive is dead. Nothing to
+      fix here: it is a one-line `.env` change the moment a signup page exists,
+      and until then this is the story's "where does the CTA point?" decision
+      with neither of its two answers built
+- [x] After `DEMO_TTL_SECONDS`, the reaper has deleted an expired tenant's rows
       **and** its `runs-demo/<id>/` directories — verified on the box, since this
-      is the one US-036 assertion whose real-world half is disk
-- [ ] Enabling failure emails inside a sandbox and running a failing test sends
-      **nothing** (no `notifications` row reaches `status=sent`)
-- [ ] The three stacks are isolated: a demo session cookie and a demo API key are
+      is the one US-036 assertion whose real-world half is disk. 2026-07-26: one
+      tenant's `demo_expires_at` was back-dated a minute (rather than idling an
+      hour — the sweep is what is under test, not the clock), and the next
+      quarter-hourly sweep took it. Rows **and** all four `runs-demo/<id>/`
+      directories went in the same pass, and it was surgical: the other 8 live
+      tenants untouched, and `select count(*) from runs where user_id is null`
+      still **0** — the orphan the reaper's delete-ordering exists to prevent.
+
+      The half nobody wrote down: **the fixtures survived.** Every artifact in
+      those directories is a symlink into `/app/demo`, so a recursive delete
+      that followed links would have taken `recording.mp4` and `report.pdf` with
+      it and broken every later run on the deployment — silently, since the
+      reaper is the only thing that would have touched them and it runs
+      unattended. `fs.rmSync` removes the links; `/app/demo/register-account`
+      still lists all four files. Checked because the disk half is the reason
+      this criterion says "on the box".
+- [x] Enabling failure emails inside a sandbox and running a failing test sends
+      **nothing** (no `notifications` row reaches `status=sent`) — 2026-07-26,
+      and done as the attack it models: a visitor PUT their sandbox project to
+      `notify=failure`, `notify_emails=["stranger@example.com"]` (accepted, 200),
+      then ran the `discount-broken` fixture to a real `failed`. `notifications`
+      holds **zero rows of any status**, and the only mail-shaped line in the
+      logs is the name of migration `004_notifications.sql`. Worth knowing for
+      the next person: the fixture only replays on an *exact* goal match, so a
+      truncated goal falls through to `DEFAULT_FIXTURE` and passes — a failing
+      run needs the seeded test's full goal string
+- [x] The three stacks are isolated: a demo session cookie and a demo API key are
       refused by production and by staging, `qassist-demo_pgdata` is its own
-      volume, and `docker compose -p qassist-demo down -v` touches neither of the
-      others
+      volume (2026-07-26 — both credentials 401 against staging; volumes are
+      `qassist-demo_pgdata` and `qassist-staging_pgdata`). The **production half
+      is untestable and stays unticked in spirit**: production does not exist,
+      exactly as this story's last "decisions" bullet anticipated. Re-run the two
+      curls when it does; `down -v` was not exercised, since proving it destroys
+      the deployment it proves
 - [x] `DEPLOY.md` documents standing it up and `.env.demo.example` carries the
       config table; nothing about the deployment lives only on the box
       (2026-07-26)
