@@ -2,7 +2,10 @@
 
 **As a** user or CI pipeline, **I want** to reach the QAssist UI/API over HTTPS without an SSH tunnel, **so that** the service is usable from anywhere and integrations become possible.
 
-- **Status:** 📋 Planned
+- **Status:** 🧱 Repo side shipped (2026-07-25) — `docker-compose.prod.yml`,
+  `docker-compose.proxy.yml` and `DEPLOY.md` are in and validated by rendering
+  `docker compose config`. What is left is the trip to the box: DNS, the
+  certificate, and the criteria below that only a running deployment can meet.
 - **Priority:** P1 (current sprint) — hard dependency of US-008 tier 1 (CI must reach the API); unblocks any external users
 - **Estimate:** ~2 h (plus domain/DNS)
 - **Depends on:** app domain is **qassist.run** (decided 2026-07-22) — point it
@@ -42,6 +45,33 @@ still just works. A new `docker-compose.prod.yml` adds the Traefik service, the
 TLS/router labels on `qassist`, and drops the host 8080 publish. Deploy is
 `docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d`.
 
+**Revised on implementation (2026-07-25): Traefik is its own compose project**
+(`docker-compose.proxy.yml`), not a service inside the prod overlay. US-038 puts
+a second stack on the same box behind the same proxy, and a proxy that belongs
+to the production project would mean `down` on production takes staging's TLS
+with it — and a second project defining the same service would race to bind
+:443. As its own project it is shared infrastructure: the two app stacks meet it
+on the external `qassist-edge` network, and because Traefik discovers backends
+through the Docker socket, a new stack needs no change to the proxy at all.
+
+The overlay itself is **parameterized rather than duplicated**, which is what
+lets US-038 be `-p` + `--env-file` and nothing else. Three things were found by
+rendering `docker compose config` rather than by reading the docs, and each
+would have been a silent failure on the box:
+
+- Compose merges list fields by **appending**, so omitting `ports` in the
+  overlay keeps the base file's `8080` and `5433` published. `!override []` is
+  what actually drops them — and 5433 is what two stacks would collide on.
+- Compose interpolates label **values but not label keys**, so
+  `${COMPOSE_PROJECT_NAME}` in the `key: value` map form renders literal. The
+  labels are written in list form (`- key=value`) so each stack's router is
+  named after its project and staging's cannot collide with production's.
+- `--env-file` feeds **interpolation only** — it does not change which file the
+  base file's `env_file:` loads into the container. Left alone, a stack started
+  with `--env-file .env.staging` takes its hostname from staging and its
+  `SESSION_SECRET`, Stripe keys and mail recipients from production. The overlay
+  overrides `env_file` to `${ENV_FILE:-.env}`.
+
 ### Scope of this story vs later
 
 This story is **compose + config only**: the Traefik service, TLS/labels,
@@ -73,7 +103,7 @@ there was no URL to give it.
       compose network); only 443 + 80 are exposed
 - [ ] Unauthenticated requests still get 401
 - [ ] Certificate auto-renews (Traefik ACME resolver; cert store on a named volume)
-- [ ] The prod overlay (`docker-compose.prod.yml`) and a `DEPLOY.md` runbook are
+- [x] The prod overlay (`docker-compose.prod.yml`) and a `DEPLOY.md` runbook are
       in the repo; nothing about the deployment lives only on the box
 - [ ] qassist.run is verified in Resend (SPF + DKIM), and a real failing run
       mails its report to an address that is **not** the Resend account owner's

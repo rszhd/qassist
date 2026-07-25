@@ -17,6 +17,20 @@
 services:
   qassist:
     image: ${QASSIST_IMAGE:-qassist:latest}
+    # `--env-file` feeds compose-file interpolation ONLY — it does not change
+    # what the base file's `env_file:` loads into the container, which is `.env`
+    # by name. Without this override a second stack started with
+    # `--env-file .env.staging` would take its hostname from staging and its
+    # SESSION_SECRET, STRIPE keys and mail recipients from production.
+    #
+    # So the file is named once, in ENV_FILE, and passed to both — the shell
+    # environment wins over --env-file during interpolation, so
+    # `ENV_FILE=.env.staging docker compose … --env-file "$ENV_FILE"` cannot
+    # disagree with itself. Required, unlike the base file's: a public stack
+    # with no configuration should fail loudly rather than boot unconfigured.
+    env_file: !override
+      - path: ${ENV_FILE:-.env}
+        required: true
     # A server that never sees the source (US-032): drop the base file's build
     # context so `up` pulls a released tag rather than compiling Chromium.
     build: !reset null

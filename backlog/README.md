@@ -47,8 +47,8 @@ release-plumbing stories turned out to share an unstated fifth.
 
 | ID | Story | Status | Depends on |
 |---|---|---|---|
-| [US-007](sprint/current/US-007-https-reverse-proxy.md) | Public HTTPS via reverse proxy (and the Resend sender domain) | 📋 Planned | domain (owned) |
-| [US-038](sprint/current/US-038-staging-environment.md) | Staging environment (`staging.qassist.run`) | 📋 Planned | US-007 |
+| [US-007](sprint/current/US-007-https-reverse-proxy.md) | Public HTTPS via reverse proxy (and the Resend sender domain) | 🧱 Repo side shipped (2026-07-25) — overlay, proxy, `DEPLOY.md`; DNS + the box left | domain (owned) |
+| [US-038](sprint/current/US-038-staging-environment.md) | Staging environment (`staging.qassist.run`) | 🧱 Repo side shipped (2026-07-25) — needed no overlay branch; DNS + the box left | US-007 |
 | [US-008](sprint/current/US-008-cicd-integration.md) | CI/CD trigger: the documented pipeline step | 📝 Docs written, unverified | US-007, US-009 |
 | [US-031](sprint/current/US-031-license-and-public-repo.md) | License the code and open the repo | 📋 Planned | — |
 | [US-032](sprint/current/US-032-release-pipeline-and-image.md) | CI on every push, a published image on every tag | 📋 Planned | US-031 |
@@ -178,6 +178,15 @@ US-020/US-010/US-012 touch the frontend than after.
    instance people are using. US-007's DNS visit also verifies the Resend sender
    domain (US-012's one outstanding item) and adds the `staging.` A record in
    the same sitting, so US-038 costs no second trip to the DNS panel.
+   **US-007 and US-038's repo halves shipped together on 2026-07-25**, in that
+   order and in one sitting, because US-038's premise — staging is the prod
+   overlay *parameterized*, not a second one — is a constraint on how US-007's
+   overlay is written, and it is cheaper to honour than to retrofit. So the
+   overlay took its hostname, image tag, artifact directory, robots header and
+   env file from variables from its first line, Traefik became its own compose
+   project so one stack's `down` cannot take another's TLS, and staging needed
+   no branch anywhere. Both stories stay open: every remaining criterion needs
+   the box, and neither is done until it is standing.
 9. **US-031 → US-032** — the licence and the public repo, then the CI and the
    published image. Last, and in that order: US-032 wants a public repo for
    free Actions minutes and a ghcr package, and both stories rewrite the README

@@ -2,7 +2,11 @@
 
 **As the** maintainer, **I want** a staging deployment at `staging.qassist.run` that is the production stack with production's data swapped out, **so that** a release, a migration, a Stripe round trip and a CI snippet can all be proven against something real before the thing real users are on.
 
-- **Status:** 📋 Planned
+- **Status:** 🧱 Repo side shipped (2026-07-25) — `.env.staging.example`, the
+  `DEPLOY.md` staging + promotion sections, the `noindex` middleware and
+  `server/scripts/seed-staging.mjs`. The overlay needed no staging branch, as
+  planned. What is left is the box: the DNS record, standing the stack up, and
+  the criteria below that only a running staging environment can meet.
 - **Priority:** P1 (current sprint, added 2026-07-25) — it blocks nothing by
   itself, but it is where three other stories in this sprint finish: each of
   US-022, US-008 and US-032 currently has "verify against production" as its
@@ -97,13 +101,35 @@ proves nothing. Real sends, maintainer-only recipients.
 - A seeded staging tenant with a handful of saved tests and projects, so the
   environment is populated enough for a migration to be tested against
   something. Cheap version: run the demo fixtures' seed once against staging.
+  **Shipped as `server/scripts/seed-staging.mjs`**, which exports and reuses
+  US-036's `seedTenant()` rather than growing a second dataset — same project,
+  module, four tests, suite, schedule and five finished runs, minus the TTL. The
+  tenant's `demo_expires_at` stays null and the reaper only selects rows where
+  it `is not null`, so nothing sweeps it. The email is a required argument
+  rather than defaulting to `OPERATOR_EMAIL` (a default is what would let a
+  mistyped `-p` seed production's operator), and it refuses an account that
+  already owns anything, so re-running is a no-op.
+
+**The trap this story turned up (2026-07-25):** `--env-file` feeds *compose-file
+interpolation only*. It does not change what the base file's `env_file:`
+directive loads into the container, which is `.env` by name — so the first
+render of a `--env-file .env.staging` stack took its hostname from staging and
+its `SESSION_SECRET`, Stripe keys and mail recipients from **production**. That
+is three of the criteria below failing silently, in the exact shape this story
+exists to prevent. The prod overlay now overrides `env_file` to
+`${ENV_FILE:-.env}`, named once in a shell variable and passed to both, and
+`DEPLOY.md` makes `printenv PUBLIC_BASE_URL` in the running container a
+stand-up step.
 
 ## Acceptance criteria
 
 - [ ] `https://staging.qassist.run` serves the UI over its own certificate, and
       the API + WebSocket live view work through it
-- [ ] Staging and production run from the **same** compose files — the only
-      difference is `-p`, `--env-file`, and the image tag
+- [x] Staging and production run from the **same** compose files — the only
+      difference is `-p`, `--env-file`, and the image tag. Verified by rendering
+      `docker compose config` both ways: distinct routers, networks, `pgdata`
+      volumes and artifact directories, no published ports, no build context,
+      and no production value reaching the staging container
 - [ ] `docker compose -p qassist-staging down -v` destroys staging's database
       and leaves production's untouched (proves the volumes are separate)
 - [ ] A staging session cookie and a staging API key are both refused by
@@ -116,6 +142,6 @@ proves nothing. Real sends, maintainer-only recipients.
       the test event
 - [ ] US-008's CI snippet is run for real against staging (not production) and
       the story's criterion is satisfied there
-- [ ] `DEPLOY.md` documents standing staging up, promoting a tag from staging to
+- [x] `DEPLOY.md` documents standing staging up, promoting a tag from staging to
       production, and the config table above; nothing about staging lives only
       on the box

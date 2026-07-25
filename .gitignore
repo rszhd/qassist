@@ -2,7 +2,13 @@ node_modules/
 dist/
 .venv/
 .env
+# .env.staging and any other per-stack env file (US-038) — same rule as .env,
+# and .env.staging.example is what is tracked instead.
+.env.*
+!.env*.example
 runs/
+# A second stack on the same box points RUNS_DIR at its own artifact directory.
+runs-*/
 *.log
 .DS_Store
 __pycache__/

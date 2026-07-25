@@ -49,11 +49,16 @@ const TEST_SEARCH = {
 /**
  * Seed a freshly-minted tenant with the fixed fake dataset, all owned by
  * userId. Runs on the caller's transaction client so provisioning is atomic.
+ *
+ * Exported because staging seeds the same dataset (US-038,
+ * `scripts/seed-staging.mjs`) — a populated non-production database is what a
+ * migration gets rehearsed against, and it wants exactly this shape. That
+ * caller supplies its own long-lived user rather than a TTL'd demo one.
  * @param {import('pg').PoolClient} client
  * @param {string} userId
  * @param {number} now epoch ms — anchors run/schedule timestamps
  */
-async function seedTenant(client, userId, now) {
+export async function seedTenant(client, userId, now) {
   const one = async (/** @type {string} */ sql, /** @type {any[]} */ params) =>
     (await client.query(sql, params)).rows[0];
 
