@@ -141,6 +141,11 @@ bytes and is kept forever, while the directory beside it is tens of MB and is
 deleted after `ARTIFACT_RETENTION_DAYS`. A pruned run keeps its verdict,
 timings and step count, and simply stops offering the report and recording.
 
+A handful of further variables — `APP_HOST`, `ACME_EMAIL`, `QASSIST_IMAGE`,
+`RUNS_DIR`, `ROBOTS_TAG` — are read *only* by the production overlay and are
+documented in [`DEPLOY.md`](DEPLOY.md). A plain `docker compose up` ignores
+them entirely.
+
 ## API
 
 ```bash
@@ -443,7 +448,19 @@ Runs as a single container (`docker compose up -d`) on any Linux host with
 Docker (4 vCPU / 8 GB is comfortable for ~4 concurrent sessions). The app
 listens on port 8080.
 
-Fronting it with HTTPS (Caddy on 443) for public/API access is a [roadmap](#roadmap) item.
+To put it on a public hostname over HTTPS, layer the production overlay on the
+same base file — it adds a Traefik reverse proxy with automatic Let's Encrypt
+certificates and stops publishing 8080 on the host:
+
+```bash
+docker network create qassist-edge
+docker compose -p qassist-proxy -f docker-compose.proxy.yml up -d
+docker compose -p qassist -f docker-compose.yml -f docker-compose.prod.yml up -d
+```
+
+The runbook — DNS, the `.env` values the overlay reads, verifying the
+WebSocket, deploying a new tag, and the certificate store — is
+[`DEPLOY.md`](DEPLOY.md).
 
 ## Roadmap
 

@@ -1,0 +1,53 @@
+# The shared edge proxy (US-007): TLS termination and hostname routing for every
+# QAssist stack on this box.
+#
+# It is its own compose project, not a service in docker-compose.prod.yml, so its
+# lifecycle is independent of any one app stack — `down` on production must not
+# take staging's certificate with it (US-038). Traefik discovers backends through
+# the Docker socket, so a new stack needs no change here at all: it just has to
+# join the qassist-edge network and carry router labels.
+#
+#   docker network create qassist-edge                                  # once
+#   docker compose -p qassist-proxy -f docker-compose.proxy.yml up -d
+#
+# Reads ACME_EMAIL from .env in this directory. Full runbook: DEPLOY.md.
+
+services:
+  traefik:
+    image: traefik:v3.3
+    command:
+      - --providers.docker=true
+      # Nothing is routable until it says so itself: a container without
+      # traefik.enable=true is invisible, so an unrelated stack on this box
+      # cannot accidentally acquire a public hostname.
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:80
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      - --entrypoints.websecure.address=:443
+      - --certificatesresolvers.le.acme.email=${ACME_EMAIL:?set ACME_EMAIL in .env}
+      - --certificatesresolvers.le.acme.storage=/acme/acme.json
+      # TLS-ALPN over 443, so certificate issuance needs no second open port
+      # beyond the one already redirecting to HTTPS.
+      - --certificatesresolvers.le.acme.tlschallenge=true
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      # Read-only: Traefik reads container labels, it never drives Docker.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # One cert store for every hostname on the box. Losing it means
+      # re-issuing, and Let's Encrypt rate-limits that — so it is a named
+      # volume, never a container layer.
+      - acme:/acme
+    networks:
+      - edge
+    restart: unless-stopped
+
+volumes:
+  acme:
+
+networks:
+  edge:
+    external: true
+    name: qassist-edge

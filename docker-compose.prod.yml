@@ -1,0 +1,75 @@
+# Production overlay (US-007). Layered on the base file, never instead of it:
+#
+#   docker compose -p qassist -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# What it changes: the app runs a published image instead of building, stops
+# publishing any port on the host (the proxy reaches it over qassist-edge), and
+# takes every environment-specific value from the env file.
+#
+# There is deliberately no staging branch in here. A second stack is the same
+# two files with a different `-p` and `--env-file` (US-038) — the project name
+# alone gives it its own network, its own db container, its own pgdata volume
+# and, through ${COMPOSE_PROJECT_NAME} below, its own Traefik router. If this
+# file ever needs to know which environment it is, the file is wrong.
+#
+# Requires docker-compose.proxy.yml to be up. Full runbook: DEPLOY.md.
+
+services:
+  qassist:
+    image: ${QASSIST_IMAGE:-qassist:latest}
+    # A server that never sees the source (US-032): drop the base file's build
+    # context so `up` pulls a released tag rather than compiling Chromium.
+    build: !reset null
+    pull_policy: missing
+    # US-007's "8080 is not published": the base file's host mapping is removed
+    # rather than firewalled. Compose merges list fields by appending, so
+    # omitting `ports` here would keep it — !override is what actually drops it.
+    ports: !override []
+    volumes: !override
+      # Per-stack on the host, so two stacks running from one checkout don't
+      # write their artifacts into the same directory (US-038).
+      - ${RUNS_DIR:-./runs}:/app/runs
+    networks:
+      # Explicit `default` because naming any network opts out of the implicit
+      # one — and losing it would cut the app off from its own db.
+      - default
+      - edge
+    # Makes "is the new tag healthy?" a `docker compose ps` question, which is
+    # what a promotion decision reads (US-038). curl is already in the image.
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:${PORT:-8080}/api/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    # List form, not the `key: value` map form: Compose interpolates label
+    # values but NOT label keys, so ${COMPOSE_PROJECT_NAME} in a map key comes
+    # out literal. Written as `key=value` strings it interpolates, which is what
+    # names each stack's router after its project and keeps staging's routers
+    # from colliding with production's on the shared proxy.
+    labels:
+      - traefik.enable=true
+      # The app sits on two networks; this tells Traefik which one to dial.
+      - traefik.docker.network=qassist-edge
+      - traefik.http.routers.${COMPOSE_PROJECT_NAME}.rule=Host(`${APP_HOST:?set APP_HOST}`)
+      - traefik.http.routers.${COMPOSE_PROJECT_NAME}.entrypoints=websecure
+      - traefik.http.routers.${COMPOSE_PROJECT_NAME}.tls.certresolver=le
+      - traefik.http.routers.${COMPOSE_PROJECT_NAME}.middlewares=${COMPOSE_PROJECT_NAME}-robots@docker
+      # WebSocket (/ws) needs no rule of its own — Traefik proxies the upgrade
+      # on the same router. It is still the one thing to verify by hand after
+      # standing a stack up.
+      - traefik.http.services.${COMPOSE_PROJECT_NAME}.loadbalancer.server.port=${PORT:-8080}
+      # Indexability is a value, not a branch: production says "all", staging
+      # says "noindex, nofollow" (US-038) through the same label.
+      - traefik.http.middlewares.${COMPOSE_PROJECT_NAME}-robots.headers.customresponseheaders.X-Robots-Tag=${ROBOTS_TAG:-all}
+
+  db:
+    # The base file publishes 5433 for `npm run dev`. In production nothing off
+    # the compose network may reach Postgres — and two stacks on one box would
+    # collide on that port anyway (US-038).
+    ports: !override []
+
+networks:
+  edge:
+    external: true
+    name: qassist-edge
