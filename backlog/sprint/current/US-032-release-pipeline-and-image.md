@@ -6,17 +6,21 @@
   looking green: 99 server tests, a typecheck and a frontend build exist and
   currently only ever run when I remember to run them.
 
-- **Status:** 🧱 **CI green, the release path unexercised** (2026-07-25) —
+- **Status:** 🧱 **4 of 5 criteria met — v0.1.0 published** (2026-07-25) —
   `ci.yml` passes on `dev`: three jobs in ~40 s, 258 server tests against a real
   Postgres with all five `*-postgres.test.js` files confirmed *running* rather
   than skipping, 31 frontend, 63 agent, typecheck and the frontend build. That
   closes the first two criteria.
 
-  What is left is everything downstream of **a tag**, which has not been cut:
-  `release.yml` has never run, so its `workflow_call` reuse, the version-pin
-  guard, the ghcr push and the three derived image tags are all written but
-  unproven, and nothing is published. Until then the README's "Run a release"
-  quick start points at an image that does not exist and says so.
+  `v0.1.0` was then cut from `main` and `release.yml` ran green end to end:
+  `ghcr.io/rszhd/qassist:0.1.0`, `:0.1` and `:latest` are published and
+  anonymously pullable, the version-pin guard matched, and the `workflow_call`
+  reuse put the test jobs ahead of the image job as designed.
+
+  **One criterion is left:** starting the published image on a machine that has
+  never seen the source. That is a `docker compose -f docker-compose.release.yml
+  up` on the VPS, which is also the first half of US-007's stand-up — so this
+  story now finishes on the box, alongside US-007 and US-038.
 - **Priority:** P1 (current sprint) — `docs/repo-model.md` rule 1 makes the
   published image *the* artifact the product ships
 - **Estimate:** ~half a day (the image build is slow to iterate on)
@@ -111,8 +115,9 @@ is the natural place to fail if the pinned version doesn't match the tag.
     Node 20 is deprecated and being forced onto Node 24. Bumped to
     `checkout@v7`, `setup-node@v7`, `setup-python@v7`,
     `setup-buildx-action@v4`, `login-action@v4`, `metadata-action@v6`,
-    `build-push-action@v7`. `release.yml`'s pins are the same bump but are
-    **unexercised** until a tag runs them.
+    `build-push-action@v7`. `release.yml` got the same bump, and `v0.1.0`
+    exercised all four `docker/*` actions at those versions — the annotations
+    on both workflows are now clean.
 - `.github/workflows/release.yml` — on `v*`: the CI job, then
   `docker/build-push-action` with `docker/metadata-action` deriving the three
   tags, pushing to `ghcr.io`. Layer caching via `type=gha` so a re-run of a
@@ -158,8 +163,22 @@ is the natural place to fail if the pinned version doesn't match the tag.
       **five** `*-postgres.test.js` files ran against the service container,
       the guard printed `None skipped.`, and the suite reported `# skipped 0`.
       The guard covers all five rather than only the file this story named.
-- [ ] Tagging `v1.0.0` publishes `ghcr.io/<owner>/qassist:1.0.0`, `:1.0` and
-      `:latest`, and the workflow refuses to publish if the test job failed
+- [x] Tagging `v1.0.0` publishes `ghcr.io/<owner>/qassist:1.0.0`, `:1.0` and
+      `:latest`, and the workflow refuses to publish if the test job failed —
+      **`v0.1.0` cut 2026-07-25**: all three tags published from one `linux/amd64`
+      build in 3m07s (much less than the half-day this story budgeted for a cold
+      Chromium install). The `workflow_call` reuse is proven, not assumed — the
+      three test jobs ran nested under Release as `test / …` before the image job
+      started. The "refuses if tests failed" half is structural via `needs: test`
+      rather than observed, since no tag has been cut on a red suite.
 - [ ] `docker compose -f docker-compose.release.yml up` on a machine that has
-      never seen the source starts the app and serves the UI on :8080
-- [ ] The package is public on ghcr — an anonymous `docker pull` works
+      never seen the source starts the app and serves the UI on :8080 — **the
+      one criterion left.** The VPS is the honest venue for it: it has never held
+      this source, and doing it there doubles as the first half of US-007's
+      stand-up.
+- [x] The package is public on ghcr — an anonymous `docker pull` works —
+      verified with `docker logout ghcr.io` followed by a successful
+      `docker manifest inspect ghcr.io/rszhd/qassist:0.1.0`. **No manual
+      visibility flip was needed:** the package inherited the repo's public
+      visibility on first publish, contrary to the expectation that ghcr
+      defaults packages to private.
