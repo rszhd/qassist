@@ -40,6 +40,37 @@ export const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 // report needs an absolute URL to link a recording; unset = no link in the
 // PDF, the recording is still served in-app.
 export const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+
+/**
+ * How much of `X-Forwarded-For` to believe — which decides whose address every
+ * per-IP guard counts (the demo's mint throttle, the magic-link limiter).
+ *
+ * Off by default, and that default is load-bearing in both directions. A plain
+ * `docker compose up` self-host publishes its port, so trusting the header there
+ * would let any caller claim any address and mint past DEMO_IP_MAX. Behind the
+ * US-007 proxy the opposite bites: unset, `req.ip` is the Traefik container's on
+ * every request, so a per-visitor cap silently becomes a deployment-wide one.
+ * So a proxied deployment sets the number of hops it actually has (ours: 1).
+ *
+ * `1` and `true` are not the same value and the difference matters: one hop
+ * counts the address the proxy vouched for, `true` counts whatever the client
+ * wrote. Numeric strings therefore stay numbers, and `true` is only reachable by
+ * writing it out. Anything else goes to Express verbatim, which is how subnet
+ * lists and its own keywords (`loopback`) work — and an address list that means
+ * nothing is rejected there at boot rather than quietly trusting.
+ * @param {string | undefined} raw
+ * @returns {boolean | number | string}
+ */
+export function parseTrustProxy(raw) {
+  const value = (raw || '').trim().toLowerCase();
+  if (!value || value === 'false' || value === 'off' || value === 'no') return false;
+  if (value === 'true') return true;
+  // Blank already returned above, so Number('') can't sneak in as 0 here.
+  if (/^\d+$/.test(value)) return parseInt(value, 10);
+  return (raw || '').trim();
+}
+
+export const TRUST_PROXY = parseTrustProxy(process.env.TRUST_PROXY);
 export const RECORDING_FILENAME = 'recording.mp4';
 // What generateReport() writes and both the PDF renderer and US-026's steps
 // endpoint read back.

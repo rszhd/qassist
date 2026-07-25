@@ -48,6 +48,7 @@ release-plumbing stories turned out to share an unstated fifth.
 | ID | Story | Status | Depends on |
 |---|---|---|---|
 | [US-007](sprint/current/US-007-https-reverse-proxy.md) | Public HTTPS via reverse proxy (and the Resend sender domain) | 🧱 Repo side shipped (2026-07-25) — overlay, proxy, `DEPLOY.md`; DNS + the box left | domain (owned) |
+| [US-040](sprint/current/US-040-demo-deployment.md) | Deploy the demo sandbox at `demo.qassist.run` | 🧱 Repo side done, 3/10 (2026-07-26) — the image now carries `demo/` (it never did, so a published tag had no fixtures to replay), and `TRUST_PROXY` fixes the second blocker writing the runbook found: `req.ip` behind Traefik is the proxy's, so `DEMO_IP_MAX` was a *global* cap. Assertion-first, confirmed red against the shipped code. `.env.demo.example` + `DEPLOY.md`'s Demo section document the stand-up; the rest needs the box and a tag after `v0.2.0` | US-036, US-007, US-038 |
 | [US-038](sprint/current/US-038-staging-environment.md) | Staging environment (`staging.qassist.run`) | 🟢 5/8 (2026-07-25) — **up and serving** on its own LE cert, seeded, WS live view proven; found two shipped bugs (Traefik v3.3 vs Docker 29, and `DEPLOY.md`'s own `ENV_FILE` prefix). Remaining three need production, which was deliberately not stood up | US-007 |
 | [US-039](sprint/current/done/US-039-byok-only-no-server-key.md) | BYOK only: remove the server `OPENAI_API_KEY` | ✅ Shipped 2026-07-26 — the server key is gone from the product: a run is funded by its caller's key (per-request > stored) or refuses with 503, the scheduler skips keyless owners per slot, and `DATABASE_URL`/`KEY_ENCRYPTION_SECRET` are boot requirements. Assertion-first (`resolveRunKey` is correctness-critical); every spec runs with a live-looking server key in the env to prove the fallback is deleted, not unconfigured. Deployed to staging 2026-07-26 as v0.2.0, AC #6 re-proven on the box | US-005, US-021 |
 | [US-008](sprint/current/US-008-cicd-integration.md) | CI/CD trigger: the documented pipeline step | 🧱 2/5 (2026-07-25) — `docs/ci.md`'s script run **verbatim against staging**: suite path, exit 0 green / exit 1 mixed, batching, queueing at cap, `start_url` override honoured. Still owed: module-by-slug, and execution from a real Actions/GitLab runner | US-007, US-009 |
@@ -85,6 +86,29 @@ because a public repo is not a frozen one. The remaining order is US-031 →
 US-032 → stand up prod + staging → US-038 and US-008 close together, and the
 first ghcr tag promoted through `DEPLOY.md` is itself the promotion rehearsal
 US-038 exists for.
+
+Added to the sprint 2026-07-26: **US-040** (deploy the demo at
+`demo.qassist.run`). US-036 shipped the entire sandbox on 2026-07-24 and no
+deployment sets `AUTH_MODE=demo`, so the provisioner, seeder, run interceptor
+and reaper are all dead code today — the story is the gap between built and
+live. It is US-038's shape a third time (same two compose files, a different
+`-p` and `--env-file`), which is the evidence that shape was right; the
+hostname is `demo.` and not `sandbox.` because every identifier the shipped
+code already carries says demo. It also turned up the one thing the repo owes
+before anything can stand up: `Dockerfile` never copies `demo/`, so a published
+tag has no fixtures to replay.
+
+**Repo side done 2026-07-26**: the `COPY demo/` line, `.env.demo.example` and
+`DEPLOY.md`'s Demo section. Writing the runbook turned up a second thing the
+repo owed, of a different kind — nothing set Express's `trust proxy`, so behind
+Traefik `req.ip` was the proxy's address for every request and the demo's per-IP
+mint throttle was silently a *deployment-wide* one. The demo would have refused
+its sixth visitor of the hour, which is the story's entire purpose failing. Now
+`TRUST_PROXY`, off by default because a self-host publishing its own port must
+not believe `X-Forwarded-For`; it is a row in
+[`correctness-critical.md`](correctness-critical.md) and was done assertion-first,
+with the tests confirmed red against the shipped code before the fix existed.
+What is left is the box.
 
 Added to the sprint 2026-07-25: **US-038** (staging), the environment three
 stories in this sprint were quietly assuming. US-022's live Stripe round trip,
