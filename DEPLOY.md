@@ -291,19 +291,25 @@ project casually.
 
 ## Cutting over from the pre-US-007 stack
 
-The original deployment ran the base compose file alone, published 8080, and was
-reached over an SSH tunnel (`ssh -L 8090:localhost:8080`). Its database lives in
-a volume named after the directory Compose ran in, not `qassist_pgdata`, so
-adding `-p qassist` points the new stack at an **empty** database rather than
-migrating the old one.
+The original deployment ran the base compose file alone under the project name
+`qagent`, published 8080, and was reached over an SSH tunnel (`ssh -L
+8090:localhost:8080`). **On our box there is nothing left to cut over from**
+(checked 2026-07-25): it had no `pgdata` volume at all — only an empty
+`qagent_default` network, a stale `qagent:latest` image and some `/tmp`
+scratch, all since removed. So the first `up` here starts from an empty
+database by design, and no migration step is owed.
 
-Check what is actually there before the first `up`:
+The check is still worth keeping, because the trap it describes is real for
+anyone standing this overlay up beside an older stack of their own. A project
+name is what the `pgdata` volume is named after, so adding `-p qassist` to a
+stack that used to run without it points at an **empty** database rather than
+the old one:
 
 ```sh
 docker volume ls | grep pgdata
 ```
 
-If the existing volume is not `qassist_pgdata`, either dump and restore
-(`pg_dump` from the old container, `psql` into the new one) or stop and rename by
-creating `qassist_pgdata` and copying the contents across. Do this before
-serving traffic on the new stack, and take the dump either way.
+If a populated volume exists under some other name, either dump and restore
+(`pg_dump` from the old container, `psql` into the new one) or create
+`qassist_pgdata` and copy the contents across — before serving traffic on the
+new stack, and take the dump either way.

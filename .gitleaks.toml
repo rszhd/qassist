@@ -1,0 +1,47 @@
+# gitleaks configuration (US-031).
+#
+# The repo is public, so "no credential has ever been committed" has to be a
+# check someone can re-run — not a claim from the day we flipped the switch.
+#
+#   docker run --rm -v "$PWD:/repo" -w /repo zricethezav/gitleaks:latest \
+#     git --no-banner --redact
+#
+# That must exit 0 over the FULL history. Note `git`, not `dir`: a `dir` scan
+# walks the working directory and so reads your own untracked `.env`, reporting
+# the real credentials in it. That is the file doing its job, not a finding —
+# `.env` is gitignored and has never been committed (verified over all 114
+# commits, US-031). Do NOT allowlist `.env` to quiet a `dir` scan: it would
+# suppress the one finding that would matter most if the file ever *were*
+# tracked. Use `git` mode, which sees only what is actually in the history.
+#
+# The allowlist below exists for a different reason: the test suite sets crypto
+# secrets and OpenAI keys as literals,
+# because a round-trip test of AES-GCM needs a key and an encrypted-at-rest
+# assertion needs something key-shaped to encrypt. Those are fixtures.
+#
+# The allowlist is deliberately narrow on two axes at once (`condition = "AND"`):
+# the finding must be in the test directory AND its value must carry one of the
+# fixture markers below. A real credential pasted into a test file matches
+# neither and still fails the scan — which is the only reason this file is
+# safe to have.
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Test-suite crypto/session fixtures: the `-0123456789` tail is the convention that marks a value as fake"
+condition = "AND"
+paths = ['''^server/test/''']
+regexes = ['''-0123456789$''']
+
+[[allowlists]]
+description = "Test-suite OpenAI keys: key-shaped by necessity, self-describing as fake"
+condition = "AND"
+paths = ['''^server/test/''']
+regexes = [
+  # 'sk-server-fallback-should-not-be-used-000000000000' — says so in the name
+  '''^sk-server-fallback-should-not-be-used-0+$''',
+  # 'sk-proj-A1b2C3d4…' and 'sk-proj-Stored…' — built by concatenation so that
+  # no complete key-shaped literal appears on any single line of source
+  '''^sk-proj-(A1b2C3d4E5f6G7h8I9j0|Stored1234567890abcdef)''',
+]

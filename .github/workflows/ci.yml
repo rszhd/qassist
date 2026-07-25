@@ -1,0 +1,151 @@
+# Fast checks on every push and PR (US-032).
+#
+# "Fast" is the design constraint: no Docker image build lives here. The full
+# image (Python, Playwright, Chromium and its system libraries) takes ~20
+# minutes and belongs in release.yml, so a normal push doesn't wait on Chromium
+# to learn a test broke.
+#
+# `workflow_call` is how release.yml reuses this file, which is what makes "a
+# tag can never ship an image whose tests were never run" structural rather
+# than a thing to remember.
+
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+  workflow_call:
+
+# A second push to the same branch makes the first run's answer irrelevant.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  server:
+    name: Server — tests, real Postgres, typecheck
+    runs-on: ubuntu-latest
+
+    # The suite runs on pg-mem, and pg-mem is not Postgres: it passes broken
+    # SQL, returns wrong rows from partial indexes, doesn't bind array params
+    # and loses timestamp precision. The five *-postgres.test.js files exist
+    # precisely to catch what it hides, and they SKIP when no server answers —
+    # so without this service the files written to catch real-Postgres bugs
+    # would never once run, and CI would be green because of it.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: qassist
+          POSTGRES_PASSWORD: qassist
+          POSTGRES_DB: qassist
+        ports:
+          - 5432:5432
+        # Each of those files creates its own throwaway database, so the role
+        # needs CREATEDB — the image's superuser has it.
+        options: >-
+          --health-cmd "pg_isready -U qassist -d qassist"
+          --health-interval 3s
+          --health-timeout 3s
+          --health-retries 20
+
+    env:
+      TEST_DATABASE_URL: postgres://qassist:qassist@localhost:5432/qassist
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install
+        working-directory: server
+        run: npm ci
+
+      - name: Tests
+        working-directory: server
+        # pipefail is NOT on in Actions' default shell (`bash -e`), so without
+        # it `npm test | tee` would report tee's exit status and a failing
+        # suite would pass. This is the exact class of silent green the next
+        # step exists to catch, so it would be a poor place to introduce one.
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee "$RUNNER_TEMP/server-test.log"
+
+      - name: The Postgres-only files must have run, not skipped
+        # A skipped file is otherwise indistinguishable from a passing one: the
+        # suite is green either way. Each of them logs `<name>-postgres:
+        # skipped — <reason>` when it can't reach a server, so the absence of
+        # that line is the assertion.
+        run: |
+          log="$RUNNER_TEMP/server-test.log"
+          echo "Expecting these files to have run against real Postgres:"
+          ls -1 server/test/*-postgres.test.js
+          if grep -nE -- '-postgres: skipped' "$log"; then
+            echo "::error::A Postgres-only test file skipped instead of running." \
+                 "The service container is unreachable or TEST_DATABASE_URL is wrong," \
+                 "so the tests written to catch what pg-mem hides did not run."
+            exit 1
+          fi
+          echo "None skipped."
+
+      - name: Typecheck
+        working-directory: server
+        # Not a build — the server is plain JS with // @ts-check and JSDoc, so
+        # tsc is the only thing that reads those annotations.
+        run: npm run check
+
+  frontend:
+    name: Frontend — tests and build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install
+        working-directory: frontend
+        run: npm ci
+
+      - name: Tests
+        working-directory: frontend
+        run: npm test
+
+      - name: Build
+        working-directory: frontend
+        # The real Vite build, because it is the step that catches an import
+        # that only resolves in dev.
+        run: npm run build
+
+  agent:
+    name: Agent — pure unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # No requirements.txt here on purpose. Everything under agent/tests/
+      # covers modules that import on stdlib alone (see agent/pytest.ini), so
+      # this job needs pytest and nothing else — installing browser-use and
+      # Playwright Chromium to run 63 stdlib tests would make the fast
+      # workflow slow for no coverage.
+      - name: Install pytest
+        run: python -m pip install --disable-pip-version-check pytest
+
+      - name: Tests
+        working-directory: agent
+        run: python -m pytest -q

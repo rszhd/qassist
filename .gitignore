@@ -10,6 +10,9 @@ runs/
 # A second stack on the same box points RUNS_DIR at its own artifact directory.
 runs-*/
 *.log
+# gitleaks --report-path output (US-031); the scan itself is configured by the
+# tracked .gitleaks.toml.
+.gitleaks-report.json
 .DS_Store
 __pycache__/
 .pytest_cache/

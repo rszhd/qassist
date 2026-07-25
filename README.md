@@ -29,7 +29,7 @@ streams the session live, decides pass/fail, and produces a shareable PDF report
 | Agent | Python + [browser-use](https://github.com/browser-use/browser-use) driving Playwright Chromium |
 | Report | HTML → PDF rendered by the same Chromium (embedded Bricolage Grotesque + IBM Plex Mono) |
 | Model | OpenAI (default `gpt-4.1`) |
-| Packaging | Single Docker image, `docker compose up` |
+| Packaging | Single Docker image — [`ghcr.io/rszhd/qassist`](https://github.com/rszhd/qassist/pkgs/container/qassist), `docker compose up` |
 
 ## How it works
 
@@ -79,14 +79,36 @@ docker-compose.yml
 ## Run it
 
 **Docker is the only thing you need installed** — Node, Python and Chromium all
-live inside the image. Clone the repo, then:
+live inside the image.
+
+### Run a release (no clone, no build)
+
+The fastest path: pull a published, tested image. Two files and one command, and
+you never see the source.
+
+```bash
+curl -O https://raw.githubusercontent.com/rszhd/qassist/main/docker-compose.release.yml
+curl -o .env https://raw.githubusercontent.com/rszhd/qassist/main/.env.example
+# add your OPENAI_API_KEY to .env, then:
+docker compose -f docker-compose.release.yml up -d
+```
+
+Images are published to
+[ghcr.io/rszhd/qassist](https://github.com/rszhd/qassist/pkgs/container/qassist)
+on every version tag — `:1.2.3` exactly, `:1.2` to float on patches, and
+`:latest`. **Pin the exact version**; the file above does. Upgrading is editing
+that tag and re-running the command, and the schema migrates itself at boot.
+
+### Build from source
+
+Clone the repo, then:
 
 ```bash
 cp .env.example .env      # add your OPENAI_API_KEY
 docker compose up --build
 ```
 
-The first build takes a few minutes (it downloads Chromium). Then open
+The first build takes a few minutes (it downloads Chromium). Either way, open
 `http://localhost:8080`, enter a URL + goal, and watch it run. Finished runs
 expose a **Download PDF report** button.
 
@@ -522,3 +544,43 @@ and a possible desktop app.
 - **Secure it before exposing publicly:** always behind HTTPS, always with the token.
 - Some sites (Reddit, Cloudflare-heavy pages) block datacenter IPs and will fail
   from a server — expected, not a bug.
+
+## Contributing
+
+Patches welcome. [`CONTRIBUTING.md`](CONTRIBUTING.md) covers getting the stack
+running, which test suite to run for what, the house style, and the one
+procedural ask — a DCO `Signed-off-by` line, which `git commit -s` adds for you.
+
+## License
+
+**[AGPL-3.0-only](LICENSE).** In plain terms:
+
+- **Self-hosting is free, for anything, forever** — personal or commercial, no
+  seat count, no feature gate, no key to buy. Running QAssist is not what the
+  licence asks anything about. Model tokens are bring-your-own on every tier,
+  so the only bill is the one you already have with your LLM provider.
+- **Modify it and run your version freely.** The obligation attaches to
+  *distribution* — and, because this is the AGPL rather than the GPL, to
+  offering your modified version **to others as a network service**. Do that,
+  and those users are entitled to your source under the same licence.
+- That is the whole reason for the A: it keeps a competitor from taking this
+  code, running it as a closed hosted product, and giving nothing back — while
+  leaving every actual self-hoster completely unrestricted.
+
+Contributions stay under the same licence and **you keep your copyright** —
+DCO, not a CLA.
+
+A paid hosted tier at [qassist.run](https://qassist.run) is planned, and it
+runs **this** codebase — not a fork of it, and not a more capable private
+sibling. Even the Stripe billing is here, env-gated: with `STRIPE_*` unset,
+which is the self-host default, there is no billing UI and no gating at all.
+Payment there covers hosting; it buys no feature you don't have here.
+
+A private repo exists for the commercial layer around that deployment, and the
+boundary is a deliberate constraint rather than a place features go to
+disappear: **the default is public**, and only what is meaningless without our
+billing or our infrastructure may live on the private side. Dependencies run
+one way — that repo consumes this one's published image and its token-authed
+API, and this repo never learns it exists. The rules, and the routing test
+applied to every new feature, are in
+[`docs/repo-model.md`](docs/repo-model.md).
