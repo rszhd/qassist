@@ -11,7 +11,7 @@ import { WebSocketServer } from 'ws';
 import { createServer } from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { PORT, API_TOKEN, MAX_CONCURRENT, PUBLIC_DIR, AUTH_ENABLED, AUTH_MODE, DEMO_CTA_URL } from './config.js';
+import { PORT, API_TOKEN, MAX_CONCURRENT, PUBLIC_DIR, AUTH_ENABLED, AUTH_MODE, DEMO_CTA_URL, TRUST_PROXY } from './config.js';
 import { db, initDb, getOperatorUserId, userContext } from './db.js';
 import { missingBootRequirements } from './boot.js';
 import { keyEncryptionEnabled } from './crypto.js';
@@ -38,6 +38,14 @@ import { billingEnabled } from './billing.js';
 await initDb();
 
 const app = express();
+
+// Whose address the per-IP guards count (US-040). Behind the US-007 proxy every
+// request arrives from the Traefik container, so without this the demo's
+// per-visitor mint throttle is a cap on the whole deployment; on a self-host
+// that publishes its own port, trusting the header would make that throttle
+// spoofable. Hence off by default and opted into per deployment — see
+// parseTrustProxy for why `1` and `true` are different answers.
+app.set('trust proxy', TRUST_PROXY);
 
 // US-022: the Stripe webhook is mounted BEFORE express.json() and parses its
 // own body with express.raw. Its signature covers the exact bytes Stripe sent,

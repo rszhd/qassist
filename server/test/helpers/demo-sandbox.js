@@ -17,9 +17,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 /**
  * Fresh app + pg-mem DB in AUTH_MODE=demo. Env is set before importing server
  * (config reads at import time), so callers pass the caps they want to exercise.
- * @param {{ maxTenants?: number, ipMax?: number }} [caps]
+ * @param {{ maxTenants?: number, ipMax?: number, trustProxy?: string }} [caps]
  */
-export async function createDemoHarness({ maxTenants, ipMax } = {}) {
+export async function createDemoHarness({ maxTenants, ipMax, trustProxy } = {}) {
   process.env.AUTH_MODE = 'demo';
   process.env.SESSION_SECRET = 'demo-session-secret-0123456789';
   delete process.env.AUTH_ENABLED;
@@ -30,6 +30,11 @@ export async function createDemoHarness({ maxTenants, ipMax } = {}) {
   process.env.ARTIFACTS_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'qassist-demo-'));
   if (maxTenants != null) process.env.DEMO_MAX_TENANTS = String(maxTenants);
   if (ipMax != null) process.env.DEMO_IP_MAX = String(ipMax);
+  // Deleted rather than left alone: whether X-Forwarded-For is believed is the
+  // difference between a per-visitor throttle and a deployment-wide one, so no
+  // test may inherit it from the ambient environment (US-040).
+  if (trustProxy != null) process.env.TRUST_PROXY = trustProxy;
+  else delete process.env.TRUST_PROXY;
 
   const mem = newDb();
   mem.registerExtension('pgcrypto', (schema) => {

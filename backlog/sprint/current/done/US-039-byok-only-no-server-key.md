@@ -14,7 +14,11 @@ of the code rather than a promise in a README.
   `D1`–`D14` in their headers) and red before the implementation. All six
   acceptance criteria hold; the last one (key restored with no effect) is
   structural — every spec file runs with a live-looking `OPENAI_API_KEY` in the
-  environment. Not yet deployed to staging.
+  environment. **Deployed to staging 2026-07-26** as `v0.2.0`: with the old
+  server key restored to the container env on purpose, `/api/health` carries no
+  `agent_ready` and a run POST from the seeded tenant answered exactly
+  `503 {"error":"no OpenAI key: add yours in Settings"}` — AC #6 observed on
+  the real box, then the inert variable was re-blanked in `.env.staging`.
 - **Priority:** P1 (current sprint) — staging is live and publicly registrable
   today, and the interim mitigation is a blank `OPENAI_API_KEY` in
   `.env.staging`, which silently disables its scheduler. That is a workaround

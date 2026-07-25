@@ -37,9 +37,12 @@ COPY server/package.json /app/server/package.json
 RUN cd /app/server && npm install --omit=dev
 
 # App code + built frontend (db/ carries the control-plane migrations the
-# server applies at boot)
+# server applies at boot; demo/ the replay fixtures a demo deployment serves
+# from DEMO_DIR, which defaults to /app/demo — without them AUTH_MODE=demo
+# boots fine and every run fails at the fixture read)
 COPY agent/ /app/agent/
 COPY db/ /app/db/
+COPY demo/ /app/demo/
 COPY server/ /app/server/
 COPY --from=frontend /fe/dist /app/server/public
 
