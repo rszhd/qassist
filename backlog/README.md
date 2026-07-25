@@ -41,11 +41,14 @@ Sprints aren't split along a self-host/hosted-tier line — `sprint/current/`
 and `sprint/next/` are just now vs. later, reprioritized as needed. On
 2026-07-24, US-021 (signup & login) and US-033 (live demo replay) were pulled
 forward from `sprint/next/` into this sprint; on 2026-07-25, US-022 (Stripe
-billing) followed, which empties the hosted tier out of `sprint/next/`.
+billing) followed, which empties the hosted tier out of `sprint/next/`. The
+same day, **US-038** (staging) was written straight into the sprint — the four
+release-plumbing stories turned out to share an unstated fifth.
 
 | ID | Story | Status | Depends on |
 |---|---|---|---|
 | [US-007](sprint/current/US-007-https-reverse-proxy.md) | Public HTTPS via reverse proxy (and the Resend sender domain) | 📋 Planned | domain (owned) |
+| [US-038](sprint/current/US-038-staging-environment.md) | Staging environment (`staging.qassist.run`) | 📋 Planned | US-007 |
 | [US-008](sprint/current/US-008-cicd-integration.md) | CI/CD trigger: the documented pipeline step | 📝 Docs written, unverified | US-007, US-009 |
 | [US-031](sprint/current/US-031-license-and-public-repo.md) | License the code and open the repo | 📋 Planned | — |
 | [US-032](sprint/current/US-032-release-pipeline-and-image.md) | CI on every push, a published image on every tag | 📋 Planned | US-031 |
@@ -68,6 +71,16 @@ billing) followed, which empties the hosted tier out of `sprint/next/`.
 | [US-026](sprint/current/done/US-026-history-run-activity.md) | Run activity in the History detail panel | ✅ Done (2026-07-23) | US-011 |
 | [US-027](sprint/current/done/US-027-queued-run-visibility.md) | Tell the user their run is queued | ✅ Done (2026-07-23) | — |
 | [US-034](sprint/current/done/US-034-testing-practice-and-coverage.md) | Testing practice: selective TDD, owed agent/frontend coverage, mutmut audit | ✅ Done (2026-07-24) | — |
+
+Added to the sprint 2026-07-25: **US-038** (staging), the environment three
+stories in this sprint were quietly assuming. US-022's live Stripe round trip,
+US-008's unverified CI snippet and US-032's "runs on a machine that never saw
+the source" all currently end with *verify against production* — and migrations,
+which no story owns, get their first populated database the day one goes wrong
+on prod. It is deliberately **the same VPS, a second compose project**
+(`-p qassist-staging`, its own `pgdata` volume, its own `.env.staging`, a second
+Traefik router on the shared proxy): fidelity of the deploy, not capacity, and
+US-007's overlay parameterized rather than a second one.
 
 Added to the sprint 2026-07-24: **US-035** (per-run variables) — the one
 feature in the sprint beyond the four release-plumbing stories. It pairs with
@@ -160,9 +173,11 @@ US-020/US-010/US-012 touch the frontend than after.
      survives navigation), `GET /api/runs/:id` now answers in the list shape so
      `RunDetail` renders both History's panel and the page, and the mail links
      straight at the run.
-8. **US-007 → US-008** — public HTTPS, then the documented CI snippet run for
-   real against it. US-007's DNS visit also verifies the Resend sender domain,
-   which is US-012's one outstanding item.
+8. **US-007 → US-038 → US-008** — public HTTPS, then staging, then the
+   documented CI snippet run for real against *staging* rather than against the
+   instance people are using. US-007's DNS visit also verifies the Resend sender
+   domain (US-012's one outstanding item) and adds the `staging.` A record in
+   the same sitting, so US-038 costs no second trip to the DNS panel.
 9. **US-031 → US-032** — the licence and the public repo, then the CI and the
    published image. Last, and in that order: US-032 wants a public repo for
    free Actions minutes and a ghcr package, and both stories rewrite the README
@@ -189,7 +204,9 @@ US-020/US-010/US-012 touch the frontend than after.
     on all seven start paths plus the scheduler's fire, and a Settings panel and
     402 CTA that exist only where `/api/health` says `billing`. What US-007 still
     owes it is the live round trip — a real card through Checkout and a real
-    webhook back — which no test here can stand in for.
+    webhook back — which no test here can stand in for. That round trip is now
+    **US-038**'s job: it happens on staging in Stripe *test* mode, rather than by
+    pointing test keys at the instance real users are on.
 
 **US-027** (queued-run visibility) sat outside this order: it depended on
 nothing, and every story above makes the queue busier. **Shipped 2026-07-23**,
