@@ -1,8 +1,14 @@
 # Deploying QAssist
 
-The runbook for the public deployment at **qassist.run** (US-007). Everything
-here is in the repo — nothing about the deployment may live only on the box, so
-a rebuilt server is this document plus `.env`.
+The runbook for the public deployment at **app.qassist.run** (US-007).
+Everything here is in the repo — nothing about the deployment may live only on
+the box, so a rebuilt server is this document plus `.env`.
+
+The app is on a **subdomain, not the apex** (decided 2026-07-25): `qassist.run`
+is a landing page built and served outside this repo, so the only hostnames that
+resolve to this box are `app.qassist.run` and `staging.qassist.run`. That is why
+nothing here ever mentions the apex except for the mail records, which belong to
+the domain rather than to either stack.
 
 Self-hosting does **not** need any of this: `cp .env.example .env && docker
 compose up` still serves the app on :8080 with no proxy and no certificate. This
@@ -12,11 +18,21 @@ is the overlay for putting it on a public hostname over HTTPS.
 
 Three compose projects, deliberately separate:
 
-| Project | Files | What it is |
-|---|---|---|
-| `qassist-proxy` | `docker-compose.proxy.yml` | Traefik: TLS, ACME, hostname routing. Shared. |
-| `qassist` | `docker-compose.yml` + `docker-compose.prod.yml` | Production: app + its Postgres. |
-| `qassist-staging` | the same two files | [Staging](#staging): the same stack, production's data swapped out. |
+| Project | Hostname | Files | What it is |
+|---|---|---|---|
+| `qassist-proxy` | — | `docker-compose.proxy.yml` | Traefik: TLS, ACME, hostname routing. Shared. |
+| `qassist` | `app.qassist.run` | `docker-compose.yml` + `docker-compose.prod.yml` | Production: app + its Postgres. |
+| `qassist-staging` | `staging.qassist.run` | the same two files | [Staging](#staging): the same stack, production's data swapped out. |
+
+**There is no separate API hostname**, and adding one would be a mistake. One
+Express process serves the built frontend and mounts the API under `/api` on the
+same port, behind one router — so the endpoint CI and Stripe talk to is just
+`https://<hostname>/api`, and the live view is `wss://<hostname>/ws`. The
+frontend agrees by construction: it fetches relative paths and builds its socket
+URL from `location.host`, which is why the same image serves any hostname with
+no rebuild. Splitting the API onto `api.qassist.run` would point a second
+certificate at the same process and make this the first thing in the app to need
+CORS, which it currently has none of.
 
 They meet on one external Docker network, `qassist-edge`. The proxy is its own
 project so that taking an app stack down does not take everyone's TLS with it,
@@ -29,13 +45,16 @@ firewall rule.
 
 ## First-time setup
 
-**1. DNS.** An `A` record for `qassist.run` → the box's public IP. Add the
+**1. DNS.** An `A` record for `app.qassist.run` → the box's public IP. Add the
 `staging.qassist.run` record in the same sitting even if staging comes later —
-it costs nothing now and saves a second trip to the panel.
+it costs nothing now and saves a second trip to the panel. The apex is not one
+of them: it points wherever the landing page is hosted, which is not here.
 
-While in the DNS panel, add Resend's **SPF and DKIM** records for the domain and
-verify it in the Resend dashboard. Until that is done Resend only delivers to the
-account owner's own address, which is US-012's one outstanding item.
+While in the DNS panel, add Resend's **SPF and DKIM** records. Those go on the
+**apex** `qassist.run` whichever subdomain the app runs on, because mail sends
+as `…@qassist.run` — then verify the domain in the Resend dashboard. Until that
+is done Resend only delivers to the account owner's own address, which is
+US-012's one outstanding item.
 
 **2. Docker.** Install Docker Engine + the compose plugin, then create the shared
 network once:
@@ -47,8 +66,8 @@ docker network create qassist-edge
 **3. Configure.** Copy `.env.example` to `.env` and set, at minimum:
 
 ```sh
-APP_HOST=qassist.run
-PUBLIC_BASE_URL=https://qassist.run    # must agree with APP_HOST
+APP_HOST=app.qassist.run
+PUBLIC_BASE_URL=https://app.qassist.run    # must agree with APP_HOST
 ACME_EMAIL=you@example.com
 QASSIST_IMAGE=ghcr.io/<owner>/qassist:<tag>
 OPENAI_API_KEY=sk-...
@@ -57,6 +76,13 @@ OPENAI_API_KEY=sk-...
 `PUBLIC_BASE_URL` is not cosmetic: it is what puts a working recording link in
 the PDF, a working run link in notification mail, and — because it is how the
 app knows it is on HTTPS — what makes the session cookie `Secure`.
+
+`MAX_CONCURRENT_SESSIONS` deserves a thought rather than the default.
+`.env.example`'s rule — `floor((RAM_GB − 1.5) / 1)` — assumes the box is yours
+alone. Subtract anything else living on it, and subtract staging, which borrows
+from the same RAM. A 4 vCPU / 8 GB box already running an unrelated database
+lands at **3 for production and 1 for staging**, not the 6 the rule alone would
+suggest.
 
 If this instance runs multi-user auth, also set `AUTH_ENABLED=1`,
 `SESSION_SECRET`, `KEY_ENCRYPTION_SECRET`, `RESEND_API_KEY` and `MAIL_FROM`; the
@@ -84,10 +110,10 @@ exchange if it doesn't.
 ## Verifying a deployment
 
 ```sh
-curl -sS https://qassist.run/api/health                     # {"ok":true,...}
-curl -sSo /dev/null -w '%{http_code}\n' https://qassist.run/api/runs   # 401
-curl -sSI http://qassist.run | head -1                      # 301 → https
-docker compose -p qassist ps                                # app healthy
+curl -sS https://app.qassist.run/api/health                     # {"ok":true,...}
+curl -sSo /dev/null -w '%{http_code}\n' https://app.qassist.run/api/runs   # 401
+curl -sSI http://app.qassist.run | head -1                      # 301 → https
+docker compose -p qassist ps                                    # app healthy
 ```
 
 Then, by hand, the three things a curl does not cover:
@@ -203,7 +229,7 @@ docker compose -p qassist-staging down -v
 docker volume ls | grep pgdata          # qassist_pgdata still there
 
 # separate credentials: a staging API key is refused by production
-curl -sSo /dev/null -w '%{http_code}\n' https://qassist.run/api/runs \
+curl -sSo /dev/null -w '%{http_code}\n' https://app.qassist.run/api/runs \
   -H "Authorization: Bearer <a staging key>"        # 401
 
 # not indexed
@@ -265,19 +291,25 @@ project casually.
 
 ## Cutting over from the pre-US-007 stack
 
-The original deployment ran the base compose file alone, published 8080, and was
-reached over an SSH tunnel (`ssh -L 8090:localhost:8080`). Its database lives in
-a volume named after the directory Compose ran in, not `qassist_pgdata`, so
-adding `-p qassist` points the new stack at an **empty** database rather than
-migrating the old one.
+The original deployment ran the base compose file alone under the project name
+`qagent`, published 8080, and was reached over an SSH tunnel (`ssh -L
+8090:localhost:8080`). **On our box there is nothing left to cut over from**
+(checked 2026-07-25): it had no `pgdata` volume at all — only an empty
+`qagent_default` network, a stale `qagent:latest` image and some `/tmp`
+scratch, all since removed. So the first `up` here starts from an empty
+database by design, and no migration step is owed.
 
-Check what is actually there before the first `up`:
+The check is still worth keeping, because the trap it describes is real for
+anyone standing this overlay up beside an older stack of their own. A project
+name is what the `pgdata` volume is named after, so adding `-p qassist` to a
+stack that used to run without it points at an **empty** database rather than
+the old one:
 
 ```sh
 docker volume ls | grep pgdata
 ```
 
-If the existing volume is not `qassist_pgdata`, either dump and restore
-(`pg_dump` from the old container, `psql` into the new one) or stop and rename by
-creating `qassist_pgdata` and copying the contents across. Do this before
-serving traffic on the new stack, and take the dump either way.
+If a populated volume exists under some other name, either dump and restore
+(`pg_dump` from the old container, `psql` into the new one) or create
+`qassist_pgdata` and copy the contents across — before serving traffic on the
+new stack, and take the dump either way.

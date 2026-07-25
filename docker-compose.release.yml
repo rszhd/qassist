@@ -1,0 +1,67 @@
+# Run a published release — no clone, no toolchain, no 20-minute build (US-032).
+#
+#   curl -O https://raw.githubusercontent.com/rszhd/qassist/main/docker-compose.release.yml
+#   curl -o .env https://raw.githubusercontent.com/rszhd/qassist/main/.env.example
+#   # set WORKER_API_TOKEN and OPENAI_API_KEY in .env, then:
+#   docker compose -f docker-compose.release.yml up -d
+#
+# This file is deliberately STANDALONE rather than an overlay on
+# docker-compose.yml: the whole point is that one file is all you need to
+# download, so it cannot reference a file you don't have. The cost is that it
+# duplicates the base file, and the two must be kept in step — release.yml
+# fails the release if the tag being cut doesn't match the version pinned
+# below, which is what stops this file drifting a release behind.
+#
+# docker-compose.yml keeps `build: .` and stays the developer's file.
+
+services:
+  qassist:
+    # Pinned, not `:latest`. A self-hoster should know which version is
+    # running, and a tag that changes under you is not a release. The image is
+    # public — no docker login needed.
+    image: ghcr.io/rszhd/qassist:0.1.0
+    ports:
+      - "8080:8080"
+    # Optional, so a missing .env surfaces in the UI as "what's not configured"
+    # rather than as a compose parse error.
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      ARTIFACTS_DIR: /app/runs
+      DATABASE_URL: postgres://qassist:qassist@db:5432/qassist
+    # Per-run screenshots, recordings, report data and PDFs persist across
+    # restarts.
+    volumes:
+      - ./runs:/app/runs
+    # Chromium needs shared memory; without this it crashes on heavy pages.
+    shm_size: "1gb"
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # Control plane: saved tests, suites, durable run history. The schema is
+  # created and migrated by the app at boot, from the migrations baked into the
+  # image — there is no separate migrate step to run.
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: qassist
+      POSTGRES_PASSWORD: qassist
+      POSTGRES_DB: qassist
+    # No published port, unlike docker-compose.yml. The base file maps 5433 so
+    # `npm run dev` on the host can reach it; running a release, nothing off
+    # the compose network has any reason to, and the fixed credentials below
+    # are only safe because of that.
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U qassist -d qassist"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  pgdata:

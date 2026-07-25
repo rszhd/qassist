@@ -1,0 +1,96 @@
+# Publish an image on a version tag (US-032).
+#
+#   git tag v1.4.0 && git push origin v1.4.0
+#
+# Cut from `main`, not `dev`. A tag `v1.4.0` publishes three image tags —
+# :1.4.0, :1.4 and :latest — so a self-hoster can pin exactly, float on
+# patches, or type `latest` because people type latest.
+#
+# The test job is ci.yml itself, reused rather than copied, and the image job
+# `needs:` it. That is what makes "a tag cannot ship an image whose tests never
+# ran" a property of the graph instead of a convention.
+
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  # Same checks as every push: server tests against real Postgres, typecheck,
+  # frontend tests + build, agent units.
+  test:
+    uses: ./.github/workflows/ci.yml
+
+  image:
+    name: Build and publish to ghcr.io
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: docker-compose.release.yml must pin the version being released
+        # That file is standalone (a self-hoster downloads it alone), so it
+        # carries a hardcoded image tag that can silently fall a release
+        # behind. Catching it here is cheap; catching it after publishing means
+        # the quick start in the README installs the wrong version.
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          pinned=$(grep -oP 'image:\s*\Kghcr\.io/\S+/qassist:\S+' docker-compose.release.yml | head -1)
+          if [ -z "$pinned" ]; then
+            echo "::error file=docker-compose.release.yml::No ghcr.io/<owner>/qassist:<version> image line found."
+            exit 1
+          fi
+          echo "git tag: $tag"
+          echo "pinned:  $pinned"
+          if [ "${pinned##*:}" != "$tag" ]; then
+            echo "::error file=docker-compose.release.yml::Pinned image is '$pinned' but the tag being released is '$tag'." \
+                 "Update the pin in docker-compose.release.yml and re-tag."
+            exit 1
+          fi
+
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          # No secret to configure: the token the workflow already has is
+          # what pushes, which is the reason ghcr won over Docker Hub.
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v6
+        with:
+          # A lowercase literal rather than ${{ github.repository }}: ghcr
+          # rejects an uppercase path component, and the repo carried a capital
+          # A until it was renamed for exactly this reason (US-031). Keeping the
+          # literal means a future rename can't silently change the image path
+          # that self-hosters have pinned.
+          images: ghcr.io/${{ github.repository_owner }}/qassist
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest
+
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          # amd64 only for v1. arm64 means QEMU emulation of a Playwright
+          # Chromium install — it roughly doubles an already slow build, for an
+          # audience that is not who runs a browser-testing server. Add it when
+          # someone asks.
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # So a re-run of a failed release isn't another cold Chromium install.
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

@@ -50,8 +50,8 @@ release-plumbing stories turned out to share an unstated fifth.
 | [US-007](sprint/current/US-007-https-reverse-proxy.md) | Public HTTPS via reverse proxy (and the Resend sender domain) | 🧱 Repo side shipped (2026-07-25) — overlay, proxy, `DEPLOY.md`; DNS + the box left | domain (owned) |
 | [US-038](sprint/current/US-038-staging-environment.md) | Staging environment (`staging.qassist.run`) | 🧱 Repo side shipped (2026-07-25) — needed no overlay branch; DNS + the box left | US-007 |
 | [US-008](sprint/current/US-008-cicd-integration.md) | CI/CD trigger: the documented pipeline step | 📝 Docs written, unverified | US-007, US-009 |
-| [US-031](sprint/current/US-031-license-and-public-repo.md) | License the code and open the repo | 📋 Planned | — |
-| [US-032](sprint/current/US-032-release-pipeline-and-image.md) | CI on every push, a published image on every tag | 📋 Planned | US-031 |
+| [US-031](sprint/current/done/US-031-license-and-public-repo.md) | License the code and open the repo | ✅ Shipped (2026-07-25) — AGPL `LICENSE`, DCO, gitleaks clean over all 114 commits, repo public and renamed to `qassist` | — |
+| [US-032](sprint/current/US-032-release-pipeline-and-image.md) | CI on every push, a published image on every tag | 🧱 CI green, release path unexercised (2026-07-25) — `ci.yml` passing on `dev`; no tag cut, nothing on ghcr | US-031 |
 | [US-022](sprint/current/done/US-022-stripe-billing.md) | Paid tier: Stripe billing | ✅ Shipped (2026-07-25) — live test-mode round trip still to smoke-test | US-021, US-005, US-007 |
 | [US-028](sprint/current/done/US-028-per-user-concurrency-limit.md) | Per-user concurrent run limit (self-host org cap; env-gated) | ✅ Shipped (2026-07-25) | US-021, US-027 |
 | [US-005](sprint/current/done/US-005-byok-user-api-keys.md) | Bring-your-own OpenAI key (BYOK) — account-stored (encrypted) + per-request | ✅ Shipped (2026-07-25) | US-009 |
@@ -71,6 +71,19 @@ release-plumbing stories turned out to share an unstated fifth.
 | [US-026](sprint/current/done/US-026-history-run-activity.md) | Run activity in the History detail panel | ✅ Done (2026-07-23) | US-011 |
 | [US-027](sprint/current/done/US-027-queued-run-visibility.md) | Tell the user their run is queued | ✅ Done (2026-07-23) | — |
 | [US-034](sprint/current/done/US-034-testing-practice-and-coverage.md) | Testing practice: selective TDD, owed agent/frontend coverage, mutmut audit | ✅ Done (2026-07-24) | — |
+
+**Sprint ordering, resolved 2026-07-25.** The five release-plumbing stories
+turned out to reference each other in a circle, and it is worth writing down how
+it was cut. US-038 (staging) needs an image to run, because US-007's prod
+overlay deliberately cannot build — so it needs US-032. US-032 needs Actions and
+ghcr on a public repo, so it needs US-031. And US-031 said "do it last, after
+US-007/US-008 have finished editing the docs the public will read" — but
+US-008's criterion closes *on staging*. The cut: **US-031 and US-032 go first**,
+accepting that `docs/ci.md` may still gain a line after the repo is public,
+because a public repo is not a frozen one. The remaining order is US-031 →
+US-032 → stand up prod + staging → US-038 and US-008 close together, and the
+first ghcr tag promoted through `DEPLOY.md` is itself the promotion rehearsal
+US-038 exists for.
 
 Added to the sprint 2026-07-25: **US-038** (staging), the environment three
 stories in this sprint were quietly assuming. US-022's live Stripe round trip,

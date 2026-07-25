@@ -11,7 +11,7 @@ consistent. The backlog holds *what* we build; this holds *where* it goes.
 scheduling, notifications), auth, and even Stripe billing all live here and
 ship open source under **AGPL-3.0-only** — settled 2026-07-23, with
 contributions under a DCO rather than a CLA; the reasoning and the checklist
-are [US-031](../backlog/sprint/current/US-031-license-and-public-repo.md).
+are [US-031](../backlog/sprint/current/done/US-031-license-and-public-repo.md).
 
 The paid hosted tier at qassist.run runs this exact codebase. Billing is
 **env-gated**: with `STRIPE_*` unset — the self-host default — there is no
@@ -82,7 +82,7 @@ Before building anything, ask: **"would a self-hoster want this?"**
 
 ## Before flipping this repo public
 
-Owned by [US-031](../backlog/sprint/current/US-031-license-and-public-repo.md); two
+Owned by [US-031](../backlog/sprint/current/done/US-031-license-and-public-repo.md); two
 of the three are already answered.
 
 - gitleaks/trufflehog scan of full git history; if anything is found,
