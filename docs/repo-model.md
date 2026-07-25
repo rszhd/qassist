@@ -38,9 +38,38 @@ justify a second repo.
 3. **The API contract is the interface.** Additive API changes are free;
    breaking changes must be handled in the private repo when it bumps the
    pinned image tag.
-4. **Orchestrate, don't reimplement.** The cloud provisions/manages
-   instances of the open-source app; it never grows a second implementation
-   of test management. Every cloud customer runs the code self-hosters run.
+4. **Orchestrate, don't reimplement.** The cloud deploys and operates the
+   open-source app; it never grows a second implementation of test
+   management. Every cloud customer runs the code self-hosters run.
+
+## Tenancy: the hosted tier is one shared instance
+
+Settled 2026-07-25, because rule 4 used to say the cloud "provisions/manages
+instances", which read as one instance per customer. It does not.
+
+**qassist.run is a single shared deployment** — one app process, one Postgres,
+`AUTH_ENABLED=1` — and customers are `users` rows. **The only way to get your
+own instance is to self-host**; the cloud never provisions a container per
+signup, so there is no per-tenant proxy, no tenant DNS, no per-tenant database.
+
+This is what the code already assumes, and the reason it isn't up for
+relitigation: `server/src/runs.js` runs one in-process queue under a global
+`MAX_CONCURRENT`, and `MAX_CONCURRENT_PER_USER` exists as a sub-cap purely so
+one customer can't fill the shared browser pool and queue everyone else. Give
+each customer their own container and that setting protects nobody. The
+row-level `user_id` on every table (`tests`, `suites`, `projects`, `runs`,
+`schedules`) is the same signal — that is how tenants sharing a database are
+separated, not how containers are. A Chromium container per customer is also
+the expensive way to buy isolation a self-hoster can already have for free.
+
+The consequence for the private repo: its job is billing, plans and the
+marketing site, and it pushes **entitlements** into an instance it deploys but
+does not fork. Note that no such API exists yet — every route is tenant-scoped
+through `currentUserId()`, and `MAX_CONCURRENT_PER_USER` is one global env var,
+so today there is no way to say "this user gets 4 concurrent runs". Per rules 1
+and 2 the cloud may not reach into the database to do it either. An additive
+operator-scoped entitlements endpoint in *this* repo is therefore a
+prerequisite for any paid plan that differs by quota.
 
 ## Feature routing rule
 
