@@ -6,12 +6,21 @@ that** I can decide whether to sign up; and **as the** operator, **I want** that
 surface to be a third isolated stack that can neither reach production's data
 nor spend anything.
 
-- **Status:** 🟢 **Live at `https://demo.qassist.run`** (2026-07-26) on
+- **Status:** 🟠 **Live at `https://demo.qassist.run`, showing a token wall it
+  doesn't need until the next tag** (2026-07-26) on
   `ghcr.io/rszhd/qassist:0.2.1` — the tag cut for this, since `v0.2.0` predates
   the fixture `COPY` and would have booted healthy and failed every run. Ten of
   eleven criteria closed on the box, including the two only a deployment can
   prove: the reaper's disk half, and the per-visitor throttle (which a passing
   stranger proved for us — see below).
+
+  **Then the deployment was opened in a browser and showed "API token needed".**
+  Every criterion above was verified over HTTP and every one of them held; the
+  shell in front of them gated on `health.auth` without exempting demo mode.
+  Replays still played from the seeded saved tests, so this is a broken front
+  door on a working house — details under the "visitor lands" criterion. The fix
+  is frontend-only and, being in the bundle, needs a tag to reach the box — the
+  same shape as the missing fixtures.
 
   **One thing open, and it is the point of the story: the CTA is dead.**
   `DEMO_CTA_URL=https://qassist.run` and that apex has no DNS record, so the
@@ -181,7 +190,36 @@ from production, not a second copy. ✅ Written 2026-07-26. `DEPLOY.md` gains a
 - [x] A visitor with no cookie lands and is inside a seeded tenant with no login
       wall: History, Projects, Suites, Schedules and Settings all populated
       (2026-07-26 — `POST /api/demo/session` 201s with an `expiresAt`, and all
-      five collections come back populated on the cookie it sets)
+      five collections come back populated on the cookie it sets).
+
+      **Re-opened and re-fixed the same day: it was true over curl and false in
+      a browser.** The shell computed `needsToken` from `health.auth` — which
+      only reports that `WORKER_API_TOKEN` is *set* — and exempted `multi` but
+      not `demo`. The demo sets a token it never consults (`.env.demo.example`
+      says to, and `makeGate` takes the cookie branch before ever reading it),
+      so every visitor met "API token needed", a disabled **New test** and
+      **New run**, a `/runs/<id>` deep link that renders the wall instead of
+      fetching the run (`RunPage.jsx`), and a Settings dialog demanding the
+      deployment's token while reporting "Auth: Token required". Fixed in
+      `App.jsx`: `needsToken` now excludes both cookie modes, and the token
+      field and the auth fact follow.
+
+      **Not a total block, and the shape of the gap is the interesting part.**
+      The Run buttons on saved tests are not gated by `needsToken`, and a demo
+      tenant is seeded with tests — so a visitor who ignored the banner could
+      click one and watch the replay play. The sandbox underneath was entirely
+      healthy; what the wall actually took was every *entry point that starts
+      something new*, plus the ability to link to a run. A visitor's read of
+      that is "this product wants a credential I don't have", which is the
+      conversion surface failing while the product behind it works.
+
+      The lesson is the criterion's verification, not the line: every check
+      above was an HTTP call, and each one passed against a UI no visitor could
+      use. `App.test.jsx` gains the demo-mode case — health with `auth: true`
+      and `auth_mode: 'demo'`, asserting no token wall and an enabled Run —
+      confirmed red against the shipped code. **Any criterion phrased "a visitor
+      lands and…" wants a browser in the loop**, since the class of break it
+      names lives entirely above the API.
 - [x] Pressing Run streams a replay over the WebSocket through Traefik and
       writes a run into *their* history — and no Chromium, and no LLM call is
       made (2026-07-26). The WS upgrade through Traefik needs HTTP/1.1: over

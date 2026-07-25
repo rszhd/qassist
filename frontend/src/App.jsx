@@ -136,9 +136,13 @@ export default function App() {
   const location = useLocation();
 
   // The token is a deployment detail, not part of running a test, so it lives
-  // behind the gear rather than in the run form. In multi mode the session
-  // cookie is the credential, so no token is ever needed here.
-  const needsToken = !multi && (!health || health.auth) && !token;
+  // behind the gear rather than in the run form. Both cookie modes are exempt:
+  // in multi the session cookie is the credential, and in demo it's the
+  // visitor's sandbox cookie. `health.auth` only reports that WORKER_API_TOKEN
+  // is *set*, and a demo deployment sets one it never consults (makeGate takes
+  // the cookie branch first), so without `!demo` the demo blocks every visitor
+  // behind a token none of them can have.
+  const needsToken = !multi && !demo && (!health || health.auth) && !token;
 
   const atRun = location.pathname === '/';
 
@@ -217,7 +221,7 @@ export default function App() {
           onClose={() => setSettingsOpen(false)}
           footer={<Button variant="primary" onClick={() => setSettingsOpen(false)}>Done</Button>}
         >
-          {multi ? (
+          {multi && (
             <>
               <Field label="Account" hint="Your session is a sign-in cookie, not a token.">
                 <div className="settings-account">
@@ -232,7 +236,10 @@ export default function App() {
               {health?.billing && <Billing />}
               <ApiKeys />
             </>
-          ) : (
+          )}
+          {/* Both cookie modes hide this: the field asks for the deployment's
+              WORKER_API_TOKEN, which a demo visitor can't have and doesn't need. */}
+          {!multi && !demo && (
             <Field
               label="API token"
               hint="The worker's WORKER_API_TOKEN. Required on every API and WebSocket call."
@@ -264,9 +271,11 @@ export default function App() {
               <dd>
                 {multi
                   ? 'Multi-user (magic-link)'
-                  : health.auth
-                    ? 'Token required'
-                    : 'Open (no token configured)'}
+                  : demo
+                    ? 'Demo sandbox (session cookie)'
+                    : health.auth
+                      ? 'Token required'
+                      : 'Open (no token configured)'}
               </dd>
               <dt>Email</dt>
               <dd>{health.mail ? 'Configured' : 'Off — no RESEND_API_KEY / MAIL_FROM'}</dd>
