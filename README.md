@@ -430,15 +430,17 @@ Left before the release is cut:
   pipeline that publishes a versioned image per tag, so self-hosting is a pull
   rather than a build
   ([US-032](backlog/sprint/current/US-032-release-pipeline-and-image.md)).
+- **Stripe subscriptions** for the hosted tier
+  ([US-022](backlog/sprint/current/US-022-stripe-billing.md)), pulled into this
+  sprint on 2026-07-25 now that magic-link signup
+  ([US-021](backlog/sprint/current/done/US-021-signup-auth.md)) and BYOK
+  ([US-005](backlog/sprint/current/done/US-005-byok-user-api-keys.md)) have
+  shipped. **Self-hosting stays free** — billing is env-gated and off by
+  default.
 
-**Next sprint — the hosted paid tier** (in
-[`backlog/sprint/next/`](backlog/README.md)): bring-your-own OpenAI key
-([US-005](backlog/sprint/next/US-005-byok-user-api-keys.md)), magic-link signup
-([US-021](backlog/sprint/next/US-021-signup-auth.md)), Stripe subscriptions
-([US-022](backlog/sprint/next/US-022-stripe-billing.md)), and a report with
-per-step screenshots
+**Next sprint** (in [`backlog/sprint/next/`](backlog/README.md)): a report with
+per-step screenshots and the session recording
 ([US-020](backlog/sprint/next/US-020-report-v2-screenshots-recording.md)).
-**Self-hosting stays free** — billing is env-gated and off by default.
 
 Later ([`backlog/unscheduled/`](backlog/README.md)): SMS/social
 registration tiers, PR status checks, scaling to ~100 concurrent sessions

@@ -40,12 +40,14 @@ public repo (US-031), and a tested, published image (US-032).
 Sprints aren't split along a self-host/hosted-tier line — `sprint/current/`
 and `sprint/next/` are just now vs. later, reprioritized as needed. On
 2026-07-24, US-021 (signup & login) and US-033 (live demo replay) were pulled
-forward from `sprint/next/` into this sprint.
+forward from `sprint/next/` into this sprint; on 2026-07-25, US-022 (Stripe
+billing) followed, which empties the hosted tier out of `sprint/next/`.
 
 | ID | Story | Status | Depends on |
 |---|---|---|---|
 | [US-007](sprint/current/US-007-https-reverse-proxy.md) | Public HTTPS via reverse proxy (and the Resend sender domain) | 📋 Planned | domain (owned) |
 | [US-008](sprint/current/US-008-cicd-integration.md) | CI/CD trigger: the documented pipeline step | 📝 Docs written, unverified | US-007, US-009 |
+| [US-022](sprint/current/US-022-stripe-billing.md) | Paid tier: Stripe billing | 📋 Planned | US-021, US-005, US-007 |
 | [US-031](sprint/current/US-031-license-and-public-repo.md) | License the code and open the repo | 📋 Planned | — |
 | [US-032](sprint/current/US-032-release-pipeline-and-image.md) | CI on every push, a published image on every tag | 📋 Planned | US-031 |
 | [US-028](sprint/current/done/US-028-per-user-concurrency-limit.md) | Per-user concurrent run limit (self-host org cap; env-gated) | ✅ Shipped (2026-07-25) | US-021, US-027 |
@@ -88,7 +90,7 @@ release — US-032 is that sentence becoming a workflow.
 Added to the sprint 2026-07-23: **US-027**, one half of concurrency being
 invisible. `MAX_CONCURRENT_SESSIONS=4` queues everything past the cap, but the
 Run view rendered a queued run identically to a starting one. The other half —
-a per-user share of the queue ([US-028](sprint/current/US-028-per-user-concurrency-limit.md))
+a per-user share of the queue ([US-028](sprint/current/done/US-028-per-user-concurrency-limit.md))
 — is a no-op until real users exist, and today's single global queue is enough
 until then.
 
@@ -177,6 +179,13 @@ US-020/US-010/US-012 touch the frontend than after.
     canned `/demo` clip. US-036 shipped 2026-07-24 and removed the US-033 shell
     (`DemoView`, `/demo` route, the `/ws?demo` branch, `routes/demo.js`, the WS
     `replayDemo`); every demo run is the interceptor's replay instead.
+12. **US-022** — Stripe billing, pulled in from `sprint/next/` on 2026-07-25.
+    Last in the order and specifically **after US-007**: Stripe posts webhooks to
+    a public HTTPS URL, so it cannot be verified end-to-end before the domain is
+    up. Its per-user caps read US-028's cap lookup rather than reinventing one,
+    and billing gates are the one row in
+    [`correctness-critical.md`](correctness-critical.md) that is assertion-first
+    from its first line.
 
 **US-027** (queued-run visibility) sat outside this order: it depended on
 nothing, and every story above makes the queue busier. **Shipped 2026-07-23**,
@@ -190,33 +199,25 @@ strict FIFO.
 ## Next sprint — `sprint/next/`
 
 Split out of the current sprint on 2026-07-23: the hosted-tier stories plus
-the report improvement that was never gating anything. Two of those stories
-(US-021, US-033) were pulled back into `sprint/current/` on 2026-07-24 — see
-above; what remains here is billing and the report v2 polish.
+the report improvement that was never gating anything. All three hosted-tier
+stories have since been pulled back into `sprint/current/` — US-021 and US-033
+on 2026-07-24, US-022 on 2026-07-25 — so what remains here is the report v2
+polish alone.
 
 Paid-tier ground rules (decided 2026-07-22, still standing): nothing extra
 beyond what payment requires. One plan, Stripe Checkout, **BYOK for LLM
 tokens** (payment covers hosting, not OpenAI usage). Billing code lives in this
-repo **env-gated** (`STRIPE_*` unset = everything free) — the private cloud
-repo is deferred until real cloud-only infra exists; the full repo/boundary
+repo **env-gated** (`STRIPE_*` unset = everything free); the full repo/boundary
 rules live in [`docs/repo-model.md`](../docs/repo-model.md). Email provider:
 **Resend** (US-012, US-021 magic links).
 
 | ID | Story | Status | Depends on |
 |---|---|---|---|
-| [US-022](sprint/next/US-022-stripe-billing.md) | Paid tier: Stripe billing | 📋 Planned | US-021, US-005 |
 | [US-020](sprint/next/US-020-report-v2-screenshots-recording.md) | Report v2: step screenshots + recording | 📋 Planned (P2) | US-006 |
 
 ### Build order
 
-1. **US-005** — BYOK, before anyone but the operator can run tests
-2. **US-022** — billing. Depends on US-021, which now ships from
-   `sprint/current/`. The per-user concurrency cap
-   ([US-028](sprint/current/US-028-per-user-concurrency-limit.md)) is no longer
-   downstream of billing — it moved to `sprint/current/` on 2026-07-25 as an
-   env-gated self-host feature; US-022 later becomes one consumer of its
-   per-user cap lookup.
-3. **US-020** — the screenshots, into the report and hanging off a step in
+1. **US-020** — the screenshots, into the report and hanging off a step in
    US-026's activity list. P2 since 2026-07-23: it makes a good report better
    rather than making anything possible, which is also why it left the current sprint.
    Its step section renders `Step {n}`, which is why `progress` events were
@@ -236,6 +237,7 @@ rules live in [`docs/repo-model.md`](../docs/repo-model.md). Email provider:
 | [US-018](unscheduled/US-018-first-run-setup.md) | First-run setup: Chromium download + BYOK settings | 📋 Planned | TBD | US-016 |
 | [US-019](unscheduled/US-019-installers-signing-autoupdate.md) | Installers, code signing, auto-update | 📋 Planned | TBD | US-016..018 |
 | [US-024](unscheduled/US-024-memory-watchdog-pss-metric.md) | Memory watchdog: measure PSS, not summed RSS | 📋 Planned | P2 | — |
+| [US-037](unscheduled/US-037-enterprise-stack-and-readiness.md) | Enterprise stack & readiness: what to adopt, what to refuse | 📋 Planned (tiered) | P2 | US-021, US-007 |
 
 A tiered story keeps one file while its later tiers are still hypothetical:
 US-013's email tier shipped, so the file sits in `sprint/current/done/` with the
@@ -245,6 +247,17 @@ tiers are real enough to plan, which is what happened to **US-008 on
 story whose acceptance criteria are mostly out of scope makes `ls sprint/current/`
 overstate what is left. US-008 is now the CI step alone; [US-029](unscheduled/US-029-cicd-action-and-github-app.md)
 carries the Action and the App.
+
+**US-037 (added 2026-07-25)** is a decision as much as a story: it settles which
+"enterprise standard" stack pieces we adopt and — more usefully — which we
+refuse, on the premise that what blocks an enterprise deal is SSO, an audit log,
+RBAC and a security questionnaire, none of which are framework choices. Its
+tiers 1–3 (observability, Zod at the boundary, audit log + RBAC) are additive to
+today's stack and need no migration; tier 4 (TypeScript) is the only rewrite and
+would rewrite a **Stack decisions (settled)** line in `CLAUDE.md`; tier 5 (SSO/
+SCIM) waits for a named customer and is env-gated like Stripe. Tiers 3 and 5 are
+assertion-first and owe rows in [`correctness-critical.md`](correctness-critical.md)
+when scheduled.
 
 **Desktop track (US-016..019, sketched 2026-07-21, on hold):** candidate
 strategy — free version runs entirely on the user's machine (their CPU/RAM,
