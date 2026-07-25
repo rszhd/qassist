@@ -468,6 +468,11 @@ exactly the work that is left.
   ([US-006](backlog/sprint/current/done/US-006-session-recording.md)).
 - **Registration-flow verification** — email-confirmation signups
   ([US-013](backlog/sprint/current/done/US-013-registration-flow-verification.md)).
+- **Subscription billing** for a hosted tier — Stripe Checkout and the Customer
+  Portal, entirely env-gated
+  ([US-022](backlog/sprint/current/done/US-022-stripe-billing.md)); see
+  [Billing](#billing). **Self-hosting stays free**: with `STRIPE_*` unset there
+  is no billing UI and no gating.
 
 Left before the release is cut:
 
@@ -483,14 +488,6 @@ Left before the release is cut:
   pipeline that publishes a versioned image per tag, so self-hosting is a pull
   rather than a build
   ([US-032](backlog/sprint/current/US-032-release-pipeline-and-image.md)).
-- **Stripe subscriptions** for the hosted tier
-  ([US-022](backlog/sprint/current/US-022-stripe-billing.md)), pulled into this
-  sprint on 2026-07-25 now that magic-link signup
-  ([US-021](backlog/sprint/current/done/US-021-signup-auth.md)) and BYOK
-  ([US-005](backlog/sprint/current/done/US-005-byok-user-api-keys.md)) have
-  shipped. **Self-hosting stays free** — billing is env-gated and off by
-  default.
-
 **Next sprint** (in [`backlog/sprint/next/`](backlog/README.md)): a report with
 per-step screenshots and the session recording
 ([US-020](backlog/sprint/next/US-020-report-v2-screenshots-recording.md)).

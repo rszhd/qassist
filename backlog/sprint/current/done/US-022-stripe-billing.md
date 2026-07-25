@@ -2,11 +2,11 @@
 
 **As the** operator, **I want** users to pay a subscription before running tests on the hosted instance, **so that** the cloud version has revenue from day one without me invoicing anyone.
 
-- **Status:** 🏗 In progress — **backend complete** (2026-07-25). Schema, config,
-  `billing.js`, routes, the gate on all seven start paths, the scheduler's fire
-  check, and all four assertion-first test files are done and green (258 server
-  tests, `npm run check` clean). **Remaining: the frontend and its tests** —
-  see "What is left" below.
+- **Status:** ✅ Done (2026-07-25). Backend and frontend both shipped: 258
+  server tests and 31 frontend tests green, `npm run check` and
+  `npm run build` clean. The one thing code cannot prove is the live
+  Stripe test-mode round trip (card → webhook → run) — that is the operator's
+  smoke test, and README's "Testing it locally" is the script for it.
 - **Priority:** P1 (current sprint) — last story before the hosted launch
 - **Estimate:** ~1–2 days
 - **Depends on:** US-021 (auth), US-007 (public HTTPS — Stripe webhooks),
@@ -160,41 +160,53 @@ stranger can POST to:
   a subsequent `customer.subscription.deleted` blocks that user and nobody
   else.
 
-## What is left (2026-07-25)
+## The frontend, as built (2026-07-25)
 
-Everything below the API line is done. The frontend is not started, and is the
-whole of the remaining work:
-
-- **`frontend/src/Billing.jsx`** — already written but **not yet imported by
-  anything**, so it is untracked and not in the backend commit. It renders the
-  Settings section (status line + Subscribe / Resubscribe / Manage billing) and
-  exports `startCheckout()` for the 402 CTA to share. Review it first; it was
-  written against the design system but never rendered.
-- **`App.jsx`** — render `<Billing />` in the Settings dialog when
-  `health.billing`, and add a "Billing" row to the health `<dl>`.
-- **`api.js`** — attach the server's response body to the thrown error
-  (`err.payload`), so a caller can read `subscription_status` off a 402 instead
-  of re-fetching. US-028's cap fields would benefit from the same.
-- **`RunView.jsx`** — 402 handling beside the existing 429 `atCap` at the three
-  catch sites (ad-hoc `startRun`, `runTest`, `runBatch`). Its own notice, not
-  the red error banner: a refusal to be paid is not a failed run. The notice
-  carries the Subscribe CTA rather than a bare message.
+- **`frontend/src/Billing.jsx`** — the Settings section: one status line and a
+  button that leaves for Stripe (Subscribe / Resubscribe / Manage billing).
+  Exports `startCheckout()` so the 402 CTA shares it and the two paths to
+  Checkout cannot drift.
+- **`App.jsx`** — `<Billing />` renders in the Settings dialog only when
+  `health.billing`, and the health `<dl>` gains a Billing row on the same
+  condition. Absent rather than "Off": on a free instance billing is not a
+  setting that happens to be disabled, it does not exist.
+- **`api.js`** — the thrown error carries the response body as `err.payload`,
+  so a caller reads `subscription_status` off a 402 (and US-028's `cap` off a
+  429) instead of re-fetching what it was just told.
+- **`RunView.jsx`** — 402 at all three catch sites (`startRun`, `runSavedTest`,
+  `runBatch` — a batch is refused whole, so it lands in the catch rather than
+  partial-accepting). Its own notice with the CTA, never the red error banner,
+  and the view drops back to idle rather than a phantom errored run.
+- **The return from Checkout** — *not in the original plan.* Stripe's
+  `success_url` is `/?billing=success`, and nothing read it: the customer came
+  back to an unchanged page with a dead param in the URL. `RunView` now reads
+  it once on mount, acknowledges the payment (info tone, and honest that the
+  webhook may not have landed yet), then strips the param so a reload does not
+  repeat it. A cancelled checkout says nothing — backing out is not an event.
 - **`App.css`** — `.billing` / `.billing-state` / `.billing-actions`, mirroring
   the `.openai-key` family.
-- **Frontend tests** (`npm test`, Vitest): billing UI absent when
-  `health.billing` is false — the self-host assertion, and the frontend half of
-  the acceptance criterion below.
+- **Frontend tests** — `Billing.test.jsx` (billing UI absent *and* no
+  `/api/billing` request at all when `health.billing` is false; then the status
+  table: Subscribe, Resubscribe, Manage billing, past_due, exempt) and two new
+  `RunView.test.jsx` blocks (the 402 notice and its CTA; the checkout return).
+
+One trap worth recording: in multi-user mode the shell renders `null` until
+`/api/auth/me` resolves, so it mounts, unmounts and remounts. A gear grabbed
+before that settles is detached, and clicking it does nothing — the test waits
+for the view nav (which only exists once health has landed) before clicking.
 
 ## Acceptance criteria
 
-- [ ] User can subscribe via Checkout and immediately run tests — *backend done
-      (`/api/billing/checkout`); needs the button*
+- [x] User can subscribe via Checkout and immediately run tests — Subscribe in
+      Settings and on the 402 notice, both through `startCheckout()`; the live
+      card-to-webhook round trip is the operator's test-mode smoke test
 - [x] Cancelled subscription blocks new runs but not viewing history; a
       `past_due` one keeps running until the period it paid for ends
 - [x] Webhook replay/signature attacks are rejected, asserted
-- [ ] Self-host with no `STRIPE_*` env vars: no billing UI, no gating, no
-      behaviour change on any run path — *server proven by
-      `billing-off.test.js`; the "no billing UI" half needs the frontend*
+- [x] Self-host with no `STRIPE_*` env vars: no billing UI, no gating, no
+      behaviour change on any run path — server by `billing-off.test.js`, UI by
+      `Billing.test.jsx`, which also asserts the SPA asks `/api/billing`
+      nothing at all
 - [x] A lapsed customer's schedules stop firing and resume on resubscribe,
       without being deleted
 - [x] Stripe test-mode end-to-end flow documented for development

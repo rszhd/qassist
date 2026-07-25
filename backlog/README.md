@@ -47,9 +47,9 @@ billing) followed, which empties the hosted tier out of `sprint/next/`.
 |---|---|---|---|
 | [US-007](sprint/current/US-007-https-reverse-proxy.md) | Public HTTPS via reverse proxy (and the Resend sender domain) | 📋 Planned | domain (owned) |
 | [US-008](sprint/current/US-008-cicd-integration.md) | CI/CD trigger: the documented pipeline step | 📝 Docs written, unverified | US-007, US-009 |
-| [US-022](sprint/current/US-022-stripe-billing.md) | Paid tier: Stripe billing | 🏗 Backend done | US-021, US-005, US-007 |
 | [US-031](sprint/current/US-031-license-and-public-repo.md) | License the code and open the repo | 📋 Planned | — |
 | [US-032](sprint/current/US-032-release-pipeline-and-image.md) | CI on every push, a published image on every tag | 📋 Planned | US-031 |
+| [US-022](sprint/current/done/US-022-stripe-billing.md) | Paid tier: Stripe billing | ✅ Shipped (2026-07-25) — live test-mode round trip still to smoke-test | US-021, US-005, US-007 |
 | [US-028](sprint/current/done/US-028-per-user-concurrency-limit.md) | Per-user concurrent run limit (self-host org cap; env-gated) | ✅ Shipped (2026-07-25) | US-021, US-027 |
 | [US-005](sprint/current/done/US-005-byok-user-api-keys.md) | Bring-your-own OpenAI key (BYOK) — account-stored (encrypted) + per-request | ✅ Shipped (2026-07-25) | US-009 |
 | [US-036](sprint/current/done/US-036-demo-sandbox.md) | Demo sandbox: the whole app, per-visitor, on fake data | ✅ Shipped (2026-07-24) | US-021, US-033 engine |
@@ -185,7 +185,11 @@ US-020/US-010/US-012 touch the frontend than after.
     up. Its per-user caps read US-028's cap lookup rather than reinventing one,
     and billing gates are the one row in
     [`correctness-critical.md`](correctness-critical.md) that is assertion-first
-    from its first line.
+    from its first line. **Shipped 2026-07-25**, backend and frontend: the gate
+    on all seven start paths plus the scheduler's fire, and a Settings panel and
+    402 CTA that exist only where `/api/health` says `billing`. What US-007 still
+    owes it is the live round trip — a real card through Checkout and a real
+    webhook back — which no test here can stand in for.
 
 **US-027** (queued-run visibility) sat outside this order: it depended on
 nothing, and every story above makes the queue busier. **Shipped 2026-07-23**,

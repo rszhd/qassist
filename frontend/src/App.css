@@ -381,6 +381,13 @@ code { font-family: var(--mono); font-size: .92em; }
 .openai-key-form { display: flex; flex-direction: column; gap: var(--s2); }
 .openai-key-actions { display: flex; gap: var(--s2); }
 
+.billing { display: flex; flex-direction: column; gap: var(--s2); }
+/* The state line wraps rather than ellipsing: unlike the key's "Key stored"
+   this is a sentence about money, and a truncated one is worse than a tall one. */
+.billing-state { display: flex; align-items: center; gap: var(--s3); }
+.billing-state > span { flex: 1; min-width: 0; font-size: var(--t-sm); color: var(--faint); }
+.billing-actions { display: flex; gap: var(--s2); flex-shrink: 0; }
+
 /* The header sits one gutter above the content, so the gap under the title
    matches the gap between the cards below it. */
 .page-head { display: flex; align-items: flex-start; gap: var(--s4); padding: var(--s6) 0 var(--s4); }

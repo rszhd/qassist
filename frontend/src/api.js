@@ -15,6 +15,10 @@ export async function api(path, { token, method = 'GET', body } = {}) {
     // Callers that treat one code differently (the run page's 404 is "no such
     // run", not "something broke") shouldn't have to match on the message.
     err.status = res.status;
+    // The refusals that offer a way out say more than their message: 402
+    // carries subscription_status, 429 the cap it hit. Keeping the body means
+    // a caller reads it here instead of re-fetching what it was just told.
+    err.payload = payload;
     throw err;
   }
   return res.status === 204 ? null : res.json();

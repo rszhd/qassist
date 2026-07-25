@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Activity, AlertTriangle, Check, Clock, Download, KeyRound, Monitor, PanelLeftOpen, Play, Plus,
-  Undo2, X,
+  Activity, AlertTriangle, Check, Clock, CreditCard, Download, KeyRound, Monitor, PanelLeftOpen,
+  Play, Plus, Undo2, X,
 } from 'lucide-react';
 import { api, openReport } from './api.js';
 import ActivityLog from './Activity.jsx';
+import { startCheckout } from './Billing.jsx';
 import SavedTests from './SavedTests.jsx';
 import { TestDialog, RunVarsDialog } from './RunDialogs.jsx';
 import { batchSummary, fillTemplate, referencedNames, useProjectList } from './runHelpers.js';
@@ -34,6 +35,11 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
   // US-028: over the per-user cap. A "wait a moment", not a failure — its own
   // amber notice (the queued-copy family), never the red error banner.
   const [capNotice, setCapNotice] = useState(null);
+  // US-022: refused for want of a subscription. Also not a failure — but unlike
+  // the cap it doesn't clear by waiting, so the notice carries the way out.
+  const [billingNotice, setBillingNotice] = useState(null);
+  // True just after Stripe sends the customer back from a completed Checkout.
+  const [subscribed, setSubscribed] = useState(false);
   const [tests, setTests] = useState([]);
   const [projects, setProjects] = useState([]);
   // 'all' | 'none' (Ungrouped) | a project id. Drives the ?project_id= filter.
@@ -78,6 +84,19 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
   useEffect(() => {
     localStorage.setItem('qassist_rail', railOpen ? 'open' : 'min');
   }, [railOpen]);
+
+  // Coming back from Stripe (US-022). Checkout's success/cancel URLs land here
+  // on a full page load carrying ?billing=, so it is read once and stripped —
+  // a reload should not congratulate you a second time. A cancelled checkout
+  // says nothing: backing out of a payment page is not an event.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (!params.has('billing')) return;
+    setSubscribed(params.get('billing') === 'success');
+    params.delete('billing');
+    const query = params.toString();
+    window.history.replaceState({}, '', window.location.pathname + (query ? `?${query}` : ''));
+  }, []);
 
   const filterProjectId = filter === 'all' || filter === 'none' ? null : filter;
 
@@ -192,6 +211,8 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
   function resetRunState() {
     setError(null);
     setCapNotice(null);
+    setBillingNotice(null);
+    setSubscribed(false);
     setResult(null);
     setSteps([]);
     setScreenshot(null);
@@ -217,6 +238,7 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
       openSocket(id);
     } catch (err) {
       if (err.status === 429) return atCap(err.message);
+      if (err.status === 402) return needsSubscription(err);
       setError(err.message);
       setStatus('error');
     }
@@ -228,6 +250,23 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
     setCapNotice(message);
     setStatus('idle');
     setActiveTestId(null);
+  }
+
+  // 402 from the billing gate (US-022): nothing started, same idle drop as the
+  // cap. `subscription_status` off the response says whether this account ever
+  // paid, which is the difference between Subscribe and Resubscribe.
+  function needsSubscription(err) {
+    setBillingNotice({ message: err.message, status: err.payload?.subscription_status || null });
+    setStatus('idle');
+    setActiveTestId(null);
+  }
+
+  async function subscribe() {
+    try {
+      await startCheckout();
+    } catch (err) {
+      setError(err.message);
+    }
   }
 
   // Create or update from whatever the dialog currently holds. max_steps/model
@@ -337,6 +376,7 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
       openSocket(id);
     } catch (err) {
       if (err.status === 429) return atCap(err.message);
+      if (err.status === 402) return needsSubscription(err);
       setError(err.message);
       setStatus('error');
       setActiveTestId(null);
@@ -376,6 +416,9 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
       setRunId(started[0].runId);
       openSocket(started[0].runId);
     } catch (err) {
+      // A batch is refused whole rather than partial-accepted (entitlement
+      // doesn't vary between the members of a suite), so it arrives here.
+      if (err.status === 402) return needsSubscription(err);
       setError(`Run ${kind}: ${err.message}`);
       setStatus('error');
     }
@@ -477,6 +520,32 @@ export default function RunView({ token, health, visible, needsToken, onOpenSett
         <div className="banner page-error">
           <Clock size={14} aria-hidden="true" />
           <span>{capNotice}</span>
+        </div>
+      )}
+
+      {subscribed && (
+        // Informational, not celebratory: the subscription becomes real when
+        // the webhook lands, which is usually immediate but is not guaranteed
+        // to have happened by the time Stripe redirects the browser back.
+        <div className="batch-note page-error">
+          <CreditCard size={14} aria-hidden="true" />
+          <span>
+            Payment complete. Stripe confirms in the background — if a run is still refused, give
+            it a moment and try again.
+          </span>
+        </div>
+      )}
+
+      {billingNotice && (
+        <div className="banner page-error">
+          <CreditCard size={14} aria-hidden="true" />
+          <span>
+            <strong>{billingNotice.status ? 'Subscription lapsed' : 'Subscription needed'}</strong>
+            <span>{billingNotice.message}</span>
+          </span>
+          <Button size="sm" className="spacer" onClick={subscribe}>
+            {billingNotice.status ? 'Resubscribe' : 'Subscribe'}
+          </Button>
         </div>
       )}
 

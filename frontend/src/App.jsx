@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import ApiKeys from './ApiKeys.jsx';
+import Billing from './Billing.jsx';
 import OpenaiKey from './OpenaiKey.jsx';
 import DemoBanner from './DemoBanner.jsx';
 import HistoryView from './HistoryView.jsx';
@@ -210,6 +211,9 @@ export default function App() {
                   </Button>
                 </div>
               </Field>
+              {/* US-022: only when the instance actually bills. Unset STRIPE_*
+                  leaves health.billing false and the dialog is what it was. */}
+              {health?.billing && <Billing />}
               <OpenaiKey />
               <ApiKeys />
             </>
@@ -249,6 +253,14 @@ export default function App() {
               </dd>
               <dt>Email</dt>
               <dd>{health.mail ? 'Configured' : 'Off — no RESEND_API_KEY / MAIL_FROM'}</dd>
+              {/* Absent rather than "Off" (US-022): on a free instance billing
+                  isn't a setting that happens to be disabled, it doesn't exist. */}
+              {health.billing && (
+                <>
+                  <dt>Billing</dt>
+                  <dd>Stripe — runs need a subscription</dd>
+                </>
+              )}
             </dl>
           )}
         </Modal>

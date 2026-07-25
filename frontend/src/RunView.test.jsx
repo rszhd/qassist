@@ -66,6 +66,7 @@ const runCalls = (calls) => calls.filter((c) => c.url.includes('/run'));
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 describe('RunView run dispatch (US-035)', () => {
@@ -101,6 +102,102 @@ describe('RunView run dispatch (US-035)', () => {
     await waitFor(() => expect(runCalls(calls)).toHaveLength(1));
     expect(runCalls(calls)[0].url).toContain('/api/tests/vars-1/run');
     expect(runCalls(calls)[0].body.variables).toEqual({ base_url: 'https://prod.example.com' });
+  });
+});
+
+// US-022: a run refused for want of a subscription is not a failed run. It must
+// land in its own notice carrying the way out, never the red error banner, and
+// leave the view idle rather than stuck in a phantom 'error' run.
+function stubRefusedEnv(payload) {
+  const calls = [];
+  vi.stubGlobal('fetch', (input, init = {}) => {
+    const url = typeof input === 'string' ? input : input.url;
+    calls.push({ url, method: init.method || 'GET' });
+    if (url.includes('/run')) {
+      return Promise.resolve({ ok: false, status: 402, json: async () => payload });
+    }
+    if (url.startsWith('/api/billing/checkout')) {
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: async () => ({ url: 'https://checkout.stripe.test/s1' }),
+      });
+    }
+    const body = url.startsWith('/api/tests') ? { tests: [PLAIN] } : { projects: [] };
+    return Promise.resolve({ ok: true, status: 200, json: async () => body });
+  });
+  vi.stubGlobal('WebSocket', class { close() {} });
+  return calls;
+}
+
+const REFUSAL = {
+  error: 'an active subscription is required to start runs — subscribe in Settings',
+  billing_required: true,
+  subscription_status: null,
+};
+
+describe('RunView billing refusal (US-022)', () => {
+  it('shows the subscribe notice, not the error banner, and stays idle', async () => {
+    stubRefusedEnv(REFUSAL);
+    renderRunView();
+
+    fireEvent.click(await screen.findByLabelText('Run "Plain test"'));
+
+    const notice = await screen.findByText('Subscription needed');
+    expect(notice.closest('.banner')).toBeTruthy();
+    expect(screen.getByText(REFUSAL.error)).toBeTruthy();
+    expect(notice.closest('.error')).toBeNull();
+    // Idle again rather than stuck in a run that never started.
+    expect(screen.queryByText('Running…')).toBeNull();
+    expect(screen.queryByText('Queued…')).toBeNull();
+  });
+
+  it('offers Resubscribe when the account used to pay, and posts checkout', async () => {
+    const calls = stubRefusedEnv({ ...REFUSAL, subscription_status: 'canceled' });
+    // jsdom's location is unforgeable, so the whole object is swapped rather
+    // than the method spied — checkout ends in a real navigation to Stripe.
+    const assign = vi.fn();
+    vi.stubGlobal('location', { assign, protocol: 'http:', host: 'localhost' });
+    renderRunView();
+
+    fireEvent.click(await screen.findByLabelText('Run "Plain test"'));
+
+    expect(await screen.findByText('Subscription lapsed')).toBeTruthy();
+    fireEvent.click(screen.getByText('Resubscribe'));
+
+    await waitFor(() =>
+      expect(calls.some((c) => c.url === '/api/billing/checkout' && c.method === 'POST')).toBe(true)
+    );
+    await waitFor(() => expect(assign).toHaveBeenCalledWith('https://checkout.stripe.test/s1'));
+  });
+});
+
+// The other half of the CTA: Stripe sends the customer back to `/?billing=…`
+// on a full page load, and that param is the only signal the app gets.
+describe('RunView checkout return (US-022)', () => {
+  function stubReturn(outcome) {
+    stubEnv();
+    const replaceState = vi.fn();
+    vi.stubGlobal('location', { search: `?billing=${outcome}`, pathname: '/', protocol: 'http:', host: 'localhost' });
+    vi.stubGlobal('history', { replaceState });
+    return replaceState;
+  }
+
+  it('acknowledges a completed checkout and strips the param', async () => {
+    const replaceState = stubReturn('success');
+    renderRunView();
+
+    expect(await screen.findByText(/Payment complete/)).toBeTruthy();
+    // Stripped, so a reload doesn't say it again.
+    expect(replaceState).toHaveBeenCalledWith({}, '', '/');
+  });
+
+  it('says nothing about a checkout the customer backed out of', async () => {
+    const replaceState = stubReturn('cancelled');
+    renderRunView();
+
+    await waitFor(() => expect(replaceState).toHaveBeenCalledWith({}, '', '/'));
+    expect(screen.queryByText(/Payment complete/)).toBeNull();
   });
 });
 
