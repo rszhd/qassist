@@ -165,6 +165,28 @@ criterion below) because the gate turns on. If staging is ever left up and idle,
 the cheap mitigation is `BILLING_EXEMPT_EMAILS` narrowed to the maintainer plus
 test keys present, not a second auth layer — "one door, not two" still holds.
 
+**Mitigated on the box, same day, and then escalated into its own story.**
+Waiting for Stripe test keys was judged the wrong shape — it makes *not being
+robbed* contingent on billing being configured, which is never true on a free
+self-host. So `OPENAI_API_KEY` was **blanked in `.env.staging`** (backup at
+`.env.staging.bak-20260725`, 0600, which still holds the value) and the stack
+recreated; `/api/health` now reports `agent_ready:false`, and staging is
+BYOK-only — `KEY_ENCRYPTION_SECRET` is set there, so the Settings key field
+works and users add their own. The proper fix is
+[US-039](US-039-byok-only-no-server-key.md), which removes the server key from
+the product entirely.
+
+Two side effects of the blanking, both living until US-039 lands:
+
+- **Staging's scheduler does not start.** `startScheduler()` returns before
+  `setInterval` when `OPENAI_API_KEY` is unset (`scheduler.js:197`), so *no*
+  schedule fires — including one whose owner has their own key, which the guard
+  predates. The seeded daily schedule is the one affected. US-039 replaces the
+  boot-time global check with a per-schedule skip.
+- **The Run view shows "Add it to `.env` and restart"** (`RunView.jsx:499`) —
+  operator advice shown to a registrant who has no `.env`. The correct
+  instruction is "add your key in Settings"; US-039 rewrites it.
+
 `MAX_CONCURRENT_SESSIONS=1`, and after two concurrent-ish suites the box still
 had ~6.4 GB available and 53 GB free — staging is not what will run it out.
 
