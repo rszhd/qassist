@@ -47,7 +47,7 @@ billing) followed, which empties the hosted tier out of `sprint/next/`.
 |---|---|---|---|
 | [US-007](sprint/current/US-007-https-reverse-proxy.md) | Public HTTPS via reverse proxy (and the Resend sender domain) | 📋 Planned | domain (owned) |
 | [US-008](sprint/current/US-008-cicd-integration.md) | CI/CD trigger: the documented pipeline step | 📝 Docs written, unverified | US-007, US-009 |
-| [US-022](sprint/current/US-022-stripe-billing.md) | Paid tier: Stripe billing | 📋 Planned | US-021, US-005, US-007 |
+| [US-022](sprint/current/US-022-stripe-billing.md) | Paid tier: Stripe billing | 🏗 Backend done | US-021, US-005, US-007 |
 | [US-031](sprint/current/US-031-license-and-public-repo.md) | License the code and open the repo | 📋 Planned | — |
 | [US-032](sprint/current/US-032-release-pipeline-and-image.md) | CI on every push, a published image on every tag | 📋 Planned | US-031 |
 | [US-028](sprint/current/done/US-028-per-user-concurrency-limit.md) | Per-user concurrent run limit (self-host org cap; env-gated) | ✅ Shipped (2026-07-25) | US-021, US-027 |

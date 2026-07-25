@@ -127,6 +127,8 @@ Set in `.env` (see `.env.example`):
 | `NOTIFY_MODE` | `failure` | Default for tests in no project — one of `failure`, `always`, `never`. `failure` covers anything that is not a pass, including a run that ended unjudged. Projects carry their own mode |
 | `NOTIFY_SECRET` | `WORKER_API_TOKEN` | Signs unsubscribe links. Falls back to a per-boot random value if the token is blank too, which invalidates links already mailed |
 | `OPERATOR_EMAIL` | `operator@qassist.local` | Seeds the single account row, and is the last-resort recipient after `NOTIFY_EMAILS`. The default is not a deliverable address |
+| `STRIPE_SECRET_KEY`<br>`STRIPE_WEBHOOK_SECRET`<br>`STRIPE_PRICE_ID` | — | Subscription billing (see [Billing](#billing)). All blank = billing off, every run free — the self-host default. Also needs `PUBLIC_BASE_URL`, the control plane and `AUTH_ENABLED`; missing any one leaves the instance free. `/api/health` reports this as `billing` |
+| `BILLING_EXEMPT_EMAILS` | `OPERATOR_EMAIL` | Comma-separated accounts that run without subscribing |
 
 Per-run artifacts (screenshots, `recording.mp4`, `report_data.json`,
 `report.pdf`) are written to
@@ -327,6 +329,57 @@ curl http://<host>:8080/api/notifications/suppressions \
 curl -X DELETE http://<host>:8080/api/notifications/suppressions/qa@example.com \
   -H "Authorization: Bearer $WORKER_API_TOKEN"
 ```
+
+### Billing
+
+**Off unless you turn it on, and self-hosting is always free.** With
+`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` and `STRIPE_PRICE_ID` unset there
+is no billing UI, no gating and no `/api/billing` — the instance behaves as if
+this feature did not ship. `GET /api/health` answers `billing` either way.
+
+Turning it on gates **starting a run** and nothing else: an account without an
+active subscription gets `402` from every run trigger, and its schedules stop
+firing (they are never deleted, and resume on resubscribe). Reading stays open
+— history, run detail, steps, reports and recordings all keep working, so
+cancelling is never a data-loss event. LLM tokens remain BYOK on every tier: a
+subscription pays for hosting, not for the model.
+
+It also requires `AUTH_ENABLED` and `PUBLIC_BASE_URL`. Billing charges *users*,
+so an instance with no real users — single-token or open — is never gated, and
+Stripe needs somewhere to send the customer back to.
+
+`active` and `trialing` may run. `past_due` keeps running until
+`current_period_end`, because Stripe retries a declined card for around two
+weeks and cutting off a paying customer on the first failed retry is the worse
+bug. `canceled`, `unpaid`, `incomplete` and "never subscribed" are refused.
+
+Only one plan exists: one recurring Stripe price, taken through Checkout, with
+changes and cancellation handled by the Stripe Customer Portal. There is no
+payment UI of our own, and no `stripe` dependency — the integration is three
+form-encoded `POST`s and one HMAC.
+
+**Testing it locally** (Stripe test mode — nothing here touches live money):
+
+```bash
+# 1. a test-mode price to sell, and the endpoint's signing secret
+stripe login
+stripe listen --forward-to localhost:8080/api/billing/webhook   # prints whsec_…
+
+# 2. .env: the test keys, plus billing's other preconditions
+#    STRIPE_SECRET_KEY=sk_test_…   STRIPE_WEBHOOK_SECRET=whsec_…
+#    STRIPE_PRICE_ID=price_…       PUBLIC_BASE_URL=http://localhost:8080
+#    AUTH_ENABLED=1                SESSION_SECRET=…   DATABASE_URL=…
+
+# 3. sign in, hit Subscribe in Settings, pay with Stripe's test card
+#    4242 4242 4242 4242, any future expiry, any CVC.
+
+# 4. drive the rest of the lifecycle without waiting for a renewal
+stripe trigger customer.subscription.deleted    # → runs start returning 402
+```
+
+`stripe listen` is not optional for local work: the webhook is what records the
+subscription, and it authenticates by signature over the exact bytes Stripe
+sent — so it cannot be faked with a hand-rolled `curl`.
 
 ## Local development
 

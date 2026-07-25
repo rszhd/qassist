@@ -4,6 +4,7 @@ import { authEnabled, demoMode } from '../auth.js';
 import { runTests } from '../runs.js';
 import { validOpenaiKeyShape } from '../crypto.js';
 import { getUserOpenaiKey, resolveRunKey } from '../openaiKey.js';
+import { billingEnabled, billingStateFor } from '../billing.js';
 import { OPENAI_API_KEY } from '../config.js';
 
 /** Triggers a caller may set; 'schedule' is US-010's, not callers'. */
@@ -59,6 +60,37 @@ export function requireAgentKey(req, res, next) {
     }
     /** @type {any} */ (req).runOpenaiKey = key;
     next();
+  })().catch(next);
+}
+
+/**
+ * The billing gate (US-022): refuse to start a run for an account without an
+ * active subscription. A no-op unless billingEnabled(), so on a self-hosted
+ * instance — and in the demo sandbox, where authEnabled() is false — this
+ * returns before it can touch anything.
+ *
+ * Sits *before* requireAgentKey on every run-starting route: an unpaid caller
+ * with no OpenAI key should hear "pay", not "configure a key" they would then
+ * still be refused for.
+ *
+ * Unlike US-028's per-user cap this refuses the whole request rather than
+ * partial-accepting a batch — entitlement doesn't vary between the members of
+ * a suite, so there is nothing to accept.
+ * @type {import('express').RequestHandler}
+ */
+export function requireEntitled(req, res, next) {
+  if (!billingEnabled()) return next();
+  (async () => {
+    const state = await billingStateFor(currentUserId());
+    if (state.entitled) return next();
+    // 402 rather than 403 so a CI caller can tell "you must pay" from "your
+    // token is wrong". `subscription_status` lets the UI say "resubscribe"
+    // rather than "subscribe" to someone who used to pay.
+    res.status(402).json({
+      error: 'an active subscription is required to start runs — subscribe in Settings',
+      billing_required: true,
+      subscription_status: state.status,
+    });
   })().catch(next);
 }
 

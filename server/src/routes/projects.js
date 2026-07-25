@@ -10,7 +10,7 @@
 // project resolver; routes/modules.js imports them.
 import express from 'express';
 import { db, currentUserId, isUuid } from '../db.js';
-import { h, requireDb, requireAgentKey, runTestsFromRequest, slugify } from './helpers.js';
+import { h, requireDb, requireAgentKey, requireEntitled, runTestsFromRequest, slugify } from './helpers.js';
 import { NOTIFY_MODES, cleanEmails } from '../notify.js';
 
 export const PROJECT_COLS =
@@ -287,6 +287,7 @@ export function projectsRouter({ checkToken }) {
 
   r.post(
     '/:project/run',
+    requireEntitled,
     requireAgentKey,
     h(async (req, res) => {
       // @ts-expect-error — set by r.param
@@ -331,6 +332,7 @@ export function projectsRouter({ checkToken }) {
   // Slug-addressable module trigger — the form US-008 documents for CI.
   r.post(
     '/:project/modules/:module/run',
+    requireEntitled,
     requireAgentKey,
     h(async (req, res) => {
       // @ts-expect-error — set by r.param

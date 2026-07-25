@@ -10,6 +10,7 @@
 // boot *is* the catch-up.
 import { db } from './db.js';
 import { runTests } from './runs.js';
+import { isEntitled } from './billing.js';
 import { getUserOpenaiKey } from './openaiKey.js';
 import { nextSlot } from './schedule.js';
 import { OPENAI_API_KEY } from './config.js';
@@ -110,10 +111,10 @@ async function claim(schedule, now) {
 /**
  * One pass: fire every schedule whose slot has arrived.
  * @param {number} [now] injectable clock, for tests
- * @returns {Promise<{ fired: number, runs: number, skipped: number }>}
+ * @returns {Promise<{ fired: number, runs: number, skipped: number, blocked: number }>}
  */
 export async function tick(now = Date.now()) {
-  if (!db()) return { fired: 0, runs: 0, skipped: 0 };
+  if (!db()) return { fired: 0, runs: 0, skipped: 0, blocked: 0 };
 
   const { rows: due } = await db().query(
     `select ${COLS} from schedules
@@ -125,6 +126,7 @@ export async function tick(now = Date.now()) {
   let fired = 0;
   let runs = 0;
   let skipped = 0;
+  let blocked = 0;
 
   for (const schedule of due) {
     // A row that has never been dated isn't late — it just doesn't know when
@@ -142,6 +144,19 @@ export async function tick(now = Date.now()) {
     // is how a schedule that never fires stays invisible.
     if (!(await claim(schedule, now))) {
       console.warn(`schedule ${schedule.id.slice(0, 8)}: due but not claimable — slot skipped`);
+      continue;
+    }
+
+    // Billing (US-022): a lapsed subscriber's schedules stop firing, but are
+    // never deleted or disabled. Checked *after* the claim, deliberately — the
+    // slot is consumed, so a lapsed month accumulates no backlog that all fires
+    // at once on resubscribe. Resubscribing simply resumes at the next slot.
+    // A no-op when billing is off: isEntitled() short-circuits to true.
+    if (!(await isEntitled(schedule.user_id))) {
+      blocked++;
+      console.log(
+        `schedule ${schedule.id.slice(0, 8)}: owner has no active subscription — slot skipped`
+      );
       continue;
     }
 
@@ -175,7 +190,7 @@ export async function tick(now = Date.now()) {
     );
   }
 
-  return { fired, runs, skipped };
+  return { fired, runs, skipped, blocked };
 }
 
 /** Tick every TICK_MS, starting now. Unref'd so it never holds the process open. */

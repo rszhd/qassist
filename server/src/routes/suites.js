@@ -4,7 +4,7 @@
 // returns the run ids; callers poll each run (no suite_runs table).
 import express from 'express';
 import { db, currentUserId, isUuid } from '../db.js';
-import { h, requireDb, requireAgentKey, runTestsFromRequest } from './helpers.js';
+import { h, requireDb, requireAgentKey, requireEntitled, runTestsFromRequest } from './helpers.js';
 
 const COLS = 'id, name, project_id, created_at, updated_at';
 
@@ -181,6 +181,7 @@ export function suitesRouter({ checkToken }) {
   // (US-008: point the whole suite at a fresh preview URL).
   r.post(
     '/:id/run',
+    requireEntitled,
     requireAgentKey,
     h(async (req, res) => {
       if (!isUuid(req.params.id)) return res.status(404).json({ error: 'not found' });

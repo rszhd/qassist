@@ -8,7 +8,7 @@
 // path CI uses.
 import express from 'express';
 import { db } from '../db.js';
-import { h, requireDb, requireAgentKey } from './helpers.js';
+import { h, requireDb, requireAgentKey, requireEntitled } from './helpers.js';
 import { isUuid } from '../db.js';
 import { MODULE_COLS, findModuleById, listModules, resolveSlug, runModule } from './projects.js';
 
@@ -64,6 +64,7 @@ export function modulesRouter({ checkToken }) {
 
   r.post(
     '/:id/run',
+    requireEntitled,
     requireAgentKey,
     h(async (req, res) => {
       const mod = await findModuleById(req.params.id);

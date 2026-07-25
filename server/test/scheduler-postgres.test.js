@@ -51,7 +51,7 @@ try {
   console.log(`scheduler-postgres: skipped — ${skip}`);
 }
 
-/** @type {(now?: number) => Promise<{ fired: number, runs: number, skipped: number }>} */
+/** @type {(now?: number) => Promise<{ fired: number, runs: number, skipped: number, blocked: number }>} */
 let tick;
 let userId;
 
@@ -116,7 +116,7 @@ test('a next_run_at written by Postgres is still claimable', { skip }, async () 
   assert.equal(equality.rowCount, 0, 'a JS Date cannot match a microsecond timestamp');
 
   const firedAfter = Date.now();
-  assert.deepEqual(await tick(), { fired: 0, runs: 0, skipped: 0 }, 'claimed, ran nothing');
+  assert.deepEqual(await tick(), { fired: 0, runs: 0, skipped: 0, blocked: 0 }, 'claimed, ran nothing');
 
   const { rows: claimed } = await pool.query(
     'select next_run_at, last_run_at from schedules where id = $1',

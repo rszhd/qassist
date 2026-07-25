@@ -12,7 +12,7 @@ import path from 'node:path';
 import { db, isUuid, currentUserId } from '../db.js';
 import { createRun, getRun, stepsOf } from '../runs.js';
 import { ARTIFACTS_DIR, RECORDING_FILENAME, REPORT_DATA_FILENAME } from '../config.js';
-import { h, requireDb, requireAgentKey, respondOverCap, STORED_TRIGGERS } from './helpers.js';
+import { h, requireDb, requireAgentKey, requireEntitled, respondOverCap, STORED_TRIGGERS } from './helpers.js';
 
 /** Mirrors the runs.status check constraint in 001_init.sql. */
 const STATUSES = new Set(['queued', 'running', 'passed', 'failed', 'completed', 'error']);
@@ -184,7 +184,7 @@ async function runOwned(id) {
 export function runsRouter({ checkToken, checkTokenOrQuery }) {
   const r = express.Router();
 
-  r.post('/', checkToken, requireAgentKey, (req, res) => {
+  r.post('/', checkToken, requireEntitled, requireAgentKey, (req, res) => {
     const { goal, start_url, max_steps } = req.body || {};
     if (!goal || !start_url) {
       return res.status(400).json({ error: 'goal and start_url are required' });

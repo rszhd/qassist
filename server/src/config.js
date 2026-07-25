@@ -130,3 +130,25 @@ export const DATABASE_URL = process.env.DATABASE_URL || '';
 export const OPERATOR_EMAIL = process.env.OPERATOR_EMAIL || 'operator@qassist.local';
 export const MIGRATIONS_DIR =
   process.env.MIGRATIONS_DIR || path.join(__dirname, '..', '..', 'db', 'migrations');
+
+// Stripe billing (US-022). All three unset — the self-host default — is billing
+// entirely off: no UI, no gating, no /api/billing surface at all. Self-host is
+// always free (CLAUDE.md), so the switch has to be the absence of config rather
+// than a flag someone could get wrong. billingEnabled() in billing.js ANDs
+// these with PUBLIC_BASE_URL (Stripe needs somewhere to send the customer
+// back), the control plane, and authEnabled() — billing charges *users*, and
+// without real users the only account is the seeded operator.
+export const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || '';
+export const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || '';
+export const STRIPE_PRICE_ID = process.env.STRIPE_PRICE_ID || '';
+// Overridable so a test can point the transport at a local server instead of
+// stubbing fetch — the request that goes out is then the real one (as RESEND_API_URL).
+export const STRIPE_API_URL = (process.env.STRIPE_API_URL || 'https://api.stripe.com/v1').replace(/\/+$/, '');
+// Accounts that run without subscribing. The operator must be able to
+// smoke-test production without buying their own product, and a self-hosting
+// org needs to exempt its own staff — an explicit, logged-in-config bypass
+// rather than a hidden one.
+export const BILLING_EXEMPT_EMAILS = (process.env.BILLING_EXEMPT_EMAILS || OPERATOR_EMAIL)
+  .split(',')
+  .map((e) => e.trim().toLowerCase())
+  .filter(Boolean);

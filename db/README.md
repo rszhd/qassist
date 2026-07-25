@@ -45,8 +45,18 @@ erDiagram
 | `runs` | durable run history — replaces the in-memory Map for finished runs | US-009/011 |
 | `notifications` | per-recipient email delivery log (idempotent sends) | US-012 |
 | `email_suppressions` | addresses that unsubscribed, instance-wide | US-012 |
+| `subscriptions` | one row per paying user: Stripe ids, status, period end | US-022 |
+| `stripe_events` | idempotency ledger — a conflicting insert means "already applied" | US-022 |
 
 The diagram above is the deployed schema through `002_projects_modules.sql`.
+
+Both billing tables are inert unless the instance is configured for billing
+(`STRIPE_*`, which no self-host sets): nothing writes to them and nothing reads
+them, so a free deployment carries two empty tables and no behaviour. A
+subscription is one row rather than columns on `users` because Stripe's ids and
+status are a single lifecycle that a webhook rewrites as a unit, and `status`
+deliberately carries no check constraint — the value is whatever Stripe sends,
+and which of them may run is one function in `server/src/billing.js`.
 
 ## Key decisions
 

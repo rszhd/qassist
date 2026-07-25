@@ -2,8 +2,11 @@
 
 **As the** operator, **I want** users to pay a subscription before running tests on the hosted instance, **so that** the cloud version has revenue from day one without me invoicing anyone.
 
-- **Status:** 📋 Planned (moved to next sprint on 2026-07-23 with the rest of the
-  hosted tier, pulled back into the current sprint on 2026-07-25)
+- **Status:** 🏗 In progress — **backend complete** (2026-07-25). Schema, config,
+  `billing.js`, routes, the gate on all seven start paths, the scheduler's fire
+  check, and all four assertion-first test files are done and green (258 server
+  tests, `npm run check` clean). **Remaining: the frontend and its tests** —
+  see "What is left" below.
 - **Priority:** P1 (current sprint) — last story before the hosted launch
 - **Estimate:** ~1–2 days
 - **Depends on:** US-021 (auth), US-007 (public HTTPS — Stripe webhooks),
@@ -157,15 +160,42 @@ stranger can POST to:
   a subsequent `customer.subscription.deleted` blocks that user and nobody
   else.
 
+## What is left (2026-07-25)
+
+Everything below the API line is done. The frontend is not started, and is the
+whole of the remaining work:
+
+- **`frontend/src/Billing.jsx`** — already written but **not yet imported by
+  anything**, so it is untracked and not in the backend commit. It renders the
+  Settings section (status line + Subscribe / Resubscribe / Manage billing) and
+  exports `startCheckout()` for the 402 CTA to share. Review it first; it was
+  written against the design system but never rendered.
+- **`App.jsx`** — render `<Billing />` in the Settings dialog when
+  `health.billing`, and add a "Billing" row to the health `<dl>`.
+- **`api.js`** — attach the server's response body to the thrown error
+  (`err.payload`), so a caller can read `subscription_status` off a 402 instead
+  of re-fetching. US-028's cap fields would benefit from the same.
+- **`RunView.jsx`** — 402 handling beside the existing 429 `atCap` at the three
+  catch sites (ad-hoc `startRun`, `runTest`, `runBatch`). Its own notice, not
+  the red error banner: a refusal to be paid is not a failed run. The notice
+  carries the Subscribe CTA rather than a bare message.
+- **`App.css`** — `.billing` / `.billing-state` / `.billing-actions`, mirroring
+  the `.openai-key` family.
+- **Frontend tests** (`npm test`, Vitest): billing UI absent when
+  `health.billing` is false — the self-host assertion, and the frontend half of
+  the acceptance criterion below.
+
 ## Acceptance criteria
 
-- [ ] User can subscribe via Checkout and immediately run tests
-- [ ] Cancelled subscription blocks new runs but not viewing history; a
+- [ ] User can subscribe via Checkout and immediately run tests — *backend done
+      (`/api/billing/checkout`); needs the button*
+- [x] Cancelled subscription blocks new runs but not viewing history; a
       `past_due` one keeps running until the period it paid for ends
-- [ ] Webhook replay/signature attacks are rejected, asserted
+- [x] Webhook replay/signature attacks are rejected, asserted
 - [ ] Self-host with no `STRIPE_*` env vars: no billing UI, no gating, no
-      behaviour change on any run path
-- [ ] A lapsed customer's schedules stop firing and resume on resubscribe,
+      behaviour change on any run path — *server proven by
+      `billing-off.test.js`; the "no billing UI" half needs the frontend*
+- [x] A lapsed customer's schedules stop firing and resume on resubscribe,
       without being deleted
-- [ ] Stripe test-mode end-to-end flow documented for development
-- [ ] `correctness-critical.md`'s billing row names the real files and tests
+- [x] Stripe test-mode end-to-end flow documented for development
+- [x] `correctness-critical.md`'s billing row names the real files and tests

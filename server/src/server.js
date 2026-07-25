@@ -30,10 +30,22 @@ import { notificationsRouter } from './routes/notifications.js';
 import { authRouter } from './routes/auth.js';
 import { keysRouter } from './routes/keys.js';
 import { accountRouter } from './routes/account.js';
+import { billingRouter, billingWebhookHandler } from './routes/billing.js';
+import { billingEnabled } from './billing.js';
 
 await initDb();
 
 const app = express();
+
+// US-022: the Stripe webhook is mounted BEFORE express.json() and parses its
+// own body with express.raw. Its signature covers the exact bytes Stripe sent,
+// so a re-serialized body could never verify. It carries no bearer either —
+// Stripe holds no credential of ours, and that signature is its authentication.
+// Not mounted at all when billing is off, so it 404s like any unknown route.
+if (billingEnabled()) {
+  app.post('/api/billing/webhook', express.raw({ type: 'application/json' }), billingWebhookHandler);
+}
+
 app.use(express.json({ limit: '1mb' }));
 
 // Resolve the caller and run the rest of the request as them: sets req.userId
@@ -94,6 +106,9 @@ app.get('/api/health', (_req, res) => {
     // instance that can't send, and the prefs UI says so rather than looking
     // like it saved something that works.
     mail: mailEnabled(),
+    // US-022: whether this instance charges for runs. False on every self-host
+    // default, so the SPA renders no billing UI at all rather than an inert one.
+    billing: billingEnabled(),
     // US-036: in demo mode the SPA shows a persistent "simulated results" banner
     // whose signup CTA points here (the hosted app's marketing/login page). Null
     // off demo mode, so nothing about the sandbox leaks into a normal deployment.
@@ -106,6 +121,8 @@ app.get('/api/health', (_req, res) => {
 app.use('/api/auth', authRouter({ checkToken }));
 app.use('/api/keys', keysRouter({ checkToken }));
 app.use('/api/account', accountRouter({ checkToken }));
+// Empty router (so every path under it 404s) unless billingEnabled().
+app.use('/api/billing', billingRouter({ checkToken }));
 
 app.use('/api/runs', runsRouter({ checkToken, checkTokenOrQuery }));
 app.use('/api/tests', testsRouter({ checkToken }));
