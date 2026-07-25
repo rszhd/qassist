@@ -2,11 +2,13 @@
 
 **As the** maintainer, **I want** a staging deployment at `staging.qassist.run` that is the production stack with production's data swapped out, **so that** a release, a migration, a Stripe round trip and a CI snippet can all be proven against something real before the thing real users are on.
 
-- **Status:** 🧱 Repo side shipped (2026-07-25) — `.env.staging.example`, the
-  `DEPLOY.md` staging + promotion sections, the `noindex` middleware and
-  `server/scripts/seed-staging.mjs`. The overlay needed no staging branch, as
-  planned. What is left is the box: the DNS record, standing the stack up, and
-  the criteria below that only a running staging environment can meet.
+- **Status:** 🧱 Repo side shipped, **DNS done** (2026-07-25) —
+  `.env.staging.example`, the `DEPLOY.md` staging + promotion sections, the
+  `noindex` middleware and `server/scripts/seed-staging.mjs`. The overlay needed
+  no staging branch, as planned. `staging.qassist.run` resolves to the VPS and
+  the sender domain is verified in Resend (US-007), which both stacks share.
+  What is left is the box: standing the stack up, and the criteria below that
+  only a running staging environment can meet.
 - **Priority:** P1 (current sprint, added 2026-07-25) — it blocks nothing by
   itself, but it is where three other stories in this sprint finish: each of
   US-022, US-008 and US-032 currently has "verify against production" as its
@@ -76,7 +78,7 @@ users or charges real cards, so the runbook lists them explicitly:
 
 | Setting | Production | Staging |
 |---|---|---|
-| `PUBLIC_BASE_URL` | `https://qassist.run` | `https://staging.qassist.run` |
+| `PUBLIC_BASE_URL` | `https://app.qassist.run` | `https://staging.qassist.run` |
 | `STRIPE_*` | live keys, live price, live webhook secret | **test-mode** keys, test price, that endpoint's own signing secret |
 | `NOTIFY_EMAILS` / `OPERATOR_EMAIL` | real recipients | a maintainer-only address; no project on staging may carry a stranger's address |
 | `SESSION_SECRET`, `NOTIFY_SECRET`, `KEY_ENCRYPTION_SECRET`, `WORKER_API_TOKEN` | production's | **distinct values** — a staging session or API key must never authenticate against production |

@@ -2,15 +2,22 @@
 
 **As a** user or CI pipeline, **I want** to reach the QAssist UI/API over HTTPS without an SSH tunnel, **so that** the service is usable from anywhere and integrations become possible.
 
-- **Status:** 🧱 Repo side shipped (2026-07-25) — `docker-compose.prod.yml`,
-  `docker-compose.proxy.yml` and `DEPLOY.md` are in and validated by rendering
-  `docker compose config`. What is left is the trip to the box: DNS, the
-  certificate, and the criteria below that only a running deployment can meet.
+- **Status:** 🧱 Repo side shipped, **DNS + mail done** (2026-07-25) —
+  `docker-compose.prod.yml`, `docker-compose.proxy.yml` and `DEPLOY.md` are in
+  and validated by rendering `docker compose config`. `app.qassist.run` and
+  `staging.qassist.run` both resolve to the VPS, and qassist.run is **verified
+  in Resend** (DKIM on `resend._domainkey`, SPF and the bounce MX on `send`), so
+  mail is no longer limited to the account owner's own address. What is left is
+  standing the stack up: the certificate, and the criteria below that only a
+  running deployment can meet. DMARC (`_dmarc`) is not set — optional, worth
+  adding at `p=none` once mail is flowing.
 - **Priority:** P1 (current sprint) — hard dependency of US-008 tier 1 (CI must reach the API); unblocks any external users
 - **Estimate:** ~2 h (plus domain/DNS)
-- **Depends on:** app domain is **qassist.run** (decided 2026-07-22) — point it
-  at the VPS. `arang.space` stays dedicated to US-013's catch-all test mail via
-  Cloudflare Email Routing
+- **Depends on:** app domain is **qassist.run** (decided 2026-07-22), and the app
+  serves from **`app.qassist.run`**, not the apex (decided 2026-07-25) — the apex
+  is a landing page built and served outside this repo, so `app.` and `staging.`
+  are the only records pointing at the VPS. `arang.space` stays dedicated to
+  US-013's catch-all test mail via Cloudflare Email Routing
 
 ## Approach: Traefik in compose, not host-installed Caddy (decided 2026-07-24)
 
@@ -87,18 +94,19 @@ Current workaround being replaced: `ssh -L 8090:localhost:8080 qagent-vps`.
 mail has ever gone through Resend, because Resend only delivers to the account
 owner's own address until the sender domain is verified — and verifying it
 means adding SPF/DKIM records to qassist.run, which is the same DNS panel this
-story is already in for the A record. So the proof lands here rather than
-re-opening a finished story: the story stays in `done/`, and the criteria below
-carry the send.
+story is already in for the A record. (Those records sit on the apex even though
+the app does not — mail sends as `…@qassist.run` regardless of the hostname the
+stack answers on.) So the proof lands here rather than re-opening a finished
+story: the story stays in `done/`, and the criteria below carry the send.
 
-`PUBLIC_BASE_URL` needs setting to `https://qassist.run` in the same pass — it
+`PUBLIC_BASE_URL` needs setting to `https://app.qassist.run` in the same pass — it
 is what puts a working recording link in the PDF and a working run link
 ([US-030](done/US-030-run-permalink.md)) in the mail, and until this story
 there was no URL to give it.
 
 ## Acceptance criteria
 
-- [ ] `https://qassist.run` serves the UI; API + WebSocket live view work through it
+- [ ] `https://app.qassist.run` serves the UI; API + WebSocket live view work through it
 - [ ] Port 8080 is not published to the host (Traefik reaches `qassist` over the
       compose network); only 443 + 80 are exposed
 - [ ] Unauthenticated requests still get 401
