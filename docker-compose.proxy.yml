@@ -14,7 +14,12 @@
 
 services:
   traefik:
-    image: traefik:v3.3
+    # Not below v3.7: Traefik's Docker client pinned API version 1.24 until then,
+    # and Docker Engine 29 refuses anything under 1.40. On a v3.3 proxy the
+    # provider never initialises — no routers, no ACME, and every hostname
+    # served the Traefik default certificate while the entrypoint redirect still
+    # worked, which is a failure that looks like a DNS or ACME problem.
+    image: traefik:v3.7
     command:
       - --providers.docker=true
       # Nothing is routable until it says so itself: a container without

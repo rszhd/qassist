@@ -2,9 +2,19 @@
 
 **As a** developer, **I want** QAssist runs triggered from my CI/CD pipeline with results reported back, **so that** every deploy is smoke-tested by a real browser agent without manual steps.
 
-- **Status:** 📝 Docs written (`docs/ci.md`, 2026-07-23) — **unverified**: no
-  runner can reach the box until US-007 ships, so the snippets have not been
-  executed from a real pipeline. Not done until they have been.
+- **Status:** 🧱 **2/5 — the script itself is verified** (2026-07-25). Docs
+  written 2026-07-23; `staging.qassist.run` (US-038) is now the deployment a
+  runner can reach, and `docs/ci.md`'s `qassist-run.sh` was extracted **verbatim
+  from the doc** and run against it: a green suite exited 0, a mixed suite exited
+  1 and printed the failing run's permalink, one `POST /api/suites/<id>/run`
+  batched two runs, the poll loop handled the second queueing behind the first at
+  `MAX_CONCURRENT_SESSIONS=1`, and a `start_url` argument overrode the saved URL
+  on the run it started. So the snippet is no longer hypothetical.
+
+  **Still owed:** the module-by-slug endpoint (only the suite path was
+  exercised), and running either from a **real** GitHub Actions or GitLab runner
+  rather than a shell. The remaining risk is the pipeline YAML and the secret
+  plumbing around the script, not the script.
 - **Priority:** P1 (current sprint)
 - **Estimate:** ~half a day including docs, once US-009 is in
 - **Depends on:** US-007 (public HTTPS) + US-009 (saved tests) — both hard requirements
@@ -87,7 +97,10 @@ agent should test what users will actually hit.
 - [ ] Same for a suite — one snippet serves both, with the target URL as its
       only variable
 - [ ] Same two, documented for GitLab CI
-- [ ] `start_url` override respected for every run the trigger started
+- [x] `start_url` override respected for every run the trigger started — the
+      snippet's second argument reached the run: a test saved against
+      `https://example.com/` recorded `http://example.com/` in `runs.start_url`
+      and the agent visited it (staging, 2026-07-25)
 - [x] The docs say why a single test and a whole project aren't CI targets, so
       the omission reads as a decision rather than a gap
 
