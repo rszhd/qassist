@@ -190,9 +190,11 @@ removed the server key from the product and with it both symptoms:
   caller's own key state (`GET /api/account/openai-key`) and it now says to add
   a key in Settings.
 
-Deploying a US-039 build to staging also retires the blanking itself: the
-variable can stay in or out of `.env.staging` with no effect, which is the
-story's own acceptance test for the fallback being gone.
+Deploying US-039 (`v0.2.0`, 2026-07-26) retired the blanking itself: the old
+key was deliberately restored into the container env and staging still refused
+a keyless run with the Settings message — the story's own acceptance test for
+the fallback being gone, observed on this box. The variable is blank again
+only for tidiness; it is inert either way.
 
 `MAX_CONCURRENT_SESSIONS=1`, and after two concurrent-ish suites the box still
 had ~6.4 GB available and 53 GB free — staging is not what will run it out.
