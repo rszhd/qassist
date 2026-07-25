@@ -111,5 +111,15 @@ safest when the two agree exactly. Both are written lowercase already.
 - [x] gitleaks (or trufflehog) reports clean over the **full** history, not
       just the working tree — `gitleaks git` exits 0 over all 114 commits, with
       the narrow fixture allowlist described above
-- [ ] The repo is public, named `qassist`, and a stranger can clone it and
-      reach `docker compose up` from the README alone
+- [x] The repo is public, named `qassist`, and a stranger can clone it and
+      reach `docker compose up` from the README alone — flipped public
+      2026-07-25 and renamed `QAssist` → `qassist` (the case mattered: see
+      above). The build-from-source path in the README is complete and works
+      today.
+
+      **One caveat this created, which US-032 closes:** the README's new "Run a
+      release" quick start points at `ghcr.io/rszhd/qassist`, and no image is
+      published yet — going public before tagging put a live instruction in
+      front of strangers that would fail. A note now sends readers to
+      build-from-source instead; **delete that note when the first tag
+      publishes**, or the README will under-sell the release path forever.

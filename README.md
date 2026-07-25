@@ -86,6 +86,11 @@ live inside the image.
 The fastest path: pull a published, tested image. Two files and one command, and
 you never see the source.
 
+> **No release is published yet.** The pipeline is in place and the first tag is
+> imminent; until it lands, use [Build from source](#build-from-source) below.
+> Check [Packages](https://github.com/rszhd/qassist/pkgs/container/qassist) for
+> what's available.
+
 ```bash
 curl -O https://raw.githubusercontent.com/rszhd/qassist/main/docker-compose.release.yml
 curl -o .env https://raw.githubusercontent.com/rszhd/qassist/main/.env.example
