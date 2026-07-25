@@ -528,7 +528,7 @@ Left before the release is cut:
   reusable Action and a GitHub App are a later story
   ([US-029](backlog/unscheduled/US-029-cicd-action-and-github-app.md)).
 - **A licensed, public repo** — AGPL-3.0
-  ([US-031](backlog/sprint/current/US-031-license-and-public-repo.md)) and a CI
+  ([US-031](backlog/sprint/current/done/US-031-license-and-public-repo.md)) and a CI
   pipeline that publishes a versioned image per tag, so self-hosting is a pull
   rather than a build
   ([US-032](backlog/sprint/current/US-032-release-pipeline-and-image.md)).

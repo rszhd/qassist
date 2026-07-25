@@ -54,12 +54,14 @@ wants a non-AGPL licence, that conversation happens then.
 is two names out of date and describes a backend the repo outgrew. GitHub
 redirects the old remote, so existing clones keep working.
 
-Half-done as of 2026-07-25: the remote is already `rszhd/QAssist`, so the rename
-away from `qagent-v2-backend` happened. What is left is the **case** — down to
-`qassist`. That is not cosmetic: `ghcr.io` rejects an uppercase path component,
-so the published image must be `ghcr.io/rszhd/qassist` whatever the repo is
-called, and the README's `raw.githubusercontent.com` quick-start URLs are
-safest when the two agree exactly. Both are written lowercase already.
+**Done 2026-07-25, in two halves.** The rename away from `qagent-v2-backend` had
+already happened — the remote was `rszhd/QAssist`. What remained was the **case**,
+and that turned out not to be cosmetic: `ghcr.io` rejects an uppercase path
+component, so the published image had to be `ghcr.io/rszhd/qassist` whatever the
+repo was called, and the README's `raw.githubusercontent.com` quick-start URLs
+are only reliable when the two agree exactly. Renamed to `rszhd/qassist` and
+flipped public the same afternoon. GitHub redirects the old paths, so any
+existing clone keeps working.
 
 ## Details
 

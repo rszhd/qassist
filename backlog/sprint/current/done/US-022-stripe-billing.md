@@ -20,7 +20,7 @@
 - **Lives in the public repo, env-gated.** `STRIPE_*` env vars unset (the
   self-host default) = billing entirely off, everything free — self-hosters
   never see it. Stripe Checkout glue is not secret sauce; the routing rule in
-  [`docs/repo-model.md`](../../../docs/repo-model.md) sends anything a
+  [`docs/repo-model.md`](../../../../docs/repo-model.md) sends anything a
   self-hoster might want here, env-gated, and an org self-hosting for its team
   can charge its own users with the same switch.
 
@@ -126,7 +126,7 @@ it rather than a stub.
 ## Assertion-first surfaces
 
 Billing gates are the one row in
-[`correctness-critical.md`](../../correctness-critical.md) that has been
+[`correctness-critical.md`](../../../correctness-critical.md) that has been
 assertion-first *from its first line*, so these two get maintainer-reviewed
 assertions before the implementation is written. Proposed:
 

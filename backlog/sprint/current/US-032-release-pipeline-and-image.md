@@ -6,18 +6,21 @@
   looking green: 99 server tests, a typecheck and a frontend build exist and
   currently only ever run when I remember to run them.
 
-- **Status:** 🧱 Repo side shipped, **entirely unverified** (2026-07-25) —
-  `.github/workflows/ci.yml`, `.github/workflows/release.yml`,
-  `docker-compose.release.yml` and the README's "Run a release" quick start are
-  in, and the YAML and the release guard's shell logic were checked locally.
-  But **not one of this story's criteria is met yet**, because every one of them
-  is about what happens on GitHub: nothing has been pushed, no workflow has
-  ever run, no tag exists and nothing is on ghcr. Blocked on US-031's public
-  flip.
+- **Status:** 🧱 **CI green, the release path unexercised** (2026-07-25) —
+  `ci.yml` passes on `dev`: three jobs in ~40 s, 258 server tests against a real
+  Postgres with all five `*-postgres.test.js` files confirmed *running* rather
+  than skipping, 31 frontend, 63 agent, typecheck and the frontend build. That
+  closes the first two criteria.
+
+  What is left is everything downstream of **a tag**, which has not been cut:
+  `release.yml` has never run, so its `workflow_call` reuse, the version-pin
+  guard, the ghcr push and the three derived image tags are all written but
+  unproven, and nothing is published. Until then the README's "Run a release"
+  quick start points at an image that does not exist and says so.
 - **Priority:** P1 (current sprint) — `docs/repo-model.md` rule 1 makes the
   published image *the* artifact the product ships
 - **Estimate:** ~half a day (the image build is slow to iterate on)
-- **Depends on:** [US-031](US-031-license-and-public-repo.md) — Actions and
+- **Depends on:** [US-031](done/US-031-license-and-public-repo.md) — Actions and
   ghcr are free on a public repo, and a private repo burns minutes
 
 ## Design decisions (2026-07-23)
@@ -123,12 +126,13 @@ is the natural place to fail if the pinned version doesn't match the tag.
 
 **Two implementation notes on the image name and the pin (2026-07-25):**
 
-- **The image path must be lowercase**, and the repo is `rszhd/QAssist`. ghcr
-  rejects an uppercase path component, so `${{ github.repository }}` cannot be
-  used to name the image — it is a lowercase literal
-  `ghcr.io/${{ github.repository_owner }}/qassist`. US-031's outstanding rename
-  is what makes the two agree; until then the image name is simply the
-  lowercase one, which is correct either way.
+- **The image path must be lowercase.** ghcr rejects an uppercase path
+  component, and the repo was `rszhd/QAssist` when this was written — which is
+  what turned US-031's rename from cosmetic into load-bearing. It is now
+  `rszhd/qassist`, so `${{ github.repository }}` would work; the image is still
+  a lowercase literal `ghcr.io/${{ github.repository_owner }}/qassist` on
+  purpose, so that a future rename cannot silently move an image path
+  self-hosters have pinned.
 - **`docker-compose.release.yml` is standalone, not an overlay**, because the
   acceptance criterion is a machine that never saw the source: it must be one
   downloadable file that cannot reference a file you don't have. The cost is a
