@@ -134,8 +134,8 @@ export const SESSION_SECRET = process.env.SESSION_SECRET || '';
 export const DEMO_DIR = process.env.DEMO_DIR || path.join(__dirname, '..', '..', 'demo');
 // Wall-clock scale for the replay: >1 plays faster than recorded.
 export const DEMO_SPEED = Math.max(0.1, parseFloat(process.env.DEMO_SPEED || '1') || 1);
-// Where the sandbox's signup CTA points — the hosted app's marketing/login page.
-export const DEMO_CTA_URL = process.env.DEMO_CTA_URL || 'https://qassist.run';
+// Where the sandbox's signup CTA points — the hosted app's signup/login page.
+export const DEMO_CTA_URL = process.env.DEMO_CTA_URL || 'https://app.qassist.run';
 
 // Demo sandbox (US-036). AUTH_MODE=demo turns the whole deployment into a
 // per-visitor sandbox: anonymous cookie tenants, seeded fake data, every run a

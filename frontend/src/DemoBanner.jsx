@@ -38,7 +38,7 @@ export default function DemoBanner({ expiresAt, ctaUrl, error }) {
         </span>
         {ctaUrl && (
           <Button as="a" href={ctaUrl} variant="primary" size="sm" className="demo-bar-cta">
-            Sign up free <ArrowRight size={13} strokeWidth={2} aria-hidden="true" />
+            Sign up <ArrowRight size={13} strokeWidth={2} aria-hidden="true" />
           </Button>
         )}
       </div>

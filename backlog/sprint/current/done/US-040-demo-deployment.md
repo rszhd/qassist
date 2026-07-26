@@ -6,28 +6,25 @@ that** I can decide whether to sign up; and **as the** operator, **I want** that
 surface to be a third isolated stack that can neither reach production's data
 nor spend anything.
 
-- **Status:** 🟠 **Live at `https://demo.qassist.run`, showing a token wall it
-  doesn't need until the next tag** (2026-07-26) on
-  `ghcr.io/rszhd/qassist:0.2.1` — the tag cut for this, since `v0.2.0` predates
-  the fixture `COPY` and would have booted healthy and failed every run. Ten of
-  eleven criteria closed on the box, including the two only a deployment can
-  prove: the reaper's disk half, and the per-visitor throttle (which a passing
-  stranger proved for us — see below).
+- **Status:** ✅ **Done** (2026-07-26) — live at `https://demo.qassist.run` on
+  `ghcr.io/rszhd/qassist:0.2.3`, eleven of eleven. The two closes that ended it:
 
-  **Then the deployment was opened in a browser and showed "API token needed".**
-  Every criterion above was verified over HTTP and every one of them held; the
-  shell in front of them gated on `health.auth` without exempting demo mode.
-  Replays still played from the seeded saved tests, so this is a broken front
-  door on a working house — details under the "visitor lands" criterion. The fix
-  is frontend-only and, being in the bundle, needs a tag to reach the box — the
-  same shape as the missing fixtures.
+  **The token wall fell with the redeploy.** The `App.jsx` fix (`needsToken` now
+  excludes both cookie modes) shipped in `v0.2.2+`; the box moved `0.2.1` →
+  `0.2.3` and a cold Playwright visitor — a real browser executing the SPA,
+  which is what this class of break requires — confirmed: no "API token
+  needed", the banner up with a live reset countdown, **New test** and **New
+  run** enabled, History and Projects populated on a fresh cookie jar.
 
-  **One thing open, and it is the point of the story: the CTA is dead.**
-  `DEMO_CTA_URL=https://qassist.run` and that apex has no DNS record, so the
-  banner renders a "Sign up free" button that leads nowhere. The conversion
-  surface is live with its conversion path broken, which argues for not
-  publicising the demo until it points somewhere real. It is a one-line `.env`
-  change, no rebuild — see the CTA criterion below.
+  **The CTA decision got made: `DEMO_CTA_URL=https://app.qassist.run`.** Set on
+  the box (env only, no rebuild), carried by `/api/health`, and the rendered
+  button's `href` confirmed in the same browser pass. The example file and the
+  `config.js` default follow. Two knowns ride along: the destination serves the
+  proxy's default cert until production stands up (DNS already points at the
+  box), and the button's label — "Sign up free" in the deployed bundle —
+  drops the "free" in the repo, since registering leads to a subscription, not
+  a free tier. The label is bundle content, so it reaches the box with the next
+  tag; the link it wraps is already right.
 - **Priority:** P1 — [US-036](done/US-036-demo-sandbox.md) shipped the whole
   sandbox on 2026-07-24 and **nothing runs it**. `AUTH_MODE=demo` is set on no
   deployment, so the provisioner, the seeder, the interceptor and the reaper are
@@ -92,7 +89,7 @@ What has to be bounded is tenants, and US-036 already bounds them.
 | `SESSION_SECRET` | production's | **distinct**, and **required** — `demoMode()` ANDs it in, so an unset secret silently boots the magic-link app on the demo hostname |
 | `RESEND_API_KEY` | set | **unset.** A visitor can enable failure emails on their sandbox project and type a stranger's address; `mailEnabled()` false is what stops a public writable deployment from mailing PDFs on request. Not `MAIL_DEV_CONSOLE` — no reason to compose mail at all |
 | `STRIPE_*` | live keys | **empty** (all three), so billing is off and the sandbox never shows a paywall to someone who hasn't signed up |
-| `DEMO_CTA_URL` | — | the signup page the banner points at — the whole conversion path |
+| `DEMO_CTA_URL` | — | `https://app.qassist.run` — the signup page the banner points at, the whole conversion path |
 | `DEMO_TTL_SECONDS` | — | `3600` to start. Absolute, no `last_seen` bump (US-036's deferred upgrade) |
 | `DEMO_MAX_TENANTS` / `DEMO_IP_MAX` | — | defaults (200 / 5 per hour) unless the box says otherwise |
 | `RUNS_DIR` | `./runs` | `./runs-demo` |
@@ -236,14 +233,18 @@ from production, not a second copy. ✅ Written 2026-07-26. `DEPLOY.md` gains a
       see each other's tests or runs (2026-07-26 — two cookie jars, 4 tests /
       5 runs / 1 project each, **zero shared ids**, and a run started by one is
       absent from the other's history)
-- [ ] The demo banner names the expiry and its CTA links to the real signup page
-      — **half.** `POST /api/demo/session` returns the `expiresAt` the banner
-      phrases, and `/api/health` carries `cta_url`, so the banner renders. But
-      `DEMO_CTA_URL=https://qassist.run` and the apex **has no DNS record at
-      all** — the one button the deployment exists to drive is dead. Nothing to
-      fix here: it is a one-line `.env` change the moment a signup page exists,
-      and until then this is the story's "where does the CTA point?" decision
-      with neither of its two answers built
+- [x] The demo banner names the expiry and its CTA links to the real signup page
+      — closed 2026-07-26 in two moves. The banner half was always true:
+      `POST /api/demo/session` returns the `expiresAt` it phrases, and
+      `/api/health` carries `cta_url`. The link half sat dead at the apex
+      (`https://qassist.run`, no DNS record) until the decision landed:
+      **`DEMO_CTA_URL=https://app.qassist.run`** — the hosted app itself, since
+      that is where signup lives. The one-line `.env` change was made on the
+      box, and a headless-browser pass confirmed the rendered button's `href`.
+      The label also changes in the repo — "Sign up", not "Sign up free",
+      because registering leads to a subscription — and rides the next tag.
+      Remaining caveat, owned by production's story not this one: until that
+      stack stands up, the destination answers with the proxy's default cert
 - [x] After `DEMO_TTL_SECONDS`, the reaper has deleted an expired tenant's rows
       **and** its `runs-demo/<id>/` directories — verified on the box, since this
       is the one US-036 assertion whose real-world half is disk. 2026-07-26: one
@@ -293,7 +294,10 @@ from production, not a second copy. ✅ Written 2026-07-26. `DEPLOY.md` gains a
   thing to remember on every release.
 - **Where does the CTA point?** `qassist.run` (marketing) or straight at the
   signup form on `app.qassist.run`. Depends on whether the marketing page exists
-  by then; the variable makes it a one-line change either way.
+  by then; the variable makes it a one-line change either way. **Decided
+  2026-07-26: `app.qassist.run`** — no marketing page exists, signup does (in
+  the app), and the wording drops "free" since a registered user still has to
+  subscribe to run anything.
 - **1 h TTL, or longer?** An hour is US-036's default and is aimed at a single
   sitting. If the reset lands mid-evaluation for real visitors, the fix is
   US-036's deferred `last_seen` bump, not a bigger number.
