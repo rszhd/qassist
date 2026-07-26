@@ -13,33 +13,7 @@ events, relayed to WS) → on completion `agent/make_report.py` renders the PDF.
 Artifacts land in `runs/<runId>/`. `docker compose up` builds one app image
 plus a `db` (Postgres) service.
 
-`server/src/` splits as: `server.js` (wiring only), `config.js` (env, read at
-import time), `db.js` (pool, migrations, boot seed/recovery), `runs.js` (run
-engine + persistence), `routes/{runs,tests,suites,projects,modules,helpers}.js`.
-`routes/runs.js` is the HTTP surface only — the engine stays `src/runs.js`.
-`routes/projects.js` also holds the module query helpers `modules.js` imports.
-
-`frontend/src/` splits as: `App.jsx` (shell — token, health, routes, settings
-dialog), `TopBar.jsx` (header + view nav), `RunView.jsx` (a single run: WS
-socket + live stage) with `SavedTests.jsx`, its dialogs in `RunDialogs.jsx`
-(`TestDialog`/`RunVarsDialog`) and pure helpers in `runHelpers.js`,
-`HistoryView.jsx` (past runs) with `RunDetail.jsx`, `RunPage.jsx` (`/runs/<id>`,
-same `RunDetail`), `ProjectsView.jsx` with `Suites.jsx`. Shared bits: `api.js`
-(fetch wrapper + `openReport`) and `status.js` (status→colour, formatters). New
-views land beside these.
-
-**The URL picks the view** (react-router, US-030): `/`, `/history`,
-`/schedules`, `/projects`, `/runs/<id>`, else redirect to `/`. `RunView` is
-deliberately **outside `<Routes>`**, hidden not unmounted — unmounting drops the
-live WebSocket and the finished run's result; routed views remount, which is how
-they refresh. A new linkable thing is a `<Route>`; new *live* state that must
-survive navigation goes outside `<Routes>` like Run. Express serves `index.html`
-for any non-`/api` path, so a new path needs no server change.
-
-**Before changing `App.css`/`ui.jsx` or adding a view, read
-`docs/design-system.md`** — the UI vocabulary, type/spacing/size tokens and
-palette. Load-bearing: tokens over raw pixels, `ui.jsx` primitives over raw
-elements, dark as the default identity, a near-monochrome palette.
+Per-directory conventions live in `server/CLAUDE.md` and `frontend/CLAUDE.md`.
 
 Saved tests group into a **project**, and within it at most one **module**; a
 **suite** is the many-to-many alternative, scoped to one project. All three are
