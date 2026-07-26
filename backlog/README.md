@@ -409,6 +409,7 @@ rules live in [`docs/repo-model.md`](../docs/repo-model.md). Email provider:
 | ID | Story | Status | Depends on |
 |---|---|---|---|
 | [US-020](sprint/next/US-020-report-v2-screenshots-recording.md) | Report v2: step screenshots + recording | 📋 Planned (P2) | US-006 |
+| [US-057](sprint/next/US-057-html-email-template.md) | An HTML template for outgoing email (magic link, run reports, activation) | 📋 Planned (P3) | — |
 
 ### Build order
 
@@ -418,6 +419,9 @@ rules live in [`docs/repo-model.md`](../docs/repo-model.md). Email provider:
    Its step section renders `Step {n}`, which is why `progress` events were
    left out of `report_data.json`; revisit that if the section stops being
    step-keyed.
+2. **US-057** — pulled in from `unscheduled/` on 2026-07-26. Independent of
+   US-020: it touches `mail.js` and the three `sendMail()` callers, not the
+   PDF report.
 
 ## Unscheduled — `unscheduled/`
 
