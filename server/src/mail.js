@@ -3,8 +3,9 @@
 // No SDK — the call is a fetch with a JSON body, and a dependency that wraps
 // that would be more code to audit than the code it replaces.
 //
-// Who gets mail and why lives in notify.js; this file only knows how to hand
-// an already-composed message to the provider.
+// Who gets mail and why lives in notify.js, what it looks like in
+// mailTemplate.js; this file only knows how to hand an already-composed message
+// to the provider.
 import { RESEND_API_KEY, RESEND_API_URL, MAIL_FROM, MAIL_DEV_CONSOLE } from './config.js';
 
 /** Sending needs both a key and a verified sender; either missing = feature off.
@@ -16,7 +17,12 @@ export function mailEnabled() {
 /**
  * Send one message. Throws on a non-2xx so the caller can record the reason
  * against the delivery row rather than losing it to a log line.
- * @param {{ to: string, subject: string, text: string,
+ *
+ * `text` is required and `html` is not: text is the fallback a client renders
+ * when it won't run the HTML, and it is the whole message on the dev console
+ * transport. A caller that drops the text body to save the effort has made the
+ * mail unreadable somewhere it used to be fine.
+ * @param {{ to: string, subject: string, text: string, html?: string,
  *           unsubscribeUrl?: string | null,
  *           attachments?: { filename: string, content: string }[] }} msg
  * @returns {Promise<string>} the provider's message id
@@ -40,6 +46,7 @@ export async function sendMail(msg) {
       to: [msg.to],
       subject: msg.subject,
       text: msg.text,
+      html: msg.html,
       attachments: msg.attachments,
       // The header is what a mail client's own "unsubscribe" button reads;
       // without it the link in the body is the only way out.

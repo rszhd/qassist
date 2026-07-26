@@ -213,6 +213,17 @@ test('a failed run mails the project recipients, with the report attached', asyn
   );
   assert.match(mail.headers['List-Unsubscribe'], /^<https:\/\/qa\.example\.com\/api\/notifications\/unsubscribe\?/);
 
+  // The HTML half (US-057). `text` above is the fallback and stays the same
+  // message; this asserts the branded body carries the same facts, so a client
+  // that renders HTML is not shown less than one that doesn't.
+  assert.ok(mail.html?.length, 'a branded body was sent alongside the text one');
+  assert.match(mail.html, />QAssist</, 'the wordmark');
+  assert.match(mail.html, />FAILED</, 'the verdict badge');
+  assert.match(mail.html, /button never appeared/);
+  assert.match(mail.html, /12s/);
+  assert.ok(mail.html.includes(`href="${BASE_URL}/runs/${run.id}"`), 'the run is one click away');
+  assert.match(mail.html, /notifications\/unsubscribe\?/, 'and the way out is in the body too');
+
   assert.deepEqual(
     (await statuses()).map((r) => [r.recipient, r.status]),
     [

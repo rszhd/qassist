@@ -13,6 +13,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { db } from './db.js';
 import { mailEnabled, sendMail } from './mail.js';
+import { renderEmail, button, facts, note, panel } from './mailTemplate.js';
 import {
   ARTIFACTS_DIR,
   NOTIFY_EMAILS,
@@ -139,6 +140,15 @@ const LABEL = {
   cancelled: 'STOPPED',
 };
 
+/** The badge's colour, same reading as the app's status pill. */
+const TONE = {
+  passed: 'ok',
+  failed: 'bad',
+  error: 'bad',
+  completed: 'warn',
+  cancelled: 'info',
+};
+
 /**
  * The message body. Everything a person needs to decide whether to open the
  * report: verdict, what was asked, how long it took, and what the judge said.
@@ -156,6 +166,10 @@ function compose(run, name, recipient) {
   const steps = res.steps ?? run.events.filter((e) => e.type === 'step').length;
   const unsubscribe = unsubscribeUrl(recipient);
 
+  const verdict = res.final_result || res.message || '(no result text)';
+  const report = run.reportStatus === 'ready' ? 'The PDF report is attached.' : 'No report was produced.';
+  const runUrl = PUBLIC_BASE_URL ? `${PUBLIC_BASE_URL}/runs/${run.id}` : null;
+
   const lines = [
     `${label} — ${title}`,
     '',
@@ -163,16 +177,33 @@ function compose(run, name, recipient) {
     `URL: ${run.start_url}`,
     `Steps: ${steps}${seconds != null ? ` · Duration: ${seconds}s` : ''}`,
     '',
-    res.final_result || res.message || '(no result text)',
+    verdict,
     '',
-    run.reportStatus === 'ready' ? 'The PDF report is attached.' : 'No report was produced.',
+    report,
   ];
-  if (PUBLIC_BASE_URL) lines.push(`Open this run: ${PUBLIC_BASE_URL}/runs/${run.id}`);
+  if (runUrl) lines.push(`Open this run: ${runUrl}`);
   if (unsubscribe) lines.push('', `Unsubscribe: ${unsubscribe}`);
 
   return {
     subject: `[QAssist] ${label} — ${title}`,
     text: lines.join('\n'),
+    html: renderEmail({
+      heading: title,
+      badge: { label, tone: TONE[run.status] || 'neutral' },
+      preheader: `${label} — ${verdict}`,
+      blocks: [
+        facts([
+          ['Goal', run.goal],
+          ['URL', run.start_url],
+          ['Steps', steps],
+          ['Duration', seconds != null ? `${seconds}s` : null],
+        ]),
+        panel(verdict, TONE[run.status] || 'neutral'),
+        note(report),
+        runUrl ? button('Open this run', runUrl) : '',
+      ],
+      unsubscribeUrl: unsubscribe,
+    }),
     unsubscribeUrl: unsubscribe,
   };
 }

@@ -167,7 +167,7 @@ let tick;
 let artifactsDir = '';
 
 /** Every message the app tried to send, in order (a real POST, not a stub). */
-/** @type {{ to: string[], subject: string, text: string }[]} */
+/** @type {{ to: string[], subject: string, text: string, html?: string }[]} */
 const mails = [];
 /** @type {http.Server} */
 let mailServer;
@@ -708,6 +708,12 @@ test('the operator is mailed once, on the first entitling event, with the deadli
     new RegExp(String(new Date((created + SLA_HOURS * 3600) * 1000).getUTCFullYear())),
     'and by when — a mail that does not state the deadline does not create the obligation'
   );
+  // The HTML half (US-057) has to carry the obligation too: the operator reads
+  // this in a client that renders it, so a deadline present only in `text` is a
+  // deadline they never see.
+  assert.ok(opMail[0].html?.length, 'a branded body alongside the text one');
+  assert.match(opMail[0].html, /waiting@example\.test/);
+  assert.match(opMail[0].html, /npm run activate/, 'and the command to act on it');
 
   // Everything after it is silent: an operator who is mailed on every
   // subscription.updated stops reading the mail that matters.
@@ -726,6 +732,8 @@ test('the customer is mailed on activation, with a link into the app', async () 
   const mail = mailsTo('waiting@example.test');
   assert.equal(mail.length, 1);
   assert.match(`${mail[0].subject} ${mail[0].text}`, /https:\/\/qassist\.test/, 'a link into the app, not just news');
+  assert.ok(mail[0].html?.length, 'a branded body alongside the text one (US-057)');
+  assert.ok(mail[0].html.includes('href="https://qassist.test"'), 'the link is clickable, not just printed');
 });
 
 // --- O: the operator's script (A11) ------------------------------------------

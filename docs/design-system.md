@@ -87,3 +87,36 @@ shadows — cards carry neither. A run status renders as a tinted `.badge-<statu
 pill; `statusColor()` in `status.js` maps a status to a `--fill-*` token for the
 solid dots and timeline bars, so the two can't drift and a theme swap carries
 the dots with it.
+
+## Email
+
+Outgoing mail is the one surface outside the app that carries the brand, and it
+lives in `server/src/mailTemplate.js` — one layout that every send site fills
+in (`routes/auth.js`, `notify.js`, `activation.js`), never a per-caller HTML
+string. `mail.js` stays the transport and knows nothing about bodies.
+
+Three rules make it a different medium from the app, not just a smaller one:
+
+- **Dark, and only dark.** Not a style choice — no client honours
+  `prefers-color-scheme` reliably (Gmail ignores it and inverts *light* mail on
+  its own), so a light template is two renders we don't control while a dark one
+  is left alone everywhere. The colours are the `:root` tokens above, copied as
+  literals because a stylesheet is the one thing an email can't have.
+- **Inline styles on tables.** The Gmail app strips `<style>` for non-Gmail
+  accounts and Outlook lays out with Word. Blocks (`paragraph`, `facts`,
+  `panel`, `pre`, `button`, `rawLink`, `note`) exist so a caller composes from a
+  vocabulary rather than writing that plumbing again.
+- **Nothing loads from the network.** The wordmark is text, so there is no grey
+  box behind "display images below" where the brand should be, and no pixel
+  that reads as tracking. `mail-template.test.js` pins this, and pins that every
+  caller-supplied string — goals, URLs, the judge's own prose — is escaped.
+
+Every message keeps a plain-text body: it is the fallback a client renders when
+it won't run the HTML, and it is the whole message under `MAIL_DEV_CONSOLE`.
+
+To look at one before anyone receives it, run `npm run mail-preview` in
+`server/` and point the app at it with
+`RESEND_API_URL=http://127.0.0.1:8025/emails`. It writes what the real
+composers produced, so a preview can't drift from what lands in an inbox — and
+forwarding those files to a real Gmail and Apple Mail account is the only way
+the render question is actually answered.

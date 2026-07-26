@@ -18,6 +18,7 @@
 // in activation-gate.test.js, with the OFF path in billing-gate.test.js.
 import { db } from './db.js';
 import { mailEnabled, sendMail } from './mail.js';
+import { renderEmail, button, facts, note, paragraph, pre } from './mailTemplate.js';
 import { ACTIVATION_SLA_HOURS, OPERATOR_EMAIL, PUBLIC_BASE_URL } from './config.js';
 import { billingEnabled, billingStateFor, entitledFrom, isExempt, isEntitlingStatus } from './billing.js';
 
@@ -180,6 +181,11 @@ async function mailOperatorWaiting(userId, at, status) {
   const email = rows[0]?.email;
   if (!email) return;
   const deadline = new Date(at.getTime() + ACTIVATION_SLA_HOURS * HOUR_MS);
+  const commands =
+    `npm run activate                 # everyone still waiting\n` + `npm run activate -- ${email}`;
+  const lever =
+    'If the window cannot be met, the honest lever is Stripe — refund or cancel. ' +
+    'Activating an account on a box nobody upgraded is the failure this window exists to prevent.';
   await trySend({
     to: OPERATOR_EMAIL,
     subject: `QAssist: ${email} is waiting for capacity`,
@@ -192,18 +198,44 @@ async function mailOperatorWaiting(userId, at, status) {
       `If the window cannot be met, the honest lever is Stripe — refund or\n` +
       `cancel. Activating an account on a box nobody upgraded is the failure\n` +
       `this window exists to prevent.\n`,
+    html: renderEmail({
+      heading: `${email} is waiting for capacity`,
+      badge: { label: 'ACTIVATION DUE', tone: 'warn' },
+      preheader: `Ready by ${deadline.toUTCString()} (${ACTIVATION_SLA_HOURS}h).`,
+      blocks: [
+        paragraph(`${email} subscribed (${status}) and is in the activation window.`),
+        facts([
+          ['Ready by', deadline.toUTCString()],
+          ['Window', `${ACTIVATION_SLA_HOURS}h`],
+        ]),
+        paragraph('Add the capacity, then activate the account:'),
+        pre(commands),
+        note(lever),
+      ],
+    }),
   });
 }
 
 /** The customer's promise, kept. */
 async function mailCustomerReady(email) {
+  const link = appLink();
   await trySend({
     to: email,
     subject: 'Your QAssist workspace is ready',
     text:
       `Your account has capacity and your first run can start now.\n\n` +
-      `${appLink()}\n\n` +
+      `${link}\n\n` +
       `Thanks for waiting.\n`,
+    html: renderEmail({
+      heading: 'Your workspace is ready',
+      badge: { label: 'ACTIVATED', tone: 'ok' },
+      preheader: 'Your account has capacity — your first run can start now.',
+      blocks: [
+        paragraph('Your account has capacity and your first run can start now.'),
+        PUBLIC_BASE_URL ? button('Start a run', PUBLIC_BASE_URL) : paragraph(link),
+        note('Thanks for waiting.'),
+      ],
+    }),
   });
 }
 

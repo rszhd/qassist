@@ -172,11 +172,14 @@ rules live in [`docs/repo-model.md`](../docs/repo-model.md). Email provider:
 | ID | Story | Status | Depends on |
 |---|---|---|---|
 | [US-020](sprint/next/US-020-report-v2-screenshots-recording.md) | Report v2: step screenshots + recording | 📋 Planned (P2) | US-006 |
-| [US-057](sprint/next/US-057-html-email-template.md) | An HTML template for outgoing email (magic link, run reports, activation) | 📋 Planned (P3) | — |
+| [US-057](sprint/next/US-057-html-email-template.md) | An HTML template for outgoing email (magic link, run reports, activation) | 🔨 **Built** 2026-07-27, 4/5 — stays open on the one criterion a test can't answer: the Gmail/Apple Mail render | — |
 
 US-020 is P2 because it makes a good report better rather than making anything
 possible, which is also why it left the current sprint. US-057 is independent
-of it — it touches `mail.js` and the three `sendMail()` callers, not the PDF.
+of it — it touches `mail.js` and the `sendMail()` callers (four, not three:
+`activation.js` sends two), not the PDF. It was built out of sprint order on
+2026-07-27 precisely because that independence made it cost nothing to pull
+forward.
 
 ## Unscheduled — `unscheduled/`
 

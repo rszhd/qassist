@@ -6,6 +6,7 @@
 import express from 'express';
 import { db } from '../db.js';
 import { sendMail } from '../mail.js';
+import { renderEmail, button, note, paragraph, rawLink } from '../mailTemplate.js';
 import { PUBLIC_BASE_URL } from '../config.js';
 import {
   authEnabled,
@@ -58,13 +59,24 @@ export function authRouter({ checkToken }) {
       }
       const token = await createLoginToken(email);
       const link = `${baseUrl(req)}/api/auth/verify?token=${encodeURIComponent(token)}`;
+      const caveat =
+        'This link works once and expires in 15 minutes. ' +
+        "If you didn't request it, you can ignore this email.";
       await sendMail({
         to: email,
         subject: 'Your QAssist sign-in link',
-        text:
-          `Click to sign in to QAssist:\n\n${link}\n\n` +
-          'This link works once and expires in 15 minutes. ' +
-          "If you didn't request it, you can ignore this email.",
+        text: `Click to sign in to QAssist:\n\n${link}\n\n${caveat}`,
+        html: renderEmail({
+          heading: 'Sign in to QAssist',
+          preheader: 'Your sign-in link — good once, for 15 minutes.',
+          blocks: [
+            paragraph('Use the button below to sign in. No password to remember.'),
+            button('Sign in to QAssist', link),
+            note('Or paste this link into your browser:'),
+            rawLink(link),
+            note(caveat),
+          ],
+        }),
       });
       // No account enumeration: the reply is the same whether or not this is a
       // first login (signup == login, so it always is a valid address anyway).
