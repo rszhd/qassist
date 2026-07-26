@@ -29,6 +29,12 @@ Three of the four are the same two compose files with a different `-p` and
 `--env-file`. That is the design, not a coincidence: an environment is a project
 name and an env file, and the overlay never learns which one it is serving.
 
+What differs besides the env file is which image tag each one follows:
+`qassist-staging` tracks the mutable `:staging`, rebuilt on every push to the
+`staging` branch, while `qassist` pins an immutable `:x.y.z` cut from `main`.
+That asymmetry is the point — staging moves at the speed of a merge, production
+at the speed of a release.
+
 **There is no separate API hostname**, and adding one would be a mistake. One
 Express process serves the built frontend and mounts the API under `/api` on the
 same port, behind one router — so the endpoint CI and Stripe talk to is just
@@ -158,8 +164,9 @@ Then, by hand, the three things a curl does not cover:
 
 ## Deploying a new version
 
-A deploy is a tag change — and, once [staging](#staging) exists, one that the
-same tag has already survived there:
+A production deploy is a tag change — and one whose *commits* have already
+survived [staging](#staging), because `main` is only reachable through it
+([the full chain](#promoting-staging-to-production)):
 
 ```sh
 # .env: QASSIST_IMAGE=ghcr.io/<owner>/qassist:1.4.0
@@ -180,6 +187,12 @@ started cleanly against a *populated* database, which is what staging is for.
 production (US-038). It exists so that a release, a migration, a Stripe round
 trip and the CI snippet can each be proven against something real before the
 thing real users are on.
+
+**Staging tracks a branch, production tracks a tag** (US-052). Every push to
+`staging` publishes `ghcr.io/<owner>/qassist:staging`, so getting a change onto
+the real box costs a merge rather than a version — and `main` is only reached
+through staging, which makes a released tag by construction something staging
+already ran. The full chain is [dev → staging → main](#promoting-staging-to-production).
 
 The project name is what separates the two. `-p qassist-staging` gives it its
 own network, its own `db` container, its own `pgdata` volume and — because the
@@ -304,29 +317,84 @@ tests the seed created. Against production it would compete for
 `MAX_CONCURRENT_SESSIONS` with whoever else is there — which is the reason the
 snippet stayed unverified.
 
-### Promoting a tag
+### Updating staging
 
-Staging green is what earns a tag production's `.env`:
+Merge into `staging` and the image builds itself. On the box, `.env.staging`
+already pins `:staging` and never changes, so a deploy is two words:
 
 ```sh
-# 1. staging runs the candidate
-#    .env.staging: QASSIST_IMAGE=ghcr.io/<owner>/qassist:1.4.0
 export ENV_FILE=.env.staging          # exported, not a command prefix — see above
 docker compose -p qassist-staging \
+  -f docker-compose.yml -f docker-compose.prod.yml --env-file "$ENV_FILE" pull
+docker compose -p qassist-staging \
   -f docker-compose.yml -f docker-compose.prod.yml --env-file "$ENV_FILE" up -d
+```
 
-# 2. it comes up healthy against a populated database, and migrations applied
+**`pull` is not optional here, and leaving it out looks like success.** With a
+version tag, `up -d` fetching nothing is correct — the tag is immutable. With a
+mutable tag, compose sees the same `qassist:staging` string it already has
+locally, does not go to the registry, and reports the stack up to date while the
+box keeps running last week's build. The version tag hid this; `:staging` does
+not.
+
+So confirm what you actually got, by digest and not by tag:
+
+```sh
+docker compose -p qassist-staging images qassist
+docker image inspect ghcr.io/<owner>/qassist:staging \
+  --format '{{index .RepoDigests 0}}{{"\n"}}{{index .Config.Labels "org.opencontainers.image.revision"}}'
+# the revision label is the commit — it should be the tip of `staging`
+```
+
+Rolling back does not mean rebuilding: every push also published an immutable
+`:staging-<sha>`, so pin one of those in `.env.staging` and run the same two
+commands. Put `:staging` back when the branch is healthy again.
+
+### Promoting staging to production
+
+**Staging green is what earns the merge**, and the merge is what earns a tag.
+`main` is not a branch anyone pushes to directly — it is the record of what
+survived staging, which is what makes "production runs something that was
+proven" a property of the graph rather than a thing to remember.
+
+```sh
+# 1. staging has been running the candidate, healthy, against a populated
+#    database — including its migrations
 docker compose -p qassist-staging ps
 docker compose -p qassist-staging logs qassist | grep -i migrat
 
-# 3. same tag into production's .env, same command without -p qassist-staging
+# 2. promote the code: the commit staging proved becomes main
+git checkout main && git merge --ff-only staging && git push origin main
+
+# 3. cut the release from main — this is the only thing that moves :latest,
+#    and the pin in docker-compose.release.yml must match the tag
+git tag v1.4.0 && git push origin v1.4.0
+
+# 4. production pins the version the tag published
 #    .env: QASSIST_IMAGE=ghcr.io/<owner>/qassist:1.4.0
+docker compose -p qassist -f docker-compose.yml -f docker-compose.prod.yml pull
 docker compose -p qassist -f docker-compose.yml -f docker-compose.prod.yml up -d
 ```
 
-Rolling back is the previous tag through step 3. Note that a migration is not
-rolled back by rolling back the image — there are no down-migrations, so what
-staging is really proving in step 2 is that you will not need to.
+**Step 2 is `--ff-only` on purpose.** A fast-forward is the mechanical proof
+that `main` is nothing but staging's history — the moment it needs a merge
+commit, something reached `main` that staging never ran, and the command failing
+is how you find out. That only holds if `main` starts out as an ancestor of
+`staging`, which is a one-time reconciliation: merge `main` into `dev` (it
+carries two old merge commits from before this chain existed), then branch
+`staging` from there. After that the property maintains itself.
+
+Step 3 rebuilds rather than re-tagging the digest staging ran. The tree is
+identical — `main` receives staging's commits and nothing else — so what is
+rebuilt is the image, not the code, and in exchange a released tag is one that
+`release.yml`'s pin check and `latest` promotion have both been through.
+
+**Production stays on version tags, deliberately.** It is what a rollback pins,
+what a self-hoster reads in the README, and what makes "which build is prod on"
+answerable without a `docker image inspect`. Rolling back is the previous
+version through step 4. Note that a migration is not rolled back by rolling back
+the image — there are no down-migrations, so what staging is really proving in
+step 1 is that you will not need to.
 
 ## The demo sandbox
 

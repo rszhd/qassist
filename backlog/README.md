@@ -52,6 +52,7 @@ release-plumbing stories turned out to share an unstated fifth.
 | [US-038](sprint/current/US-038-staging-environment.md) | Staging environment (`staging.qassist.run`) | 🟢 5/8 (2026-07-25) — **up and serving** on its own LE cert, seeded, WS live view proven; found two shipped bugs (Traefik v3.3 vs Docker 29, and `DEPLOY.md`'s own `ENV_FILE` prefix). **2026-07-26:** Stripe test keys are in, `billing:true`, and two non-operator accounts subscribed through real Checkout with every event applied — but the criterion stays open, because the round trip wrote `current_period_end` NULL (US-051) and the Portal schedules rather than cancels, so the 402 half never ran. The other two still need production, which was deliberately not stood up | US-007 |
 | [US-051](sprint/current/done/US-051-subscription-dates-from-stripe.md) | The subscription dates Stripe sends and we don't read | ✅ **Done** 2026-07-26, 9/9, shipped in `v0.2.3` — found and closed the same day. The period end now reads `items.data[0].current_period_end` with the old top-level location as a fallback, and a scheduled cancellation is stored as `cancel_at` (migration `009`) rather than inferred from a boolean that was False on a genuine cancellation. Proven on staging by a real Portal cancel *and* resume: two new event ids, non-NULL period end for the first time, `cancel_at` written then cleared while the period end stood — the asymmetric write rule no fixture could establish. Entitlement deliberately unchanged | US-022 |
 | [US-039](sprint/current/done/US-039-byok-only-no-server-key.md) | BYOK only: remove the server `OPENAI_API_KEY` | ✅ Shipped 2026-07-26 — the server key is gone from the product: a run is funded by its caller's key (per-request > stored) or refuses with 503, the scheduler skips keyless owners per slot, and `DATABASE_URL`/`KEY_ENCRYPTION_SECRET` are boot requirements. Assertion-first (`resolveRunKey` is correctness-critical); every spec runs with a live-looking server key in the env to prove the fallback is deleted, not unconfigured. Deployed to staging 2026-07-26 as v0.2.0, AC #6 re-proven on the box | US-005, US-021 |
+| [US-052](sprint/current/US-052-staging-branch-continuous-deploy.md) | Staging deploys from a branch, not a release | 🟡 In progress (2026-07-26) — repo half written: `staging.yml` publishes `:staging` + `:staging-<sha>` on every push to `staging`, `:latest` stays release-only, and `DEPLOY.md`/`CONTRIBUTING.md`/`CLAUDE.md` now read dev → staging → main. Left: create the branch, reconcile `main`, and move the box off a version tag onto `:staging` | US-032, US-038 |
 | [US-008](sprint/current/US-008-cicd-integration.md) | CI/CD trigger: the documented pipeline step | 🧱 2/5 (2026-07-25) — `docs/ci.md`'s script run **verbatim against staging**: suite path, exit 0 green / exit 1 mixed, batching, queueing at cap, `start_url` override honoured. Still owed: module-by-slug, and execution from a real Actions/GitLab runner | US-007, US-009 |
 | [US-031](sprint/current/done/US-031-license-and-public-repo.md) | License the code and open the repo | ✅ Shipped (2026-07-25) — AGPL `LICENSE`, DCO, gitleaks clean over all 114 commits, repo public and renamed to `qassist` | — |
 | [US-032](sprint/current/US-032-release-pipeline-and-image.md) | CI on every push, a published image on every tag | 🧱 4/5 (2026-07-25) — `v0.1.0` published to ghcr, anonymously pullable; only the run-on-a-clean-machine check left, which lands on the box | US-031 |
@@ -298,6 +299,22 @@ every `past_due` customer off at once), and a resume through a real Portal is
 the only thing that could demonstrate it. The whole sequence is the argument for
 staging in one paragraph: a defect no fixture here could have found, closed by
 the environment that found it.
+
+**US-052 (written into the sprint 2026-07-26)** is the bill for that paragraph.
+Everything above happened by cutting version tags — `v0.2.1` because the demo
+fixtures weren't in the image, `v0.2.2` for the Stripe date, `v0.2.3` because
+v0.2.2's release run never reached the build step. None of those were releases;
+they were deploys to staging wearing a version number, because a published tag
+was the only way to get code onto the box. Each one moved `:latest`, which is
+what a self-hoster gets by typing the obvious thing.
+
+The fix is a second transport rather than a rule to follow: `staging` becomes a
+branch, a push to it publishes `:staging`, and the box tracks that. `main` then
+earns a job it did not have — it holds what staging survived — which also closes
+a quiet drift, since `release.yml` says tags are cut from `main` while every
+`v0.2.x` tag sits on `dev` and `main` has received nothing since `v0.1.0`. The
+rule was right and was skipped because routing through `main` bought nothing.
+Give it something to hold and it stops being ceremony.
 
 ## Next sprint — `sprint/next/`
 

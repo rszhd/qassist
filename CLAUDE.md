@@ -128,6 +128,11 @@ keep it that way when adding features.
   wait for the reviewed assertion; don't assume a piece is ordinary. CRUD/wiring
   stay test-alongside. Known surfaces: `backlog/correctness-critical.md` (add a
   row when new work joins); reasoning: `docs/testing.md`.
-- Don't commit or push unless asked. `dev` is the working branch; PRs → `main`.
+- Don't commit or push unless asked. `dev` is the working branch; PRs → `dev`.
+  Promotion is **dev → staging → main** (US-052): a push to `staging` builds
+  `ghcr.io/<owner>/qassist:staging` and that is what `staging.qassist.run` runs,
+  so proving a change on a real box costs a merge, not a version tag. `main`
+  only receives what staging survived, and releases are tagged from `main`.
+  Never push to `main` directly. Runbook: `DEPLOY.md`.
 - Never log or commit secrets; `.env` stays untracked. Bearer token required on
   every API/WS call.

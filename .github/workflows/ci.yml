@@ -13,6 +13,9 @@ name: CI
 
 on:
   push:
+    # `staging` is deliberately absent: staging.yml is what a push there
+    # triggers, and it calls this file. Listing it too would run the whole
+    # suite twice for one push.
     branches: [main, dev]
   pull_request:
   workflow_call:

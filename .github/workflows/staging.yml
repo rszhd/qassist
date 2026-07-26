@@ -1,0 +1,91 @@
+# Publish the staging image on every push to `staging` (US-052).
+#
+# The promotion chain is dev → staging → main. This workflow is the middle
+# link: `staging` is a branch you push, not a version you cut, so proving a
+# change on the real box costs a merge instead of a release. Only what survives
+# staging.qassist.run gets merged to `main` and tagged, which is release.yml.
+#
+# Two image tags, and the split is the point:
+#
+#   :staging              mutable — what the box's .env.staging pins, forever
+#   :staging-<sha>        immutable — what is *actually* on the box right now,
+#                         and what a rollback pins when :staging is bad
+#
+# `latest` is deliberately NOT published here. It is the tag a self-hoster gets
+# by typing the obvious thing, so it may only ever move on a release.
+#
+# There is no deploy step and there should not be one: DEPLOY.md's rule is that
+# nothing reaches a box without someone asking for it. This ends at the
+# registry; `docker compose pull` on the box is a human.
+
+name: Staging
+
+on:
+  push:
+    branches: [staging]
+
+# A second push supersedes the first — cancelling matters more here than in CI,
+# because two builds racing to move a *mutable* tag can leave `:staging`
+# pointing at the older commit.
+concurrency:
+  group: staging-image
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # The same checks as every other push, reused rather than copied — the same
+  # graph property release.yml relies on: an image whose tests never ran cannot
+  # be published. ci.yml does not list `staging` in its own push triggers, so
+  # this is one CI run, not two.
+  test:
+    uses: ./.github/workflows/ci.yml
+
+  image:
+    name: Build and publish :staging to ghcr.io
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v6
+        with:
+          # The same lowercase literal as release.yml, for the same reason: ghcr
+          # rejects an uppercase path component, and a future repo rename must
+          # not silently change the image path.
+          images: ghcr.io/${{ github.repository_owner }}/qassist
+          tags: |
+            type=raw,value=staging
+            type=sha,prefix=staging-,format=short
+
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: What to pull on the box
+        run: |
+          echo "### Staging image published" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "${{ steps.meta.outputs.tags }}" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "Deploy it: \`export ENV_FILE=.env.staging\` then \`docker compose -p qassist-staging -f docker-compose.yml -f docker-compose.prod.yml --env-file \"\$ENV_FILE\" pull && … up -d\`" >> "$GITHUB_STEP_SUMMARY"

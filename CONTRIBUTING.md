@@ -87,8 +87,16 @@ Two rules that come up most often:
 
 ## Branches, commits and PRs
 
-`dev` is the working branch and pull requests target `main`. Keep a PR to one
+`dev` is the working branch and pull requests target it. Keep a PR to one
 concern; if you found two things, that's two PRs.
+
+From there the change is promoted rather than merged straight out: **dev →
+staging → main**. Merging into `staging` publishes an image that
+`staging.qassist.run` runs, so a change is exercised on a real deployment with a
+real database before `main` sees it; `main` then only ever receives what staging
+survived, and a version tag is cut from there. Nothing pushes to `main`
+directly. The mechanics are in [`DEPLOY.md`](DEPLOY.md#promoting-staging-to-production);
+as a contributor you only need `dev`.
 
 Planned work lives in [`backlog/`](backlog/README.md), one file per user story.
 If your change implements one, read that `US-xxx` file first — it carries the

@@ -2,9 +2,16 @@
 #
 #   git tag v1.4.0 && git push origin v1.4.0
 #
-# Cut from `main`, not `dev`. A tag `v1.4.0` publishes three image tags —
-# :1.4.0, :1.4 and :latest — so a self-hoster can pin exactly, float on
+# Cut from `main`, and `main` is only ever reached through staging: the chain
+# is dev → staging → main, so a version tag is by construction a commit that
+# staging.qassist.run already ran (US-052). A tag `v1.4.0` publishes three image
+# tags — :1.4.0, :1.4 and :latest — so a self-hoster can pin exactly, float on
 # patches, or type `latest` because people type latest.
+#
+# This rebuilds from the tagged tree rather than re-tagging the digest staging
+# validated. The trees are identical — `main` gets staging's commits and nothing
+# else — so what is re-proven is the build, not the code, and the pin check
+# below is a thing only a release needs.
 #
 # The test job is ci.yml itself, reused rather than copied, and the image job
 # `needs:` it. That is what makes "a tag cannot ship an image whose tests never
