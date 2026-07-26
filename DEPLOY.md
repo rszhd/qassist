@@ -368,7 +368,8 @@ already pins `:staging` and never changes, so a deploy is two words:
 ```sh
 export ENV_FILE=.env.staging          # exported, not a command prefix — see above
 docker compose -p qassist-staging \
-  -f docker-compose.yml -f docker-compose.prod.yml --env-file "$ENV_FILE" pull
+  -f docker-compose.yml -f docker-compose.prod.yml --env-file "$ENV_FILE" \
+  pull --policy always
 docker compose -p qassist-staging \
   -f docker-compose.yml -f docker-compose.prod.yml --env-file "$ENV_FILE" up -d
 ```
@@ -379,6 +380,18 @@ mutable tag, compose sees the same `qassist:staging` string it already has
 locally, does not go to the registry, and reports the stack up to date while the
 box keeps running last week's build. The version tag hid this; `:staging` does
 not.
+
+**`--policy always` is not decoration, and a bare `pull` rebuilds the same trap
+one layer in.** `docker-compose.prod.yml` sets `pull_policy: missing` — it is
+there for [preview](#preview), which must find the image the box just built and
+never reach for a registry — and Compose applies that policy to the explicit
+`pull` subcommand too, not only to the implicit pull inside `up`. So the bare
+command prints `Skipped - Image is already present locally` and exits 0, and the
+box stays on the previous build having reported success twice. The flag
+overrides the policy for one invocation, which is the right shape here: the
+setting belongs to preview and is correct there, so this is staging opting out
+rather than the file being wrong. Seen on this box 2026-07-27, Compose v5.3.1 /
+Engine 29.6.1, one deploy after `:staging` started tracking the branch.
 
 So confirm what you actually got, by digest and not by tag:
 
