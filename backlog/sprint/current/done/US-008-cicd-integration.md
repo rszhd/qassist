@@ -2,19 +2,31 @@
 
 **As a** developer, **I want** QAssist runs triggered from my CI/CD pipeline with results reported back, **so that** every deploy is smoke-tested by a real browser agent without manual steps.
 
-- **Status:** 🧱 **2/5 — the script itself is verified** (2026-07-25). Docs
-  written 2026-07-23; `staging.qassist.run` (US-038) is now the deployment a
-  runner can reach, and `docs/ci.md`'s `qassist-run.sh` was extracted **verbatim
-  from the doc** and run against it: a green suite exited 0, a mixed suite exited
-  1 and printed the failing run's permalink, one `POST /api/suites/<id>/run`
-  batched two runs, the poll loop handled the second queueing behind the first at
-  `MAX_CONCURRENT_SESSIONS=1`, and a `start_url` argument overrode the saved URL
-  on the run it started. So the snippet is no longer hypothetical.
+- **Status:** ✅ **Closed 2026-07-26 — the snippet ran from a real runner.**
+  Docs written 2026-07-23; the script proven in a shell against
+  `staging.qassist.run` on 2026-07-25 (green suite exited 0, mixed suite exited
+  1, one `POST /api/suites/<id>/run` batched two runs, the poll loop handled the
+  second queueing behind the first at `MAX_CONCURRENT_SESSIONS=1`, `start_url`
+  honoured).
 
-  **Still owed:** the module-by-slug endpoint (only the suite path was
-  exercised), and running either from a **real** GitHub Actions or GitLab runner
-  rather than a shell. The remaining risk is the pipeline YAML and the secret
-  plumbing around the script, not the script.
+  What 2026-07-26 added is the part that was still owed. `docs/ci.md`'s
+  `qassist-run.sh` was extracted **verbatim** (sha256 `ee951934…`, byte-identical
+  to the fenced block) onto a throwaway `us-008-verify` branch and run by
+  **GitHub Actions** against staging: module by slug green, suite by uuid green,
+  and a mixed suite whose job came out **red** — the gate proving it fails a
+  build rather than just reporting. All four runs are in staging's `runs` table
+  with `trigger = 'ci'` and the overridden `start_url`. The branch, its workflow
+  and the staging API key were deleted afterwards; the deliverable is the doc,
+  not the scaffolding.
+
+  **The runner found a doc defect a shell never could** — the exact risk this
+  step existed to cover. The failing line printed `***/runs/<id>`: Actions
+  redacts secret *values* wherever they appear in a log, and the doc had told
+  users to store `QASSIST_URL` as a secret, so every permalink it promised was
+  unopenable. Fixed in `docs/ci.md` — the base URL is a public hostname and now
+  goes in GitHub `vars` (unmasked on GitLab), with only the token a secret. That
+  is a one-line YAML change that no amount of running the script by hand would
+  have surfaced.
 - **Priority:** P1 (current sprint)
 - **Estimate:** ~half a day including docs, once US-009 is in
 - **Depends on:** US-007 (public HTTPS) + US-009 (saved tests) — both hard requirements
@@ -91,18 +103,39 @@ agent should test what users will actually hit.
 
 ## Acceptance criteria
 
-- [ ] A GitHub Actions job can trigger a module by slug, wait for every test
+- [x] A GitHub Actions job can trigger a module by slug, wait for every test
       in it to finish, and fail the job if any test fails — using only `curl`
-      plus the documented snippet
-- [ ] Same for a suite — one snippet serves both, with the target URL as its
-      only variable
-- [ ] Same two, documented for GitLab CI
+      plus the documented snippet (run 30206357362, 2026-07-26:
+      `/api/projects/acme-storefront/modules/smoke/run` → `passed`, job green;
+      the red job below is the same script failing a build on a `failed` verdict)
+- [x] Same for a suite — one snippet serves both, with the target URL as its
+      only variable (same run: green suite green, mixed suite **red** on a real
+      `failed` verdict, permalink printed)
+- [x] Same two, documented for GitLab CI — **documented, not executed**, by
+      decision 2026-07-26: the criterion asks for a documented snippet, and the
+      script is shell-identical across both, so a gitlab.com account with runner
+      minutes buys re-proof of `curl` rather than of anything GitLab-specific.
+      The GitLab-specific risk is variable masking, and that is exactly what the
+      Actions run caught and the doc now covers for both
 - [x] `start_url` override respected for every run the trigger started — the
       snippet's second argument reached the run: a test saved against
       `https://example.com/` recorded `http://example.com/` in `runs.start_url`
       and the agent visited it (staging, 2026-07-25)
 - [x] The docs say why a single test and a whole project aren't CI targets, so
       the omission reads as a decision rather than a gap
+
+## Found on the way, not fixed here
+
+**`POST /api/tests` silently ignores slug grouping keys.** Creating a test with
+`{"project":"acme-storefront","module":"smoke"}` returns 201 with
+`project_id: null, module_id: null` — `resolveGrouping` reads only the
+`project_id`/`module_id` uuid forms, and unknown keys are dropped without an
+error. Every *path* param takes a slug or a uuid (US-023), so a body that
+doesn't is a trap, and the failure mode is silent: the caller believes it filed
+the test and the module runs without it. Out of scope for a docs story — the CI
+snippet never creates tests — but it belongs to whoever next touches
+`routes/tests.js`. Either accept the slug forms or 400 on unknown keys; silently
+discarding them is the one option that should go.
 
 Dropped 2026-07-23: *report PDF URL printed in job output*. The PDF needs the
 bearer token, so a link in a job log isn't clickable by whoever reads it, and

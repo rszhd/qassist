@@ -152,6 +152,13 @@ Every run has a page at `$QASSIST_URL/runs/<runId>` — verdict, activity,
 recording and report — so the failing line in the job log is a link somebody
 can open instead of a run id they have to go and find.
 
+For that link to survive the log, **the base URL must not be a secret.** CI
+systems redact secret *values* wherever they appear in output, so a
+`QASSIST_URL` held as a secret turns every permalink into `***/runs/<id>` — the
+run id is still there, but the link is gone. It is a public hostname; the token
+is the only credential. Store them accordingly: GitHub `vars` vs `secrets`
+below, and on GitLab mask the token only.
+
 ## GitHub Actions
 
 Trigger on **deploy success**, not on the merge, and pass the environment URL
@@ -174,10 +181,15 @@ jobs:
             /api/projects/checkout/modules/auth/run \
             "${{ github.event.deployment_status.environment_url }}"
         env:
-          QASSIST_URL: ${{ secrets.QASSIST_URL }}
+          QASSIST_URL: ${{ vars.QASSIST_URL }}        # a variable, not a secret — see above
           QASSIST_TOKEN: ${{ secrets.QASSIST_TOKEN }}
           QASSIST_VARS: '{"env":"prod","user":"ci-bot"}'   # overrides the test's declared variables
 ```
+
+Set `QASSIST_URL` under **Settings → Secrets and variables → Actions →
+Variables**, and `QASSIST_TOKEN` under **Secrets** on the same page. A value
+that lives in both is still masked, so if you started with the URL as a secret,
+delete it there after adding the variable.
 
 Point a second environment at the same tests by changing only `QASSIST_VARS` —
 a staging job is this job with `'{"env":"staging",…}'`.
@@ -223,7 +235,8 @@ qa-smoke:
 ```
 
 `QASSIST_URL` and `QASSIST_TOKEN` are project CI/CD variables; mark the token
-**masked** and **protected** so it never reaches a fork's pipeline. A suite is
+**masked** and **protected** so it never reaches a fork's pipeline, and leave
+the URL unmasked so run permalinks stay readable in the job log. A suite is
 the same job with `QASSIST_TARGET: /api/suites/<uuid>/run`.
 
 ## Seeing what happened
