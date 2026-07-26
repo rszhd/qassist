@@ -47,6 +47,7 @@ Sprints aren't split along a self-host/hosted-tier line — `sprint/current/` an
 | ID | Story | Status | Depends on |
 |---|---|---|---|
 | [US-056](sprint/current/US-056-production-deployment.md) | Production deployment: `app.qassist.run` goes live | 📋 Planned (created 2026-07-26) — the production stand-up itself | US-007, US-038, US-052 |
+| [US-058](sprint/current/US-058-per-user-concurrency-override.md) | Raise one user's concurrency cap without raising everyone's | 📋 Planned (created 2026-07-27) | US-028, US-021 |
 | [US-047](sprint/current/done/US-047-stop-a-run.md) | Stop a run | ✅ **Done** 2026-07-27, 6/6 — `cancelled` is a terminal status of its own, and a stop is not a red build | — |
 | [US-040](sprint/current/done/US-040-demo-deployment.md) | Deploy the demo sandbox at `demo.qassist.run` | ✅ **Done** 2026-07-26, 11/11 — live on `0.2.3` | US-036, US-007, US-038 |
 | [US-007](sprint/current/done/US-007-https-reverse-proxy.md) | Public HTTPS via reverse proxy (and the Resend sender domain) | ✅ **Closed** 2026-07-26 — overlay, proxy, DNS and sender domain proven; the five production-only criteria moved to US-056 | domain (owned) |
@@ -150,6 +151,13 @@ story above it made the queue busier.
 - **US-056** (2026-07-26) — a consolidation, not new scope. US-007 and US-038
   had each proven everything short of a running production, so both were
   finished stories held open by the same missing stack.
+- **US-058** (2026-07-27) — the refinement US-028 named in its own "Later" and
+  then waited for. It joins this sprint because production is what makes it
+  real: the cap is one env number for every account on the box, so raising it
+  for one customer raises it for all of them and throttling one abusive account
+  throttles everyone, and the box US-056 stands up is sized to a budget. Same
+  family as US-054 — capacity is rationed by hand here, so the levers that ration
+  it have to be per-account.
 - **US-047** (2026-07-26, from `unscheduled/`) — the first story in a while
   about the product rather than about shipping it, pulled up because the
   release plumbing had nearly stopped needing attention. A plain absence: a
