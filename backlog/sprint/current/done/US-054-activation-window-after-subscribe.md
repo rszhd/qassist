@@ -5,7 +5,7 @@ wait in a stated activation window before it can run, **so that** I have time
 to add the capacity it just bought instead of selling a subscription to a
 server that cannot serve it.
 
-- **Status:** 🟡 Built 2026-07-26 — every criterion but the staging round trip
+- **Status:** ✅ Done 2026-07-26 — the live round trip closed the same day, on preview
 - **Priority:** High — it is the difference between a slow first run and a bad one
 - **Estimate:** ~0.5–1 day
 - **Depends on:** US-022 (billing), US-053 (the checklist this extends), US-021 (accounts), US-012 (mail)
@@ -174,9 +174,13 @@ literally.
 - [x] `STRIPE_*` unset: no wall, no gate, no mail, self-host unchanged
 - [x] The operator is mailed on subscribe with the deadline; the customer is
       mailed on activation
-- [ ] Proven on a live box with a real Checkout round trip: subscribe → walled →
+- [x] Proven on a live box with a real Checkout round trip: subscribe → walled →
       activate over SSH → run. **Preview, not staging** — this story is what
       showed that US-055's "no Stripe on preview" rule bought nothing and cost
       every billing change the fast loop, so the rule was reversed rather than
       the criterion honoured. Staging still owns what it always did: a
-      populated database and a CI-built image
+      populated database and a CI-built image. Closed 2026-07-26 on
+      `preview.qassist.run` at revision `fb4bcfa`: a real account subscribed
+      through test-mode Checkout, `npm run activate` listed it with 20h 46m
+      left, the grant over SSH dropped the wall in the open tab, both mails
+      arrived for real, and the next run started

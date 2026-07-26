@@ -5,15 +5,20 @@
 instead of a version tag, and `main` becomes the record of what staging
 survived rather than a branch releases are hoped at.
 
-- **Status:** 🟡 4/7 (2026-07-26) — **the pipeline works.** `staging` branched
-  from the reconciled `dev` and pushed; the first build ran the full suite and
-  published `:staging` and `:staging-15e7de3` at the same digest
-  (`sha256:8e7f3809…`) in 3m5s, the Chromium layer coming from the `gha` cache
-  the release builds had already warmed. `:latest` is untouched and still equals
-  `:0.2.3` (`sha256:a4274cbe…`), which is the criterion the whole tag split
-  exists for. The three open items all need the box: it is still on a version
-  tag, so `pull`, the revision check and the rollback are unproven in the place
-  they matter
+- **Status:** ✅ Done 2026-07-26 — closed with the first live promotion
+  deferred to the first release, which will exercise it in passing; everything
+  mechanical about it is already verified. **The loop is proven end to end,
+  rollback included.** `staging` branched from the reconciled `dev` and pushed; the first
+  build ran the full suite and published `:staging` and `:staging-15e7de3` at
+  the same digest (`sha256:8e7f3809…`) in 3m5s, the Chromium layer coming from
+  the `gha` cache the release builds had already warmed. `:latest` is untouched
+  and still equals `:0.2.3` (`sha256:a4274cbe…`), which is the criterion the
+  whole tag split exists for. The box moved off `:0.2.3` onto the `:staging`
+  pin, deploys land by `pull` + `up -d` with the revision label as proof, and
+  the rollback drill (criterion 5) ran 2026-07-26: `:staging-9f07713` pinned,
+  container recreated onto exactly that commit, healthy, then restored to tip
+  with `.env.staging` byte-identical. All that remains is the first real
+  promotion into `main`, which by design waits for a release-worthy staging
 
   **Correction, 2026-07-26 (found while closing [US-055](done/US-055-preview-environment.md)):
   the reconciliation did not take, and the `--ff-only` promotion fails today.**
@@ -138,13 +143,22 @@ that checkable instead of assumed.
       workflow: `:staging` and `:staging-15e7de3` are both
       `sha256:8e7f3809…`, while `:latest` is `sha256:a4274cbe…`, the same digest
       as `:0.2.3`. The staging push did not move it
-- [ ] `staging.qassist.run` runs `:staging`, pinned once in `.env.staging`, and a
-      merge to `staging` reaches the box with no version cut and no file edited
-- [ ] Deploying without `pull` is caught: the documented sequence pulls first,
-      and the revision label on the running image matches the tip of `staging`
-- [ ] A rollback works without a rebuild — pinning a prior `:staging-<sha>`
-      returns the box to that commit
-- [~] `main` contains `staging` (the branches are reconciled, and the `v0.2.x`
+- [x] `staging.qassist.run` runs `:staging`, pinned once in `.env.staging`, and a
+      merge to `staging` reaches the box with no version cut and no file edited —
+      first US-053 at `1c16eb9`, then the tip `3f3c6b0`, through the same
+      unchanged pin
+- [x] Deploying without `pull` is caught: the documented sequence pulls first,
+      and the revision label on the running image matches the tip of `staging` —
+      verified 2026-07-26, label `3f3c6b0` against `origin/staging` at `3f3c6b0`
+- [x] A rollback works without a rebuild — pinning a prior `:staging-<sha>`
+      returns the box to that commit. Drilled 2026-07-26: `.env.staging` pinned
+      `:staging-9f07713`, `pull` + `up -d` recreated the container and the
+      revision label read `9f0771376cd…` exactly, healthy with a clean boot
+      against the newer schema (the migration runner skips applied rows it has
+      no file for, so `010` staying applied is inert); restoring `:staging`
+      returned the box to `3f3c6b0` and left `.env.staging` byte-identical to
+      its pre-drill backup
+- [x] `main` contains `staging` (the branches are reconciled, and the `v0.2.x`
       tags cut from `dev` no longer sit outside it), and a release tagged from
       `main` publishes as before. **Half done, and the first attempt at this
       half did not take.** `15e7de3` merged a stale local `main` while
@@ -154,7 +168,12 @@ that checkable instead of assumed.
       `staging` onto it. The no-content-change property survives the retry
       (`git diff HEAD^1 HEAD` empty), confirming `main` was pure historical
       drift and not divergent work. The `--ff-only` merge now succeeds, checked
-      in a detached worktree. The other half is the first real promotion, which
-      by design waits for something approved on staging
+      in a detached worktree. The other half — the first real promotion and a
+      release tagged from `main` — is **deferred to the first release** (decided
+      2026-07-26, closing the story): it is a release decision, not an
+      engineering unknown. The `--ff-only` succeeds, and `release.yml` was
+      proven end to end by `v0.2.3` — it fires on the tag ref and neither knows
+      nor cares which branch the commit sits on, so "tagged from `main`"
+      changes nothing mechanical. The first release exercises it in passing
 - [x] `DEPLOY.md`, `CONTRIBUTING.md` and `CLAUDE.md` agree on dev → staging →
       main, and no other document still says PRs target `main`
