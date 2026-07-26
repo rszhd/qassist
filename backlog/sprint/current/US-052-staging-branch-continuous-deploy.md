@@ -5,8 +5,15 @@
 instead of a version tag, and `main` becomes the record of what staging
 survived rather than a branch releases are hoped at.
 
-- **Status:** 🟡 In progress (opened 2026-07-26) — repo half written, branch not
-  yet created and the box not yet moved onto `:staging`
+- **Status:** 🟡 4/7 (2026-07-26) — **the pipeline works.** `staging` branched
+  from the reconciled `dev` and pushed; the first build ran the full suite and
+  published `:staging` and `:staging-15e7de3` at the same digest
+  (`sha256:8e7f3809…`) in 3m5s, the Chromium layer coming from the `gha` cache
+  the release builds had already warmed. `:latest` is untouched and still equals
+  `:0.2.3` (`sha256:a4274cbe…`), which is the criterion the whole tag split
+  exists for. The three open items all need the box: it is still on a version
+  tag, so `pull`, the revision check and the rollback are unproven in the place
+  they matter
 - **Priority:** P1 (current sprint) — it is the friction [US-038](US-038-staging-environment.md)
   left behind, and it gets worse with every story that wants a real box
 - **Estimate:** ~1 h repo-side, plus one deploy to move the box onto `:staging`
@@ -100,17 +107,30 @@ that checkable instead of assumed.
 
 ## Acceptance criteria
 
-- [ ] A push to `staging` runs the full CI suite and, only if it is green,
-      publishes `:staging` and `:staging-<sha>` — one CI run per push, not two
-- [ ] Neither tag is `latest`, and `:latest` still moves only on a version tag
+- [x] A push to `staging` runs the full CI suite and, only if it is green,
+      publishes `:staging` and `:staging-<sha>` — one CI run per push, not two.
+      First push (run `30187794479`): server tests against real Postgres with
+      none of the `*-postgres.test.js` files skipped, typecheck, frontend tests
+      + build, agent units, then the image. One run, not two — `ci.yml` leaving
+      `staging` out of its own push triggers holds
+- [x] Neither tag is `latest`, and `:latest` still moves only on a version tag —
+      checked by digest against the registry rather than by reading the
+      workflow: `:staging` and `:staging-15e7de3` are both
+      `sha256:8e7f3809…`, while `:latest` is `sha256:a4274cbe…`, the same digest
+      as `:0.2.3`. The staging push did not move it
 - [ ] `staging.qassist.run` runs `:staging`, pinned once in `.env.staging`, and a
       merge to `staging` reaches the box with no version cut and no file edited
 - [ ] Deploying without `pull` is caught: the documented sequence pulls first,
       and the revision label on the running image matches the tip of `staging`
 - [ ] A rollback works without a rebuild — pinning a prior `:staging-<sha>`
       returns the box to that commit
-- [ ] `main` contains `staging` (the branches are reconciled, and the `v0.2.x`
+- [~] `main` contains `staging` (the branches are reconciled, and the `v0.2.x`
       tags cut from `dev` no longer sit outside it), and a release tagged from
-      `main` publishes as before
-- [ ] `DEPLOY.md`, `CONTRIBUTING.md` and `CLAUDE.md` agree on dev → staging →
+      `main` publishes as before. **Half done:** `main` is now an ancestor of
+      `dev` and `staging`, so the `--ff-only` promotion is possible — and the
+      merge that made it so carried *no content change* (`git diff` between the
+      pre-merge commit and the merge is empty), confirming `main` was pure
+      historical drift and not divergent work. The other half is the first real
+      promotion, which by design waits for something approved on staging
+- [x] `DEPLOY.md`, `CONTRIBUTING.md` and `CLAUDE.md` agree on dev → staging →
       main, and no other document still says PRs target `main`
