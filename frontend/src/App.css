@@ -31,7 +31,7 @@
 
   --text: #edeef0;
   --muted: #9b9ba3;
-  --faint: #6e6e77;
+  --faint: #83838d;
 
   --accent: #4d7cf6;
   --accent-hi: #6a92f8;
@@ -136,7 +136,7 @@
      separated by weight, case and colour; the top two step by ~1.25 because
      nothing else marks them. Whole pixels only — the old half-pixel steps
      (10.5/11.5/12.5/13) were close enough to get picked interchangeably. */
-  --t-xs: 11px; --t-sm: 12px; --t-base: 13px; --t-lg: 16px; --t-xl: 20px;
+  --t-xs: 12px; --t-sm: 13px; --t-base: 14px; --t-lg: 16px; --t-xl: 20px;
 
   --r-sm: 4px; --r-md: 6px; --r-lg: 8px; --r-xl: 10px;
 
@@ -186,7 +186,7 @@
 
   --text: #1a1a1f;
   --muted: #5b5b66;
-  --faint: #85858f;
+  --faint: #70707a;
 
   --accent: #3563d6;
   --accent-hi: #2a4fb3;

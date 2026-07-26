@@ -29,9 +29,9 @@ the row is hovered or focused.
 
 ## Type
 
-Five steps, and each is a role rather than a nudge: `--t-xs` (11px) uppercase
-micro-labels, `--t-sm` (12px) anything secondary to the line above it,
-`--t-base` (13px) every primary run of text and every control, `--t-lg` (16px)
+Five steps, and each is a role rather than a nudge: `--t-xs` (12px) uppercase
+micro-labels, `--t-sm` (13px) anything secondary to the line above it,
+`--t-base` (14px) every primary run of text and every control, `--t-lg` (16px)
 a heading or a number worth reading first, `--t-xl` (20px) the page title
 alone. A sixth step is almost always the wrong emphasis asked for the wrong
 way.
