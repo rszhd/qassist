@@ -35,6 +35,10 @@ layout (steps section / appendix pages), not bolting images onto the band.
   RunDetail shows it in-app, the report doesn't yet. A small facts-row addition,
   not a layout change — but it waits for the layout rework rather than bolting
   onto the current verdict band.
+- **The step section is step-keyed, which is why `report_data.json` carries no
+  `progress` events** (decided in US-026). It renders `Step {n}`, and a
+  progress event has no step number to key on. Revisit that omission if the
+  section stops being keyed by step.
 
 ## Acceptance criteria
 

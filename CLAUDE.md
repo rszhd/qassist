@@ -56,7 +56,8 @@ keep it that way when adding features.
   current scope, `sprint/current/done/` the shipped ones, so the folder itself
   is the remaining work. Read the relevant US-xxx before implementing it; when
   finished, `git mv` it into `done/` and update `backlog/README.md` in the same
-  commit.
+  commit. **Results go in the story file**; its README row is a verdict and a
+  date, and a lesson that outlives the story goes to the doc owning the subject.
 - `db/README.md` — control-plane schema ground rules.
 - `docs/design-system.md` — UI vocabulary, type/spacing/size tokens, palette.
 - `docs/repo-model.md` — open-source vs paid-cloud boundary.

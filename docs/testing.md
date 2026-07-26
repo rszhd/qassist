@@ -78,6 +78,30 @@ twice over here.
   recorded-fixture approach buys most of the confidence with none of the
   flake or spend.
 
+### The one claim the suite cannot make
+
+Those omissions have a standing price, and the release-plumbing sprint paid it
+often enough to be worth naming: **a green suite says the code does what we
+modelled; it never says the model was right.** The last claim in a change is
+routinely the one that needs the real thing running.
+
+The clearest case is US-047. Stopping a run prefers `Agent.stop()` over
+`SIGKILL` for exactly one reason — `agent.run()` returns, so the recorder's
+`finally` writes the mp4's moov atom and the video stays playable. The test
+stub is a Node script that writes the string `fake mp4 for tests`, so no test
+in the suite could distinguish a playable file from a truncated one; that whole
+chain had only ever been *read out of browser-use's source*. What closed the
+story was watching a real stopped run play back. Same shape elsewhere: staging
+found four defects (a Traefik/Docker version clash, a NULL Stripe column) that
+no fixture here could have; running `docs/ci.md`'s snippet from a real GitHub
+runner found Actions redacting the URL the doc told readers to keep secret.
+
+The practical rule: when a change's reason-for-existing rests on third-party
+behaviour — a library's cleanup path, a proxy's headers, a provider's payload —
+the suite covers *our* half, and the claim is not proven until it has run
+somewhere real. Budget that step into the story rather than treating green as
+the finish line.
+
 ## Working with an AI pair changes one thing
 
 With two humans, the person who writes the test and the person who writes the
