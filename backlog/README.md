@@ -50,7 +50,7 @@ release-plumbing stories turned out to share an unstated fifth.
 | [US-007](sprint/current/US-007-https-reverse-proxy.md) | Public HTTPS via reverse proxy (and the Resend sender domain) | 🧱 Repo side shipped (2026-07-25) — overlay, proxy, `DEPLOY.md`; DNS + the box left | domain (owned) |
 | [US-040](sprint/current/US-040-demo-deployment.md) | Deploy the demo sandbox at `demo.qassist.run` | 🟢 **Live**, 10/11 (2026-07-26) — up at `demo.qassist.run` on `0.2.1`, the tag cut because `v0.2.0` predates the fixture `COPY` and would have failed every run. Replay streams over the WS through Traefik with no Chromium and no key; tenants are isolated; a visitor cannot make it mail a stranger; the reaper took an expired tenant's rows *and* its dirs without following the symlinks into `/app/demo`. The per-visitor throttle was proven by an actual stranger, found via the cert's CT-log entry within minutes. **Open: the CTA points at `qassist.run`, which has no DNS — the signup button is dead, so don't publicise it yet** | US-036, US-007, US-038 |
 | [US-038](sprint/current/US-038-staging-environment.md) | Staging environment (`staging.qassist.run`) | 🟢 5/8 (2026-07-25) — **up and serving** on its own LE cert, seeded, WS live view proven; found two shipped bugs (Traefik v3.3 vs Docker 29, and `DEPLOY.md`'s own `ENV_FILE` prefix). **2026-07-26:** Stripe test keys are in, `billing:true`, and two non-operator accounts subscribed through real Checkout with every event applied — but the criterion stays open, because the round trip wrote `current_period_end` NULL (US-051) and the Portal schedules rather than cancels, so the 402 half never ran. The other two still need production, which was deliberately not stood up | US-007 |
-| [US-051](sprint/current/US-051-subscription-dates-from-stripe.md) | The subscription dates Stripe sends and we don't read | 📋 Planned, P1 (added 2026-07-26) — defect found by US-038's Stripe round trip: `current_period_end` arrives NULL because Stripe moved it onto the subscription item, so `past_due`'s grace period is unreachable; and a scheduled cancellation is stored nowhere, so a customer who cancelled sees a panel identical to one who did not. Assertion-first, under the existing billing row | US-022 |
+| [US-051](sprint/current/done/US-051-subscription-dates-from-stripe.md) | The subscription dates Stripe sends and we don't read | ✅ **Done** 2026-07-26, 9/9, shipped in `v0.2.3` — found and closed the same day. The period end now reads `items.data[0].current_period_end` with the old top-level location as a fallback, and a scheduled cancellation is stored as `cancel_at` (migration `009`) rather than inferred from a boolean that was False on a genuine cancellation. Proven on staging by a real Portal cancel *and* resume: two new event ids, non-NULL period end for the first time, `cancel_at` written then cleared while the period end stood — the asymmetric write rule no fixture could establish. Entitlement deliberately unchanged | US-022 |
 | [US-039](sprint/current/done/US-039-byok-only-no-server-key.md) | BYOK only: remove the server `OPENAI_API_KEY` | ✅ Shipped 2026-07-26 — the server key is gone from the product: a run is funded by its caller's key (per-request > stored) or refuses with 503, the scheduler skips keyless owners per slot, and `DATABASE_URL`/`KEY_ENCRYPTION_SECRET` are boot requirements. Assertion-first (`resolveRunKey` is correctness-critical); every spec runs with a live-looking server key in the env to prove the fallback is deleted, not unconfigured. Deployed to staging 2026-07-26 as v0.2.0, AC #6 re-proven on the box | US-005, US-021 |
 | [US-008](sprint/current/US-008-cicd-integration.md) | CI/CD trigger: the documented pipeline step | 🧱 2/5 (2026-07-25) — `docs/ci.md`'s script run **verbatim against staging**: suite path, exit 0 green / exit 1 mixed, batching, queueing at cap, `start_url` override honoured. Still owed: module-by-slug, and execution from a real Actions/GitLab runner | US-007, US-009 |
 | [US-031](sprint/current/done/US-031-license-and-public-repo.md) | License the code and open the repo | ✅ Shipped (2026-07-25) — AGPL `LICENSE`, DCO, gitleaks clean over all 114 commits, repo public and renamed to `qassist` | — |
@@ -287,6 +287,17 @@ It also lands on US-038's own scorecard: that story's remaining Stripe criterion
 is a round trip proving Checkout → webhook → entitlement, and the round trip we
 ran left a column NULL. The criterion is not honestly tickable until this is
 fixed and re-run.
+
+**Closed the same day.** The fix shipped in `v0.2.3` and was re-run on staging
+through the Customer Portal: cancel, then resume. Both wrote a non-NULL
+`current_period_end`; the first stored `cancel_at`, the second cleared it while
+leaving the period end standing. That last detail is the one worth keeping —
+the two columns are written by deliberately different rules (`cancel_at`
+authoritative, `current_period_end` coalesced so an unreadable event cannot cut
+every `past_due` customer off at once), and a resume through a real Portal is
+the only thing that could demonstrate it. The whole sequence is the argument for
+staging in one paragraph: a defect no fixture here could have found, closed by
+the environment that found it.
 
 ## Next sprint — `sprint/next/`
 

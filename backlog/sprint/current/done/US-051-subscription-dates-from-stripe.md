@@ -10,9 +10,10 @@ Two gaps, one cause: dates on the Stripe subscription object that we either read
 from a location Stripe abandoned, or never read at all. They share an event, a
 migration and a panel, so they are one story.
 
-- **Status:** 📋 Planned. Defect, found 2026-07-26 on staging during US-038's
-  Stripe test-mode round trip — the first time the webhook path ran against a
-  real Stripe account rather than a fixture.
+- **Status:** ✅ Done 2026-07-26, shipped in `v0.2.3` and proven on staging
+  against real Stripe events (evidence below). Defect, found the same day on
+  staging during US-038's Stripe test-mode round trip — the first time the
+  webhook path ran against a real Stripe account rather than a fixture.
 - **Priority:** P1, **pulled into the current sprint 2026-07-26** (written
   straight into it, as US-038 was). It is a live defect in shipped billing
   (US-022), it fails in the direction that costs a paying customer their
@@ -155,7 +156,7 @@ is the way a well-meant fix would break the gate:
       after that instant is refused — D5's fail-closed-on-NULL case still holds
 - [x] `billing-webhook.test.js`'s fixture builds the current API shape, and a
       test would fail if the reader went back to the top-level field alone
-- [ ] Verified on staging with a real Stripe test event, not only in tests: a
+- [x] Verified on staging with a real Stripe test event, not only in tests: a
       subscription written after the fix has a non-NULL period end, and the
       Settings panel shows the renewal date
 - [x] A cancellation scheduled at period end is stored, from the
@@ -167,6 +168,42 @@ is the way a well-meant fix would break the gate:
       the subscription ends
 - [x] Entitlement is unchanged throughout: a scheduled cancellation is entitled
       until it takes effect, and only `customer.subscription.deleted` ends it
+
+## Verified on staging (2026-07-26, `v0.2.3`)
+
+The criterion this story could not tick from a test. Staging on Stripe test
+keys, endpoint API version `2026-06-24.dahlia`, `mharith.dev@gmail.com`
+cancelling and then resuming through the Customer Portal — two real events, two
+new event ids, so neither was dropped by `claimEvent` the way a dashboard resend
+would have been.
+
+After the cancellation:
+
+```
+status | current_period_end     | cancel_at              | last_event_at
+active | 2026-08-26 01:27:06+00 | 2026-08-26 01:27:06+00 | 2026-07-26 04:12:43+00
+```
+
+`current_period_end` is non-NULL for the first time — read off `items.data[0]`,
+where the same event a day earlier wrote nothing. `cancel_at` equals the period
+end exactly, as observed when the defect was found, and `cancel_at_period_end`
+was False on this very event. Status stayed `active`: entitlement untouched.
+Settings read *Subscription active · ends Aug 26, 09:27 AM*.
+
+After the resume:
+
+```
+status | current_period_end     | cancel_at | last_event_at
+active | 2026-08-26 01:27:06+00 |           | 2026-07-26 04:14:41+00
+```
+
+One event cleared one date and preserved the other, which is the asymmetric
+write rule below proven live — the half no fixture could establish. Had the two
+columns shared a rule, this event would either have left the cancellation stuck
+forever or wiped the entitlement gate's input.
+
+The second staging account, touched by no new event, still carries NULL in both
+columns. That is correct: the fix reads events, and backfilling is out of scope.
 
 ## Reviewed decisions (2026-07-26)
 
