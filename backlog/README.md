@@ -50,6 +50,7 @@ release-plumbing stories turned out to share an unstated fifth.
 | [US-007](sprint/current/US-007-https-reverse-proxy.md) | Public HTTPS via reverse proxy (and the Resend sender domain) | 🧱 Repo side shipped (2026-07-25) — overlay, proxy, `DEPLOY.md`; DNS + the box left | domain (owned) |
 | [US-040](sprint/current/US-040-demo-deployment.md) | Deploy the demo sandbox at `demo.qassist.run` | 🟢 **Live**, 10/11 (2026-07-26) — up at `demo.qassist.run` on `0.2.1`, the tag cut because `v0.2.0` predates the fixture `COPY` and would have failed every run. Replay streams over the WS through Traefik with no Chromium and no key; tenants are isolated; a visitor cannot make it mail a stranger; the reaper took an expired tenant's rows *and* its dirs without following the symlinks into `/app/demo`. The per-visitor throttle was proven by an actual stranger, found via the cert's CT-log entry within minutes. **Open: the CTA points at `qassist.run`, which has no DNS — the signup button is dead, so don't publicise it yet** | US-036, US-007, US-038 |
 | [US-038](sprint/current/US-038-staging-environment.md) | Staging environment (`staging.qassist.run`) | 🟢 5/8 (2026-07-25) — **up and serving** on its own LE cert, seeded, WS live view proven; found two shipped bugs (Traefik v3.3 vs Docker 29, and `DEPLOY.md`'s own `ENV_FILE` prefix). Remaining three need production, which was deliberately not stood up | US-007 |
+| [US-051](sprint/current/US-051-subscription-dates-from-stripe.md) | The subscription dates Stripe sends and we don't read | 📋 Planned, P1 (added 2026-07-26) — defect found by US-038's Stripe round trip: `current_period_end` arrives NULL because Stripe moved it onto the subscription item, so `past_due`'s grace period is unreachable; and a scheduled cancellation is stored nowhere, so a customer who cancelled sees a panel identical to one who did not. Assertion-first, under the existing billing row | US-022 |
 | [US-039](sprint/current/done/US-039-byok-only-no-server-key.md) | BYOK only: remove the server `OPENAI_API_KEY` | ✅ Shipped 2026-07-26 — the server key is gone from the product: a run is funded by its caller's key (per-request > stored) or refuses with 503, the scheduler skips keyless owners per slot, and `DATABASE_URL`/`KEY_ENCRYPTION_SECRET` are boot requirements. Assertion-first (`resolveRunKey` is correctness-critical); every spec runs with a live-looking server key in the env to prove the fallback is deleted, not unconfigured. Deployed to staging 2026-07-26 as v0.2.0, AC #6 re-proven on the box | US-005, US-021 |
 | [US-008](sprint/current/US-008-cicd-integration.md) | CI/CD trigger: the documented pipeline step | 🧱 2/5 (2026-07-25) — `docs/ci.md`'s script run **verbatim against staging**: suite path, exit 0 green / exit 1 mixed, batching, queueing at cap, `start_url` override honoured. Still owed: module-by-slug, and execution from a real Actions/GitLab runner | US-007, US-009 |
 | [US-031](sprint/current/done/US-031-license-and-public-repo.md) | License the code and open the repo | ✅ Shipped (2026-07-25) — AGPL `LICENSE`, DCO, gitleaks clean over all 114 commits, repo public and renamed to `qassist` | — |
@@ -263,6 +264,29 @@ live-only state (like frames — replaying it would be a stale countdown), and
 the Run view has a queued state distinct from "Agent is starting…". US-028
 inherits that position and has to keep it honest once the dequeue stops being
 strict FIFO.
+
+**US-051 (written into the sprint 2026-07-26)** is a defect, and it is in this
+sprint because staging did exactly what US-038 built it to do. The first Stripe
+round trip against a real account showed `current_period_end` arriving NULL on
+every subscription: Stripe moved the field onto the subscription *item* in API
+version `2025-03-31.basil`, and `applySubscriptionEvent` still reads it from the
+top level. The gate behind it is US-022's decision 3, so today a `past_due`
+customer is cut off on the first failed retry rather than at the end of the
+period they paid for. The test suite is green because the webhook fixture we
+wrote encodes the shape Stripe stopped sending — which is the reusable lesson: a
+fixture is evidence about our parser, never about the wire format. Testing the
+cancel path the same day turned up a second instance of it: the Customer Portal
+*schedules* a cancellation, and this API version expresses that as a `cancel_at`
+timestamp while leaving the `cancel_at_period_end` boolean False. We store
+neither, so a customer who has cancelled sees a panel identical to one who has
+not. Both gaps share an event, a migration and a panel, so they are one story.
+Covered by the existing billing row in
+[`correctness-critical.md`](correctness-critical.md); no new row needed.
+
+It also lands on US-038's own scorecard: that story's remaining Stripe criterion
+is a round trip proving Checkout → webhook → entitlement, and the round trip we
+ran left a column NULL. The criterion is not honestly tickable until this is
+fixed and re-run.
 
 ## Next sprint — `sprint/next/`
 
