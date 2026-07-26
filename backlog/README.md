@@ -52,8 +52,10 @@ release-plumbing stories turned out to share an unstated fifth.
 | [US-038](sprint/current/US-038-staging-environment.md) | Staging environment (`staging.qassist.run`) | 🟢 5/8 (2026-07-25) — **up and serving** on its own LE cert, seeded, WS live view proven; found two shipped bugs (Traefik v3.3 vs Docker 29, and `DEPLOY.md`'s own `ENV_FILE` prefix). **2026-07-26:** Stripe test keys are in, `billing:true`, and two non-operator accounts subscribed through real Checkout with every event applied — but the criterion stays open, because the round trip wrote `current_period_end` NULL (US-051) and the Portal schedules rather than cancels, so the 402 half never ran. The other two still need production, which was deliberately not stood up | US-007 |
 | [US-051](sprint/current/done/US-051-subscription-dates-from-stripe.md) | The subscription dates Stripe sends and we don't read | ✅ **Done** 2026-07-26, 9/9, shipped in `v0.2.3` — found and closed the same day. The period end now reads `items.data[0].current_period_end` with the old top-level location as a fallback, and a scheduled cancellation is stored as `cancel_at` (migration `009`) rather than inferred from a boolean that was False on a genuine cancellation. Proven on staging by a real Portal cancel *and* resume: two new event ids, non-NULL period end for the first time, `cancel_at` written then cleared while the period end stood — the asymmetric write rule no fixture could establish. Entitlement deliberately unchanged | US-022 |
 | [US-039](sprint/current/done/US-039-byok-only-no-server-key.md) | BYOK only: remove the server `OPENAI_API_KEY` | ✅ Shipped 2026-07-26 — the server key is gone from the product: a run is funded by its caller's key (per-request > stored) or refuses with 503, the scheduler skips keyless owners per slot, and `DATABASE_URL`/`KEY_ENCRYPTION_SECRET` are boot requirements. Assertion-first (`resolveRunKey` is correctness-critical); every spec runs with a live-looking server key in the env to prove the fallback is deleted, not unconfigured. Deployed to staging 2026-07-26 as v0.2.0, AC #6 re-proven on the box | US-005, US-021 |
-| [US-052](sprint/current/US-052-staging-branch-continuous-deploy.md) | Staging deploys from a branch, not a release | 🟡 4/7 (2026-07-26) — **the pipeline works.** `staging` branched and pushed; the first build ran the full suite then published `:staging` and `:staging-15e7de3` at one digest in 3m5s, and `:latest` is provably untouched — still the same digest as `:0.2.3`, which is the criterion the tag split exists for. `main` was reconciled into `dev` with no content change, so the `--ff-only` promotion is now possible. Left, all of it on the box: it still runs a version tag, so `pull`, the revision check and the `:staging-<sha>` rollback are unproven where they matter | US-032, US-038 |
-| [US-053](sprint/current/US-053-onboarding-key-then-subscribe.md) | Onboarding: key, then subscribe, before the app | 🟡 Built 2026-07-26, unproven on a box — on a billing instance an account that has never paid gets the checklist instead of the app, Subscribe is not offered until a key is stored, and a self-host is untouched (no wall, not one `/api/billing` request). `POST /checkout` refuses without a stored key and makes no request to Stripe when it does — assertion-first and reviewed before implementation (`checkout-key-gate.test.js`, correctness-critical). Deliberately deferred: the key is still only shape-checked, never validated against OpenAI. Left to prove: a real Checkout round trip on staging | US-021, US-022, US-039, US-036 |
+| [US-052](sprint/current/US-052-staging-branch-continuous-deploy.md) | Staging deploys from a branch, not a release | 🟡 4/7 (2026-07-26) — **the pipeline works.** `staging` branched and pushed; the first build ran the full suite then published `:staging` and `:staging-15e7de3` at one digest in 3m5s, and `:latest` is provably untouched — still the same digest as `:0.2.3`, which is the criterion the tag split exists for. `main` was reconciled into `dev` with no content change, so the `--ff-only` promotion is now possible. **2026-07-26, on the box:** `.env.staging` moved off `:0.2.3` onto `:staging` (backup at `.env.staging.bak-us053`) and US-053 deployed through it — `pull` then `up -d`, confirmed by digest and by the `org.opencontainers.image.revision` label reading `1c16eb9`, which is the check the mutable tag exists to need. Left: the `:staging-<sha>` rollback, still unexercised | US-032, US-038 |
+| [US-053](sprint/current/done/US-053-onboarding-key-then-subscribe.md) | Onboarding: key, then subscribe, before the app | ✅ **Done** 2026-07-26 — on a billing instance an account that has never paid gets the checklist instead of the app, Subscribe is not offered until a key is stored, and a self-host is untouched (no wall, not one `/api/billing` request). `POST /checkout` refuses without a stored key and makes no request to Stripe when it does — assertion-first, reviewed before implementation (`checkout-key-gate.test.js`, correctness-critical). Deployed to staging on revision `1c16eb9` and walked through by hand there. Deliberately deferred: the key is still only shape-checked, never validated against OpenAI, so step 2 goes green for a revoked one | US-021, US-022, US-039, US-036 |
+| [US-054](sprint/current/US-054-activation-window-after-subscribe.md) | The activation window: capacity before the first run | 📋 Planned (2026-07-26) — a paid account waits in a stated window (`ACTIVATION_SLA_HOURS`, unset = off) while the operator adds the capacity it just bought. A fourth step on US-053's checklist, an operator-owned sticky `users.activated_at`, a `npm run activate` script on the box, and 503 + `Retry-After` at every run-start path. Correctness-critical: assertion-first, reviewed before implementation. Deliberately no auto-flip at the deadline — a timer would hand the customer a box nobody upgraded | US-022, US-053 |
+| [US-055](sprint/current/US-055-preview-environment.md) | A preview environment, off to the side of the chain | 📋 Planned (2026-07-26) — `preview.qassist.run` runs whatever is force-pushed to a `preview` branch, built **on the box** so there is no CI or registry in the loop. A spur, not a link: the chain stays dev → staging → main, nothing merges out of preview, and an unmerged WIP branch can be previewed. The fourth stack is the same two compose files again (`pull_policy: missing` + a local tag). Deliberately looser than staging — console mail, no Stripe — so it cannot drift into being a slow second staging. Carries the `ci.yml` change that stops running the suite on pushes to `dev` | US-038, US-052 |
 | [US-008](sprint/current/US-008-cicd-integration.md) | CI/CD trigger: the documented pipeline step | 🧱 2/5 (2026-07-25) — `docs/ci.md`'s script run **verbatim against staging**: suite path, exit 0 green / exit 1 mixed, batching, queueing at cap, `start_url` override honoured. Still owed: module-by-slug, and execution from a real Actions/GitLab runner | US-007, US-009 |
 | [US-031](sprint/current/done/US-031-license-and-public-repo.md) | License the code and open the repo | ✅ Shipped (2026-07-25) — AGPL `LICENSE`, DCO, gitleaks clean over all 114 commits, repo public and renamed to `qassist` | — |
 | [US-032](sprint/current/US-032-release-pipeline-and-image.md) | CI on every push, a published image on every tag | 🧱 4/5 (2026-07-25) — `v0.1.0` published to ghcr, anonymously pullable; only the run-on-a-clean-machine check left, which lands on the box | US-031 |
@@ -316,6 +318,45 @@ a quiet drift, since `release.yml` says tags are cut from `main` while every
 `v0.2.x` tag sits on `dev` and `main` has received nothing since `v0.1.0`. The
 rule was right and was skipped because routing through `main` bought nothing.
 Give it something to hold and it stops being ceremony.
+
+**US-054 (written into the sprint 2026-07-26)** comes from the constraint the
+rest of the sprint has been dancing around: the box is sized to a budget, and
+it grows when I resize it by hand. Entitlement currently means "you may run
+now", which is a claim about capacity that nothing here is in a position to
+make — the second subscriber of a day competes for whatever `MAX_CONCURRENT`
+the first one left. The story turns the gap between a cleared card and an
+upgraded server into a stated activation window rather than a queued run that
+never starts, and gives the operator the hour it actually takes.
+
+It is one condition on the wall US-053 just built, which is why it is cheap:
+a fourth checklist step, a sticky operator-owned `activated_at`, a script on
+the box, and a 503 that says come back rather than a 402 that says pay again.
+Off by default (`ACTIVATION_SLA_HOURS` unset), so no instance acquires a hold
+on its next customer as a side effect of ours needing one. The thing it
+refuses to do is the interesting half: nothing flips the flag on a timer,
+because activating on schedule without having done the work is the failure the
+window exists to prevent, performed silently at 3am.
+
+**US-055 (written into the sprint 2026-07-26)** is US-052's remainder. That
+story removed the version tag from a deploy; what it left is the merge's own
+price — full CI, a Chromium-carrying image build, a push to ghcr and a pull on
+the box — charged for every look at a change, including the cosmetic ones. The
+price is correct for staging, because replicating production is what makes green
+there mean anything. It is simply the wrong loop to iterate in.
+
+So preview does not join the chain, it hangs off it: force-push anything to
+`preview`, the box builds it from source and restarts, and nothing ever merges
+out. `dev → preview → staging → main` was considered and rejected — it makes the
+optional environment mandatory, and puts rewritten history upstream of the
+`--ff-only` promotion US-052 exists to guarantee. The keeping-honest constraint
+is written into `.env.preview.example` rather than assumed: no Stripe, no real
+mail, one session. A preview that acquires those is a second staging, and then
+the round trip is back.
+
+The same reasoning ends the CI run on pushes to `dev`. It never gated anything —
+`staging.yml` and `release.yml` both run the suite before publishing — so what
+it bought was a notification per WIP push, and what it costs is that local
+`npm test` stops being optional.
 
 ## Next sprint — `sprint/next/`
 

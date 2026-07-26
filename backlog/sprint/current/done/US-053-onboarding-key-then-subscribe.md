@@ -4,7 +4,11 @@
 two things it needs from me the moment I sign in, **so that** I never meet the
 product as a run that was refused.
 
-- **Status:** ✅ Built, unproven on a box
+- **Status:** ✅ Done 2026-07-26 — shipped to `staging.qassist.run` on revision
+  `1c16eb9` (the first deploy to run the mutable `:staging` tag rather than a
+  version) and walked through by hand there. The criteria below are each pinned
+  by an automated assertion; the manual pass is what confirms they add up to a
+  flow a person can actually complete
 - **Priority:** High — it is the first screen a paying customer sees
 - **Estimate:** ~0.5 day
 - **Depends on:** US-021 (login), US-022 (billing), US-039 (BYOK-only), US-036 (the demo that makes the wall affordable)
@@ -74,14 +78,14 @@ that cannot reach OpenAI, which is its own story and its own assertion.
 
 ## Acceptance criteria
 
-- [ ] A fresh account on a billing instance sees the checklist, not the Run view
-- [ ] Step 3 is locked while no key is stored; storing one unlocks it in place,
+- [x] A fresh account on a billing instance sees the checklist, not the Run view
+- [x] Step 3 is locked while no key is stored; storing one unlocks it in place,
       with no reload
-- [ ] `POST /api/billing/checkout` with no stored key returns 409 and makes no
+- [x] `POST /api/billing/checkout` with no stored key returns 409 and makes no
       request to Stripe
-- [ ] Subscribing drops the wall for good, with nothing persisted client-side to
+- [x] Subscribing drops the wall for good, with nothing persisted client-side to
       make that true, and an entitled account is never walled again
-- [ ] Sign out is reachable from the wall; so is Manage billing for an account
+- [x] Sign out is reachable from the wall; so is Manage billing for an account
       that has a Stripe customer
-- [ ] `STRIPE_*` unset: no wall, no `/api/billing` request, Run view unchanged
-- [ ] Returning from Checkout shows a confirming state, not a second Subscribe
+- [x] `STRIPE_*` unset: no wall, no `/api/billing` request, Run view unchanged
+- [x] Returning from Checkout shows a confirming state, not a second Subscribe
