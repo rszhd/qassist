@@ -124,7 +124,7 @@ them.
 ## Assertion-first
 
 Covered by the existing billing row in
-[`correctness-critical.md`](../../correctness-critical.md) (`applySubscriptionEvent`
+[`correctness-critical.md`](../../../correctness-critical.md) (`applySubscriptionEvent`
 and `entitledFrom` are both named there), so no new row is needed — the
 maintainer writes or reviews the assertion before the implementation. The claim
 to pin:

@@ -50,7 +50,7 @@ self-hoster meets.
 
 | ID | Story | Status | Depends on |
 |---|---|---|---|
-| [US-047](sprint/current/US-047-stop-a-run.md) | Stop a run | 🚧 **Backend, agent and report done 2026-07-27, 6/6 at API level; frontend held by decision.** `POST /api/runs/:id/stop`, `{"cmd":"stop"}` → `Agent.stop()`, `cancelled` as a terminal status of its own (migration `011`), the report's own verdict band, the mail rule and CI's exit code. Correctness-critical, assertion-first: the failure it exists for is the one that looks like success — browser-use returns history *normally* out of `Agent.stop()`, so a stopped run still reports a verdict, and honouring it ends an aborted run `passed`. One `verdictOf(run)` now owns that in the row, the report JSON and the HTTP shape. `011` proven on real Postgres, since pg-mem names the check differently and a no-op drop would leave the old one standing. Left: the Stop button and the `cancelled` colours, plus one real stopped run to actually play the mp4 the graceful path exists to save | — |
+| [US-047](sprint/current/done/US-047-stop-a-run.md) | Stop a run | ✅ **Done** 2026-07-27, 6/6 — the last plain absence in the product is gone. `POST /api/runs/:id/stop`, `{"cmd":"stop"}` → `Agent.stop()`, `cancelled` as a terminal status of its own (migration `011`), the report's own verdict band, the mail rule, CI's exit code, and the Stop button in the Run view and in the live `RunDetail`. Correctness-critical, assertion-first: the failure it exists for is the one that looks like success — browser-use returns history *normally* out of `Agent.stop()`, so a stopped run still reports a verdict, and honouring it ends an aborted run `passed`. One `verdictOf(run)` owns that in the row, the report JSON and the HTTP shape — and the **frontend needed the same override a second time**, because the WS relay passes the agent's `done` event through untouched, so the view keeps its own `stopping` flag (a ref: `handleEvent` is frozen at the render that opened the socket). `011` proven on real Postgres, since pg-mem names the check differently and a no-op drop would leave the old one standing. Closed by the one claim no stub could make: a real stopped run, watched back, plays through the steps it took — the whole reason the graceful path is preferred over `SIGKILL` | — |
 | [US-056](sprint/current/US-056-production-deployment.md) | Production deployment: `app.qassist.run` goes live | 📋 Planned (created 2026-07-26) — the production stand-up itself: every criterion US-007 and US-038 could not meet without a running production, consolidated so both could close. Also carries the last unexercised billing path (immediate cancel → `customer.subscription.deleted` → 402, provable on staging) and forces the first `--ff-only` promotion US-052 deferred to the first release | US-007, US-038, US-052 |
 | [US-007](sprint/current/done/US-007-https-reverse-proxy.md) | Public HTTPS via reverse proxy (and the Resend sender domain) | ✅ **Closed** 2026-07-26 — everything short of the stack itself is shipped and proven: overlay + proxy + `DEPLOY.md` (validated by three real stacks), DNS, and the Resend sender domain, with real mail delivered from staging to a non-owner recipient. The five criteria needing a running production moved to US-056 | domain (owned) |
 | [US-040](sprint/current/done/US-040-demo-deployment.md) | Deploy the demo sandbox at `demo.qassist.run` | ✅ **Done** 2026-07-26, 11/11 — live on `0.2.3`. Replay streams over the WS through Traefik with no Chromium and no key; tenants are isolated; a visitor cannot make it mail a stranger; the reaper took an expired tenant's rows *and* its dirs without following the symlinks into `/app/demo`; the per-visitor throttle was proven by an actual stranger, found via the cert's CT-log entry within minutes. Closed by the `0.2.1`→`0.2.3` redeploy (the token wall fell — confirmed by a cold headless-browser visitor, the check that class of break requires) and by the CTA decision: **`DEMO_CTA_URL=https://app.qassist.run`**, live on the box; the button's "free" drops with the next tag, and the destination serves the proxy's default cert until production stands up | US-036, US-007, US-038 |
@@ -443,9 +443,25 @@ all stopped now exits 0 having proved nothing. Verified by running the script in
 an Alpine container (this box has no `jq`), which is the same shape US-008's own
 closure used: prove the doc's snippet, not a paraphrase of it.
 
-Held back on purpose: the frontend. So there is no Stop button yet, and a
-cancelled run's badge renders unstyled until `status.js` and `App.css` learn the
-seventh status.
+**The frontend landed the next day and needed the verdict override a second
+time**, which the story had explicitly said it would not. `verdictOf` rewrites
+the row and the HTTP shape, but the WS relay pushes the agent's `done` event
+through untouched — so the Run view receives `success: true` for a run somebody
+aborted, the same failure one layer out. It keeps its own `stopping` flag, held
+in a **ref** as well as state: `handleEvent` is captured by `ws.onmessage` when
+the socket opens and never re-bound, so state read inside it is frozen at that
+render. The seventh status took `info`, the one palette family nothing had
+claimed, and `statusLabel()` shows the stored `cancelled` as "stopped" wherever
+a person meets it — a CANCELLED badge under a Stop run button is two names for
+one thing.
+
+What actually closed the story was neither: **a real stopped run, watched
+back.** The whole reason to prefer `Agent.stop()` over `SIGKILL` is that
+`agent.run()` returns, so the recorder's `finally` writes the moov atom and the
+mp4 stays playable — and the test stub is a Node script that writes the string
+`fake mp4 for tests`, so that chain had only ever been read out of browser-use's
+source. It plays. That is the shape this sprint keeps rediscovering: the suite
+can carry everything except the one claim that needs the real thing running.
 
 ## Next sprint — `sprint/next/`
 

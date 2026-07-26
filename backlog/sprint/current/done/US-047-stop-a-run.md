@@ -4,12 +4,12 @@
 that** I am not paying for thirty more steps of an agent hunting for a button
 that does not exist — and so that the partial evidence survives.
 
-- **Status:** 🚧 **Everything but one demonstration is done (2026-07-27).** The
-  engine, the route, the `cancelled` status and its migration, the agent's
-  graceful stop, the report, the mail rule, CI's exit code — and now the
-  frontend: the Stop button in the Run view and in the live `RunDetail`, the
-  status's colour and its word. What is left is the one claim a fixture cannot
-  make: a real stopped run whose recording plays. See [Results](#results).
+- **Status:** ✅ **Done 2026-07-27, 6/6.** The engine, the route, the `cancelled`
+  status and its migration, the agent's graceful stop, the report, the mail
+  rule, CI's exit code, and the frontend — the Stop button in the Run view and
+  in the live `RunDetail`, the status's colour and its word. Closed by the one
+  claim no fixture could make: a real stopped run, watched back, plays through
+  the steps it took. See [Results](#results).
 - **Priority:** P3 while it sat unscheduled, but it is a conspicuous absence —
   the Run view streams a live session with no way to end it — and the release
   plumbing that outranked it is nearly done.
@@ -86,9 +86,8 @@ Two things that verification settled:
       emails (US-012) and from CI's non-zero exit (US-008), and visible in
       History — its own badge, its own dot colour, and its own entry in the
       status filter.
-- [x] The steps that ran are in the report, which states the run was stopped.
-      **The recording half is by construction, not yet demonstrated** — see the
-      first item under "What is left".
+- [x] The steps that ran are in the report, which states the run was stopped,
+      and the recording of a stopped run plays.
 - [x] The freed concurrency slot is released and the queue advances
 - [x] A wedged agent that does not honour the stop is killed by the existing
       watchdog path within a bounded time, and still ends `cancelled`
@@ -98,7 +97,7 @@ Two things that verification settled:
 
 **Correctness-critical, assertion-first.** `stop-run.test.js` was written and
 reviewed before a line of the implementation existed, and it has a row in
-[`correctness-critical.md`](../../correctness-critical.md). The failure it
+[`correctness-critical.md`](../../../correctness-critical.md). The failure it
 exists for is the one that looks like success: browser-use returns history
 *normally* out of `Agent.stop()`, so a stopped run still emits a `done` event
 carrying the agent's self-report, and honouring it ends an aborted run `passed`
@@ -181,12 +180,14 @@ thing is the button: `danger` colours the *click*, because it interrupts
 something, while the record it leaves stays neutral — which is where "a stop is
 not a failure" actually has to hold.
 
-## What is left
-
-- **The recording of a stopped run finalizing and playing.** The mechanism is
-  the point of preferring `agent.stop()` (`run()` returns, so `main()`'s
-  `finally` runs `SessionRecorder.stop()` and the moov atom is written), and the
-  server half is proven — but the test stub is a Node script, not Chromium, so
-  nothing here has actually played the mp4. One real stopped run against a live
-  page closes it, and it is the only claim in the story that a fixture cannot
-  reach.
+**The recording was the one thing the suite could not answer, and it took a real
+run to close.** Preferring `agent.stop()` over `SIGKILL` exists for exactly one
+observable consequence: `agent.run()` returns, so `main()`'s `finally` reaches
+`SessionRecorder.stop()`, `stop_and_save()` finalizes the container and the moov
+atom is written — without which the mp4 on disk is a headerless blob no player
+opens. Every test drives `server/test/stubs/fake_agent.js`, which writes the
+string `fake mp4 for tests` into `recording.mp4`: no Chromium, no encoder, no
+video, so that chain had only ever been read out of browser-use's source. One
+real run, stopped mid-flight and watched back, played through the steps it had
+taken. That is the story's whole promise — the partial evidence survives — and
+it is now observed rather than argued.
