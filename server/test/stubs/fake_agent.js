@@ -35,5 +35,38 @@ function emit() {
 // while others stay busy (concurrency-fairshare.test.js's dequeue case).
 const perRun = /\bhold=(\d+)/.exec(process.env.QA_GOAL || '');
 const holdMs = perRun ? Number(perRun[1]) : Number(process.env.QA_STUB_HOLD_MS || 0);
-if (holdMs) setTimeout(emit, holdMs);
-else emit();
+
+if (holdMs) {
+  // Express writes control lines to our stdin, one JSON object per line, as it
+  // does to the real agent: {"cmd":"screencast"} (ignored here) and — US-047 —
+  // {"cmd":"stop"}. `stop=ignore` in the goal is the *wedged* agent that never
+  // honours it, which is the case the escalation to killRunTree exists for.
+  // Otherwise the stub does what browser-use does after Agent.stop(): returns
+  // its partial evidence and exits cleanly, verdict and all. That the verdict
+  // says success is the point — a stopped run must not inherit it.
+  const wedged = /\bstop=ignore\b/.test(process.env.QA_GOAL || '');
+  let buf = '';
+  process.stdin.on('data', (chunk) => {
+    buf += chunk.toString();
+    let nl;
+    while ((nl = buf.indexOf('\n')) >= 0) {
+      const line = buf.slice(0, nl);
+      buf = buf.slice(nl + 1);
+      let msg;
+      try {
+        msg = JSON.parse(line);
+      } catch {
+        continue;
+      }
+      if (msg.cmd === 'stop' && !wedged) emit();
+    }
+  });
+  // Announce that we are up and reading stdin, so a test that wants to stop a
+  // *running* agent can wait for that rather than racing process startup — on a
+  // loaded box `node` can take longer to boot than a short stop grace window,
+  // which silently turns a graceful-stop test into an escalation test.
+  process.stdout.write(JSON.stringify({ type: 'log', message: 'stub ready' }) + '\n');
+  setTimeout(emit, holdMs);
+} else {
+  emit();
+}

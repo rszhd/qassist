@@ -43,10 +43,14 @@ and `sprint/next/` are just now vs. later, reprioritized as needed. On
 forward from `sprint/next/` into this sprint; on 2026-07-25, US-022 (Stripe
 billing) followed, which empties the hosted tier out of `sprint/next/`. The
 same day, **US-038** (staging) was written straight into the sprint — the four
-release-plumbing stories turned out to share an unstated fifth.
+release-plumbing stories turned out to share an unstated fifth. On 2026-07-26,
+**US-047** (stop a run) was pulled up from `unscheduled/` — the release plumbing
+is nearly done, and it is the last plain absence in the product a first
+self-hoster meets.
 
 | ID | Story | Status | Depends on |
 |---|---|---|---|
+| [US-047](sprint/current/US-047-stop-a-run.md) | Stop a run | 🚧 **Backend, agent and report done 2026-07-27, 6/6 at API level; frontend held by decision.** `POST /api/runs/:id/stop`, `{"cmd":"stop"}` → `Agent.stop()`, `cancelled` as a terminal status of its own (migration `011`), the report's own verdict band, the mail rule and CI's exit code. Correctness-critical, assertion-first: the failure it exists for is the one that looks like success — browser-use returns history *normally* out of `Agent.stop()`, so a stopped run still reports a verdict, and honouring it ends an aborted run `passed`. One `verdictOf(run)` now owns that in the row, the report JSON and the HTTP shape. `011` proven on real Postgres, since pg-mem names the check differently and a no-op drop would leave the old one standing. Left: the Stop button and the `cancelled` colours, plus one real stopped run to actually play the mp4 the graceful path exists to save | — |
 | [US-056](sprint/current/US-056-production-deployment.md) | Production deployment: `app.qassist.run` goes live | 📋 Planned (created 2026-07-26) — the production stand-up itself: every criterion US-007 and US-038 could not meet without a running production, consolidated so both could close. Also carries the last unexercised billing path (immediate cancel → `customer.subscription.deleted` → 402, provable on staging) and forces the first `--ff-only` promotion US-052 deferred to the first release | US-007, US-038, US-052 |
 | [US-007](sprint/current/done/US-007-https-reverse-proxy.md) | Public HTTPS via reverse proxy (and the Resend sender domain) | ✅ **Closed** 2026-07-26 — everything short of the stack itself is shipped and proven: overlay + proxy + `DEPLOY.md` (validated by three real stacks), DNS, and the Resend sender domain, with real mail delivered from staging to a non-owner recipient. The five criteria needing a running production moved to US-056 | domain (owned) |
 | [US-040](sprint/current/done/US-040-demo-deployment.md) | Deploy the demo sandbox at `demo.qassist.run` | ✅ **Done** 2026-07-26, 11/11 — live on `0.2.3`. Replay streams over the WS through Traefik with no Chromium and no key; tenants are isolated; a visitor cannot make it mail a stranger; the reaper took an expired tenant's rows *and* its dirs without following the symlinks into `/app/demo`; the per-visitor throttle was proven by an actual stranger, found via the cert's CT-log entry within minutes. Closed by the `0.2.1`→`0.2.3` redeploy (the token wall fell — confirmed by a cold headless-browser visitor, the check that class of break requires) and by the CTA decision: **`DEMO_CTA_URL=https://app.qassist.run`**, live on the box; the button's "free" drops with the next tag, and the destination serves the proxy's default cert until production stands up | US-036, US-007, US-038 |
@@ -396,6 +400,53 @@ to be failing already, from US-052's reconciliation having merged a stale local
 that could have hidden that; the ancestry check is what proved it had not, and
 `9f07713` fixed it.
 
+**US-047 (pulled up from `unscheduled/` 2026-07-26)** is the first story in a
+while that is about the product rather than about shipping it, and it is here
+because the release plumbing has nearly stopped needing attention. It is also a
+plain absence rather than an improvement: a user watching a run go wrong can
+only wait, spending their own key (US-039) for the remaining `QA_MAX_STEPS`.
+
+The agent half is small and now verified rather than assumed — browser-use
+`0.13.6` exposes `Agent.stop()`, honoured between actions within a step, and
+`agent.run()` still returns its history, so the recording is finalized and the
+report is built. Express already writes control lines to the agent's stdin for
+the screencast, so there is no new channel. The cost is on our side of the line:
+`cancelled` has to be a terminal status distinct from failure — a stop is not a
+red build and US-008's exit code must not read it as one — and that status is
+spelled out in four places, one of them a check constraint, so it is a
+migration.
+
+The hard kill stays. An agent wedged inside an action never reaches the
+checkpoint, so the stop escalates to `killRunTree` on a timeout; keeping both is
+what makes the graceful path safe to prefer.
+
+**Everything below the UI landed 2026-07-27**, and the story was right that the
+cost is on our side of the line rather than the agent's. Two things it did not
+anticipate. The first is that the dangerous failure *looks like success*: since
+`agent.run()` returns history normally, a stopped run still carries the agent's
+self-report, so the naive implementation ends it `passed` — green in CI, a pass
+in History, and skipped by the failure mail for the same reason. That is now one
+`verdictOf(run)` shared by the row, the report JSON and the HTTP shape, because
+the status and the `success` column were being derived from the same event in
+three places and only two of them were visible from a test. The second is that
+`cancelled` could not simply be *set* when the request arrives: it has to be in
+`TERMINAL`, and `TERMINAL` is what `retention.js` reads to decide a live run's
+artifacts are prunable, so the request records an intent and only the run's own
+end assigns the status.
+
+It also came due on US-008 the way US-031's risk did: `docs/ci.md`'s script
+changed and its pinned sha256 with it, because "a stop is not a red build" is an
+acceptance criterion and the script gated on `passed` and failed everything
+else. The `cancelled` branch prints `STOP` and leaves the exit code alone — with
+the tradeoff stated in the doc rather than buried, since a job whose runs were
+all stopped now exits 0 having proved nothing. Verified by running the script in
+an Alpine container (this box has no `jq`), which is the same shape US-008's own
+closure used: prove the doc's snippet, not a paraphrase of it.
+
+Held back on purpose: the frontend. So there is no Stop button yet, and a
+cancelled run's badge renders unstyled until `status.js` and `App.css` learn the
+seventh status.
+
 ## Next sprint — `sprint/next/`
 
 Split out of the current sprint on 2026-07-23: the hosted-tier stories plus
@@ -448,7 +499,6 @@ rules live in [`docs/repo-model.md`](../docs/repo-model.md). Email provider:
 | [US-044](unscheduled/US-044-network-and-console-evidence.md) | Say *why* it failed: network and console evidence | 📋 Planned | P2 | US-020, US-026 |
 | [US-045](unscheduled/US-045-model-provider-choice.md) | Bring your own key, to your own provider (incl. local) | 📋 Planned | P2 | US-005, US-039 |
 | [US-046](unscheduled/US-046-token-usage-and-cost.md) | What did that run cost? (token usage + cost) | 📋 Planned | P3 | US-039 |
-| [US-047](unscheduled/US-047-stop-a-run.md) | Stop a run | 📋 Planned | P3 | — |
 | [US-048](unscheduled/US-048-file-upload-in-test-flows.md) | Test a flow that uploads a file | 📋 Planned | P3 | US-035, US-023 |
 | [US-049](unscheduled/US-049-typed-assertions.md) | Assert on a value, not on a paragraph | 📋 Planned | P3 | US-041 |
 | [US-050](unscheduled/US-050-fast-run-mode.md) | A fast, cheap mode for tests that already pass | 📋 Planned | P3 | US-046 |
@@ -499,10 +549,7 @@ every run currently logs in from cold. **US-044** turns "the goal failed" into
 the screencast machinery already makes cheap. **US-045** notices that having
 just made BYOK the only funding path (US-039), *which* provider is the obvious
 next question — and that `ChatOllama` makes a fully-local instance a claim no
-competitor can match. **US-047** is a plain absence: there is no stop endpoint
-anywhere in `server/src`, so a user watching a run go wrong can only wait, and
-the only kill we have is the watchdog's `SIGKILL`, which destroys the recording
-it was about to finalize.
+competitor can match.
 
 Three of these owe rows in [`correctness-critical.md`](correctness-critical.md)
 when scheduled — US-041 and US-049 define what "pass" means, US-042 is a fence

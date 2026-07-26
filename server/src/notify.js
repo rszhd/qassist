@@ -136,6 +136,7 @@ const LABEL = {
   failed: 'FAILED',
   error: 'ERROR',
   completed: 'FINISHED',
+  cancelled: 'STOPPED',
 };
 
 /**
@@ -209,6 +210,12 @@ export async function notifyRunFinished(run) {
   const { name, mode, emails } = await prefsFor(run);
   if (mode === 'never') return { ...none, reason: 'notify=never' };
   if (mode === 'failure' && run.status === 'passed') return { ...none, reason: 'run passed' };
+  // A stop is not a failure (US-047) — somebody ended this run on purpose and
+  // already knows. Mailing it would make the lever that saves money cost an
+  // alert. `always` still sends one: that mode means what it says.
+  if (mode === 'failure' && run.status === 'cancelled') {
+    return { ...none, reason: 'run cancelled' };
+  }
 
   const recipients = await allowed(emails);
   if (!recipients.length) return { ...none, reason: 'no recipients' };

@@ -69,6 +69,18 @@ THEME = {
         "word": "Completed",
         "headline": "Run completed",
     },
+    # US-047. Warm stone rather than the neutral slate: a stopped run is not the
+    # same thing as one that ran to the end without reaching a verdict, and the
+    # band is the only part of page 1 a reader takes in at a glance.
+    "stopped": {
+        "band": "#5A5248",
+        "band_deep": "#453F37",
+        "accent": "#5A5248",
+        "node": "#8C8274",
+        "mark": "■",
+        "word": "Stopped",
+        "headline": "Run stopped before it finished",
+    },
 }
 
 
@@ -102,7 +114,16 @@ def img_data_uri(path: str) -> str | None:
 
 def build_html(data: dict, base_dir: str) -> str:
     success = data.get("success")
-    tone = "pass" if success is True else "fail" if success is False else "neutral"
+    # A stopped run (US-047) is read off the status, not the verdict: it carries
+    # no `success` at all, and letting it fall through to "neutral" would print
+    # "Run completed" over steps that were cut short — the one thing the report
+    # of a stopped run must not say.
+    tone = (
+        "stopped" if data.get("status") == "cancelled"
+        else "pass" if success is True
+        else "fail" if success is False
+        else "neutral"
+    )
     t = THEME[tone]
 
     stat_items = [
@@ -135,6 +156,14 @@ def build_html(data: dict, base_dir: str) -> str:
         summary_html = (
             f'<p class="summary-text"><strong style="color:{t["accent"]}">{t["headline"]}.</strong> '
             f'{esc(final)}</p>'
+        )
+    elif tone == "stopped":
+        # A stopped run often has no summary of its own, and the generic
+        # fallback below then reads as a run that failed to say anything rather
+        # than one somebody ended — with the band the only thing left saying so.
+        summary_html = (
+            f'<p class="summary-text"><strong style="color:{t["accent"]}">{t["headline"]}.</strong> '
+            f'The steps below are what ran before it was stopped.</p>'
         )
     else:
         summary_html = '<p class="summary-text muted">No summary text was produced.</p>'

@@ -10,12 +10,14 @@ import express from 'express';
 import fs from 'node:fs';
 import path from 'node:path';
 import { db, isUuid, currentUserId } from '../db.js';
-import { createRun, getRun, stepsOf } from '../runs.js';
+import { createRun, getRun, stepsOf, stopRun, verdictOf } from '../runs.js';
 import { ARTIFACTS_DIR, RECORDING_FILENAME, REPORT_DATA_FILENAME } from '../config.js';
 import { h, requireDb, requireAgentKey, requireEntitled, respondOverCap, STORED_TRIGGERS } from './helpers.js';
 
-/** Mirrors the runs.status check constraint in 001_init.sql. */
-const STATUSES = new Set(['queued', 'running', 'passed', 'failed', 'completed', 'error']);
+/** Mirrors the runs.status check constraint (001_init.sql, widened by 011). */
+const STATUSES = new Set([
+  'queued', 'running', 'passed', 'failed', 'completed', 'error', 'cancelled',
+]);
 
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
@@ -125,7 +127,7 @@ function liveRow(run) {
     goal: run.goal,
     start_url: run.start_url,
     status: run.status,
-    success: res.success ?? null,
+    success: verdictOf(run),
     final_result: res.final_result ?? res.message ?? null,
     error: failedOrError ? res.message ?? null : null,
     steps_count: res.steps ?? run.events.filter((e) => e.type === 'step').length,
@@ -281,6 +283,36 @@ export function runsRouter({ checkToken, checkTokenOrQuery }) {
         hasRecording: base.has_recording,
         ...(live ? { eventCount: live.events.length } : {}),
       });
+    })
+  );
+
+  // Stop a run early (US-047). Deliberately behind neither requireEntitled nor
+  // requireAgentKey: stopping is how a user stops spending, so it has to work
+  // for an account whose subscription lapsed or whose key was removed while a
+  // run was in flight — the two moments they most want the lever.
+  r.post(
+    '/:id/stop',
+    checkToken,
+    h(async (req, res) => {
+      const run = ownedLiveRun(req.params.id);
+      if (run) {
+        if (!stopRun(run)) return res.status(409).json({ error: 'run has already finished' });
+        // A queued run is cancelled by the time this returns; a running one is
+        // still running until its process ends, which is what `stopping` says.
+        return res.json({
+          runId: run.id,
+          status: run.status,
+          stopping: run.status !== 'cancelled',
+        });
+      }
+      // Not in the relay. Either it is the caller's own run, finished long
+      // enough ago to have left — say so — or it is not theirs at all, which
+      // answers 404 like every other run route, so a refusal never confirms
+      // another tenant's run exists.
+      if (db() && isUuid(req.params.id) && (await runOwned(req.params.id))) {
+        return res.status(409).json({ error: 'run has already finished' });
+      }
+      res.status(404).json({ error: 'not found' });
     })
   );
 

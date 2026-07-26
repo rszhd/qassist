@@ -87,13 +87,31 @@ human clicked.
 ## Polling and the verdict
 
 `GET /api/runs/<runId>` returns `status`, one of `queued` and `running` (keep
-waiting) or `passed`, `failed`, `completed`, `error` (terminal).
+waiting) or `passed`, `failed`, `completed`, `error`, `cancelled` (terminal).
 
 **Gate on `passed`; treat everything else as a failure.** `failed` and `error`
 are obvious. `completed` is the interesting one — the agent finished its steps
 but produced no pass/fail verdict, which means the run answered nothing. A
 build that goes green on "answered nothing" is exactly the false signal this
 step exists to prevent.
+
+**`cancelled` is the one exception, and it is deliberate.** A run reaches it
+only because a person opened it in QAssist and pressed Stop (US-047) — it is
+never something the agent, the worker or a timeout produces. Failing the build
+on it would mean the pipeline reports a problem with the deploy when what
+actually happened is that somebody watching decided the run wasn't worth
+finishing, which they already know. So the script prints a `STOP` line with the
+run's link and leaves the exit code alone.
+
+Read the tradeoff before you copy it. A stopped run verified **nothing**, so a
+job whose runs were all stopped exits 0 having proved nothing — anyone who can
+reach the QAssist UI can turn a gate green by stopping its runs. That is
+acceptable here because stopping is scoped to the run's own owner and takes a
+deliberate click per run, while the alternative — a red build for an action
+whose entire purpose is to *stop* spending on a run — makes the feature cost an
+incident. If your pipeline gates a release on this, swap the `cancelled` branch
+for the `*)` one and treat a stop as a failure; nothing else in the script
+changes.
 
 ## The script
 
@@ -137,13 +155,23 @@ for id in $ids; do
   done
 
   detail=$(jq -r '.result.final_result // .error // ""' <<<"$run")
-  if [ "$status" = passed ]; then
-    echo "  PASS  $id  $detail"
-  else
-    echo "  FAIL  $id  [$status] $detail"
-    echo "        $QASSIST_URL/runs/$id"
-    exit_code=1
-  fi
+  case "$status" in
+    passed)
+      echo "  PASS  $id  $detail"
+      ;;
+    cancelled)
+      # Somebody stopped this run by hand. Not a verdict, and not a build
+      # failure — see "Polling and the verdict" for why, and for when to move
+      # this line down into the catch-all instead.
+      echo "  STOP  $id  stopped before it finished"
+      echo "        $QASSIST_URL/runs/$id"
+      ;;
+    *)
+      echo "  FAIL  $id  [$status] $detail"
+      echo "        $QASSIST_URL/runs/$id"
+      exit_code=1
+      ;;
+  esac
 done
 exit $exit_code
 ```

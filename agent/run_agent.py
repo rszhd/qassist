@@ -15,6 +15,7 @@ just before the run's done/error event.
 
 Express also writes control commands to our stdin, one JSON object per line:
   {"cmd": "screencast", "on": true|false}   viewer attached / last viewer left
+  {"cmd": "stop"}                           the user stopped this run (US-047)
 Frames are only emitted while "on". Without recording the screencast itself is
 stopped too, so an unwatched run skips the JPEG encoding entirely; a recorded
 run needs the frames regardless and only gates the emitting.
@@ -132,8 +133,8 @@ class SessionRecorder:
         return self.frames > 0 and os.path.exists(self.output_path)
 
 
-async def stdin_control(watch_event: asyncio.Event, stop_event: asyncio.Event) -> None:
-    """Apply {"cmd":"screencast","on":bool} control lines from Express."""
+async def stdin_control(agent, watch_event: asyncio.Event, stop_event: asyncio.Event) -> None:
+    """Apply control lines from Express: screencast on/off, and stop (US-047)."""
     loop = asyncio.get_running_loop()
     reader = asyncio.StreamReader()
     try:
@@ -151,11 +152,23 @@ async def stdin_control(watch_event: asyncio.Event, stop_event: asyncio.Event) -
             msg = json.loads(line)
         except Exception:
             continue
-        if msg.get("cmd") == "screencast":
+        cmd = msg.get("cmd")
+        if cmd == "screencast":
             if msg.get("on"):
                 watch_event.set()
             else:
                 watch_event.clear()
+        elif cmd == "stop":
+            # Agent.stop() sets state.stopped and releases the pause event.
+            # browser-use checks that flag before every action within a step,
+            # not only between steps, so this lands within roughly one in-flight
+            # action. The InterruptedError it raises is classified "not an
+            # error" internally and agent.run() still returns its history — so
+            # main()'s finally block runs, the recording is finalized, and
+            # Express still builds a report out of the steps that did happen.
+            # That is the whole difference from the SIGKILL this replaces.
+            emit({"type": "progress", "message": "Stop requested — finishing up…"})
+            agent.stop()
 
 
 async def screencast(
@@ -433,7 +446,7 @@ async def main() -> int:
 
     stop_event = asyncio.Event()
     watch_event = asyncio.Event()  # set while at least one viewer is attached
-    ctl_task = asyncio.create_task(stdin_control(watch_event, stop_event))
+    ctl_task = asyncio.create_task(stdin_control(agent, watch_event, stop_event))
     sc_task = asyncio.create_task(screencast(agent.browser_session, watch_event, stop_event, recorder))
     # The failure is reported after cleanup, so the recording event always
     # reaches Express before done/error — the report is built off those.

@@ -13,7 +13,8 @@ live in [`migrations/`](migrations/), numbered SQL files applied in order —
   verdicts and status, never blobs. `runs.id` doubles as the directory name,
   so no path columns are needed.
 - **Column names mirror `server.js`** (`goal`, `start_url`, `max_steps`,
-  `status` values `queued/running/passed/failed/completed/error`,
+  `status` values `queued/running/passed/failed/completed/error/cancelled`
+  (the last added by `011`, US-047 — a stop is terminal but is not a failure),
   `report_status`) so persisting a run is a straight insert of the existing
   in-memory object.
 

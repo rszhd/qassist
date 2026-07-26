@@ -141,6 +141,7 @@ Set in `.env` (see `.env.example`):
 | `MAX_CONCURRENT_SESSIONS` | `4` | Concurrent browser cap — the real throttle. Rule: `floor((RAM_GB − 1.5) / 1)`. Runs over the cap wait in an in-memory FIFO and are told their position live; the queue is not durable, so a restart marks everything still waiting `error` |
 | `MAX_STEPS` | `60` | Safety ceiling on agent steps per run |
 | `MAX_RUN_MEMORY_MB` | `1600` | Per-run process-tree RSS cap; over it the run is killed and marked failed. Summed RSS double-counts Chromium's shared pages — a recording run measures ~1177 MB here but only ~660 MB PSS (US-024) |
+| `STOP_GRACE_SECONDS` | `10` | How long a stopped run (US-047) has to end itself gracefully — finalizing its recording and report — before the process tree is killed anyway. A run stopped either way ends `cancelled` |
 | `PORT` | `8080` | Express listen port |
 | `QA_RECORD` | `1` | Record every session to `runs/<runId>/recording.mp4`. `0` disables it — frame capture is then skipped entirely while nobody is watching the run |
 | `ARTIFACT_RETENTION_DAYS` | `7` | How long `runs/<runId>/` (report PDF + mp4 recording) is kept. Swept at startup and every 6 h; the history row and its verdict are kept forever regardless. `0` = never prune |

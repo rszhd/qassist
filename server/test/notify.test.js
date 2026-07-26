@@ -145,7 +145,14 @@ async function finishedRun(testId, { status = 'failed', report = true } = {}) {
     `insert into runs (id, test_id, user_id, trigger, goal, start_url, max_steps, status,
                        success, final_result, steps_count, finished_at)
      values ($1, $2, $3, 'schedule', 'log in', 'https://example.com', 60, $4, $5, $6, 3, now())`,
-    [id, testId, rows[0].id, status, status === 'passed', 'button never appeared']
+    // A cancelled run carries no verdict at all (US-047, verdictOf) — writing
+    // `false` here would encode a row the engine never produces, and the test
+    // would then be evidence about the fixture rather than about notify.js.
+    [
+      id, testId, rows[0].id, status,
+      status === 'cancelled' ? null : status === 'passed',
+      'button never appeared',
+    ]
   );
   const runDir = path.join(artifactsDir, id);
   fs.mkdirSync(runDir, { recursive: true });
@@ -157,7 +164,7 @@ async function finishedRun(testId, { status = 'failed', report = true } = {}) {
     start_url: 'https://example.com',
     status,
     result: {
-      success: status === 'passed',
+      success: status === 'cancelled' ? null : status === 'passed',
       final_result: 'button never appeared',
       duration_seconds: 12,
       steps: 3,
@@ -239,6 +246,22 @@ test('an errored or unjudged run counts as a failure worth mailing', async () =>
     const result = await notify.notifyRunFinished(await finishedRun(testId, { status }));
     assert.equal(result.sent, 1, `${status} mails`);
   }
+});
+
+test('a stopped run is not a failure, so failure mode says nothing (US-047)', async () => {
+  const project = await makeProject('checkout', { emails: ['dev@example.com'] });
+  const testId = await makeTest('checkout smoke', project.id);
+
+  const stopped = await notify.notifyRunFinished(await finishedRun(testId, { status: 'cancelled' }));
+  assert.deepEqual(stopped, { sent: 0, failed: 0, reason: 'run cancelled' });
+  assert.equal(inbox.length, 0);
+
+  // `always` means always — the lever that ends a run must not silently also
+  // opt you out of a mode you set deliberately.
+  await request(app).put(`/api/projects/${project.id}`).set(auth).send({ notify: 'always' });
+  const again = await notify.notifyRunFinished(await finishedRun(testId, { status: 'cancelled' }));
+  assert.equal(again.sent, 1);
+  assert.match(inbox[0].subject, /STOPPED/);
 });
 
 test('notify=never sends nothing', async () => {

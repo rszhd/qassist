@@ -21,6 +21,7 @@ import {
   MAX_RUN_MEMORY_MB,
   MEM_POLL_MS,
   RUN_TIMEOUT_MS,
+  STOP_GRACE_MS,
   PYTHON_BIN,
   AGENT_SCRIPT,
   REPORT_SCRIPT,
@@ -39,7 +40,23 @@ let active = 0;
 /** @type {string[]} */
 const queue = [];
 
-export const TERMINAL = new Set(['passed', 'failed', 'completed', 'error']);
+export const TERMINAL = new Set(['passed', 'failed', 'completed', 'error', 'cancelled']);
+
+/**
+ * A run's verdict as anything outside the engine should read it — the row, the
+ * report JSON, the HTTP shape (US-047).
+ *
+ * A stopped run has none. browser-use returns history normally out of
+ * `Agent.stop()`, so a cancelled run still carries a `done` event with the
+ * agent's self-report on it; passing that on is how a run somebody aborted
+ * shows up as a pass in History, in the PDF, and in CI's exit code. One
+ * function rather than the same ternary in three files, because the three would
+ * drift and only two of them are visible from a test.
+ */
+export function verdictOf(run) {
+  if (run.status === 'cancelled') return null;
+  return run.result?.success ?? null;
+}
 
 export function getRun(runId) {
   return runs.get(runId);
@@ -204,7 +221,7 @@ function persistUpdate(run) {
         [
           run.id,
           run.status,
-          res.success ?? null,
+          verdictOf(run),
           res.final_result ?? res.message ?? null,
           failedOrError ? res.message ?? null : null,
           res.steps ?? run.events.filter((e) => e.type === 'step').length,
@@ -403,6 +420,78 @@ function killRunTree(child, pids) {
   }
 }
 
+/**
+ * Stop a run early (US-047). False when there is nothing to stop — the run has
+ * already reached a terminal status, or a stop is already in flight.
+ *
+ * Only the *intent* is recorded here; the status is left alone until the run
+ * actually ends. `cancelled` is in TERMINAL, which `retention.js` reads to
+ * decide a live run's artifacts may be swept and `attachViewer` reads to tell
+ * viewers the run is over — so assigning it at request time would prune
+ * `runs/<id>/` out from under a process that is still writing to it, and tell
+ * everyone watching that a run they can still see moving has finished.
+ * @param {any} run
+ */
+export function stopRun(run) {
+  if (!run || TERMINAL.has(run.status) || run.cancelling) return false;
+  run.cancelling = true;
+
+  const queued = queue.indexOf(run.id);
+  if (queued >= 0) queue.splice(queued, 1);
+
+  // Nothing was spawned: a queued run, which never took a slot and so has none
+  // to give back, or a demo replay (US-036), which has no process to signal.
+  // Finish it here — the replay's pending timers then see a terminal status on
+  // their next tick and stand down.
+  if (!run.child) {
+    finishCancelled(run);
+    if (queued >= 0) startNext(); // everyone behind it moves up
+    return true;
+  }
+
+  // Running: ask the agent to stop itself, over the stdin channel the screencast
+  // already uses. browser-use checks the flag before every action within a step,
+  // so this normally lands within one in-flight action — and `agent.run()` then
+  // returns its history as usual, so run_agent.py's `finally` block finalizes
+  // the recording and the report is still built. That is the whole point:
+  // SIGKILL leaves an mp4 with no moov atom, unplayable, at exactly the moment
+  // someone wanted to look at it.
+  broadcast(run, { type: 'stopping' });
+  const stdin = run.child.stdin;
+  if (stdin && stdin.writable) stdin.write(JSON.stringify({ cmd: 'stop' }) + '\n');
+
+  // The backstop, and the honest reason the hard path is not deleted: an agent
+  // wedged inside an action never reaches the checkpoint, so the graceful route
+  // is preferred, never trusted.
+  run.stopTimer = setTimeout(() => {
+    run.stopTimer = null;
+    if (TERMINAL.has(run.status)) return;
+    const secs = Math.round(STOP_GRACE_MS / 1000);
+    console.error(`[stop ${run.id.slice(0, 8)}] agent did not stop within ${secs}s — killing tree`);
+    killRunTree(run.child, processTree(run.child.pid).pids);
+    // Stamped after the kill, and before the report so it renders as stopped
+    // rather than as whatever it was mid-flight. `close` preserves it.
+    run.status = 'cancelled';
+    generateReport(run);
+  }, STOP_GRACE_MS);
+  run.stopTimer.unref(); // the grace window must never hold the process open
+
+  return true;
+}
+
+// End a run that has no process to wait for. The `close` handler's job, minus
+// the slot bookkeeping it does not owe: nothing was spawned, so nothing was
+// counted.
+function finishCancelled(run) {
+  run.status = 'cancelled';
+  run.queueEvent = null;
+  run.finishedAt = Date.now();
+  persistUpdate(run);
+  broadcast(run, { type: 'end', status: 'cancelled' });
+  maybeNotify(run);
+  setTimeout(() => runs.delete(run.id), RUN_TTL_MS).unref();
+}
+
 function startRun(runId) {
   const run = runs.get(runId);
   if (!run) return;
@@ -493,11 +582,23 @@ function startRun(runId) {
         run.recordingFile = evt.file;
       } else if (evt.type === 'done') {
         run.result = evt;
-        run.status = evt.success === true ? 'passed' : evt.success === false ? 'failed' : 'completed';
+        // A stop decides the outcome, the agent does not (US-047). browser-use
+        // returns history normally out of Agent.stop(), so this event still
+        // carries a self-report — and honouring it would end an aborted run
+        // `passed`, which is a green build in CI for a run nobody finished.
+        // The event's payload is still kept: it is the partial evidence the
+        // report is built from.
+        run.status = run.cancelling
+          ? 'cancelled'
+          : evt.success === true
+            ? 'passed'
+            : evt.success === false
+              ? 'failed'
+              : 'completed';
         generateReport(run);
       } else if (evt.type === 'error') {
         run.result = evt;
-        run.status = 'error';
+        run.status = run.cancelling ? 'cancelled' : 'error';
         generateReport(run);
       }
       broadcast(run, evt);
@@ -512,7 +613,18 @@ function startRun(runId) {
     active--;
     clearInterval(run.memWatch);
     clearTimeout(run.timeoutWatch);
-    if (!TERMINAL.has(run.status)) run.status = code === 0 ? 'completed' : 'error';
+    // An armed grace window outlives the pid it was going to kill, and
+    // killRunTree's group kill would then take whatever inherited that pid.
+    if (run.stopTimer) {
+      clearTimeout(run.stopTimer);
+      run.stopTimer = null;
+    }
+    // The intent outranks the exit code: an agent killed for ignoring a stop
+    // exits non-zero, and reporting that as `error` is a build failure and a
+    // US-012 alert for something the user did on purpose.
+    if (!TERMINAL.has(run.status)) {
+      run.status = run.cancelling ? 'cancelled' : code === 0 ? 'completed' : 'error';
+    }
     run.finishedAt = Date.now();
     persistUpdate(run);
     broadcast(run, { type: 'end', status: run.status, code });
@@ -578,6 +690,7 @@ function applyReplayEvent(run, evt) {
 }
 
 function finishReplay(run) {
+  if (run.finishedAt) return; // already ended — a stop (US-047) beat this timer
   if (!TERMINAL.has(run.status)) run.status = 'completed';
   run.finishedAt = Date.now();
   run.reportStatus = run.reportReady ? 'ready' : 'none';
@@ -663,7 +776,7 @@ function generateReport(run) {
     start_url: run.start_url,
     model: run.model || MODEL,
     status: run.status,
-    success: res.success ?? null,
+    success: verdictOf(run),
     duration_seconds: res.duration_seconds ?? null,
     steps_count: res.steps ?? run.events.filter((e) => e.type === 'step').length,
     final_result: res.final_result ?? res.message ?? null,

@@ -11,7 +11,8 @@
 
   What 2026-07-26 added is the part that was still owed. `docs/ci.md`'s
   `qassist-run.sh` was extracted **verbatim** (sha256 `ee951934…`, byte-identical
-  to the fenced block) onto a throwaway `us-008-verify` branch and run by
+  to the fenced block — **superseded 2026-07-27 by `4d2f5ea8…`**, see the note at
+  the end) onto a throwaway `us-008-verify` branch and run by
   **GitHub Actions** against staging: module by slug green, suite by uuid green,
   and a mixed suite whose job came out **red** — the gate proving it fails a
   build rather than just reporting. All four runs are in staging's `runs` table
@@ -144,3 +145,28 @@ printing the URL at that point promises a file that 202s. The log prints the
 run id and the docs point at History, which has the report behind a session.
 Revisit alongside US-020 (report v2) if the report becomes the artifact CI
 users want in hand.
+
+## Amended 2026-07-27 by US-047
+
+The script gained a third outcome and its hash moved: `ee951934…` →
+`4d2f5ea8…`. US-047 made `cancelled` a terminal status, and "a stopped run is
+not a red build" is one of that story's acceptance criteria — so the `if
+[ "$status" = passed ]` became a `case` whose `cancelled` branch prints `STOP`
+with the run's link and leaves `exit_code` alone. Everything else in the script
+is byte-identical, including the `*)` branch this story's real Actions run
+proved red.
+
+Not re-run on a real runner. The Actions run's value was catching what a shell
+could not — secret masking eating the permalink — and this change adds a branch
+to a `case`, not a new interaction with the CI system. It was instead exercised
+against a stub in an **Alpine container**, the same image `docs/ci.md`'s own
+GitLab job describes, because the dev box has no `jq`: a lone `cancelled` exits
+0, a `passed,cancelled,failed` batch still exits 1 (a stop suppresses nothing),
+`completed` still exits 1.
+
+Worth knowing rather than buried: the change means a job whose runs were *all*
+stopped exits 0 having verified nothing, so anyone who can reach the UI can
+green a gate by stopping its runs. That is the right default — a red build for
+the one action whose purpose is to stop spending would make the feature cost an
+incident — and `docs/ci.md` now says so, and tells a release gate which single
+line to move.

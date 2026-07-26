@@ -29,6 +29,14 @@ export const MEM_POLL_MS = 3000;
 // a slow or rate-limited (429-retrying) BYOK key would otherwise squat a browser
 // slot indefinitely. The watchdog kills the tree and reports the run failed.
 export const RUN_TIMEOUT_MS = parseInt(process.env.RUN_TIMEOUT_SECONDS || '600', 10) * 1000;
+// How long a stop is given to land gracefully before the hard kill (US-047).
+// browser-use checks the stop flag before every action within a step, so a
+// healthy agent stops within roughly one in-flight action — but an agent wedged
+// inside one never reaches the checkpoint, which is why the graceful path is
+// preferred and never trusted. Generous rather than tight: a stop that
+// pre-empts its own agent throws away the recording it was about to finalize,
+// which is the failure this story exists to fix.
+export const STOP_GRACE_MS = parseInt(process.env.STOP_GRACE_SECONDS || '10', 10) * 1000;
 export const PYTHON_BIN = process.env.PYTHON_BIN || 'python3';
 export const AGENT_DIR = process.env.AGENT_DIR || path.join(__dirname, '..', '..', 'agent');
 export const AGENT_SCRIPT = process.env.AGENT_SCRIPT || path.join(AGENT_DIR, 'run_agent.py');
