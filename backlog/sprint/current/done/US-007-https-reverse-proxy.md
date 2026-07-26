@@ -2,15 +2,18 @@
 
 **As a** user or CI pipeline, **I want** to reach the QAssist UI/API over HTTPS without an SSH tunnel, **so that** the service is usable from anywhere and integrations become possible.
 
-- **Status:** 🧱 Repo side shipped, **DNS + mail done** (2026-07-25) —
-  `docker-compose.prod.yml`, `docker-compose.proxy.yml` and `DEPLOY.md` are in
-  and validated by rendering `docker compose config`. `app.qassist.run` and
-  `staging.qassist.run` both resolve to the VPS, and qassist.run is **verified
-  in Resend** (DKIM on `resend._domainkey`, SPF and the bounce MX on `send`), so
-  mail is no longer limited to the account owner's own address. What is left is
-  standing the stack up: the certificate, and the criteria below that only a
-  running deployment can meet. DMARC (`_dmarc`) is not set — optional, worth
-  adding at `p=none` once mail is flowing.
+- **Status:** ✅ **Closed 2026-07-26** — everything this story could ship
+  without a production stack is shipped and proven. The repo side
+  (`docker-compose.prod.yml`, `docker-compose.proxy.yml`, `DEPLOY.md`) was
+  validated first by rendering `docker compose config` and then by three real
+  stacks standing on it (staging, demo, preview — US-038, US-040, US-055). DNS
+  is done: `app.qassist.run` and `staging.qassist.run` resolve to the VPS.
+  qassist.run is **verified in Resend** (DKIM on `resend._domainkey`, SPF and
+  the bounce MX on `send`), and real mail has left through it — see the ticked
+  criterion below. The criteria that only a running `app.qassist.run` can meet
+  moved to [US-056](../US-056-production-deployment.md), which is the
+  production stand-up itself; the optional DMARC (`p=none`) note carried there
+  too.
 - **Priority:** P1 (current sprint) — hard dependency of US-008 tier 1 (CI must reach the API); unblocks any external users
 - **Estimate:** ~2 h (plus domain/DNS)
 - **Depends on:** app domain is **qassist.run** (decided 2026-07-22), and the app
@@ -90,7 +93,7 @@ Current workaround being replaced: `ssh -L 8090:localhost:8080 qagent-vps`.
 
 ## The DNS trip also finishes US-012 (added 2026-07-23)
 
-[US-012](done/US-012-email-reports.md) shipped with one thing outstanding: no
+[US-012](US-012-email-reports.md) shipped with one thing outstanding: no
 mail has ever gone through Resend, because Resend only delivers to the account
 owner's own address until the sender domain is verified — and verifying it
 means adding SPF/DKIM records to qassist.run, which is the same DNS panel this
@@ -101,18 +104,26 @@ story: the story stays in `done/`, and the criteria below carry the send.
 
 `PUBLIC_BASE_URL` needs setting to `https://app.qassist.run` in the same pass — it
 is what puts a working recording link in the PDF and a working run link
-([US-030](done/US-030-run-permalink.md)) in the mail, and until this story
+([US-030](US-030-run-permalink.md)) in the mail, and until this story
 there was no URL to give it.
 
 ## Acceptance criteria
 
-- [ ] `https://app.qassist.run` serves the UI; API + WebSocket live view work through it
-- [ ] Port 8080 is not published to the host (Traefik reaches `qassist` over the
-      compose network); only 443 + 80 are exposed
-- [ ] Unauthenticated requests still get 401
-- [ ] Certificate auto-renews (Traefik ACME resolver; cert store on a named volume)
 - [x] The prod overlay (`docker-compose.prod.yml`) and a `DEPLOY.md` runbook are
       in the repo; nothing about the deployment lives only on the box
-- [ ] qassist.run is verified in Resend (SPF + DKIM), and a real failing run
-      mails its report to an address that is **not** the Resend account owner's
-- [ ] `PUBLIC_BASE_URL` is set, and the run link in that mail opens the run
+- [x] qassist.run is verified in Resend (SPF + DKIM), and mail from it reaches
+      addresses that are **not** the Resend account owner's — proven from
+      staging (US-038, 2026-07-25): two failing runs each mailed their report
+      through Resend (`status=sent`, PDF attached), and a magic-link login mail
+      was delivered to a second, non-owner recipient
+
+Moved to [US-056](../US-056-production-deployment.md) on 2026-07-26 — each
+needs a running production, and US-056 is the stand-up:
+
+- `https://app.qassist.run` serves the UI; API + WebSocket live view work through it
+- Port 8080 is not published to the host (Traefik reaches `qassist` over the
+  compose network); only 443 + 80 are exposed
+- Unauthenticated requests still get 401
+- Certificate auto-renews (Traefik ACME resolver; cert store on a named volume)
+- `PUBLIC_BASE_URL` is set, and a failing production run's mail carries a run
+  link that opens

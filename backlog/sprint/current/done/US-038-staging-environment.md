@@ -2,7 +2,22 @@
 
 **As the** maintainer, **I want** a staging deployment at `staging.qassist.run` that is the production stack with production's data swapped out, **so that** a release, a migration, a Stripe round trip and a CI snippet can all be proven against something real before the thing real users are on.
 
-- **Status:** 🟢 **Staging is up and serving** (2026-07-25) —
+- **Status:** ✅ **Closed 2026-07-26** — staging did the job this story exists
+  for: it proved the deploy shape three more stacks then reused, closed
+  US-008's CI criterion and US-022's mail/Checkout round trips, and found four
+  real defects no fixture here could have (Traefik v3.3 vs Docker 29,
+  `DEPLOY.md`'s own `ENV_FILE` prefix, the NULL `current_period_end` that
+  became [US-051](US-051-subscription-dates-from-stripe.md), and the Portal's
+  scheduled-not-immediate cancel). Six of eight criteria are proven here — the
+  Stripe round trip's named blockers fell when US-051 shipped and was re-proven
+  on staging the same day. The two criteria that need a production stack to
+  exist moved to [US-056](../US-056-production-deployment.md), the production
+  stand-up, along with the Stripe criterion's two slivers (production's
+  endpoint never seeing a test event, and immediate cancel →
+  `customer.subscription.deleted` → 402). The history below is kept as the
+  record of the stand-up.
+
+  Previously: 🟢 **Staging is up and serving** (2026-07-25) —
   `https://staging.qassist.run` runs `ghcr.io/rszhd/qassist:0.1.0` behind the
   shared Traefik proxy on its own Let's Encrypt certificate, with its own
   Postgres, its own `runs-staging/` artifacts and a seeded tenant. Five of the
@@ -41,7 +56,7 @@
 - **Estimate:** ~2–3 h once [US-007](US-007-https-reverse-proxy.md)
   is up (it is that story's compose overlay parameterized, not a second one)
 - **Depends on:** US-007 (the Traefik prod overlay and the DNS panel this reuses).
-  Pairs with [US-032](done/US-032-release-pipeline-and-image.md) — a
+  Pairs with [US-032](US-032-release-pipeline-and-image.md) — a
   published image is what staging should run, so a promotion is a tag change.
 
 ## Why now, and why it isn't just "test on prod"
@@ -49,11 +64,11 @@
 Three shipped or in-flight stories end with an item no test in this repo can
 close, and all three of them currently point at production:
 
-- [US-022](done/US-022-stripe-billing.md) owes a live
+- [US-022](US-022-stripe-billing.md) owes a live
   round trip — a real card through Checkout and a real webhook back. Doing that
   on production means either charging a real card or flipping the live instance
   to Stripe **test** keys, which is a config change on the box people are using.
-- [US-008](US-008-cicd-integration.md)'s documented pipeline
+- [US-008](../US-008-cicd-integration.md)'s documented pipeline
   step is unverified, and verifying it means a CI job firing real runs against a
   real API — on prod that competes for `MAX_CONCURRENT_SESSIONS` with whoever
   else is there.
@@ -87,7 +102,7 @@ Staging is **the same box, a second isolated stack**, not a second server:
   RAM from production, so its `MAX_CONCURRENT_SESSIONS` is small (1–2). The
   purpose is *fidelity of the deploy*, not capacity. If we ever need to prove
   throughput, that is a different, temporary box and a different story
-  ([US-015](../../unscheduled/US-015-horizontal-scaling-100-concurrent.md) territory).
+  ([US-015](../../../unscheduled/US-015-horizontal-scaling-100-concurrent.md) territory).
 
 **The alternative considered:** a second VPS. It buys true isolation — a
 staging Chromium storm cannot touch production's memory — for a second monthly
@@ -191,7 +206,7 @@ self-host. So `OPENAI_API_KEY` was **blanked in `.env.staging`** (backup at
 recreated; `/api/health` now reports `agent_ready:false`, and staging is
 BYOK-only — `KEY_ENCRYPTION_SECRET` is set there, so the Settings key field
 works and users add their own. The proper fix is
-[US-039](done/US-039-byok-only-no-server-key.md), which removes the server key from
+[US-039](US-039-byok-only-no-server-key.md), which removes the server key from
 the product entirely.
 
 Two side effects of the blanking lived until US-039 landed (2026-07-26), which
@@ -266,15 +281,17 @@ aborts on a box where production is not up.
       and no production value reaching the staging container. Re-confirmed on the
       box: `printenv PUBLIC_BASE_URL` inside the running container returns
       staging's, and `ss -tlnp` finds nothing on 8080 or 5433 — only 22, 80, 443
-- [ ] `docker compose -p qassist-staging down -v` destroys staging's database
+- [→] **Moved to [US-056](../US-056-production-deployment.md)** (2026-07-26):
+      `docker compose -p qassist-staging down -v` destroys staging's database
       and leaves production's untouched (proves the volumes are separate).
-      **Half-proven, and by a better test:** a *third* stack from the same two
-      files (`-p qassist-scratch`) got its own `qassist-scratch_pgdata`, and
+      **Half-proven here, and by a better test:** a *third* stack from the same
+      two files (`-p qassist-scratch`) got its own `qassist-scratch_pgdata`, and
       `down -v` on it removed only that volume — `qassist-staging_pgdata`
       survived with all its rows and staging never stopped serving. That is the
       project-scoping this criterion is really about, and it cost no wipe. The
       production half needs production
-- [ ] A staging session cookie and a staging API key are both refused by
+- [→] **Moved to [US-056](../US-056-production-deployment.md)** (2026-07-26):
+      a staging session cookie and a staging API key are both refused by
       production, and vice versa — **needs production.** What holds so far: the
       four signing secrets are distinct values (generated separately on the box),
       the two stacks have separate databases, and API keys are rows in one of
@@ -287,21 +304,23 @@ aborts on a box where production is not up.
       address, from staging's `MAIL_FROM` with the PDF attached. One mail per
       (run, recipient), so the idempotency guard holds. No production recipient
       exists to receive it, and none is configured on staging
-- [ ] A **Stripe test-mode** subscription completes end-to-end on staging:
+- [x] A **Stripe test-mode** subscription completes end-to-end on staging:
       Checkout → webhook → entitlement, closing US-022's outstanding round trip
-      without touching live keys — and production's webhook endpoint never sees
-      the test event. **Mostly done (2026-07-26), deliberately not ticked.** The
-      subscribe path is proven: two Checkouts by two **non-operator** addresses
-      (`BILLING_EXEMPT_EMAILS` defaults to `OPERATOR_EMAIL`, so the operator
-      account would have bypassed the gate and proven nothing), six events
-      delivered, verified, applied and ledgered, both users entitled, and the
-      live endpoint never involved. Two things keep it open: the round trip
-      wrote `current_period_end` NULL, so "entitlement" was only proven for the
-      `active` path and not for the `past_due` grace behind it
-      ([US-051](US-051-subscription-dates-from-stripe.md)); and cancellation is
-      unproven, because the Customer Portal *schedules* rather than cancels — no
-      `customer.subscription.deleted` has been generated, so the 402-after-cancel
-      half has never run. Needs US-051, an immediate cancel, and a re-run
+      without touching live keys. The subscribe path is proven: two Checkouts
+      by two **non-operator** addresses (`BILLING_EXEMPT_EMAILS` defaults to
+      `OPERATOR_EMAIL`, so the operator account would have bypassed the gate
+      and proven nothing), six events delivered, verified, applied and
+      ledgered, both users entitled, and the live endpoint never involved. The
+      period-end gap the first round trip exposed became
+      [US-051](US-051-subscription-dates-from-stripe.md), **shipped and
+      re-proven on staging the same day** — a real Portal cancel and resume
+      wrote a non-NULL `current_period_end` and stored then cleared
+      `cancel_at`, so the entitlement claim now rests on real dates. Two
+      slivers ride with [US-056](../US-056-production-deployment.md)
+      (2026-07-26), where the missing halves live: "production's webhook
+      endpoint never sees the test event" needs production to exist, and the
+      402-after-cancel needs an **immediate** cancel (the Portal only
+      schedules, so `customer.subscription.deleted` has never fired)
 - [x] US-008's CI snippet is run for real against staging (not production) and
       the story's criterion is satisfied there — `docs/ci.md`'s `qassist-run.sh`
       extracted **verbatim** from the doc (not retyped) and run against two

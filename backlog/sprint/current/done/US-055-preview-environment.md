@@ -86,7 +86,7 @@ free to be the thing that replicates production.
   [US-052](../US-052-staging-branch-continuous-deploy.md) halved rather than
   removed, and every story that wants a live look pays it again
 - **Estimate:** ~1 h repo-side, plus one stand-up on the box
-- **Depends on:** [US-038](../US-038-staging-environment.md) (the fourth-stack
+- **Depends on:** [US-038](US-038-staging-environment.md) (the fourth-stack
   shape this reuses) and [US-052](../US-052-staging-branch-continuous-deploy.md)
   (the chain this deliberately does *not* join)
 
