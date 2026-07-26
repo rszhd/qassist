@@ -6,7 +6,14 @@
   looking green: 99 server tests, a typecheck and a frontend build exist and
   currently only ever run when I remember to run them.
 
-- **Status:** 🧱 **4 of 5 criteria met — v0.1.0 published** (2026-07-25) —
+- **Status:** ✅ **Done** (2026-07-26) — the last criterion closed in a clean
+  directory rather than on the VPS: by the time the box existed it had a source
+  checkout (US-055 builds preview from it), so it no longer qualified as "never
+  seen the source" — and an empty directory gives the isolation that matters
+  anyway, since compose sees only the cwd and the registry. Full note on the
+  criterion below.
+
+  Previous status (2026-07-25): 🧱 **4 of 5 criteria met — v0.1.0 published** —
   `ci.yml` passes on `dev`: three jobs in ~40 s, 258 server tests against a real
   Postgres with all five `*-postgres.test.js` files confirmed *running* rather
   than skipping, 31 frontend, 63 agent, typecheck and the frontend build. That
@@ -171,11 +178,24 @@ is the natural place to fail if the pinned version doesn't match the tag.
       three test jobs ran nested under Release as `test / …` before the image job
       started. The "refuses if tests failed" half is structural via `needs: test`
       rather than observed, since no tag has been cut on a red suite.
-- [ ] `docker compose -f docker-compose.release.yml up` on a machine that has
-      never seen the source starts the app and serves the UI on :8080 — **the
-      one criterion left.** The VPS is the honest venue for it: it has never held
-      this source, and doing it there doubles as the first half of US-007's
-      stand-up.
+- [x] `docker compose -f docker-compose.release.yml up` on a machine that has
+      never seen the source starts the app and serves the UI on :8080 —
+      **proven 2026-07-26, in a clean empty directory rather than on the VPS.**
+      The story's planned venue went stale: the box was stood up a different
+      way (staging/demo/prod run the base file + prod overlay with a
+      `QASSIST_IMAGE` pin, and since US-055 it holds a checkout), and an empty
+      directory isolates the thing the criterion guards — a reference to a file
+      that only exists in a checkout — since compose sees nothing but the cwd
+      and the registry. The proof followed the file's own header verbatim:
+      `curl` of the compose file and `.env.example` from
+      `raw.githubusercontent.com/rszhd/qassist/main`, the two secrets set,
+      `up -d`. The image pulled anonymously from ghcr, Postgres reported
+      healthy, all migrations applied at boot from the image, and `/` served
+      the UI with a 200; `/api/health` said `db:true, auth_mode:token`. One
+      finding: `main` serves a `0.2.1` pin because v0.2.2/v0.2.3 were tagged
+      from `staging` with the first `--ff-only` promotion of `main`
+      deliberately deferred (recorded in US-052) — so the quick start hands out
+      a valid but not-latest release until that first promotion lands.
 - [x] The package is public on ghcr — an anonymous `docker pull` works —
       verified with `docker logout ghcr.io` followed by a successful
       `docker manifest inspect ghcr.io/rszhd/qassist:0.1.0`. **No manual

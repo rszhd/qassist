@@ -41,7 +41,7 @@
 - **Estimate:** ~2–3 h once [US-007](US-007-https-reverse-proxy.md)
   is up (it is that story's compose overlay parameterized, not a second one)
 - **Depends on:** US-007 (the Traefik prod overlay and the DNS panel this reuses).
-  Pairs with [US-032](US-032-release-pipeline-and-image.md) — a
+  Pairs with [US-032](done/US-032-release-pipeline-and-image.md) — a
   published image is what staging should run, so a promotion is a tag change.
 
 ## Why now, and why it isn't just "test on prod"
