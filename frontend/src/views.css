@@ -119,10 +119,9 @@
    two lines then ellipsis, with the full text on hover. */
 .log-item {
   display: flex; gap: var(--s2); align-items: flex-start;
-  padding: var(--s2) var(--s4); font-size: var(--t-base); color: var(--muted);
+  padding: var(--s2) var(--s4); font-size: var(--t-base); color: var(--text);
 }
 .log-item + .log-item { border-top: 1px solid var(--border); }
-.log-item:last-child { color: var(--text); }
 .step-n {
   /* The 1px lifts the mono digits onto the goal's baseline beside them. */
   flex: 0 0 var(--s4); padding-top: 1px; text-align: right;
@@ -148,7 +147,7 @@
 .verdict.bad { border-color: var(--bad-line); }
 .verdict.bad .verdict-head { color: var(--bad); }
 .verdict-head .badge { margin-left: auto; }
-.final { font-size: var(--t-base); line-height: 1.6; color: var(--muted); }
+.final { font-size: var(--t-base); line-height: 1.6; color: var(--text); }
 .errs { margin: 0; padding-left: var(--s4); color: var(--bad); font-size: var(--t-base); }
 .verdict-actions { display: flex; gap: var(--s2); flex-wrap: wrap; }
 
@@ -196,7 +195,7 @@ button.row-main { background: transparent; border: 0; padding: 0; color: inherit
   display: flex; align-items: center; gap: var(--s2);
   padding-bottom: var(--s2); border-bottom: 1px solid var(--border);
 }
-.group-name { font-size: var(--t-sm); font-weight: 600; text-transform: uppercase; letter-spacing: .07em; }
+.group-name { font-size: var(--t-base); font-weight: 600; }
 .group-name.muted { color: var(--faint); }
 .group-head .card-count { margin-right: auto; }
 
@@ -262,8 +261,8 @@ button.row-main { background: transparent; border: 0; padding: 0; color: inherit
 .run-dot { flex: 0 0 auto; width: var(--dot); height: var(--dot); border-radius: 50%; }
 
 /* Pass/fail strip for one test — the regression view. */
-.timeline-head { display: flex; justify-content: space-between; gap: var(--s2); font-size: var(--t-xs); text-transform: uppercase; letter-spacing: .06em; color: var(--faint); margin-bottom: var(--s15); }
-.timeline-rate { font-weight: 600; letter-spacing: .02em; text-transform: none; color: var(--muted); }
+.timeline-head { display: flex; justify-content: space-between; gap: var(--s2); font-size: var(--t-xs); color: var(--faint); margin-bottom: var(--s15); }
+.timeline-rate { font-weight: 600; color: var(--muted); }
 .timeline-bars { display: flex; gap: var(--s05); height: var(--s6); }
 .tl-bar { flex: 1; min-width: 3px; border: 0; padding: 0; border-radius: 2px; opacity: .6; cursor: pointer; transition: opacity var(--fast); }
 .tl-bar:hover { opacity: 1; }
@@ -280,7 +279,7 @@ button.row-main { background: transparent; border: 0; padding: 0; color: inherit
   background: var(--sunken); border: 1px solid var(--border); color: var(--muted);
 }
 .var-chip b { font-weight: 600; color: var(--text); }
-.detail-goal { font-size: var(--t-base); line-height: 1.6; color: var(--muted); }
+.detail-goal { font-size: var(--t-base); line-height: 1.6; color: var(--text); }
 .detail-screen { margin: 0; }
 
 /* Inline row editors (rename a project/module, edit a suite's membership). */

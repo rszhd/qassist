@@ -134,9 +134,11 @@
      `--t-lg` is a heading or a number worth reading first, `--t-xl` is the
      page title alone. The bottom three sit 1px apart because they are already
      separated by weight, case and colour; the top two step by ~1.25 because
-     nothing else marks them. Whole pixels only — the old half-pixel steps
-     (10.5/11.5/12.5/13) were close enough to get picked interchangeably. */
-  --t-xs: 12px; --t-sm: 13px; --t-base: 14px; --t-lg: 16px; --t-xl: 20px;
+     nothing else marks them. Rem, not px, so the browser's font-size setting
+     scales the app: at the 16px default these are 12/13/14/16/20 — whole
+     pixels at that default only, since the old half-pixel steps were close
+     enough to get picked interchangeably. */
+  --t-xs: .75rem; --t-sm: .8125rem; --t-base: .875rem; --t-lg: 1rem; --t-xl: 1.25rem;
 
   --r-sm: 4px; --r-md: 6px; --r-lg: 8px; --r-xl: 10px;
 
@@ -547,7 +549,7 @@ select {
 }
 .empty > svg { color: var(--faint); }
 .empty-title { font-size: var(--t-lg); font-weight: 500; color: var(--text); }
-.empty-body { font-size: var(--t-base); line-height: 1.6; max-width: 46ch; color: var(--muted); }
+.empty-body { font-size: var(--t-base); line-height: 1.6; max-width: 46ch; color: var(--text); }
 
 /* 84px is the narrowest a stat can be and still fit its widest label
    ("DURATION") on one line at `--t-xs`; below that the grid drops a column

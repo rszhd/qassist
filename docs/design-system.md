@@ -34,7 +34,9 @@ micro-labels, `--t-sm` (13px) anything secondary to the line above it,
 `--t-base` (14px) every primary run of text and every control, `--t-lg` (16px)
 a heading or a number worth reading first, `--t-xl` (20px) the page title
 alone. A sixth step is almost always the wrong emphasis asked for the wrong
-way.
+way. The tokens are written in rem — the pixel values above assume the 16px
+browser default, and a user who raises their browser's font size scales the
+whole scale with it.
 
 ## Spacing
 
