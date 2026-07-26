@@ -6,9 +6,16 @@
 //
 // A step gets its screenshot here once US-020 lands.
 export default function ActivityLog({ steps, logRef }) {
+  // Newest first, so the step that just landed is the one you are already
+  // looking at and a long run doesn't have to be scrolled to follow. Reversed
+  // in the data rather than with `column-reverse`, so DOM order matches reading
+  // order — a screen reader and a copy-paste follow the DOM, not the flexbox.
+  // The pair keeps each step's arrival index as its key: a step arriving at the
+  // top would otherwise shift every index below it and rewrite every row.
+  const newestFirst = steps.map((s, i) => [i, s]).reverse();
   return (
     <div className="log" ref={logRef}>
-      {steps.map((s, i) => (
+      {newestFirst.map(([i, s]) => (
         <div className="log-item" key={i}>
           <span className="step-n">{s.type === 'progress' ? '···' : s.step}</span>
           <span className="step-body">

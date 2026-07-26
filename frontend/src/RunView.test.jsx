@@ -66,8 +66,28 @@ const runCalls = (calls) => calls.filter((c) => c.url.includes('/run'));
 
 afterEach(() => {
   cleanup();
+  // Minimizing the rail is remembered, and the store outlives cleanup() — left
+  // set, the next test would render with the rail already collapsed.
+  localStorage.clear();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+});
+
+// The rail is a column by default and the strip is opt-in, which is the opposite
+// of what a `min` written on mount would produce — so this pins both halves.
+describe('RunView tests rail', () => {
+  it('opens with the view, and minimizing leaves a strip that opens it again', async () => {
+    stubEnv();
+    renderRunView();
+
+    expect(await screen.findByLabelText('Run "Plain test"')).toBeTruthy();
+
+    fireEvent.click(screen.getByLabelText('Minimize tests'));
+    expect(screen.queryByLabelText('Run "Plain test"')).toBeNull();
+
+    fireEvent.click(screen.getByTitle('Show tests'));
+    expect(await screen.findByLabelText('Run "Plain test"')).toBeTruthy();
+  });
 });
 
 describe('RunView run dispatch (US-035)', () => {

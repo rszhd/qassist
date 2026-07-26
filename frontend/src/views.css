@@ -9,14 +9,20 @@
 /* ==========================================================================
    6. Run view — tests rail beside the live stage
    ========================================================================== */
-.run-grid { display: grid; grid-template-columns: var(--col-side) 1fr; gap: var(--s4); align-items: start; }
-.run-grid.solo { grid-template-columns: 1fr; }
-/* Minimized: the rail keeps a strip so the way back is where it went. */
-.run-grid.rail-min { grid-template-columns: var(--rail-strip) 1fr; }
+/* The stage track is `minmax(0, 1fr)`, not `1fr`: the `--stage-min` floor
+   inside `.stage-split` would otherwise become this track's min-content and
+   push the rail off the page. Which layouts may claim that floor is decided by
+   the two queries below, where there is room for it. */
+.run-grid { display: grid; grid-template-columns: var(--col-side) minmax(0, 1fr); gap: var(--s4); align-items: start; }
+.run-grid.solo { grid-template-columns: minmax(0, 1fr); }
+/* Minimized: the rail keeps a strip so the way back is where it went. Not the
+   default — it is what a screen too narrow for three columns falls back to, and
+   it is what buys the panel its row back below 1421px. */
+.run-grid.rail-min { grid-template-columns: var(--rail-strip) minmax(0, 1fr); }
 /* 900px: below this the page cannot hold a side column and a readable main
    column at once, so every view collapses to a single stack. */
 @media (max-width: 900px) {
-  .run-grid, .run-grid.rail-min { grid-template-columns: 1fr; }
+  .run-grid, .run-grid.rail-min { grid-template-columns: minmax(0, 1fr); }
 }
 
 .rail { position: sticky; top: var(--sticky-top); max-height: var(--sticky-h); overflow-y: auto; }
@@ -37,9 +43,17 @@
    down the page or across the grid beside it. */
 .stage { display: flex; flex-direction: column; gap: var(--s4); }
 
-/* Browser and activity ride side by side. The split is permanent: an empty
-   activity panel beats the whole stage reflowing on the first step. */
-.stage-split { display: grid; grid-template-columns: 1fr var(--col-side); gap: var(--s4); align-items: start; }
+/* Browser and activity ride side by side, and the split does not reflow when
+   the first step lands: an empty activity panel beats the whole stage moving.
+   The frame is the track that does not yield — it holds `--stage-min` and the
+   panel compresses toward `--col-side-min` to pay for it. Grid resolves both
+   mins first and then grows the panel back toward `--col-side` with whatever
+   is left, so the frame is 800px or better everywhere this rule applies. */
+.stage-split {
+  display: grid;
+  grid-template-columns: minmax(var(--stage-min), 1fr) minmax(var(--col-side-min), var(--col-side));
+  gap: var(--s4); align-items: start;
+}
 .stage-main { display: flex; flex-direction: column; gap: var(--s4); min-width: 0; }
 /* The panel is as tall as what is in it, not as tall as the row: a log three
    steps long is three steps tall, and the frame beside it — a 16:9 box that
@@ -52,13 +66,25 @@
   position: sticky; top: var(--sticky-top); max-height: var(--sticky-h);
 }
 .stage-side .log { min-height: 0; max-height: none; }
-/* 1150px: the Run view is the only view with three columns, so it gives up
-   the third one first — at this width the rail and the activity panel
-   together would leave the frame narrower than the panel beside it. Stacked,
-   the panel is no longer stuck to the viewport, so `--scroll-cap` takes over
-   as the bound: without it a long log would run the page down instead. */
-@media (max-width: 1150px) {
-  .stage-split { grid-template-columns: 1fr; }
+/* 1421px: the rail as a full column, beside a frame at `--stage-min` and a
+   panel at `--col-side-min`, needs 300+16+800+16+250 plus the `--s5` gutters —
+   1422px of viewport, so this is the last width that cannot hold all three.
+   Below it the panel stacks under the frame rather than the frame dropping
+   below its floor: a narrow screen costs the side-by-side log, never the thing
+   you are watching. Minimizing the rail buys the panel straight back — with a
+   strip in place of the column, three fit again from 1156px. */
+@media (max-width: 1421px) {
+  .run-grid:not(.rail-min):not(.solo) .stage-split { grid-template-columns: minmax(0, 1fr); }
+  .run-grid:not(.rail-min):not(.solo) .stage-side { position: static; max-height: none; }
+  .run-grid:not(.rail-min):not(.solo) .stage-side .log { max-height: var(--scroll-cap); }
+}
+/* 1155px: even with the rail down to `--rail-strip`, 34+16+800+16+250 and the
+   gutters no longer fit, so the Run view gives up its third column whatever the
+   rail is doing — it is the only view with three, so it is the first to lose
+   one. Stacked, the panel is no longer stuck to the viewport, so `--scroll-cap`
+   takes over as the bound: without it a long log would run the page down. */
+@media (max-width: 1155px) {
+  .stage-split { grid-template-columns: minmax(0, 1fr); }
   .stage-side { position: static; max-height: none; }
   .stage-side .log { max-height: var(--scroll-cap); }
 }

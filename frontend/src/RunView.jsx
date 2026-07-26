@@ -62,10 +62,14 @@ export default function RunView({ token, health, keyStatus, visible, needsToken,
   const [varValues, setVarValues] = useState({});
   const [savingTest, setSavingTest] = useState(false);
   const [reportBusy, setReportBusy] = useState(false);
-  // The rail is a launcher, not something you read mid-run — minimizing it to
-  // a strip hands its 300px to the live view. Remembered, since it is a
-  // per-screen preference rather than a per-run one.
-  const [railOpen, setRailOpen] = useState(() => localStorage.getItem('qassist_rail') !== 'min');
+  // The rail opens with the view — the tests are how a run starts, so hiding
+  // them behind a strip taxes the common path. What used to make that expensive
+  // was the frame shrinking to 728px to pay for it; `--stage-min` holds the
+  // frame at 800 now, so the column is affordable and minimizing it is a choice
+  // rather than a workaround. Remembered, but written only by `toggleRail`: a
+  // `min` persisted on mount is not a preference, and storing one is what made a
+  // changed default invisible to every screen that had ever opened the view.
+  const [railOpen, setRailOpen] = useState(() => localStorage.getItem('qassist_rail_state') !== 'min');
   // US-006: set by the `recording` event that arrives just before the run
   // ends. `showRecording` swaps the live screen for the replay player.
   const [hasRecording, setHasRecording] = useState(false);
@@ -73,17 +77,19 @@ export default function RunView({ token, health, keyStatus, visible, needsToken,
   const wsRef = useRef(null);
   const logRef = useRef(null);
 
+  // Back to the newest step, which the log puts at the top.
   useEffect(() => {
-    if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
+    if (logRef.current) logRef.current.scrollTop = 0;
   }, [steps]);
 
   useEffect(() => {
     onRunState({ status, wsState, runId });
   }, [status, wsState, runId, onRunState]);
 
-  useEffect(() => {
-    localStorage.setItem('qassist_rail', railOpen ? 'open' : 'min');
-  }, [railOpen]);
+  function toggleRail(open) {
+    setRailOpen(open);
+    localStorage.setItem('qassist_rail_state', open ? 'open' : 'min');
+  }
 
   // Coming back from Stripe (US-022). Checkout's success/cancel URLs land here
   // on a full page load carrying ?billing=, so it is read once and stripped —
@@ -556,7 +562,7 @@ export default function RunView({ token, health, keyStatus, visible, needsToken,
             type="button"
             className="rail-strip"
             title="Show tests"
-            onClick={() => setRailOpen(true)}
+            onClick={() => toggleRail(true)}
           >
             <PanelLeftOpen size={14} aria-hidden="true" />
             <span>Tests</span>
@@ -579,7 +585,7 @@ export default function RunView({ token, health, keyStatus, visible, needsToken,
               onNew={newTest}
               onRunModule={(m, n) => runBatch('module', m, n)}
               onRunSuite={(s) => runBatch('suite', s, s.test_ids.length)}
-              onCollapse={() => setRailOpen(false)}
+              onCollapse={() => toggleRail(false)}
             />
           </aside>
         )}

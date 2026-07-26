@@ -98,9 +98,16 @@
      `--col-side` is the width of every column that flanks the main content:
      the tests rail and the activity panel on Run, the list on Projects. They
      all hold the same kind of thing — a list you scan while working in the
-     middle — so they are one measurement, and the Run view's frame is what
-     the leftovers go to. History's detail panel is deliberately not one of
-     them; see `.history`.
+     middle — so they are one measurement. History's detail panel is
+     deliberately not one of them; see `.history`.
+     `--col-side-min` is how narrow such a column may be squeezed before the
+     layout owes it a row of its own. Only the Run view's activity panel
+     compresses today, because it is the one that shares a row with
+     `--stage-min`.
+     `--stage-min` is the floor under the live browser frame. It is the one
+     measurement on Run that does *not* yield: a frame is the thing being
+     watched, and below this it stops being readable, so the panel beside it
+     gives up width first and the rail gives up being a column at all.
      `--rail-strip` is the sliver the minimized rail keeps, and has to match
      between the grid column and the strip that fills it.
      `--scroll-cap` is how tall a list inside a card grows before it scrolls
@@ -110,14 +117,19 @@
      verdict. (The browser chrome's dots are decoration, not status, and keep
      their own size.) */
   --col-side: 300px;
+  --col-side-min: 250px;
+  --stage-min: 800px;
   --rail-strip: 34px;
   --scroll-cap: 240px;
   --dot: 6px;
 
-  /* Page width — header and content share it so they stay flush. Sized for
-     the Run view's three columns (tests, live browser, activity); the other
-     views follow it so switching tabs never shifts the frame. */
-  --page-w: 1400px;
+  /* Page width — header and content share it so they stay flush. Sized so the
+     Run view holds `--stage-min` with the rail *expanded* and the activity
+     panel still beside it: 300 + 16 + 800 + 16 + 300, plus the `--s5` gutters.
+     That is the widest the view ever needs; its default shape (rail as a strip)
+     spends the difference on the frame. The other views follow the same width
+     so switching tabs never shifts the frame. */
+  --page-w: 1480px;
 
   /* A sticky column stops one gutter below the bar, and leaves the same
      gutter at the bottom — so it sits in the grid exactly like a card that

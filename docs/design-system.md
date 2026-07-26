@@ -60,10 +60,22 @@ they sit one gutter under the bar like any other card.
 A number that appears in two rules is a measurement and gets a name; a number
 that appears once stays a literal with a line saying what set it. The named ones
 are `--col-side` (every column flanking the main content — the Run rail and
-activity panel, History's detail, the Projects list), `--rail-strip`,
-`--scroll-cap` (how tall a list grows inside a card before it scrolls itself)
-and `--dot` (status dots). Media-query breakpoints can't read tokens, so 900px
-and 1150px each carry a comment saying what they protect.
+activity panel, History's detail, the Projects list) with `--col-side-min` (how
+far such a column may be squeezed before it is owed a row of its own),
+`--stage-min`, `--rail-strip`, `--scroll-cap` (how tall a list grows inside a
+card before it scrolls itself) and `--dot` (status dots). Media-query
+breakpoints can't read tokens, so 900px, 1155px and 1440px each carry a comment
+with the arithmetic they protect.
+
+**On Run, the live frame is the measurement that doesn't yield.** `--stage-min`
+(800px) is a floor under it, and everything else on the view is sized to pay for
+that floor: `--page-w` is set so all three columns hold it at once, the activity
+panel compresses from `--col-side` toward `--col-side-min` to keep it, and when
+the viewport can't cover both the panel stacks under the frame — minimizing the
+tests rail to `--rail-strip` is what buys the panel its row back. Three columns
+once left the frame at 728px, which is not a size you can watch a 1920-wide page
+in; the fix was to stop treating the frame as the leftovers, not to drop a
+column. So a new element on Run comes out of the flanks, never out of the frame.
 
 ## Palette
 
