@@ -8,10 +8,18 @@
 //
 // The rest is the state table the panel renders: what each subscription status
 // offers you, and that an exempt account is told why it is never asked to pay.
+//
+// US-053 moved where two of these run from. An account that is NOT entitled now
+// meets the onboarding wall instead of the app, so its panel states can no
+// longer be reached through the Settings dialog — they are asserted against the
+// panel directly, which is possible because the status is now a prop (App owns
+// the fetch). The wall itself is Onboarding.test.jsx. Nothing about the state
+// table changed; only the route to it.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import App from './App.jsx';
+import Billing from './Billing.jsx';
 
 beforeEach(() => {
   vi.stubGlobal('matchMedia', () => ({
@@ -89,22 +97,17 @@ describe('Billing panel (US-022)', () => {
   });
 
   it('offers Subscribe with no subscription, and posts checkout when clicked', async () => {
-    const calls = stubApi({
-      health: { ...HEALTH, billing: true },
-      billingStatus: {
-        entitled: false,
-        exempt: false,
-        status: null,
-        current_period_end: null,
-        manageable: false,
-      },
-    });
+    const calls = stubApi({ health: { ...HEALTH, billing: true } });
     // jsdom's location is unforgeable, so the whole object is swapped rather
     // than the method spied — checkout ends in a real navigation to Stripe.
     const assign = vi.fn();
     vi.stubGlobal('location', { assign, protocol: 'http:', host: 'localhost', search: '' });
-    renderApp();
-    await openSettings();
+    render(
+      <Billing
+        state={{ entitled: false, exempt: false, status: null, current_period_end: null, manageable: false }}
+        keyStatus={{ set: true }}
+      />
+    );
 
     expect(await screen.findByText(/No subscription yet/)).toBeTruthy();
     // Nothing to manage before a first checkout — the portal would 409.
@@ -116,6 +119,21 @@ describe('Billing panel (US-022)', () => {
       expect(calls.some((c) => c.url === '/api/billing/checkout' && c.method === 'POST')).toBe(true)
     );
     await waitFor(() => expect(assign).toHaveBeenCalledWith('https://checkout.stripe.test/s1'));
+  });
+
+  // US-053: the panel obeys the same rule the server does — checkout with no
+  // stored key is a 409, so the button that would earn it is not live.
+  it('will not start a checkout for an account with no OpenAI key', () => {
+    stubApi({ health: { ...HEALTH, billing: true } });
+    render(
+      <Billing
+        state={{ entitled: false, exempt: false, status: null, current_period_end: null, manageable: false }}
+        keyStatus={{ set: false }}
+      />
+    );
+
+    expect(screen.getByText('Subscribe').closest('button').disabled).toBe(true);
+    expect(screen.getByText(/Add your OpenAI key below before subscribing/)).toBeTruthy();
   });
 
   // US-051. The renewal date was being dropped silently because the server
@@ -186,18 +204,19 @@ describe('Billing panel (US-022)', () => {
   });
 
   it('says Resubscribe, not Subscribe, to an account that used to pay', async () => {
-    stubApi({
-      health: { ...HEALTH, billing: true },
-      billingStatus: {
-        entitled: false,
-        exempt: false,
-        status: 'canceled',
-        current_period_end: '2026-07-01T00:00:00.000Z',
-        manageable: true,
-      },
-    });
-    renderApp();
-    await openSettings();
+    stubApi({ health: { ...HEALTH, billing: true } });
+    render(
+      <Billing
+        state={{
+          entitled: false,
+          exempt: false,
+          status: 'canceled',
+          current_period_end: '2026-07-01T00:00:00.000Z',
+          manageable: true,
+        }}
+        keyStatus={{ set: true }}
+      />
+    );
 
     expect(await screen.findByText(/Subscription cancelled/)).toBeTruthy();
     expect(screen.getByText('Resubscribe')).toBeTruthy();

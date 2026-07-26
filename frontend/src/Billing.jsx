@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Button } from './ui.jsx';
 import { api } from './api.js';
 import { formatWhen } from './status.js';
@@ -10,6 +10,10 @@ import { formatWhen } from './status.js';
 // There is no payment UI of our own: Checkout takes the card and the Customer
 // Portal handles changes, invoices and cancellation, so the whole surface here
 // is a status line and a button that leaves for Stripe.
+//
+// The status is App's (US-053): the onboarding wall renders off the same
+// answer, and two components fetching it would eventually disagree about one
+// account.
 
 /**
  * Send the browser to Stripe Checkout. Exported because the 402 notice in
@@ -41,16 +45,14 @@ function describe({ status, entitled, current_period_end: until, cancel_at: canc
   return 'No subscription yet. Subscribe to start running tests.';
 }
 
-export default function Billing() {
-  const [state, setState] = useState(null);
+export default function Billing({ state, keyStatus }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    api('/api/billing/status')
-      .then(setState)
-      .catch((e) => setError(e.message));
-  }, []);
+  // Subscribing without a stored key buys a product that cannot run (US-053):
+  // the server refuses the checkout, so offering the button would only produce
+  // a 409 the customer can't act on from here.
+  const keyMissing = !keyStatus?.set;
 
   async function go(action) {
     setBusy(true);
@@ -92,12 +94,24 @@ export default function Billing() {
                   </Button>
                 )}
                 {!state.entitled && (
-                  <Button variant="primary" size="sm" disabled={busy} onClick={() => go('checkout')}>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    disabled={busy || keyMissing}
+                    title={keyMissing ? 'Add your OpenAI key below first' : undefined}
+                    onClick={() => go('checkout')}
+                  >
                     {state.status ? 'Resubscribe' : 'Subscribe'}
                   </Button>
                 )}
               </div>
             </div>
+          )}
+          {state && !state.entitled && keyMissing && (
+            <p className="field-hint">
+              Add your OpenAI key below before subscribing — runs are funded by it, so a
+              subscription without one buys nothing you can use.
+            </p>
           )}
         </>
       )}

@@ -6,6 +6,7 @@ import OpenaiKey from './OpenaiKey.jsx';
 import DemoBanner from './DemoBanner.jsx';
 import HistoryView from './HistoryView.jsx';
 import Login from './Login.jsx';
+import Onboarding from './Onboarding.jsx';
 import ProjectsView from './ProjectsView.jsx';
 import RunPage from './RunPage.jsx';
 import RunView from './RunView.jsx';
@@ -95,6 +96,21 @@ export default function App() {
     loadKeyStatus();
   }, [health, demo, multi, me, token]);
 
+  // Subscription state (US-053): owned here rather than by the Settings panel,
+  // because the onboarding wall and the panel must agree about one account and
+  // only one of them can own the fetch. Never asked on a self-hosted instance —
+  // `health.billing` false means no request at all, which is the free tier's
+  // proof on the wire.
+  const [billingStatus, setBillingStatus] = useState(null);
+  const loadBillingStatus = () =>
+    api('/api/billing/status')
+      .then(setBillingStatus)
+      .catch(() => setBillingStatus(null));
+  useEffect(() => {
+    if (!health?.billing || !me) return;
+    loadBillingStatus();
+  }, [health, me]);
+
   // In demo mode the very first request from a cookieless visitor mints a seeded
   // tenant and drops the session cookie every later API/WS call authenticates
   // with. So the app render is held (below) until this resolves — otherwise the
@@ -158,6 +174,27 @@ export default function App() {
   // views don't fetch before they're authenticated. A capacity error still
   // resolves demoSession (to `{ error }`), so this doesn't hang the app.
   if (demo && demoSession === null) return null;
+
+  // Forced onboarding (US-053), on billing instances only: an account that has
+  // never paid gets the checklist instead of the app, since every run it could
+  // start would be refused anyway. Held until both statuses have answered, so
+  // the app is never shown behind a wall that then drops over it. Entitlement
+  // alone is the condition — once it is true this screen is done for good, and
+  // a key removed later is the Run view's banner to raise, not grounds to lock
+  // someone out of their own history.
+  if (multi && health?.billing && billingStatus && keyStatus && !billingStatus.entitled) {
+    return (
+      <Onboarding
+        email={me?.email}
+        token={token}
+        keyStatus={keyStatus}
+        onReloadKey={loadKeyStatus}
+        billing={billingStatus}
+        onReloadBilling={loadBillingStatus}
+        onSignOut={signOut}
+      />
+    );
+  }
 
   return (
     <>
@@ -233,7 +270,7 @@ export default function App() {
               </Field>
               {/* US-022: only when the instance actually bills. Unset STRIPE_*
                   leaves health.billing false and the dialog is what it was. */}
-              {health?.billing && <Billing />}
+              {health?.billing && <Billing state={billingStatus} keyStatus={keyStatus} />}
               <ApiKeys />
             </>
           )}

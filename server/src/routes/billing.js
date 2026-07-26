@@ -17,6 +17,7 @@ import {
   claimEvent,
   applySubscriptionEvent,
 } from '../billing.js';
+import { getUserOpenaiKeyStatus } from '../openaiKey.js';
 import { h } from './helpers.js';
 
 /** @param {{ checkToken: import('express').RequestHandler }} deps */
@@ -49,6 +50,19 @@ export function billingRouter({ checkToken }) {
     '/checkout',
     h(async (_req, res) => {
       const userId = currentUserId();
+      // Runs are funded by the caller's stored key and by nothing else
+      // (US-039), so a subscription bought without one buys a product that
+      // cannot run — a refund conversation, not a customer. Answered before
+      // any call to Stripe, so a refusal leaves no abandoned session behind.
+      // The STORED key is what counts: a per-request `openai_api_key` funds one
+      // run and is never kept, so it is not readiness (US-053).
+      const key = await getUserOpenaiKeyStatus(/** @type {string} */ (userId));
+      if (!key.set) {
+        return res.status(409).json({
+          error: 'add your OpenAI key before subscribing — runs are funded by it',
+          openai_key_required: true,
+        });
+      }
       const state = await billingStateFor(userId);
       const { rows } = await db().query('select email from users where id = $1', [userId]);
       const url = await createCheckoutSession({

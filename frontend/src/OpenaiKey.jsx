@@ -10,7 +10,10 @@ import { formatWhen } from './status.js';
 // leaves the browser exactly once per save and is never read back; App owns
 // the { set, updated_at } status (the Run view's setup banner reads it too)
 // and hands it down with the reload that keeps both in step.
-export default function OpenaiKey({ token, status, onReload }) {
+// `bare` drops the label and hint for a caller that has already said both — the
+// onboarding step (US-053) is titled "Add your OpenAI key" and repeating it
+// inside the control reads as two different asks.
+export default function OpenaiKey({ token, status, onReload, bare }) {
   const [value, setValue] = useState('');
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -48,11 +51,15 @@ export default function OpenaiKey({ token, status, onReload }) {
 
   return (
     <div className="openai-key">
-      <div className="field-label">OpenAI key</div>
-      <p className="field-hint">
-        Runs use your own OpenAI key, so the cost and rate limits are yours. It is stored encrypted and
-        never shown again.
-      </p>
+      {!bare && (
+        <>
+          <div className="field-label">OpenAI key</div>
+          <p className="field-hint">
+            Runs use your own OpenAI key, so the cost and rate limits are yours. It is stored
+            encrypted and never shown again.
+          </p>
+        </>
+      )}
 
       {stored && !editing && (
         <div className="openai-key-stored">
