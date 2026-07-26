@@ -18,6 +18,22 @@
   and the Stripe test-mode round trip (staging's `STRIPE_*` are deliberately
   **empty** rather than placeheld — `config.js` reads all three unset as billing
   off, whereas a placeholder key switches billing *on* with a broken secret).
+
+  **Update 2026-07-26 — staging carries Stripe test keys, and the round trip
+  found a defect.** `STRIPE_*` are filled in (test key, test price, staging's
+  own endpoint secret), `/api/health` reports `billing:true`, and two
+  non-operator accounts subscribed through real Checkout with every event
+  delivered, verified and applied. The subscribe half of the criterion holds.
+  It is still unticked for two reasons, both recorded on the criterion itself:
+  every subscription landed with `current_period_end` NULL, which is
+  [US-051](US-051-subscription-dates-from-stripe.md) and means the `past_due`
+  grace path was never actually exercised; and the Customer Portal schedules a
+  cancellation rather than performing one, so `customer.subscription.deleted`
+  has not fired and the 402-after-cancel half has not run. Turning billing on
+  also closes the registration hole this story recorded below — `requireEntitled`
+  now gates every run-start path on staging. Two facts above are stale as of
+  this date: the box runs `0.2.0`, not `0.1.0` (US-039), and `qassist-demo` now
+  shares it (US-040).
 - **Priority:** P1 (current sprint, added 2026-07-25) — it blocks nothing by
   itself, but it is where three other stories in this sprint finish: each of
   US-022, US-008 and US-032 currently has "verify against production" as its
@@ -164,6 +180,8 @@ cap is 1, and it disappears the moment staging carries Stripe test keys (the
 criterion below) because the gate turns on. If staging is ever left up and idle,
 the cheap mitigation is `BILLING_EXEMPT_EMAILS` narrowed to the maintainer plus
 test keys present, not a second auth layer — "one door, not two" still holds.
+**Both halves are now true (2026-07-26):** US-039 removed the server key, and
+staging carries test keys, so `requireEntitled` gates every run-start path here.
 
 **Mitigated on the box, same day, and then escalated into its own story.**
 Waiting for Stripe test keys was judged the wrong shape — it makes *not being
@@ -272,12 +290,18 @@ aborts on a box where production is not up.
 - [ ] A **Stripe test-mode** subscription completes end-to-end on staging:
       Checkout → webhook → entitlement, closing US-022's outstanding round trip
       without touching live keys — and production's webhook endpoint never sees
-      the test event. **Not started:** staging boots with `STRIPE_*` empty
-      (`/api/health` reports `billing:false`). Needs test keys, a test price, and
-      a Stripe webhook endpoint at `https://staging.qassist.run/api/billing/webhook`
-      with *that endpoint's* signing secret. Note when doing it:
-      `BILLING_EXEMPT_EMAILS` defaults to `OPERATOR_EMAIL`, so subscribing must
-      use a **non-operator** address or the gate is bypassed and proves nothing
+      the test event. **Mostly done (2026-07-26), deliberately not ticked.** The
+      subscribe path is proven: two Checkouts by two **non-operator** addresses
+      (`BILLING_EXEMPT_EMAILS` defaults to `OPERATOR_EMAIL`, so the operator
+      account would have bypassed the gate and proven nothing), six events
+      delivered, verified, applied and ledgered, both users entitled, and the
+      live endpoint never involved. Two things keep it open: the round trip
+      wrote `current_period_end` NULL, so "entitlement" was only proven for the
+      `active` path and not for the `past_due` grace behind it
+      ([US-051](US-051-subscription-dates-from-stripe.md)); and cancellation is
+      unproven, because the Customer Portal *schedules* rather than cancels — no
+      `customer.subscription.deleted` has been generated, so the 402-after-cancel
+      half has never run. Needs US-051, an immediate cancel, and a re-run
 - [x] US-008's CI snippet is run for real against staging (not production) and
       the story's criterion is satisfied there — `docs/ci.md`'s `qassist-run.sh`
       extracted **verbatim** from the doc (not retyped) and run against two
