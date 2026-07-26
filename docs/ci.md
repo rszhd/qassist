@@ -30,7 +30,7 @@ here. A **single test** is not a gate: a deploy check that runs one goal and
 calls the build green is a false signal, and pipelines that want it end up
 listing ten ids by hand, which is a suite spelled badly. A **whole project**
 is every test there is — minutes of browser time and LLM spend on every push,
-which is a nightly [schedule](../README.md#schedules), not a per-deploy gate.
+which is a nightly [schedule](api.md#schedules), not a per-deploy gate.
 
 So the endpoint is one of:
 

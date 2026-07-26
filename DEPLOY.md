@@ -351,7 +351,7 @@ checkout and subscription events, and put *that endpoint's* signing secret in
 production's live endpoint never seeing the event. `stripe listen` is a local
 substitute and is not needed here; this is the real delivery path. The rest of
 the lifecycle is `stripe trigger customer.subscription.deleted`, after which
-starting a run returns 402. See [Billing](README.md#billing) for what each
+starting a run returns 402. See [Billing](docs/api.md#billing) for what each
 subscription status is allowed to do.
 
 **The CI snippet (US-008).** Run [`docs/ci.md`](docs/ci.md)'s pipeline step for
