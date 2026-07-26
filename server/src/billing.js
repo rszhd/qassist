@@ -89,10 +89,17 @@ export function isExempt(email) {
  * @param {string|null} userId
  */
 export async function billingStateFor(userId) {
-  const none = { entitled: false, exempt: false, status: null, current_period_end: null, customerId: null };
+  const none = {
+    entitled: false,
+    exempt: false,
+    status: null,
+    current_period_end: null,
+    cancel_at: null,
+    customerId: null,
+  };
   if (!userId || !db()) return none;
   const { rows } = await db().query(
-    `select u.email, s.status, s.current_period_end, s.stripe_customer_id
+    `select u.email, s.status, s.current_period_end, s.cancel_at, s.stripe_customer_id
        from users u left join subscriptions s on s.user_id = u.id
       where u.id = $1`,
     [userId]
@@ -105,6 +112,7 @@ export async function billingStateFor(userId) {
     exempt,
     status: row.status ?? null,
     current_period_end: row.current_period_end ?? null,
+    cancel_at: row.cancel_at ?? null,
     customerId: row.stripe_customer_id ?? null,
   };
 }
@@ -191,6 +199,25 @@ const SUBSCRIPTION_EVENTS = new Set([
 ]);
 
 /**
+ * When the period this subscription has paid for ends. Stripe moved the field
+ * off the Subscription object onto the subscription ITEM in API version
+ * 2025-03-31.basil, so the item is the authority — but the old location stays
+ * as a fallback, because Stripe replays historical events at the version they
+ * were created with. The first item is the only one we look at:
+ * createCheckoutSession sends exactly one line item, so a multi-item
+ * subscription is not a shape this product can produce.
+ * @param {any} object
+ */
+function periodEndOf(object) {
+  return object?.items?.data?.[0]?.current_period_end ?? object?.current_period_end;
+}
+
+/** Stripe's unix seconds as a Date, or null for anything it didn't send. */
+function fromUnix(seconds) {
+  return seconds ? new Date(Number(seconds) * 1000) : null;
+}
+
+/**
  * Write one event's effect on a subscription. Two shapes reach here:
  *
  *  - `checkout.session.completed` is the JOIN — the only event that knows which
@@ -237,7 +264,13 @@ export async function applySubscriptionEvent(event) {
     subscriptionId: object.id ? String(object.id) : null,
     status:
       event.type === 'customer.subscription.deleted' ? 'canceled' : String(object.status || 'incomplete'),
-    periodEnd: object.current_period_end ? new Date(Number(object.current_period_end) * 1000) : null,
+    periodEnd: fromUnix(periodEndOf(object)),
+    // Always passed on these events — Stripe sends the field with a null when
+    // nothing is scheduled, and that null is what clears a cancellation the
+    // customer has resumed. Never read `cancel_at_period_end`: it was False on
+    // a genuinely scheduled cancellation, which this version expresses as the
+    // timestamp above.
+    cancelAt: fromUnix(object.cancel_at),
     at,
   });
 }
@@ -249,17 +282,29 @@ export async function applySubscriptionEvent(event) {
  * delivered after it would otherwise hand a cancelled customer the product.
  * Equal timestamps apply — `checkout.session.completed` and
  * `customer.subscription.created` routinely share a second, and we need both.
+ *
+ * The two dates are written by deliberately different rules. `current_period_end`
+ * coalesces: it is the entitlement gate's input, so an event we cannot read a
+ * period out of must preserve the last known one rather than cut off every
+ * `past_due` customer at once. `cancel_at` is instead authoritative whenever the
+ * caller knows it (`cancelAt` given at all, null included), because a coalesce
+ * would make a scheduled cancellation permanent — a resume through the Customer
+ * Portal arrives as exactly that null.
  * @param {{ userId: string, customerId: string, subscriptionId: string|null,
- *           status: string, periodEnd: Date|null, at: Date }} fields
+ *           status: string, periodEnd: Date|null, cancelAt?: Date|null, at: Date }} fields
  */
-async function writeSubscription({ userId, customerId, subscriptionId, status, periodEnd, at }) {
-  const params = [userId, customerId, subscriptionId, status, periodEnd, at];
+async function writeSubscription({ userId, customerId, subscriptionId, status, periodEnd, cancelAt, at }) {
+  // `undefined` is "this event does not carry the field": only
+  // customer.subscription.* does, and checkout.session.completed must not write
+  // a null over a cancellation it knows nothing about.
+  const params = [userId, customerId, subscriptionId, status, periodEnd, at, cancelAt !== undefined, cancelAt ?? null];
   const { rowCount } = await db().query(
     `update subscriptions
         set stripe_customer_id     = $2,
             stripe_subscription_id = coalesce($3::text, stripe_subscription_id),
             status                 = $4,
             current_period_end     = coalesce($5::timestamptz, current_period_end),
+            cancel_at              = case when $7::boolean then $8::timestamptz else cancel_at end,
             last_event_at          = $6,
             updated_at             = now()
       where user_id = $1
@@ -271,8 +316,8 @@ async function writeSubscription({ userId, customerId, subscriptionId, status, p
   // (the conflict then makes this a no-op, which is the point).
   await db().query(
     `insert into subscriptions
-       (user_id, stripe_customer_id, stripe_subscription_id, status, current_period_end, last_event_at)
-     values ($1, $2, $3::text, $4, $5::timestamptz, $6)
+       (user_id, stripe_customer_id, stripe_subscription_id, status, current_period_end, last_event_at, cancel_at)
+     values ($1, $2, $3::text, $4, $5::timestamptz, $6, case when $7::boolean then $8::timestamptz end)
      on conflict (user_id) do nothing`,
     params
   );

@@ -118,6 +118,53 @@ describe('Billing panel (US-022)', () => {
     await waitFor(() => expect(assign).toHaveBeenCalledWith('https://checkout.stripe.test/s1'));
   });
 
+  // US-051. The renewal date was being dropped silently because the server
+  // never had one to send; now that it does, the panel is the reason the fix is
+  // visible to the person who paid.
+  it('names the renewal date on an active subscription', async () => {
+    stubApi({
+      health: { ...HEALTH, billing: true },
+      billingStatus: {
+        entitled: true,
+        exempt: false,
+        status: 'active',
+        current_period_end: '2026-08-25T00:00:00.000Z',
+        cancel_at: null,
+        manageable: true,
+      },
+    });
+    renderApp();
+    await openSettings();
+
+    expect(await screen.findByText(/Subscription active · renews/)).toBeTruthy();
+    expect(screen.queryByText(/ends/)).toBeNull();
+  });
+
+  it('says a cancelled-but-active subscription ENDS, not renews (US-051)', async () => {
+    stubApi({
+      health: { ...HEALTH, billing: true },
+      billingStatus: {
+        entitled: true,
+        exempt: false,
+        status: 'active',
+        current_period_end: '2026-08-25T00:00:00.000Z',
+        // Stripe schedules rather than cancels: the status stays active and the
+        // date is the only thing that says the cancellation took.
+        cancel_at: '2026-08-25T00:00:00.000Z',
+        manageable: true,
+      },
+    });
+    renderApp();
+    await openSettings();
+
+    expect(await screen.findByText(/Subscription active · ends/)).toBeTruthy();
+    expect(screen.queryByText(/renews/)).toBeNull();
+    // Still entitled, so there is nothing to re-buy yet — only a cancellation
+    // to undo, which the portal owns.
+    expect(screen.queryByText('Resubscribe')).toBeNull();
+    expect(screen.getByText('Manage billing')).toBeTruthy();
+  });
+
   it('offers only Manage billing while the subscription is active', async () => {
     stubApi({
       health: { ...HEALTH, billing: true },

@@ -52,6 +52,47 @@
 //       on a length mismatch or non-hex input, which is the bug
 //       crypto.timingSafeEqual actually causes when used naively. Timing itself
 //       isn't observable from a test; flagging rather than pretending.
+//
+// ─── US-051 (added 2026-07-26, defect found on staging) ──────────────────────
+//
+//   W8  THE PERIOD END IS ON THE ITEM. Stripe moved `current_period_end` off
+//       the Subscription object onto the subscription item in API version
+//       2025-03-31.basil; staging's endpoint is on 2026-06-24.dahlia and the
+//       field is simply absent from the top level. So the read is
+//         items.data[0].current_period_end ?? object.current_period_end
+//       — a fallback, not a swap: Stripe replays historical events at the
+//       version they were created with. First item only, because
+//       createCheckoutSession sends exactly one line item; a multi-item
+//       subscription is not a shape this product can produce.
+//       The fixture below now builds the CURRENT shape by default, with no
+//       top-level field at all, which is what makes these assertions able to
+//       fail. The old fixture was evidence about our parser, never about the
+//       wire. [REVIEW: items-wins when both are present (asserted below) — I
+//       chose newest-shape-wins; say if you'd rather it were top-level-wins.]
+//
+//   W9  A SCHEDULED CANCELLATION IS A DATE, NOT A BOOLEAN. The Customer Portal
+//       schedules rather than cancels: on the test account `cancel_at` was set
+//       to the period end while `cancel_at_period_end` was **False**, because
+//       this API version expresses the schedule as a timestamp. So we store
+//       `cancel_at`, and the boolean is not consulted.
+//       Its write rule differs from `current_period_end`'s and that asymmetry
+//       is deliberate:
+//         · `customer.subscription.*` is AUTHORITATIVE on cancel_at — the field
+//           is always present on those events (null when nothing is scheduled),
+//           so writing it unconditionally is exactly what lets a resume clear
+//           it. A coalesce here would make a scheduled cancellation permanent.
+//         · `checkout.session.completed` does not carry the field, so it must
+//           leave it alone rather than write null over it.
+//         · `current_period_end` KEEPS its coalesce — it is the gate's input,
+//           and a future shape change that removed it should preserve the last
+//           known period rather than silently cut every past_due customer off.
+//       [REVIEW: this is the one real design decision in the story. Confirm the
+//       asymmetry, or tell me to give both fields the same authoritative rule.]
+//
+//   W10 ENTITLEMENT IS UNCHANGED. A scheduled cancellation is still entitled —
+//       the customer paid for the period. Only a status Stripe sends ends it.
+//       Asserted here and in billing-gate.test.js, because "cut them off when
+//       cancel_at passes" is exactly how a well-meant fix would break the gate.
 // ─────────────────────────────────────────────────────────────────────────────
 import { test, before, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -141,13 +182,37 @@ const checkoutEvent = (uid, { id = `evt_${randomUUID()}`, created = now(), custo
   data: { object: { client_reference_id: uid, customer, subscription, payment_status, status: 'complete' } },
 });
 
-/** A customer.subscription.* event, addressed by Stripe customer id. */
-const subscriptionEvent = (type, customer, { id = `evt_${randomUUID()}`, created = now(), status = 'active', periodEnd = now() + 86400 } = {}) => ({
-  id,
+/**
+ * A customer.subscription.* event, addressed by Stripe customer id, in the
+ * CURRENT API shape: the period end lives on the subscription item and there is
+ * no top-level `current_period_end` at all (W8). Pass `legacy: true` for the
+ * pre-2025-03-31.basil shape, which replayed and older-version events still
+ * arrive in. `periodEnd: null` builds an event that carries no period end in
+ * either place.
+ */
+const subscriptionEvent = (
   type,
-  created,
-  data: { object: { id: `sub_${customer.slice(4)}`, customer, status, current_period_end: periodEnd } },
-});
+  customer,
+  { id = `evt_${randomUUID()}`, created = now(), status = 'active', periodEnd = now() + 86400, cancelAt = null, legacy = false } = {}
+) => {
+  const object = {
+    id: `sub_${customer.slice(4)}`,
+    customer,
+    status,
+    cancel_at: cancelAt,
+    // Observed False on a genuinely scheduled cancellation, so a reader that
+    // trusts it sees nothing scheduled (W9).
+    cancel_at_period_end: false,
+  };
+  if (legacy) {
+    if (periodEnd !== null) object.current_period_end = periodEnd;
+    return { id, type, created, data: { object } };
+  }
+  const item = { id: `si_${customer.slice(4)}` };
+  if (periodEnd !== null) item.current_period_end = periodEnd;
+  object.items = { object: 'list', data: [item] };
+  return { id, type, created, data: { object } };
+};
 
 /** Deliver an event exactly as Stripe would. */
 const deliver = (event, opts = {}) => {
@@ -321,6 +386,163 @@ test('two events sharing a second both apply — equal is not stale (W4)', async
     true,
     'checkout.session.completed and customer.subscription.created routinely share a second'
   );
+});
+
+// --- US-051 W8: the period end, read from where Stripe actually puts it ------
+
+/** The join, then one subscription event — the sequence every real account has. */
+async function joinThenUpdate(uid, opts) {
+  const customer = `cus_${uid.slice(0, 8)}`;
+  const t0 = now();
+  await deliver(checkoutEvent(uid, { created: t0 })).expect(200);
+  await deliver(
+    subscriptionEvent('customer.subscription.updated', customer, { created: t0 + 5, ...opts })
+  ).expect(200);
+  return subscriptionOf(uid);
+}
+
+const unixOf = (value) => Math.floor(new Date(value).getTime() / 1000);
+
+test('an event carrying the period end on items.data[0] writes a non-NULL current_period_end (W8)', async () => {
+  const periodEnd = now() + 86400;
+  const sub = await joinThenUpdate(ALICE, { periodEnd });
+
+  assert.ok(
+    sub.current_period_end,
+    'NULL here is the staging defect: with no period end, decision 3 is unreachable and a past_due customer is cut off on the first failed retry'
+  );
+  assert.equal(unixOf(sub.current_period_end), periodEnd, 'the instant Stripe sent, not merely something');
+});
+
+test('the LEGACY top-level shape still writes the same value — replays are unaffected (W8)', async () => {
+  const periodEnd = now() + 86400;
+  const sub = await joinThenUpdate(ALICE, { periodEnd, legacy: true });
+  assert.equal(unixOf(sub.current_period_end), periodEnd, 'a fallback, not a swap');
+});
+
+test('when both shapes are present, the item wins (W8)', async () => {
+  const customer = `cus_${ALICE.slice(0, 8)}`;
+  const t0 = now();
+  const item = t0 + 86400;
+  const stale = t0 + 3600;
+  await deliver(checkoutEvent(ALICE, { created: t0 })).expect(200);
+  await deliver({
+    id: `evt_${randomUUID()}`,
+    type: 'customer.subscription.updated',
+    created: t0 + 5,
+    data: {
+      object: {
+        id: 'sub_both',
+        customer,
+        status: 'active',
+        current_period_end: stale,
+        items: { object: 'list', data: [{ id: 'si_both', current_period_end: item }] },
+      },
+    },
+  }).expect(200);
+
+  const sub = await subscriptionOf(ALICE);
+  assert.equal(unixOf(sub.current_period_end), item, 'the newer location is the authority when Stripe sends both');
+});
+
+test('an event carrying no period end anywhere preserves the one already stored (W9)', async () => {
+  const customer = `cus_${ALICE.slice(0, 8)}`;
+  const t0 = now();
+  const periodEnd = t0 + 86400;
+  await joinThenUpdate(ALICE, { periodEnd });
+
+  await deliver(
+    subscriptionEvent('customer.subscription.updated', customer, { created: t0 + 10, periodEnd: null })
+  ).expect(200);
+
+  const sub = await subscriptionOf(ALICE);
+  assert.equal(
+    unixOf(sub.current_period_end),
+    periodEnd,
+    'current_period_end keeps its coalesce: a shape we cannot read must not silently cut every past_due customer off'
+  );
+});
+
+test('a past_due row so written is entitled strictly before its period end, and refused at it', async () => {
+  // The clause the story exists for: D5's boundary approached from the side
+  // nothing could reach today, because no row ever had the value.
+  const periodEnd = now() + 86400;
+  const sub = await joinThenUpdate(ALICE, { status: 'past_due', periodEnd });
+
+  assert.equal(await billing.isEntitled(ALICE), true, 'decision 3: the period they paid for is theirs');
+
+  const instant = new Date(sub.current_period_end).getTime();
+  assert.equal(billing.entitledFrom(sub, { now: instant - 1 }), true, 'strictly before it ends');
+  assert.equal(billing.entitledFrom(sub, { now: instant }), false, 'at the instant it lapses');
+  assert.equal(billing.entitledFrom(sub, { now: instant + 1 }), false);
+});
+
+// --- US-051 W9/W10: a scheduled cancellation is a date, not a boolean --------
+
+test('the updated event that SCHEDULES a cancellation stores cancel_at (W9)', async () => {
+  const cancelAt = now() + 31 * 86400;
+  const sub = await joinThenUpdate(ALICE, { status: 'active', cancelAt });
+
+  assert.ok(sub.cancel_at, 'without it the panel cannot tell a cancelled customer their cancellation took');
+  assert.equal(unixOf(sub.cancel_at), cancelAt);
+  assert.equal(
+    await billing.isEntitled(ALICE),
+    true,
+    'still entitled — they paid for the period, and Stripe leaves the status active (W10)'
+  );
+});
+
+test('cancel_at is read as a date, never inferred from cancel_at_period_end (W9)', async () => {
+  // The observed staging shape exactly: a genuine cancellation scheduled with
+  // the boolean False. A reader that tests the boolean stores nothing.
+  const cancelAt = now() + 31 * 86400;
+  const sub = await joinThenUpdate(ALICE, { status: 'active', cancelAt });
+  assert.ok(sub.cancel_at, 'the boolean was False on this very event — it is not the field to test');
+});
+
+test('RESUMING a scheduled cancellation clears it (W9)', async () => {
+  const customer = `cus_${ALICE.slice(0, 8)}`;
+  const t0 = now();
+  await joinThenUpdate(ALICE, { status: 'active', cancelAt: t0 + 31 * 86400 });
+
+  await deliver(
+    subscriptionEvent('customer.subscription.updated', customer, { created: t0 + 20, cancelAt: null })
+  ).expect(200);
+
+  const sub = await subscriptionOf(ALICE);
+  assert.equal(
+    sub.cancel_at,
+    null,
+    'customer.subscription.* is authoritative on cancel_at, or the panel announces an end that is no longer coming'
+  );
+});
+
+test('checkout.session.completed does not clear a scheduled cancellation (W9)', async () => {
+  const t0 = now();
+  await joinThenUpdate(ALICE, { status: 'active', cancelAt: t0 + 31 * 86400 });
+  const before = await subscriptionOf(ALICE);
+
+  await deliver(checkoutEvent(ALICE, { created: t0 + 20 })).expect(200);
+
+  const sub = await subscriptionOf(ALICE);
+  assert.deepEqual(sub.cancel_at, before.cancel_at, 'the join event knows nothing about cancel_at, so it must write nothing to it');
+  assert.deepEqual(sub.current_period_end, before.current_period_end, 'nor about the period end');
+});
+
+test('a scheduled cancellation that has passed still needs Stripe to end it (W10)', async () => {
+  const customer = `cus_${ALICE.slice(0, 8)}`;
+  const t0 = now();
+  await joinThenUpdate(ALICE, { status: 'active', cancelAt: t0 - 3600 });
+  assert.equal(
+    await billing.isEntitled(ALICE),
+    true,
+    'entitlement is the status, not the schedule — only customer.subscription.deleted ends it'
+  );
+
+  await deliver(
+    subscriptionEvent('customer.subscription.deleted', customer, { status: 'canceled', created: t0 + 20 })
+  ).expect(200);
+  assert.equal(await billing.isEntitled(ALICE), false);
 });
 
 // --- malformed headers never throw (W7) -------------------------------------

@@ -35,6 +35,9 @@ export function billingRouter({ checkToken }) {
         exempt: state.exempt,
         status: state.status,
         current_period_end: state.current_period_end,
+        // Set only while a cancellation is scheduled: the status is still
+        // 'active', so this is the one thing that tells the customer it took.
+        cancel_at: state.cancel_at,
         // Whether "Manage billing" can be offered at all: the portal needs a
         // Stripe customer, which only exists after a first checkout.
         manageable: !!state.customerId,

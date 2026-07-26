@@ -88,11 +88,22 @@ after(async () => {
 const now = () => Math.floor(Date.now() / 1000);
 const CUSTOMER = 'cus_alice';
 
+// Current API shape (US-051 W8): the period end is on the subscription item,
+// with nothing at the top level. Every fixture in the suite builds this shape,
+// so none of them can mask a reader that looks only where Stripe used to put it.
 const subscriptionEvent = (type, { id = `evt_${randomUUID()}`, created = now(), status = 'active' } = {}) => ({
   id,
   type,
   created,
-  data: { object: { id: 'sub_alice', customer: CUSTOMER, status, current_period_end: created + 86400 } },
+  data: {
+    object: {
+      id: 'sub_alice',
+      customer: CUSTOMER,
+      status,
+      cancel_at: null,
+      items: { object: 'list', data: [{ id: 'si_alice', current_period_end: created + 86400 }] },
+    },
+  },
 });
 
 const statusOf = async () =>

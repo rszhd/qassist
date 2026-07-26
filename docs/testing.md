@@ -107,6 +107,19 @@ The mitigations, roughly by leverage:
    controls will agree with buggy code — this is *why* the pg-mem/Postgres
    split earned its keep, and why the agent judge wants a recorded real
    transcript over an invented one.
+
+   The sharpest version of this is about **third-party payloads**, and US-051
+   is the case that proved it: a fixture we wrote is evidence about our parser,
+   never about the wire format. `billing-webhook.test.js` built its Stripe
+   subscription object with a top-level `current_period_end` — a shape Stripe
+   stopped sending in API version `2025-03-31.basil`, having moved the field
+   onto the subscription item. The suite was green and self-consistent for a
+   year: the reader read where the fixture wrote, and every real subscription
+   had a NULL period end in the database. Nothing but a round trip against a
+   real Stripe account could find it, and nothing but staging on test keys made
+   that round trip cheap. So: when a fixture stands in for someone else's API,
+   the shape has to be copied from a captured payload, and the story that
+   touches the parser moves the fixture too.
 4. **Selective TDD for the correctness-critical, easy-to-get-subtly-wrong
    pieces** — scheduler claim, slot math, redaction, billing gates; the running
    register is [`backlog/correctness-critical.md`](../backlog/correctness-critical.md).

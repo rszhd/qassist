@@ -22,15 +22,19 @@ export async function startCheckout() {
 }
 
 /** What each status means to the person reading it, not to Stripe. */
-function describe({ status, entitled, current_period_end: until }) {
+function describe({ status, entitled, current_period_end: until, cancel_at: cancelAt }) {
   if (status === 'past_due') {
     return entitled
       ? `Last payment failed — Stripe is retrying. Runs keep working until ${formatWhen(until)}.`
       : 'Last payment failed and the period you paid for has ended. Runs are paused.';
   }
   if (status === 'active' || status === 'trialing') {
-    const renews = until ? ` · renews ${formatWhen(until)}` : '';
-    return `${status === 'trialing' ? 'Trial' : 'Subscription'} active${renews}`;
+    const label = status === 'trialing' ? 'Trial' : 'Subscription';
+    // Cancelling through the Portal schedules rather than cancels, so the
+    // status is still active. Saying "renews" to someone who has just
+    // cancelled invites a second attempt, or a chargeback.
+    if (cancelAt) return `${label} active · ends ${formatWhen(cancelAt)}`;
+    return `${label} active${until ? ` · renews ${formatWhen(until)}` : ''}`;
   }
   if (status === 'canceled') return 'Subscription cancelled. Runs are paused; your history stays.';
   if (status) return `Subscription ${status}. Runs are paused.`;

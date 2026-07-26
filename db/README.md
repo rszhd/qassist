@@ -45,7 +45,7 @@ erDiagram
 | `runs` | durable run history — replaces the in-memory Map for finished runs | US-009/011 |
 | `notifications` | per-recipient email delivery log (idempotent sends) | US-012 |
 | `email_suppressions` | addresses that unsubscribed, instance-wide | US-012 |
-| `subscriptions` | one row per paying user: Stripe ids, status, period end | US-022 |
+| `subscriptions` | one row per paying user: Stripe ids, status, period end, scheduled cancellation | US-022/051 |
 | `stripe_events` | idempotency ledger — a conflicting insert means "already applied" | US-022 |
 
 The diagram above is the deployed schema through `002_projects_modules.sql`.
@@ -57,6 +57,13 @@ subscription is one row rather than columns on `users` because Stripe's ids and
 status are a single lifecycle that a webhook rewrites as a unit, and `status`
 deliberately carries no check constraint — the value is whatever Stripe sends,
 and which of them may run is one function in `server/src/billing.js`.
+
+Both date columns are Stripe's, and neither is where the API originally put it
+(US-051): `current_period_end` lives on the subscription *item* since API
+version `2025-03-31.basil`, and a scheduled cancellation is the `cancel_at`
+timestamp rather than the `cancel_at_period_end` boolean — observed False on a
+genuinely scheduled cancellation. Only `current_period_end` feeds the
+entitlement gate; `cancel_at` exists so Settings can say when access ends.
 
 ## Key decisions
 

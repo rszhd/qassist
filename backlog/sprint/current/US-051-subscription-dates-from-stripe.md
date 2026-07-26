@@ -147,23 +147,44 @@ is the way a well-meant fix would break the gate:
 
 ## Acceptance criteria
 
-- [ ] A `customer.subscription.*` event carrying the period end on
+- [x] A `customer.subscription.*` event carrying the period end on
       `items.data[0]` writes a non-NULL `subscriptions.current_period_end`
-- [ ] The legacy top-level shape still writes the same value, so replayed and
+- [x] The legacy top-level shape still writes the same value, so replayed and
       older-version events are unaffected
-- [ ] A `past_due` row with a future period end is entitled; the same row at or
+- [x] A `past_due` row with a future period end is entitled; the same row at or
       after that instant is refused — D5's fail-closed-on-NULL case still holds
-- [ ] `billing-webhook.test.js`'s fixture builds the current API shape, and a
+- [x] `billing-webhook.test.js`'s fixture builds the current API shape, and a
       test would fail if the reader went back to the top-level field alone
 - [ ] Verified on staging with a real Stripe test event, not only in tests: a
       subscription written after the fix has a non-NULL period end, and the
       Settings panel shows the renewal date
-- [ ] A cancellation scheduled at period end is stored, from the
+- [x] A cancellation scheduled at period end is stored, from the
       `customer.subscription.updated` that schedules it — `cancel_at` present,
       not inferred from the `cancel_at_period_end` boolean
-- [ ] Settings distinguishes "active, renews `<date>`" from "active, ends
+- [x] Settings distinguishes "active, renews `<date>`" from "active, ends
       `<date>`", so a customer who cancelled can see that it took
-- [ ] Resuming a scheduled cancellation clears it, and the panel stops saying
+- [x] Resuming a scheduled cancellation clears it, and the panel stops saying
       the subscription ends
-- [ ] Entitlement is unchanged throughout: a scheduled cancellation is entitled
+- [x] Entitlement is unchanged throughout: a scheduled cancellation is entitled
       until it takes effect, and only `customer.subscription.deleted` ends it
+
+## Reviewed decisions (2026-07-26)
+
+The assertions were written first and reviewed before any of `billing.js`
+changed; the three decisions they encoded and that were signed off:
+
+- **When both shapes carry the period end, the item wins.** Stripe should never
+  send both; newest-location-wins is the safer default for a transitional or
+  hand-rolled payload. Pinned in `billing-webhook.test.js` (W8).
+- **The two dates get different write rules, deliberately** (W9).
+  `current_period_end` keeps its `coalesce`: it is the gate's input, so an event
+  we cannot read a period out of preserves the last known one rather than
+  cutting off every `past_due` customer at once. `cancel_at` is authoritative
+  whenever the event carries it — `customer.subscription.*` always does, null
+  included, and that null is exactly how a resume through the Customer Portal
+  arrives. `checkout.session.completed` knows nothing about it and writes
+  nothing to it.
+- **`>` not `>=` at the period-end instant** (D9). A period that has ended has
+  ended, and Stripe's next event is a second away either way. This was already
+  the behaviour — the assertion is a pin, not a fix, and it is the first one
+  able to reach the boundary now that rows have the value.

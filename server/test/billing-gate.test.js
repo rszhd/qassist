@@ -57,6 +57,21 @@
 //       deleted, nothing is replayed. [REVIEW: confirm claim-then-decline over
 //       decline-before-claim, and the `blocked` counter name.]
 //
+//   D9  (US-051) D5's boundary from the OTHER side. Until now no row ever had a
+//       current_period_end, so "past_due runs until the period it paid for
+//       ends" was pinned only in its fail-closed direction. The instant itself
+//       is now asserted exactly: strictly before entitles, at or after refuses.
+//       [REVIEW: `>` not `>=` at the instant — a period that has ended has
+//       ended, and Stripe's next event is a second away either way.]
+//
+//   D10 (US-051) A SCHEDULED CANCELLATION DOES NOT END ENTITLEMENT. `cancel_at`
+//       is stored so Settings can say when access ends, and `entitledFrom` must
+//       not read it: the customer keeps what they paid for, and Stripe sends
+//       customer.subscription.deleted when it takes effect. This is asserted
+//       *past* the scheduled instant on purpose — cutting them off when
+//       cancel_at passes is exactly how a well-meant fix would break the gate.
+//       [REVIEW: confirm entitlement ignores cancel_at entirely.]
+//
 //   D8  "Refused means nothing happened" is asserted as: no new `runs` row for
 //       that user, counts() unchanged (no slot, no queue entry), and no new
 //       directory under ARTIFACTS_DIR — the run dir is the first thing both
@@ -220,14 +235,14 @@ const trigger = (uid, make) => {
 };
 
 /** Replace a user's subscription row; `status` null = no row at all. */
-async function setSubscription(uid, status, { periodEnd = null } = {}) {
+async function setSubscription(uid, status, { periodEnd = null, cancelAt = null } = {}) {
   await pool.query('delete from subscriptions where user_id = $1', [uid]);
   if (!status) return;
   await pool.query(
     `insert into subscriptions
-       (user_id, stripe_customer_id, stripe_subscription_id, status, current_period_end)
-     values ($1, $2, $3, $4, $5)`,
-    [uid, `cus_${uid.slice(0, 8)}`, `sub_${uid.slice(0, 8)}`, status, periodEnd]
+       (user_id, stripe_customer_id, stripe_subscription_id, status, current_period_end, cancel_at)
+     values ($1, $2, $3, $4, $5, $6)`,
+    [uid, `cus_${uid.slice(0, 8)}`, `sub_${uid.slice(0, 8)}`, status, periodEnd, cancelAt]
   );
 }
 
@@ -375,6 +390,42 @@ test('past_due with no current_period_end is refused — fail closed (D5)', asyn
   assert.equal((await trigger(LAPSED, RUN_PATHS[0][1])).status, 402);
 });
 
+test('the grace ends exactly at current_period_end — strictly before, not at (D9)', () => {
+  const instant = Date.parse('2026-08-01T00:00:00.000Z');
+  const sub = { status: 'past_due', current_period_end: new Date(instant) };
+  assert.equal(billing.entitledFrom(sub, { now: instant - 1 }), true, 'the last millisecond they paid for is theirs');
+  assert.equal(billing.entitledFrom(sub, { now: instant }), false, 'a period that has ended has ended');
+  assert.equal(billing.entitledFrom(sub, { now: instant + 1 }), false);
+  // The same instant as a Postgres string, which is what billingStateFor hands
+  // it on a real server.
+  assert.equal(billing.entitledFrom({ status: 'past_due', current_period_end: '2026-08-01T00:00:00.000Z' }, { now: instant - 1 }), true);
+});
+
+// --- US-051 D10: a scheduled cancellation is not a lapsed one ---------------
+
+test('a subscription with a future cancel_at still runs — they paid for the period (D10)', async () => {
+  await setSubscription(PAID, 'active', { periodEnd: new Date(Date.now() + HOUR), cancelAt: new Date(Date.now() + HOUR) });
+  assert.equal((await trigger(PAID, RUN_PATHS[0][1])).status, 200);
+  await drain();
+});
+
+test('a cancel_at that has PASSED still runs until Stripe says otherwise (D10)', async () => {
+  // The trap: cancel_at is a Stripe *schedule*, and the event that carries out
+  // the schedule is what ends entitlement. Reading the date here would cut a
+  // customer off in the window before that event is delivered — and would cut
+  // off anyone whose cancellation Stripe later reversed.
+  await setSubscription(PAID, 'active', { cancelAt: new Date(Date.now() - HOUR) });
+  assert.equal((await trigger(PAID, RUN_PATHS[0][1])).status, 200);
+  await drain();
+
+  await setSubscription(PAID, 'canceled', { cancelAt: new Date(Date.now() - HOUR) });
+  assert.equal(
+    (await trigger(PAID, RUN_PATHS[0][1])).status,
+    402,
+    'the status is what ends it, exactly as before this story'
+  );
+});
+
 // --- E: the exempt bypass ----------------------------------------------------
 
 test('BILLING_EXEMPT_EMAILS defaults to OPERATOR_EMAIL: the operator runs with no subscription (D6)', async () => {
@@ -469,6 +520,21 @@ test('GET /api/billing/status tells the SPA what to render', async () => {
   assert.equal(res.body.status, 'canceled');
   assert.equal(res.body.entitled, false);
   assert.equal(res.body.exempt, false);
+
+  // US-051: the panel cannot say "ends 25 Aug" unless the date reaches it.
+  const cancelAt = new Date(Date.now() + HOUR);
+  await setSubscription(PAID, 'active', { periodEnd: cancelAt, cancelAt });
+  const scheduled = await request(app).get('/api/billing/status').set(asUser(PAID)).expect(200);
+  assert.equal(scheduled.body.entitled, true);
+  assert.equal(
+    new Date(scheduled.body.cancel_at).toISOString(),
+    cancelAt.toISOString(),
+    'a customer who just cancelled must not see a panel identical to one who has not'
+  );
+
+  await setSubscription(PAID, 'active', { periodEnd: cancelAt });
+  const renewing = await request(app).get('/api/billing/status').set(asUser(PAID)).expect(200);
+  assert.equal(renewing.body.cancel_at, null, 'and one who has not must not be told their access ends');
 
   const op = await request(app).get('/api/billing/status').set(asUser(OPERATOR_ID)).expect(200);
   assert.equal(op.body.status, null, 'an exempt user has no subscription to report');
