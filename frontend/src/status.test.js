@@ -3,7 +3,7 @@
 // This file stays in the default node env; the rendered-component smoke tests
 // (App.test.jsx, RunDetail.test.jsx) opt into jsdom per-file (US-034).
 import { describe, it, expect } from 'vitest';
-import { statusColor, formatWhen, formatDuration } from './status.js';
+import { statusColor, statusLabel, formatWhen, formatDuration } from './status.js';
 
 describe('statusColor', () => {
   it('maps a known status to its fill token', () => {
@@ -12,9 +12,27 @@ describe('statusColor', () => {
     expect(statusColor('running')).toBe('var(--fill-running)');
   });
 
+  // US-047: without an entry of its own a stopped run silently took the idle
+  // fallback, which is the colour of a run that never happened.
+  it('gives a stopped run its own fill rather than the idle fallback', () => {
+    expect(statusColor('cancelled')).toBe('var(--fill-cancelled)');
+    expect(statusColor('cancelled')).not.toBe(statusColor('completed'));
+  });
+
   it('falls back to idle for an unknown status', () => {
     expect(statusColor('nonsense')).toBe('var(--fill-idle)');
     expect(statusColor(undefined)).toBe('var(--fill-idle)');
+  });
+});
+
+describe('statusLabel', () => {
+  it('shows the stored `cancelled` as the word the UI stops runs with', () => {
+    expect(statusLabel('cancelled')).toBe('stopped');
+  });
+
+  it('leaves every other status as the API writes it', () => {
+    expect(statusLabel('passed')).toBe('passed');
+    expect(statusLabel('queued')).toBe('queued');
   });
 });
 

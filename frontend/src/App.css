@@ -67,6 +67,7 @@
   --fill-failed: #d0666c;
   --fill-error: #d0666c;
   --fill-completed: #45454c;
+  --fill-cancelled: #7d93b5;
   --fill-idle: #4f4f57;
 
   /* The two translucent layers. They have to be tokens like everything else,
@@ -230,6 +231,7 @@
   --fill-failed: #c0434b;
   --fill-error: #c0434b;
   --fill-completed: #b4b4bd;
+  --fill-cancelled: #5c7699;
   --fill-idle: #c2c2ca;
 
   --bar: rgba(244, 244, 246, .85);
@@ -330,6 +332,10 @@ code { font-family: var(--mono); font-size: .92em; }
 .badge-failed, .badge-error { color: var(--bad); border-color: var(--bad-line); background: var(--bad-bg); }
 .badge-queued { color: var(--warn); border-color: var(--warn-line); background: var(--warn-bg); }
 .badge-running { color: var(--accent-hi); border-color: var(--accent-line); background: var(--accent-bg); }
+/* US-047: `info` is the fifth family, and a stop is exactly what it is for — a
+   deliberate act with no verdict attached. Red would say the run failed, which
+   is the one thing a stop must never be mistaken for. */
+.badge-cancelled { color: var(--info); border-color: var(--info-line); background: var(--info-bg); }
 
 /* US-036: the demo-sandbox honesty strip. Sticky just under the top bar so no
    screen can be mistaken for the real product; warn palette because it is a

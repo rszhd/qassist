@@ -15,10 +15,23 @@ export const STATUS_COLORS = {
   failed: 'var(--fill-failed)',
   error: 'var(--fill-error)',
   completed: 'var(--fill-completed)',
+  // US-047. Its own colour rather than `completed`'s grey: both ended without a
+  // verdict, but one ran out of goal and the other was stopped by hand, and the
+  // dot is the only thing telling them apart in a scan of History.
+  cancelled: 'var(--fill-cancelled)',
   idle: 'var(--fill-idle)',
 };
 
 export const statusColor = (status) => STATUS_COLORS[status] || 'var(--fill-idle)';
+
+// The word a status is shown as, where it differs from the word the API uses.
+// `cancelled` is the column value — the check constraint, the ?status= filter,
+// CI's branch — but the product calls the act "stop" everywhere a person meets
+// it, and a CANCELLED badge under a Stop button is two names for one thing.
+// The report mail already made this choice (notify.js maps it to STOPPED).
+const STATUS_LABELS = { cancelled: 'stopped' };
+
+export const statusLabel = (status) => STATUS_LABELS[status] || status;
 
 /** Compact local timestamp for history rows — date and minute, no year. */
 export function formatWhen(iso) {

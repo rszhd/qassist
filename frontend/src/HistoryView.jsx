@@ -3,7 +3,7 @@ import { AlertTriangle, ChevronLeft, ChevronRight, Clock, MousePointerClick } fr
 import { api } from './api.js';
 import RunDetail from './RunDetail.jsx';
 import { Button, CardHead, EmptyState, PageHeader } from './ui.jsx';
-import { statusColor, formatWhen, formatDuration } from './status.js';
+import { statusColor, formatWhen, formatDuration, statusLabel } from './status.js';
 
 // History (US-011): every run the control plane has kept, filtered and paged
 // off GET /api/runs. The list rows carry everything the detail panel shows
@@ -16,6 +16,10 @@ const STATUS_FILTERS = [
   { value: 'passed', label: 'Passed', query: 'passed' },
   { value: 'failed', label: 'Failed or errored', query: 'failed,error' },
   { value: 'unfinished', label: 'Still running', query: 'queued,running' },
+  // US-047. Its own option rather than folded into "Failed or errored": what
+  // you come here to ask is which runs nobody let finish, and the answer is
+  // otherwise only reachable by reading every row under "Any status".
+  { value: 'cancelled', label: 'Stopped', query: 'cancelled' },
 ];
 
 // 'ui,api' is one option rather than two: what you want to separate is "a
@@ -237,7 +241,14 @@ export default function HistoryView({ token }) {
           {selected ? (
             // Keyed by run: picking another run starts its panel clean rather
             // than painting the previous run's steps under the new verdict.
-            <RunDetail key={selected.id} run={selected} token={token} onError={setError} permalink />
+            <RunDetail
+              key={selected.id}
+              run={selected}
+              token={token}
+              onError={setError}
+              onStopped={load}
+              permalink
+            />
           ) : (
             <EmptyState icon={MousePointerClick} title="No run selected">
               Pick a run to see its verdict, report and recording.
@@ -278,7 +289,7 @@ function Timeline({ runs, onPick, selectedId }) {
             type="button"
             className={`tl-bar${run.id === selectedId ? ' active' : ''}`}
             style={{ background: statusColor(run.status) }}
-            title={`${formatWhen(run.created_at)} — ${run.status}`}
+            title={`${formatWhen(run.created_at)} — ${statusLabel(run.status)}`}
             onClick={() => onPick(run.id)}
           />
         ))}

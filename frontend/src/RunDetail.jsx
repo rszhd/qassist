@@ -1,10 +1,12 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Activity, AlertTriangle, ChevronDown, ChevronUp, Download, ExternalLink, Play, Undo2 } from 'lucide-react';
+import {
+  Activity, AlertTriangle, ChevronDown, ChevronUp, CircleStop, Download, ExternalLink, Play, Undo2,
+} from 'lucide-react';
 import { api, openReport } from './api.js';
 import ActivityLog from './Activity.jsx';
 import { Button, CardHead, EmptyState, IconButton, Stat } from './ui.jsx';
-import { formatWhen, formatDuration } from './status.js';
+import { formatWhen, formatDuration, statusLabel } from './status.js';
 
 // One past run, rendered mostly from the row the history list already has.
 // What it fetches: the PDF as a blob (it needs the bearer header), the
@@ -24,9 +26,13 @@ import { formatWhen, formatDuration } from './status.js';
 // verdict first. "page" is /runs/<id>, which has the whole width and a goal
 // that can be a pasted test case — so the goal and the activity take a reading
 // column and the facts fall back to a rail beside it.
-export default function RunDetail({ run, token, onError, liveSteps, permalink, layout = 'panel' }) {
+//
+// `onStopped` is the caller's cue to refetch after US-047's Stop: this card
+// renders the row it was handed, so it cannot update the row itself.
+export default function RunDetail({ run, token, onError, liveSteps, permalink, layout = 'panel', onStopped }) {
   const [reportBusy, setReportBusy] = useState(false);
   const [showRecording, setShowRecording] = useState(false);
+  const [stopping, setStopping] = useState(false);
   // null until the fetch settles, so an empty list reads as "none recorded"
   // rather than flashing that message under every run while it loads.
   const [fetched, setFetched] = useState(null);
@@ -72,6 +78,24 @@ export default function RunDetail({ run, token, onError, liveSteps, permalink, l
     };
   }, [run.id, pruned, token, liveSteps]);
 
+  // US-047. The status this card shows comes from the row the caller holds, so
+  // the button stays disabled from the click until that row comes back
+  // `cancelled` — there is nothing local to flip. A 409 is the run having ended
+  // on its own in between, which is not a failure to report, only a refetch.
+  async function stop() {
+    setStopping(true);
+    try {
+      await api(`/api/runs/${run.id}/stop`, { token, method: 'POST' });
+    } catch (err) {
+      if (err.status !== 409) {
+        setStopping(false);
+        onError(`Stop: ${err.message}`);
+        return;
+      }
+    }
+    onStopped?.();
+  }
+
   async function downloadReport() {
     setReportBusy(true);
     try {
@@ -88,7 +112,7 @@ export default function RunDetail({ run, token, onError, liveSteps, permalink, l
   const verdictHead = (
     <div className="verdict-head">
       {run.test_name || 'Ad-hoc run'}
-      <span className={`badge badge-${run.status}`}>{run.status}</span>
+      <span className={`badge badge-${run.status}`}>{statusLabel(run.status)}</span>
       {permalink && (
         <IconButton
           as={Link}
@@ -226,6 +250,14 @@ export default function RunDetail({ run, token, onError, liveSteps, permalink, l
     </p>
   ) : (
     <div className="verdict-actions">
+      {/* Leads the row while the run is still going: it is the only action
+          there that does anything yet — the report does not exist and the
+          recording is still being written. */}
+      {unfinished && (
+        <Button variant="danger" icon={CircleStop} onClick={stop} disabled={stopping}>
+          {stopping ? 'Stopping…' : 'Stop run'}
+        </Button>
+      )}
       <Button
         icon={Download}
         onClick={downloadReport}

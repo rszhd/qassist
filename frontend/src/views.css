@@ -172,6 +172,8 @@
 .verdict.ok .verdict-head { color: var(--ok); }
 .verdict.bad { border-color: var(--bad-line); }
 .verdict.bad .verdict-head { color: var(--bad); }
+.verdict.stopped { border-color: var(--info-line); }
+.verdict.stopped .verdict-head { color: var(--info); }
 .verdict-head .badge { margin-left: auto; }
 .final { font-size: var(--t-base); line-height: 1.6; color: var(--text); }
 .errs { margin: 0; padding-left: var(--s4); color: var(--bad); font-size: var(--t-base); }

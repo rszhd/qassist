@@ -8,8 +8,13 @@
 // flow or silently skips the environment prompt, and the build can't see
 // either. The rest of RunView (WebSocket, live frames) is stubbed away.
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import RunView from './RunView.jsx';
+
+// Every socket the view opens, newest last, so a test can push relay events
+// into the one belonging to the run it just started.
+const sockets = [];
+const emit = (evt) => act(() => sockets.at(-1).onmessage({ data: JSON.stringify(evt) }));
 
 const PLAIN = {
   id: 'plain-1',
@@ -44,7 +49,13 @@ function stubEnv() {
     else if (url.startsWith('/api/projects')) body = { projects: [] };
     return Promise.resolve({ ok: true, status: 200, json: async () => body });
   });
-  vi.stubGlobal('WebSocket', class { close() {} });
+  vi.stubGlobal('WebSocket', class {
+    constructor(url) {
+      this.url = url;
+      sockets.push(this);
+    }
+    close() {}
+  });
   return calls;
 }
 
@@ -66,6 +77,7 @@ const runCalls = (calls) => calls.filter((c) => c.url.includes('/run'));
 
 afterEach(() => {
   cleanup();
+  sockets.length = 0;
   // Minimizing the rail is remembered, and the store outlives cleanup() — left
   // set, the next test would render with the rail already collapsed.
   localStorage.clear();
@@ -147,7 +159,13 @@ function stubRefusedEnv(payload) {
     const body = url.startsWith('/api/tests') ? { tests: [PLAIN] } : { projects: [] };
     return Promise.resolve({ ok: true, status: 200, json: async () => body });
   });
-  vi.stubGlobal('WebSocket', class { close() {} });
+  vi.stubGlobal('WebSocket', class {
+    constructor(url) {
+      this.url = url;
+      sockets.push(this);
+    }
+    close() {}
+  });
   return calls;
 }
 
@@ -219,6 +237,92 @@ describe('RunView checkout return (US-022)', () => {
 
     await waitFor(() => expect(replaceState).toHaveBeenCalledWith({}, '', '/'));
     expect(screen.queryByText(/Payment complete/)).toBeNull();
+  });
+});
+
+// US-047. The frontend twin of the run engine's property V (see
+// server/test/stop-run.test.js): browser-use returns history normally out of
+// Agent.stop(), so the relayed `done` event of a stopped run still carries the
+// agent's self-report — and unlike the row and the HTTP shape, which the server
+// rewrites through verdictOf(), that event reaches the view as the agent wrote
+// it. A view that believes it paints a green Passed card over a run the user
+// aborted, which is the whole thing the status exists to prevent. The stubs
+// below emit `success: true` on every stop path deliberately.
+async function startPlainRun() {
+  const calls = stubEnv();
+  renderRunView();
+  fireEvent.click(await screen.findByLabelText('Run "Plain test"'));
+  await waitFor(() => expect(sockets).toHaveLength(1));
+  return calls;
+}
+
+const stopCalls = (calls) => calls.filter((c) => c.url.endsWith('/stop') && c.method === 'POST');
+
+describe('RunView stopping a run (US-047)', () => {
+  it('stops a running run, and the agent\'s own success is not the verdict', async () => {
+    const calls = await startPlainRun();
+    emit({ type: 'status', status: 'running' });
+
+    fireEvent.click(screen.getByText('Stop run'));
+
+    await waitFor(() => expect(stopCalls(calls)).toHaveLength(1));
+    expect(stopCalls(calls)[0].url).toBe('/api/runs/r1/stop');
+    expect(screen.getByText('Stopping…')).toBeTruthy();
+
+    // What the run actually reports on the way out: a stop the agent honoured,
+    // its partial evidence, and a self-report claiming success.
+    emit({ type: 'stopping' });
+    emit({ type: 'done', success: true, steps: 3, duration_seconds: 12, final_result: 'All good' });
+    emit({ type: 'end', status: 'cancelled' });
+
+    expect(screen.getByText('Stopped')).toBeTruthy();
+    expect(screen.queryByText('Passed')).toBeNull();
+    expect(screen.queryByText('Pass')).toBeNull();
+    // The evidence survives — it is what the report is built from — but it is
+    // filed under a run that answered nothing.
+    expect(screen.getByText('All good')).toBeTruthy();
+    expect(screen.getByText('3')).toBeTruthy();
+    expect(screen.getByText(/reached no verdict/)).toBeTruthy();
+  });
+
+  it('honours a stop started somewhere else, replayed over the relay', async () => {
+    await startPlainRun();
+    emit({ type: 'status', status: 'running' });
+
+    // No click here: the stop came from another tab or the run page, and this
+    // viewer learns of it only through the durable `stopping` broadcast.
+    emit({ type: 'stopping' });
+    expect(screen.getByText('Stopping…')).toBeTruthy();
+
+    emit({ type: 'done', success: true, steps: 1 });
+    expect(screen.getByText('Stopped')).toBeTruthy();
+    expect(screen.queryByText('Passed')).toBeNull();
+  });
+
+  it('says a queued run was stopped before it ever started', async () => {
+    const calls = await startPlainRun();
+    // Still queued — no `status: running`, so the server dequeues it and ends
+    // it in one step, with no `done` event because nothing ever ran.
+    fireEvent.click(screen.getByText('Stop run'));
+    await waitFor(() => expect(stopCalls(calls)).toHaveLength(1));
+    emit({ type: 'end', status: 'cancelled' });
+
+    expect(screen.getByText('Stopped')).toBeTruthy();
+    expect(screen.getByText(/never started/)).toBeTruthy();
+    // Nothing to open: a run that never ran has no report and no recording.
+    expect(screen.queryByText('PDF report')).toBeNull();
+  });
+
+  it('offers no Stop button once the run has ended', async () => {
+    await startPlainRun();
+    emit({ type: 'status', status: 'running' });
+    expect(screen.getByText('Stop run')).toBeTruthy();
+
+    emit({ type: 'done', success: true, steps: 2 });
+    emit({ type: 'end', status: 'passed' });
+
+    expect(screen.queryByText('Stop run')).toBeNull();
+    expect(screen.getByText('Passed')).toBeTruthy();
   });
 });
 

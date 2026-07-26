@@ -4,12 +4,12 @@
 that** I am not paying for thirty more steps of an agent hunting for a button
 that does not exist — and so that the partial evidence survives.
 
-- **Status:** 🚧 **Backend, agent and report done 2026-07-27; frontend deliberately
-  held.** Everything below the UI is built and proven — the engine, the route,
-  the `cancelled` status and its migration, the agent's graceful stop, the
-  report, the mail rule and CI's exit code. The Run view / `RunDetail` button is
-  the remaining work, plus the two things only a real browser run can show. See
-  [Results](#results).
+- **Status:** 🚧 **Everything but one demonstration is done (2026-07-27).** The
+  engine, the route, the `cancelled` status and its migration, the agent's
+  graceful stop, the report, the mail rule, CI's exit code — and now the
+  frontend: the Stop button in the Run view and in the live `RunDetail`, the
+  status's colour and its word. What is left is the one claim a fixture cannot
+  make: a real stopped run whose recording plays. See [Results](#results).
 - **Priority:** P3 while it sat unscheduled, but it is a conspicuous absence —
   the Run view streams a live session with no way to end it — and the release
   plumbing that outranked it is nearly done.
@@ -80,13 +80,12 @@ Two things that verification settled:
 ## Acceptance criteria
 
 - [x] A running run can be stopped by its owner; a queued one is dequeued and
-      never spawns — `POST /api/runs/:id/stop`. **The button is not built yet**
-      (frontend held), so today this is an API-level truth.
+      never spawns — `POST /api/runs/:id/stop`, from the Run view's header while
+      the run is live and from `RunDetail` in History and on `/runs/<id>`.
 - [x] A stopped run ends in a distinct `cancelled` status, excluded from failure
-      emails (US-012) and from CI's non-zero exit (US-008). **"Visible in
-      History" is half-done**: the status is in the row, the API and the
-      `?status=` filter, but `.badge-cancelled` and `--fill-cancelled` are
-      frontend and unwritten, so the badge renders unstyled.
+      emails (US-012) and from CI's non-zero exit (US-008), and visible in
+      History — its own badge, its own dot colour, and its own entry in the
+      status filter.
 - [x] The steps that ran are in the report, which states the run was stopped.
       **The recording half is by construction, not yet demonstrated** — see the
       first item under "What is left".
@@ -153,6 +152,35 @@ the action whose entire purpose is to stop spending would make the feature cost
 an incident — but it is a real edge, so `docs/ci.md` states it and tells a
 release gate which one line to move.
 
+**The frontend needed the verdict override a second time, which the story had
+said it would not.** The earlier note here claimed the relayed `done` event was
+"the server's own, with the verdict already overridden" — it is not. `verdictOf`
+rewrites the row and the HTTP shape; the WebSocket relay pushes the agent's
+event through untouched (`broadcast(run, evt)` in the stdout handler), so the
+Run view receives `success: true` for a run somebody aborted, exactly as CI and
+History would have without the server-side fix. So the view keeps its own
+`stopping` flag and the `done` handler reads it — and `RunView.test.jsx`
+carries the frontend twin of the engine's property V, with the same deliberately
+green stub payload. That flag is a **ref** as well as state: `handleEvent` is
+captured by `ws.onmessage` when the socket opens and never re-bound, so every
+state read inside it is frozen at the render that opened the run.
+
+**Two vocabularies for one status, resolved in favour of the button.** The
+column is `cancelled` — the check constraint, the `?status=` filter, US-008's
+`case` branch all spell it that way — but every place a person meets the feature
+says "stop". A `CANCELLED` badge under a `Stop run` button is two names for one
+thing, so `statusLabel()` in `status.js` renders it "stopped" wherever it is
+shown (the mail already made this call: `notify.js` maps it to `STOPPED`). The
+stored value is untouched.
+
+**`info` was the unused fifth palette family, and a stop is what it is for.**
+`--fill-cancelled` and `.badge-cancelled` take it rather than red (which would
+say the run failed) or `completed`'s grey (both ended without a verdict, but
+that would make the two indistinguishable in a scan of History). The one red
+thing is the button: `danger` colours the *click*, because it interrupts
+something, while the record it leaves stays neutral — which is where "a stop is
+not a failure" actually has to hold.
+
 ## What is left
 
 - **The recording of a stopped run finalizing and playing.** The mechanism is
@@ -162,11 +190,3 @@ release gate which one line to move.
   nothing here has actually played the mp4. One real stopped run against a live
   page closes it, and it is the only claim in the story that a fixture cannot
   reach.
-- **The frontend**, held by decision on 2026-07-27: the Stop button in the Run
-  view and in the live `RunDetail`, and the `cancelled` entries in
-  `status.js` (`--fill-cancelled`) and `App.css` (`.badge-cancelled`). The wire
-  protocol is already there for it — `stopRun` broadcasts a durable
-  `{"type":"stopping"}` so a late viewer replays it, and the relayed `done`
-  event of a cancelled run is the server's own, with the verdict already
-  overridden, so the view needs no stale-state flag of its own to avoid showing
-  a verdict the run did not earn.

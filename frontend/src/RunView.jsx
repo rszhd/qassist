@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Activity, AlertTriangle, Check, Clock, CreditCard, Download, KeyRound, Monitor, PanelLeftOpen,
-  Play, Plus, Undo2, X,
+  Activity, AlertTriangle, Check, CircleStop, Clock, CreditCard, Download, KeyRound, Monitor,
+  PanelLeftOpen, Play, Plus, Undo2, X,
 } from 'lucide-react';
 import { api, openReport } from './api.js';
 import ActivityLog from './Activity.jsx';
@@ -74,6 +74,12 @@ export default function RunView({ token, health, keyStatus, visible, needsToken,
   // ends. `showRecording` swaps the live screen for the replay player.
   const [hasRecording, setHasRecording] = useState(false);
   const [showRecording, setShowRecording] = useState(false);
+  // US-047: a stop has been asked for and the run has not ended yet. Mirrored
+  // into a ref because `handleEvent` is captured by `ws.onmessage` when the
+  // socket opens and never re-bound — every read of state inside it is the
+  // value from that render. The `done` event has to know, so it is a ref.
+  const [stopping, setStopping] = useState(false);
+  const stoppingRef = useRef(false);
   const wsRef = useRef(null);
   const logRef = useRef(null);
 
@@ -194,19 +200,47 @@ export default function RunView({ token, health, keyStatus, visible, needsToken,
         // pane on a spinner waiting for a frame that never comes.
         if (evt.demo) setShowRecording(true);
         break;
+      case 'stopping':
+        // Durable, so a viewer that attaches mid-stop replays it and shows the
+        // same "Stopping…" as the tab that asked for it.
+        markStopping();
+        setCurrentAction('Stopping the run — finishing the recording and the report…');
+        break;
       case 'done':
         setResult(evt);
         setCurrentAction(null);
-        setStatus(evt.success === true ? 'passed' : evt.success === false ? 'failed' : 'completed');
+        // The agent's self-report does not survive a stop (US-047). browser-use
+        // returns history normally out of Agent.stop(), so this event still says
+        // `success: true` for a run nobody finished — and unlike the row and the
+        // HTTP shape, which the server rewrites through verdictOf(), the relayed
+        // event is the agent's own words. Honouring them here is how an aborted
+        // run shows a green Passed card. The payload is still kept: it is the
+        // partial evidence, and the report is built from the same thing.
+        setStatus(
+          stoppingRef.current
+            ? 'cancelled'
+            : evt.success === true
+              ? 'passed'
+              : evt.success === false
+                ? 'failed'
+                : 'completed'
+        );
         break;
       case 'error':
-        setError(evt.message);
         setCurrentAction(null);
+        // An agent torn down mid-action may report an error on its way out. That
+        // is the stop working, not a run that broke — no red banner for it.
+        if (stoppingRef.current) {
+          setStatus('cancelled');
+          break;
+        }
+        setError(evt.message);
         setStatus('error');
         break;
       case 'end':
         setCurrentAction(null);
         setWaiting(null);
+        setStopping(false);
         setStatus((cur) => (cur === 'running' || cur === 'queued' ? evt.status : cur));
         break;
       default:
@@ -214,8 +248,14 @@ export default function RunView({ token, health, keyStatus, visible, needsToken,
     }
   }
 
+  function markStopping(on = true) {
+    stoppingRef.current = on;
+    setStopping(on);
+  }
+
   function resetRunState() {
     setError(null);
+    markStopping(false);
     setCapNotice(null);
     setBillingNotice(null);
     setSubscribed(false);
@@ -453,6 +493,24 @@ export default function RunView({ token, health, keyStatus, visible, needsToken,
     wsRef.current = ws;
   }
 
+  // US-047. Optimistic on purpose: the intent is marked before the server
+  // answers, because the point of the button is to stop spending and the
+  // feedback has to be immediate. The server's `stopping` broadcast says the
+  // same thing a moment later, and the run's own `end` decides the status.
+  // A 409 means it finished on its own between the click and the request —
+  // nothing went wrong, so it gets no error banner.
+  async function stopRun() {
+    if (!runId) return;
+    markStopping();
+    try {
+      await api(`/api/runs/${runId}/stop`, { token, method: 'POST' });
+    } catch (err) {
+      if (err.status === 409) return;
+      markStopping(false);
+      setError(`Stop: ${err.message}`);
+    }
+  }
+
   async function downloadReport() {
     if (!runId) return;
     setReportBusy(true);
@@ -471,6 +529,10 @@ export default function RunView({ token, health, keyStatus, visible, needsToken,
   const liveUrl = [...steps].reverse().find((s) => s.url)?.url || startUrl;
   const hasFrame = (showRecording && runId) || !!screenshot;
   const isDemo = health?.auth_mode === 'demo';
+  // US-047: a stopped run has no verdict, whatever the `done` event claims.
+  const stopped = status === 'cancelled';
+  const verdict = stopped ? null : result?.success ?? null;
+  const verdictTone = stopped ? 'stopped' : verdict ? 'ok' : verdict === false ? 'bad' : '';
 
   return (
     <>
@@ -480,6 +542,16 @@ export default function RunView({ token, health, keyStatus, visible, needsToken,
       >
         {health?.db && (
           <Button icon={Plus} onClick={newTest} disabled={needsToken}>New test</Button>
+        )}
+        {/* US-047. `danger` colours the click, not the outcome: this interrupts
+            something, and while a run is healthy it is the only red on the page,
+            which is what makes it findable at the moment you want it. The record
+            a stop leaves stays neutral — that is where "a stop is not a failure"
+            has to hold. */}
+        {running && (
+          <Button variant="danger" icon={CircleStop} onClick={stopRun} disabled={stopping}>
+            {stopping ? 'Stopping…' : 'Stop run'}
+          </Button>
         )}
         <Button
           variant="primary"
@@ -680,38 +752,50 @@ export default function RunView({ token, health, keyStatus, visible, needsToken,
                 </div>
               )}
 
-              {result && (
-                <div className={`card verdict ${result.success ? 'ok' : result.success === false ? 'bad' : ''}`}>
+              {/* A run stopped before it started has no result to show, and
+                  saying nothing would leave the stage looking as though the
+                  click did nothing — so the card also stands in for that. */}
+              {(result || stopped) && (
+                <div className={`card verdict ${verdictTone}`}>
                   <div className="verdict-head">
-                    {result.success ? <Check size={15} /> : result.success === false ? <X size={15} /> : null}
-                    {result.success ? 'Passed' : result.success === false ? 'Failed' : 'Done'}
+                    {stopped ? <CircleStop size={15} /> : verdict ? <Check size={15} /> : verdict === false ? <X size={15} /> : null}
+                    {stopped ? 'Stopped' : verdict ? 'Passed' : verdict === false ? 'Failed' : 'Done'}
                   </div>
                   <div className="stats">
-                    <Stat label="Verdict" value={result.success ? 'Pass' : result.success === false ? 'Fail' : '—'}
-                      tone={result.success ? 'ok' : result.success === false ? 'bad' : ''} />
-                    <Stat label="Steps" value={result.steps ?? '—'} />
+                    <Stat label="Verdict" value={verdict ? 'Pass' : verdict === false ? 'Fail' : '—'}
+                      tone={verdict ? 'ok' : verdict === false ? 'bad' : ''} />
+                    <Stat label="Steps" value={result?.steps ?? '—'} />
                     <Stat
                       label="Duration"
-                      value={result.duration_seconds ? `${Math.round(result.duration_seconds)}s` : '—'}
+                      value={result?.duration_seconds ? `${Math.round(result.duration_seconds)}s` : '—'}
                     />
                   </div>
-                  {result.final_result && <p className="final">{result.final_result}</p>}
-                  {result.errors?.length > 0 && (
+                  {stopped && (
+                    <p className="hint">
+                      {result
+                        ? 'You stopped this run, so it reached no verdict. The steps it did take are in the report and the recording.'
+                        : 'You stopped this run before it got a slot, so it never started.'}
+                    </p>
+                  )}
+                  {result?.final_result && <p className="final">{result.final_result}</p>}
+                  {result?.errors?.length > 0 && (
                     <ul className="errs">{result.errors.map((er, i) => <li key={i}>{er}</li>)}</ul>
                   )}
-                  <div className="verdict-actions">
-                    <Button icon={Download} onClick={downloadReport} disabled={reportBusy}>
-                      {reportBusy ? 'Preparing PDF…' : 'PDF report'}
-                    </Button>
-                    {hasRecording && !isDemo && (
-                      <Button
-                        icon={showRecording ? Undo2 : Play}
-                        onClick={() => setShowRecording((v) => !v)}
-                      >
-                        {showRecording ? 'Back to last frame' : 'Watch recording'}
+                  {result && (
+                    <div className="verdict-actions">
+                      <Button icon={Download} onClick={downloadReport} disabled={reportBusy}>
+                        {reportBusy ? 'Preparing PDF…' : 'PDF report'}
                       </Button>
-                    )}
-                  </div>
+                      {hasRecording && !isDemo && (
+                        <Button
+                          icon={showRecording ? Undo2 : Play}
+                          onClick={() => setShowRecording((v) => !v)}
+                        >
+                          {showRecording ? 'Back to last frame' : 'Watch recording'}
+                        </Button>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

@@ -1,6 +1,7 @@
 import { CalendarClock, FolderTree, History, Play, Settings } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import { IconButton } from './ui.jsx';
+import { statusLabel } from './status.js';
 
 const VIEWS = [
   ['/', 'Run', Play],
@@ -45,7 +46,7 @@ export default function TopBar({ showNav, runState, onOpenSettings }) {
           {runId && (
             <>
               <span className={`ws ws-${wsState}`}>{wsState === 'live' ? 'live' : wsState}</span>
-              <span className={`badge badge-${status}`}>{status}</span>
+              <span className={`badge badge-${status}`}>{statusLabel(status)}</span>
             </>
           )}
           <IconButton icon={Settings} label="Settings" onClick={onOpenSettings} />

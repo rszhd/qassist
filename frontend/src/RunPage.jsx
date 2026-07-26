@@ -4,6 +4,7 @@ import { AlertTriangle, History, KeyRound, SearchX } from 'lucide-react';
 import { api } from './api.js';
 import RunDetail from './RunDetail.jsx';
 import { Button, EmptyState, PageHeader } from './ui.jsx';
+import { statusLabel } from './status.js';
 
 // One run at its own address (US-030), which is what a notification email and
 // a CI job can link to. It renders through the same RunDetail the History
@@ -87,7 +88,7 @@ export default function RunPage({ token, needsToken, onOpenSettings }) {
           with the title for the same reason — it is the first thing the page
           is asked, so it shouldn't need a scroll. */}
       <PageHeader title={run?.test_name || 'Run'} description={`Run ${String(id).slice(0, 8)}`}>
-        {run && <span className={`badge badge-${run.status}`}>{run.status}</span>}
+        {run && <span className={`badge badge-${run.status}`}>{statusLabel(run.status)}</span>}
         <Button as={Link} icon={History} to="/history">All runs</Button>
       </PageHeader>
 
@@ -150,6 +151,7 @@ export default function RunPage({ token, needsToken, onOpenSettings }) {
               onError={setError}
               liveSteps={unfinished ? steps : null}
               layout="page"
+              onStopped={load}
             />
           </div>
         ) : (
