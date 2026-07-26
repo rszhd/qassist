@@ -80,10 +80,14 @@ export default function RunPage({ token, needsToken, onOpenSettings }) {
 
   return (
     <>
-      <PageHeader
-        title={run?.test_name || 'Run'}
-        description={run ? run.goal : `Run ${String(id).slice(0, 8)}`}
-      >
+      {/* The short id, not the goal: RunDetail renders the goal below, and
+          printing it here too opened the page with the same paragraph twice.
+          The id is the thing this page has that the History panel doesn't, and
+          it tells two runs of the same test apart. The status rides up here
+          with the title for the same reason — it is the first thing the page
+          is asked, so it shouldn't need a scroll. */}
+      <PageHeader title={run?.test_name || 'Run'} description={`Run ${String(id).slice(0, 8)}`}>
+        {run && <span className={`badge badge-${run.status}`}>{run.status}</span>}
         <Button as={Link} icon={History} to="/history">All runs</Button>
       </PageHeader>
 
@@ -109,10 +113,15 @@ export default function RunPage({ token, needsToken, onOpenSettings }) {
       )}
 
       {/* Nothing below the banner without a token — an empty card under it
-          would read as the run itself having come back empty. */}
-      {!needsToken && (
-        <section className="card run-page">
-          {missing ? (
+          would read as the run itself having come back empty.
+
+          The run itself brings its own cards: RunDetail's page layout is two
+          independent columns, so wrapping it in one more card here would draw a
+          border around a pair of borders. Only the states that are a single
+          message — no such run, still loading — get a card of their own. */}
+      {!needsToken &&
+        (missing ? (
+          <section className="card">
             <EmptyState
               icon={SearchX}
               title="No such run"
@@ -121,31 +130,33 @@ export default function RunPage({ token, needsToken, onOpenSettings }) {
               This id belongs to no run this worker knows about — either the link is wrong, or
               the run was removed with the database it lived in.
             </EmptyState>
-          ) : run ? (
-            <>
-              {unfinished && frame && (
-                <div className="browser">
-                  <div className="browser-bar">
-                    <span className="browser-dots"><i /><i /><i /></span>
-                    <span className="browser-url">{liveUrl}</span>
-                  </div>
-                  <div className="screen">
-                    <img src={frame} alt="live browser view" />
-                  </div>
+          </section>
+        ) : run ? (
+          <div className="run-page">
+            {unfinished && frame && (
+              <div className="browser">
+                <div className="browser-bar">
+                  <span className="browser-dots"><i /><i /><i /></span>
+                  <span className="browser-url">{liveUrl}</span>
                 </div>
-              )}
-              <RunDetail
-                run={run}
-                token={token}
-                onError={setError}
-                liveSteps={unfinished ? steps : null}
-              />
-            </>
-          ) : (
+                <div className="screen">
+                  <img src={frame} alt="live browser view" />
+                </div>
+              </div>
+            )}
+            <RunDetail
+              run={run}
+              token={token}
+              onError={setError}
+              liveSteps={unfinished ? steps : null}
+              layout="page"
+            />
+          </div>
+        ) : (
+          <section className="card">
             <EmptyState icon={History}>Loading run…</EmptyState>
-          )}
-        </section>
-      )}
+          </section>
+        ))}
     </>
   );
 }

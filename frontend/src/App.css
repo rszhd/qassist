@@ -640,5 +640,5 @@ select {
 /* A rule inside a card. The card's gap supplies the space above it and this
    supplies the space below, so every divider in the app — this, the run
    detail's goal, the suites block — has the same air on both sides. */
-.card > .hint, .detail-goal, .suites { padding-top: var(--s3); border-top: 1px solid var(--border); }
+.card > .hint, .goal-block, .suites { padding-top: var(--s3); border-top: 1px solid var(--border); }
 

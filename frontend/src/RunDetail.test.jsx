@@ -40,4 +40,24 @@ describe('RunDetail', () => {
     expect(screen.getByText('Pass')).toBeTruthy();
     expect(screen.getByText(run.goal)).toBeTruthy();
   });
+
+  // The page arrangement drops the run's own title and status because RunPage's
+  // header already carries both — the duplication is the thing being prevented,
+  // so it's what the test pins.
+  it('renders the page layout without repeating the title RunPage already shows', () => {
+    render(
+      <MemoryRouter>
+        <RunDetail run={run} token="t" onError={() => {}} liveSteps={[]} layout="page" />
+      </MemoryRouter>
+    );
+
+    expect(screen.queryByText('Checkout smoke')).toBeNull();
+    expect(screen.queryByText('passed')).toBeNull();
+
+    // Same blocks as the panel, rearranged — not a second copy of them.
+    expect(screen.getByText('Goal')).toBeTruthy();
+    expect(screen.getAllByText(run.goal)).toHaveLength(1);
+    expect(screen.getByText('Pass')).toBeTruthy();
+    expect(screen.getByText('PDF report')).toBeTruthy();
+  });
 });

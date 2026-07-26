@@ -255,17 +255,55 @@ button.row-main { background: transparent; border: 0; padding: 0; color: inherit
    are full sentences. At 300px a goal wraps to four lines and the URL fact
    ellipsises; 440 is where both stop. The list beside it is short rows and
    gives the width up cheaply. */
-.history { display: grid; grid-template-columns: 1fr 440px; gap: var(--s4); align-items: start; }
-.projects { display: grid; grid-template-columns: var(--col-side) 1fr; gap: var(--s4); align-items: start; }
+/* `minmax(0, 1fr)`, not `1fr`: a bare `1fr` track floors at its content's
+   min-content width, and `.row-sub` is `white-space: nowrap`, so a row's
+   min-content is the *whole* goal string. One long goal then widens the track
+   past the viewport and the page scrolls sideways instead of the goal
+   ellipsising. The 0 lets the track shrink so the ellipsis can do its job. */
+.history { display: grid; grid-template-columns: minmax(0, 1fr) 440px; gap: var(--s4); align-items: start; }
+.projects { display: grid; grid-template-columns: var(--col-side) minmax(0, 1fr); gap: var(--s4); align-items: start; }
 @media (max-width: 900px) {
   .history, .projects { grid-template-columns: 1fr; }
 }
 .hist-detail, .proj-list { position: sticky; top: var(--sticky-top); }
 
-/* The run permalink (US-030): the same panel, given a page. Capped rather than
-   full-bleed — it is a column of facts and one paragraph of goal, and 720 is
-   where the goal stops running past a comfortable measure. */
-.run-page { max-width: 720px; }
+/* The run permalink (US-030). No cap: it takes the page width like every other
+   view, and the goal's own measure is held by `.detail-goal`'s `max-width`
+   rather than by starving the card. The live frame is 16:9 and carries its own
+   frame, so it sits above the columns as itself rather than inside a third
+   card; the recording plays inside the reading column instead, next to the
+   goal and the step log it illustrates. */
+.run-page { display: flex; flex-direction: column; gap: var(--s4); }
+/* The page splits into a reading column for the goal and what happened, and a
+   rail for the things that are one line each — the goal is a textarea, so
+   people paste whole test cases into it, and in one column a long one pushed
+   the facts and the log a screen apart. The rail track carries the card's own
+   padding on top of `--col-side`, so the rail's *content* is still the
+   flanking-column width the token names; without it the three stats lose 32px
+   and drop to a 2+1 grid. `.detail-main` and `.detail-side` are cards, so
+   their column direction, gap and padding all come from `.card` — this only
+   places them. */
+.run-detail-page {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) calc(var(--col-side) + var(--s4) * 2);
+  gap: var(--s4); align-items: start;
+}
+/* The rail outlives the reading column: a long activity log scrolls for
+   screens, and the verdict and the report button are what you came back up
+   for. Same offset as History's detail column. */
+.detail-side { position: sticky; top: var(--sticky-top); }
+/* The rail is narrower than the fact list's two columns want, so the facts
+   stack there — the URL gets the rail's full width instead of what's left of
+   it. It still truncates to one line, and the `title` carries the whole thing. */
+.detail-side .detail-facts { grid-template-columns: 1fr; gap: var(--s05); }
+.detail-side .detail-facts dt { font-size: var(--t-sm); }
+@media (max-width: 900px) {
+  .run-detail-page { grid-template-columns: 1fr; }
+  /* Stacked, the rail goes above the reading column rather than after it: the
+     verdict is the first thing the page is asked, and left in DOM order it
+     landed under an activity log that can run for screens. */
+  .detail-side { position: static; order: -1; }
+}
 
 /* The CI command shown for one module, suite or project. A command is read
    line by line, so it sits at the wider line height and scrolls sideways
@@ -305,7 +343,38 @@ button.row-main { background: transparent; border: 0; padding: 0; color: inherit
   background: var(--sunken); border: 1px solid var(--border); color: var(--muted);
 }
 .var-chip b { font-weight: 600; color: var(--text); }
-.detail-goal { font-size: var(--t-base); line-height: 1.6; color: var(--text); }
+/* Each free-text block stacks its heading, its prose and (for the goal) its
+   toggle. */
+.goal-block, .result-block { display: flex; flex-direction: column; align-items: flex-start; gap: var(--s15); }
+/* `pre-wrap`, because the goal is typed into a textarea: a pasted test case
+   arrives with its line breaks and its numbering, and collapsing that to one
+   run-on paragraph loses the only structure the author gave it. The measure is
+   capped in ch rather than px — it is prose, and the column it sits in is as
+   wide as the page.
+
+   The goal is also the only field here with no length limit, so it is the only
+   thing that can push the step log off the bottom of the column: collapsed it
+   is capped at four lines, which a written-out goal reads in two or three at
+   the panel's width. The toggle only renders when the text actually exceeds
+   the cap — RunDetail measures that. */
+.detail-goal {
+  font-size: var(--t-base); line-height: 1.6; color: var(--text);
+  white-space: pre-wrap; overflow-wrap: anywhere; max-width: 68ch;
+}
+.detail-goal:not(.open) {
+  display: -webkit-box; -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4; line-clamp: 4; overflow: hidden;
+}
+/* The panel clamps hard because the goal is one block among several in a
+   narrow column. The page is where you go to actually read it, so it gets
+   twelve lines before the fold — enough for a pasted case to show its shape,
+   short enough that the activity log stays on the first screen. */
+.run-detail-page .detail-goal:not(.open) { -webkit-line-clamp: 12; line-clamp: 12; }
+/* In the reading column every block carries its own head, so the divider that
+   separates the goal from the facts in the panel is redundant here — and since
+   a shown recording can sit above it, a `:first-child` rule would make the
+   divider blink in and out as the recording is toggled. */
+.detail-main > .goal-block { padding-top: 0; border-top: 0; }
 .detail-screen { margin: 0; }
 
 /* Inline row editors (rename a project/module, edit a suite's membership). */

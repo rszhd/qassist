@@ -15,4 +15,7 @@ export default defineConfig({
     },
   },
   build: { outDir: 'dist' },
+  // Each test file still picks its own environment with a `@vitest-environment`
+  // docblock; this only fills the gaps jsdom leaves in the browser APIs.
+  test: { setupFiles: ['./src/test-setup.js'] },
 });
