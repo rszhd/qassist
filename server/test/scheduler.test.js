@@ -119,7 +119,7 @@ test('a due schedule fires its test and advances to the next slot', async () => 
   const scheduleId = await makeSchedule({ test_id: testId });
 
   const result = await tick(at('2026-07-23T02:00:30'));
-  assert.deepEqual(result, { fired: 1, runs: 1, skipped: 0, blocked: 0, keyless: 0 });
+  assert.deepEqual(result, { fired: 1, runs: 1, skipped: 0, blocked: 0, pending: 0, keyless: 0 });
 
   const runs = await runRows();
   assert.equal(runs.length, 1);
@@ -136,7 +136,7 @@ test('a schedule whose slot has not arrived is left alone', async () => {
   await makeSchedule({ test_id: testId });
 
   const result = await tick(at('2026-07-23T01:59'));
-  assert.deepEqual(result, { fired: 0, runs: 0, skipped: 0, blocked: 0, keyless: 0 });
+  assert.deepEqual(result, { fired: 0, runs: 0, skipped: 0, blocked: 0, pending: 0, keyless: 0 });
   assert.equal((await runRows()).length, 0);
 });
 
@@ -146,7 +146,7 @@ test('the claim means a second tick in the same minute does not re-fire', async 
 
   await tick(at('2026-07-23T02:00:30'));
   const again = await tick(at('2026-07-23T02:00:31'));
-  assert.deepEqual(again, { fired: 0, runs: 0, skipped: 0, blocked: 0, keyless: 0 });
+  assert.deepEqual(again, { fired: 0, runs: 0, skipped: 0, blocked: 0, pending: 0, keyless: 0 });
   assert.equal((await runRows()).length, 1);
 });
 
@@ -155,7 +155,7 @@ test('a disabled schedule never fires', async () => {
   await makeSchedule({ test_id: testId }, { enabled: false });
 
   const result = await tick(at('2026-07-23T09:00'));
-  assert.deepEqual(result, { fired: 0, runs: 0, skipped: 0, blocked: 0, keyless: 0 });
+  assert.deepEqual(result, { fired: 0, runs: 0, skipped: 0, blocked: 0, pending: 0, keyless: 0 });
 });
 
 test('an undated schedule is dated rather than fired', async () => {
@@ -163,7 +163,7 @@ test('an undated schedule is dated rather than fired', async () => {
   const scheduleId = await makeSchedule({ test_id: testId }, { next_run_at: null });
 
   const result = await tick(at('2026-07-23T09:00'));
-  assert.deepEqual(result, { fired: 0, runs: 0, skipped: 0, blocked: 0, keyless: 0 });
+  assert.deepEqual(result, { fired: 0, runs: 0, skipped: 0, blocked: 0, pending: 0, keyless: 0 });
   assert.equal((await runRows()).length, 0);
 
   const row = await scheduleRow(scheduleId);
@@ -192,7 +192,7 @@ test('a scheduled suite fires one run per member, in suite order', async () => {
   await makeSchedule({ suite_id: s[0].id });
 
   const result = await tick(at('2026-07-23T02:00:30'));
-  assert.deepEqual(result, { fired: 1, runs: 2, skipped: 0, blocked: 0, keyless: 0 });
+  assert.deepEqual(result, { fired: 1, runs: 2, skipped: 0, blocked: 0, pending: 0, keyless: 0 });
   assert.deepEqual(
     (await runRows()).map((r) => r.test_id),
     [b, a]
@@ -214,7 +214,7 @@ test('a scheduled module fires its tests', async () => {
   await makeSchedule({ module_id: m[0].id });
 
   const result = await tick(at('2026-07-23T02:00:30'));
-  assert.deepEqual(result, { fired: 1, runs: 2, skipped: 0, blocked: 0, keyless: 0 });
+  assert.deepEqual(result, { fired: 1, runs: 2, skipped: 0, blocked: 0, pending: 0, keyless: 0 });
 });
 
 test('a test already in flight is skipped while its siblings still run', async () => {
@@ -235,7 +235,7 @@ test('a test already in flight is skipped while its siblings still run', async (
   );
 
   const result = await tick(at('2026-07-23T02:00:30'));
-  assert.deepEqual(result, { fired: 1, runs: 1, skipped: 1, blocked: 0, keyless: 0 });
+  assert.deepEqual(result, { fired: 1, runs: 1, skipped: 1, blocked: 0, pending: 0, keyless: 0 });
 
   // Status can't tell the new run from the stuck one — both read 'running' —
   // so count rows per test instead.
@@ -257,7 +257,7 @@ test('an empty target fires nothing but still advances', async () => {
   const scheduleId = await makeSchedule({ project_id: p[0].id });
 
   const result = await tick(at('2026-07-23T02:00:30'));
-  assert.deepEqual(result, { fired: 0, runs: 0, skipped: 0, blocked: 0, keyless: 0 });
+  assert.deepEqual(result, { fired: 0, runs: 0, skipped: 0, blocked: 0, pending: 0, keyless: 0 });
   const row = await scheduleRow(scheduleId);
   assert.equal(new Date(row.next_run_at).getTime(), at('2026-07-24T02:00'));
 });
@@ -282,11 +282,11 @@ test('a schedule left behind by downtime fires once, then moves to the future', 
   );
 
   const result = await tick(at('2026-07-23T09:00'));
-  assert.deepEqual(result, { fired: 1, runs: 1, skipped: 0, blocked: 0, keyless: 0 }, 'fires once, not once per missed day');
+  assert.deepEqual(result, { fired: 1, runs: 1, skipped: 0, blocked: 0, pending: 0, keyless: 0 }, 'fires once, not once per missed day');
 
   const row = await scheduleRow(scheduleId);
   assert.equal(new Date(row.next_run_at).getTime(), at('2026-07-24T02:00'));
-  assert.deepEqual(await tick(at('2026-07-23T09:01')), { fired: 0, runs: 0, skipped: 0, blocked: 0, keyless: 0 });
+  assert.deepEqual(await tick(at('2026-07-23T09:01')), { fired: 0, runs: 0, skipped: 0, blocked: 0, pending: 0, keyless: 0 });
 });
 
 test('a burst of scheduled tests queues instead of exceeding the concurrency cap', async () => {
@@ -307,7 +307,7 @@ test('a burst of scheduled tests queues instead of exceeding the concurrency cap
     for (const name of ['a', 'b', 'c', 'd', 'e']) await makeTest(name, { project_id: p[0].id });
     await makeSchedule({ project_id: p[0].id });
 
-    assert.deepEqual(await tick(at('2026-07-23T02:00:30')), { fired: 1, runs: 5, skipped: 0, blocked: 0, keyless: 0 });
+    assert.deepEqual(await tick(at('2026-07-23T02:00:30')), { fired: 1, runs: 5, skipped: 0, blocked: 0, pending: 0, keyless: 0 });
     assert.deepEqual(counts(), { active: 2, queued: 3 }, 'five at once, two slots');
     assert.equal((await runRows()).length, 5, 'the queued three are persisted too');
   } finally {

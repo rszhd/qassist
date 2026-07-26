@@ -18,6 +18,7 @@ import {
   applySubscriptionEvent,
 } from '../billing.js';
 import { getUserOpenaiKeyStatus } from '../openaiKey.js';
+import { activationStateFor, noteSubscriptionEvent } from '../activation.js';
 import { h } from './helpers.js';
 
 /** @param {{ checkToken: import('express').RequestHandler }} deps */
@@ -31,11 +32,18 @@ export function billingRouter({ checkToken }) {
     '/status',
     h(async (_req, res) => {
       const state = await billingStateFor(currentUserId());
+      const activation = activationStateFor(state);
       res.json({
         entitled: state.entitled,
         exempt: state.exempt,
         status: state.status,
         current_period_end: state.current_period_end,
+        // US-054's fourth onboarding step. Flat fields rather than a nested
+        // object so a client that predates them reads undefined — falsy, which
+        // is exactly the pre-US-054 behaviour. Always false when the window is
+        // off, so the wall has nothing to render.
+        activation_pending: activation.pending,
+        activation_deadline: activation.deadline ? activation.deadline.toISOString() : null,
         // Set only while a cancellation is scheduled: the status is still
         // 'active', so this is the one thing that tells the customer it took.
         cancel_at: state.cancel_at,
@@ -121,7 +129,9 @@ export function billingWebhookHandler(req, res, next) {
 
   (async () => {
     if (!(await claimEvent(event))) return res.json({ received: true, duplicate: true });
-    await applySubscriptionEvent(event);
+    // What was applied, not what arrived: a stale event writes nothing and must
+    // not start an activation window either (US-054).
+    await noteSubscriptionEvent(await applySubscriptionEvent(event));
     res.json({ received: true });
   })().catch(next);
 }

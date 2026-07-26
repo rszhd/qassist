@@ -155,6 +155,7 @@ Set in `.env` (see `.env.example`):
 | `OPERATOR_EMAIL` | `operator@qassist.local` | Seeds the single account row, and is the last-resort recipient after `NOTIFY_EMAILS`. The default is not a deliverable address |
 | `STRIPE_SECRET_KEY`<br>`STRIPE_WEBHOOK_SECRET`<br>`STRIPE_PRICE_ID` | — | Subscription billing (see [Billing](#billing)). All blank = billing off, every run free — the self-host default. Also needs `PUBLIC_BASE_URL`, the control plane and `AUTH_ENABLED`; missing any one leaves the instance free. `/api/health` reports this as `billing` |
 | `BILLING_EXEMPT_EMAILS` | `OPERATOR_EMAIL` | Comma-separated accounts that run without subscribing |
+| `ACTIVATION_SLA_HOURS` | — | Hours a paid account waits while the operator adds capacity for it (see [Billing](#billing)). Unset or `0` = off: accounts run the moment they are entitled. Turning it off releases anyone already waiting. Needs billing on |
 
 Per-run artifacts (screenshots, `recording.mp4`, `report_data.json`,
 `report.pdf`) are written to
@@ -388,6 +389,43 @@ Only one plan exists: one recurring Stripe price, taken through Checkout, with
 changes and cancellation handled by the Stripe Customer Portal. There is no
 payment UI of our own, and no `stripe` dependency — the integration is three
 form-encoded `POST`s and one HMAC.
+
+#### The activation window
+
+A run is a real Chromium on a box you sized to a budget, not to demand. So
+`ACTIVATION_SLA_HOURS` lets a subscription mean *"you may run once this
+instance has room for you"* — a paid account waits that many hours while you
+add the capacity it just bought, and is told so before it pays.
+
+**Unset or `0` is off, and that is the default**: accounts run the moment they
+are entitled, exactly as they did before this existed. Turning it off again
+releases everyone currently waiting, so an instance that has outgrown rationing
+just drops the line and restarts.
+
+With it on, an account that has paid but has no capacity yet sees a fourth
+onboarding step with its deadline instead of the app, and every run trigger
+answers `503` with `Retry-After` and `activation_pending: true` — not the
+`402`: they have paid, nothing is wrong with the request, and the right
+instruction to a CI runner is come back later. Reads stay open throughout. Its
+schedules are claimed but do not fire, so no backlog builds up to fire at once.
+
+Your half is a script, run where the work already is — on the box, beside the
+resize:
+
+```bash
+npm run activate                    # who is waiting, and how long each has left
+npm run activate -- you@example.com # give that one account its capacity
+```
+
+You are mailed at `OPERATOR_EMAIL` when someone starts waiting, with the
+deadline; they are mailed when you activate them. **Nothing auto-activates at
+the deadline** — a timer that flipped the flag would hand a customer a box
+nobody upgraded, which is the failure this exists to prevent. If the window
+cannot be met, the honest lever is Stripe: refund or cancel.
+
+Activation is sticky and is written by nothing but that script: a customer who
+cancels and resubscribes is not re-provisioned, and no webhook can put an
+account that has been running for a month back behind the wall.
 
 **Testing it locally** (Stripe test mode — nothing here touches live money):
 

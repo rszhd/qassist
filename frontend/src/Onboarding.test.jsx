@@ -158,6 +158,82 @@ describe('Onboarding wall (US-053)', () => {
     expect(await screen.findByText(/No OpenAI key stored/)).toBeTruthy();
   });
 
+  it('keeps a paid account behind a fourth step until it has capacity (US-054)', async () => {
+    const deadline = new Date('2026-07-27T14:20:00Z');
+    stubApi({
+      keySet: true,
+      billing: {
+        entitled: true,
+        exempt: false,
+        status: 'active',
+        current_period_end: null,
+        manageable: true,
+        activation_pending: true,
+        activation_deadline: deadline.toISOString(),
+      },
+    });
+    renderApp();
+
+    // Entitlement alone no longer drops the wall — they have paid, and this is
+    // still not the app.
+    expect(await screen.findByText('Preparing your workspace')).toBeTruthy();
+    expect(screen.queryByText('History')).toBeNull();
+    // Never a second ask for money: the paywall's affordances are gone.
+    expect(screen.queryByRole('button', { name: 'Subscribe' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Resubscribe' })).toBeNull();
+    // The promise is stated, in the reader's timezone, or it is not a promise.
+    const stated = deadline.toLocaleString(undefined, {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    expect(screen.getByText(stated)).toBeTruthy();
+    expect(screen.getByText(/we'll email you/i)).toBeTruthy();
+  });
+
+  it('shows no fourth step on a billing instance with no activation window', async () => {
+    // The server simply omits the field. An instance that already charges must
+    // not grow a wall because we shipped this.
+    stubApi({
+      keySet: true,
+      billing: { entitled: true, exempt: false, status: 'active', current_period_end: null, manageable: true },
+    });
+    renderApp();
+
+    expect(await screen.findByText('History')).toBeTruthy();
+    expect(screen.queryByText('Preparing your workspace')).toBeNull();
+  });
+
+  it('drops the wall when the operator activates, with no reload (US-054)', async () => {
+    const { state } = stubApi({
+      keySet: true,
+      billing: {
+        entitled: true,
+        exempt: false,
+        status: 'active',
+        current_period_end: null,
+        manageable: true,
+        activation_pending: true,
+        activation_deadline: null,
+      },
+    });
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    renderApp();
+
+    expect(await screen.findByText('Preparing your workspace')).toBeTruthy();
+    // No deadline on file is still a wall — just one that promises a mail
+    // rather than a time.
+    expect(screen.getByText(/We'll email you the moment it's ready/)).toBeTruthy();
+
+    state.billing = { ...state.billing, activation_pending: false };
+    await vi.advanceTimersByTimeAsync(30_000);
+
+    expect(await screen.findByText('History')).toBeTruthy();
+    vi.useRealTimers();
+  });
+
   it('leaves a self-hosted instance exactly as it was', async () => {
     const { calls } = stubApi({
       health: { auth: false, db: true, mail: false },

@@ -129,6 +129,12 @@ before(async () => {
   process.env.PUBLIC_BASE_URL = 'https://qassist.test';
   // Left unset on purpose: the exempt list DEFAULTS to OPERATOR_EMAIL (D6).
   delete process.env.BILLING_EXEMPT_EMAILS;
+  // US-054, and load-bearing for this whole file: an existing billing instance
+  // that never asked for the activation window must not grow one. Every 200
+  // below is a user whose activated_at is null, so this one deletion is what
+  // makes the rest of the file the regression proof. The window ON is
+  // activation-gate.test.js, in its own process.
+  delete process.env.ACTIVATION_SLA_HOURS;
   delete process.env.AUTH_MODE;
   delete process.env.MAX_CONCURRENT_PER_USER;
   // BYOK-only (US-039): a subscriber funds runs with their stored key, so every
@@ -510,6 +516,43 @@ test('a cancelled customer keeps their data: history, detail, steps, report and 
     // Billing status above all must stay readable — it is how they resubscribe.
     assert.equal((await request(app).get('/api/billing/status').set(as)).status, 200, `${label}: billing status`);
   }
+});
+
+// --- US-054: ACTIVATION_SLA_HOURS unset changes nothing here -----------------
+
+test('with no activation window configured, a paid account runs the instant it pays', async () => {
+  await setSubscription(PAID, 'active');
+  const { rows } = await pool.query('select activated_at from users where id = $1', [PAID]);
+  assert.equal(
+    rows[0].activated_at,
+    null,
+    'the column exists (010) and is null — which is precisely the state US-054 walls when it is switched on'
+  );
+  assert.equal(
+    (await trigger(PAID, RUN_PATHS[0][1])).status,
+    200,
+    'an instance that already charges must not acquire a hold on its next customer because we upgraded it'
+  );
+  await drain();
+
+  // The same assertion read the other way round, and the reason "off" resolves
+  // to ACTIVATED rather than to "skip the check": an operator who bought a
+  // bigger box deletes ACTIVATION_SLA_HOURS from .env and restarts, and this is
+  // an account that was left mid-window by that restart. It must simply run —
+  // turning the feature off cannot leave a backlog to activate by hand.
+  await pool.query('update subscriptions set activation_requested_at = $2 where user_id = $1', [
+    PAID,
+    new Date(Date.now() - 1000),
+  ]);
+  assert.equal((await trigger(PAID, RUN_PATHS[0][1])).status, 200, 'an interrupted window releases everyone in it');
+  await drain();
+});
+
+test('and /api/billing/status reports no pending activation for anybody', async () => {
+  await setSubscription(PAID, 'active');
+  const res = await request(app).get('/api/billing/status').set(asUser(PAID)).expect(200);
+  assert.equal(res.body.activation_pending, false, 'no fourth step on the wall');
+  assert.equal(res.body.activation_deadline, null, 'and no promise to keep');
 });
 
 // --- the surface the CTA reads ----------------------------------------------

@@ -141,6 +141,18 @@ async function recoverStaleRuns(p) {
 }
 
 /**
+ * Point this module at an existing pool and nothing else — no migrations, no
+ * seed, no recovery pass. What a CLI script needs: initDb() also marks every
+ * queued/running row as errored, which is the app's job at boot and would kill
+ * live runs if a script did it on a box that is serving.
+ * @param {pg.Pool} p
+ */
+export function attachDb(p) {
+  pool = p;
+  return pool;
+}
+
+/**
  * Connect + migrate + seed + recover. Idempotent. Tests inject a pre-migrated
  * pg-mem pool; production connects via DATABASE_URL. Returns null when
  * neither is available (legacy in-memory mode).

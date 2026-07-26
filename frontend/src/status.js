@@ -31,6 +31,25 @@ export function formatWhen(iso) {
   });
 }
 
+/**
+ * A promised time, in the reader's own words and their own timezone —
+ * "Mon 27 Jul, 14:20". Longer than formatWhen on purpose: this is a commitment
+ * being made to a customer (US-054's activation window), not a log line, and
+ * the weekday is what makes "tomorrow afternoon" legible at a glance.
+ */
+export function formatDeadline(iso) {
+  if (!iso) return null;
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return null;
+  return at.toLocaleString(undefined, {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
 /** Wall-clock run length; '—' until the run has both ends. */
 export function formatDuration(startedAt, finishedAt) {
   if (!startedAt || !finishedAt) return '—';

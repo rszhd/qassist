@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { Check } from 'lucide-react';
 import { Button } from './ui.jsx';
 import { api } from './api.js';
+import { formatDeadline } from './status.js';
 import { startCheckout } from './Billing.jsx';
 import OpenaiKey from './OpenaiKey.jsx';
 
@@ -18,6 +19,9 @@ import OpenaiKey from './OpenaiKey.jsx';
 
 const CONFIRM_TRIES = 15;
 const CONFIRM_INTERVAL_MS = 2000;
+// The activation wait is measured in hours, so this poll only has to be faster
+// than the customer's patience with a stale tab, not faster than the operator.
+const WAIT_POLL_MS = 30_000;
 
 /** One row of the checklist. `state` drives both the marker and the affordance. */
 function Step({ index, title, state, children }) {
@@ -47,6 +51,12 @@ export default function Onboarding({ email, token, keyStatus, onReloadKey, billi
 
   const keyDone = !!keyStatus?.set;
   const paid = !!billing?.entitled;
+  // US-054: the account has paid and is waiting for the operator to add the
+  // capacity it just bought. Rendered only while it is true — an instance with
+  // no activation window never sends it, so the checklist is three steps there
+  // exactly as it was.
+  const waiting = !!billing?.activation_pending;
+  const readyBy = waiting ? formatDeadline(billing?.activation_deadline) : null;
 
   const reloadBilling = useRef(onReloadBilling);
   reloadBilling.current = onReloadBilling;
@@ -59,6 +69,16 @@ export default function Onboarding({ email, token, keyStatus, onReloadKey, billi
     }, CONFIRM_INTERVAL_MS);
     return () => clearInterval(timer);
   }, [confirming, paid]);
+
+  // While waiting for capacity, keep asking — unhurriedly. The promise is "we'll
+  // email you", so this is not how they find out; it is so that an operator who
+  // activates while the customer has the tab open sees the wall fall by itself
+  // rather than telling them to refresh.
+  useEffect(() => {
+    if (!waiting) return undefined;
+    const timer = setInterval(() => reloadBilling.current(), WAIT_POLL_MS);
+    return () => clearInterval(timer);
+  }, [waiting]);
 
   async function subscribe() {
     setBusy(true);
@@ -143,6 +163,24 @@ export default function Onboarding({ email, token, keyStatus, onReloadKey, billi
                 </>
               )}
             </Step>
+
+            {/* US-054. A wait that was promised is an onboarding step; the same
+                wait discovered as a queued run that never starts is a refund. */}
+            {waiting && (
+              <Step index={4} title="Preparing your workspace" state="active">
+                <span className="onboard-step-note">
+                  A run drives a real browser on this instance, so we add capacity for your account
+                  before your first one.{' '}
+                  {readyBy ? (
+                    <>
+                      Ready by <strong>{readyBy}</strong> — we'll email you.
+                    </>
+                  ) : (
+                    <>We'll email you the moment it's ready.</>
+                  )}
+                </span>
+              </Step>
+            )}
           </ol>
 
           {error && <p className="auth-error">{error}</p>}

@@ -4,7 +4,8 @@ import { demoMode } from '../auth.js';
 import { runTests } from '../runs.js';
 import { validOpenaiKeyShape } from '../crypto.js';
 import { getUserOpenaiKey, resolveRunKey } from '../openaiKey.js';
-import { billingEnabled, billingStateFor } from '../billing.js';
+import { billingEnabled } from '../billing.js';
+import { runGateFor, retryAfterSeconds } from '../activation.js';
 
 /** Triggers a caller may set; 'schedule' is US-010's, not callers'. */
 export const TRIGGERS = new Set(['ui', 'api', 'ci']);
@@ -64,32 +65,56 @@ export function requireAgentKey(req, res, next) {
 }
 
 /**
- * The billing gate (US-022): refuse to start a run for an account without an
- * active subscription. A no-op unless billingEnabled(), so on a self-hosted
- * instance — and in the demo sandbox, where authEnabled() is false — this
- * returns before it can touch anything.
+ * The run-start gate: refuse an account that may not start a run, for either of
+ * the two reasons it may not. A no-op unless billingEnabled(), so on a
+ * self-hosted instance — and in the demo sandbox, where authEnabled() is false —
+ * this returns before it can touch anything.
  *
- * Sits *before* requireAgentKey on every run-starting route: an unpaid caller
- * with no OpenAI key should hear "pay", not "configure a key" they would then
- * still be refused for.
+ * Both gates, one middleware and one database read, deliberately (US-054):
+ * every route that has the billing check therefore has the activation check
+ * too, and "one of the start paths missed it" stops being a thing that can
+ * happen by omission. Entitlement answers first — an account that has not paid
+ * hears "pay", not "wait for capacity you never bought".
+ *
+ * Sits *before* requireAgentKey on every run-starting route: a caller who is
+ * blocked here should hear the thing that is actually blocking them, not
+ * "configure a key" they would then still be refused for.
  *
  * Unlike US-028's per-user cap this refuses the whole request rather than
- * partial-accepting a batch — entitlement doesn't vary between the members of
- * a suite, so there is nothing to accept.
+ * partial-accepting a batch — neither entitlement nor activation varies between
+ * the members of a suite, so there is nothing to accept.
  * @type {import('express').RequestHandler}
  */
 export function requireEntitled(req, res, next) {
   if (!billingEnabled()) return next();
   (async () => {
-    const state = await billingStateFor(currentUserId());
-    if (state.entitled) return next();
+    const gate = await runGateFor(currentUserId());
+    if (gate.allow) return next();
+
+    if (gate.reason === 'activation') {
+      const { activation } = gate;
+      // 503, not the 402: the caller has paid, nothing is wrong with their
+      // request, and the correct instruction to a CI runner is come back later.
+      // `activation_pending` is what distinguishes this from the keyless 503,
+      // the same way `billing_required` distinguishes the 402.
+      res.set('Retry-After', String(retryAfterSeconds(activation)));
+      res.status(503).json({
+        error:
+          'your workspace is being prepared — this instance is adding capacity for your account, ' +
+          'and we will email you the moment it is ready',
+        activation_pending: true,
+        activation_deadline: activation.deadline ? activation.deadline.toISOString() : null,
+      });
+      return;
+    }
+
     // 402 rather than 403 so a CI caller can tell "you must pay" from "your
     // token is wrong". `subscription_status` lets the UI say "resubscribe"
     // rather than "subscribe" to someone who used to pay.
     res.status(402).json({
       error: 'an active subscription is required to start runs — subscribe in Settings',
       billing_required: true,
-      subscription_status: state.status,
+      subscription_status: gate.state.status,
     });
   })().catch(next);
 }

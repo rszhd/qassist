@@ -11,7 +11,7 @@
 import { db } from './db.js';
 import { demoMode } from './auth.js';
 import { runTests } from './runs.js';
-import { isEntitled } from './billing.js';
+import { runGateFor } from './activation.js';
 import { getUserOpenaiKey } from './openaiKey.js';
 import { nextSlot } from './schedule.js';
 
@@ -111,10 +111,11 @@ async function claim(schedule, now) {
 /**
  * One pass: fire every schedule whose slot has arrived.
  * @param {number} [now] injectable clock, for tests
- * @returns {Promise<{ fired: number, runs: number, skipped: number, blocked: number, keyless: number }>}
+ * @returns {Promise<{ fired: number, runs: number, skipped: number, blocked: number,
+ *                     pending: number, keyless: number }>}
  */
 export async function tick(now = Date.now()) {
-  if (!db()) return { fired: 0, runs: 0, skipped: 0, blocked: 0, keyless: 0 };
+  if (!db()) return { fired: 0, runs: 0, skipped: 0, blocked: 0, pending: 0, keyless: 0 };
 
   const { rows: due } = await db().query(
     `select ${COLS} from schedules
@@ -127,6 +128,10 @@ export async function tick(now = Date.now()) {
   let runs = 0;
   let skipped = 0;
   let blocked = 0;
+  // US-054: claimed but not fired because the owner is still in the activation
+  // window. Counted apart from `blocked` — they have paid, and conflating the
+  // two would hide a capacity backlog inside a billing statistic.
+  let pending = 0;
   let keyless = 0;
 
   for (const schedule of due) {
@@ -148,15 +153,27 @@ export async function tick(now = Date.now()) {
       continue;
     }
 
-    // Billing (US-022): a lapsed subscriber's schedules stop firing, but are
-    // never deleted or disabled. Checked *after* the claim, deliberately — the
-    // slot is consumed, so a lapsed month accumulates no backlog that all fires
-    // at once on resubscribe. Resubscribing simply resumes at the next slot.
-    // A no-op when billing is off: isEntitled() short-circuits to true.
-    if (!(await isEntitled(schedule.user_id))) {
-      blocked++;
+    // Billing (US-022) and the activation window (US-054): a lapsed
+    // subscriber's schedules stop firing, and so do a paid one's until the
+    // instance has room for them — but neither is ever deleted or disabled.
+    // Both checked *after* the claim, deliberately: the slot is consumed, so a
+    // lapsed month or a day of waiting accumulates no backlog that all fires at
+    // once the moment it resolves. It simply resumes at the next slot. The
+    // whole thing is a no-op when billing is off: runGateFor() short-circuits.
+    //
+    // This is also the path most likely to be forgotten (a schedule saved
+    // before subscribing is otherwise a way around both gates), which is why it
+    // asks the same one question the HTTP gate asks.
+    const gate = await runGateFor(schedule.user_id);
+    if (!gate.allow) {
+      const waiting = gate.reason === 'activation';
+      if (waiting) pending++;
+      else blocked++;
       console.log(
-        `schedule ${schedule.id.slice(0, 8)}: owner has no active subscription — slot skipped`
+        `schedule ${schedule.id.slice(0, 8)}: ` +
+          (waiting
+            ? 'owner is waiting for capacity — slot skipped'
+            : 'owner has no active subscription — slot skipped')
       );
       continue;
     }
@@ -208,7 +225,7 @@ export async function tick(now = Date.now()) {
     );
   }
 
-  return { fired, runs, skipped, blocked, keyless };
+  return { fired, runs, skipped, blocked, pending, keyless };
 }
 
 /** Tick every TICK_MS, starting now. Unref'd so it never holds the process open. */

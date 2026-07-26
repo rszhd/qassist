@@ -186,6 +186,44 @@ is already there. There is no separate migrate step and no down-migration — so
 tag that carries a migration should reach production only after the same tag has
 started cleanly against a *populated* database, which is what staging is for.
 
+## Adding capacity for a new subscriber
+
+Production runs with `ACTIVATION_SLA_HOURS=24` (US-054), so a paid account
+waits up to a day while the box is resized for it rather than competing for
+`MAX_CONCURRENT_SESSIONS` the moment its card clears. Nothing auto-activates:
+the flag is set by hand, here, beside the resize it pays for.
+
+You are mailed at `OPERATOR_EMAIL` the moment someone starts waiting, with the
+deadline. Then:
+
+```sh
+# 1. who is waiting, and how long each has left
+docker compose -p qassist -f docker-compose.yml -f docker-compose.prod.yml \
+  exec qassist npm --prefix /app/server run activate
+
+# 2. resize the box for them — the actual work. Then raise the cap it bought:
+#    .env: MAX_CONCURRENT_SESSIONS=…
+docker compose -p qassist -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+# 3. only now, let them in. They are emailed; the wall falls in their open tab.
+docker compose -p qassist -f docker-compose.yml -f docker-compose.prod.yml \
+  exec qassist npm --prefix /app/server run activate -- them@example.com
+```
+
+Step 3 before step 2 is the one mistake worth naming: it hands a customer a box
+nobody upgraded, which is the failure this window exists to prevent. **If the
+deadline cannot be met, the lever is Stripe** — refund or cancel — not a flag
+set on an empty room.
+
+The address must match exactly (case and spacing aside); there is no fuzzy
+match, because activating the wrong account is not something the script can
+undo. Running it twice is harmless and mails nobody a second time.
+
+**To stop rationing capacity altogether**, once the box is big enough: delete
+`ACTIVATION_SLA_HOURS` from `.env` and bring the stack up. Everyone currently
+in the window is released by that restart — there is no backlog to work
+through, and no account is left half-provisioned.
+
 ## Staging
 
 `staging.qassist.run` is **the same box and the same two compose files** as

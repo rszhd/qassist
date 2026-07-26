@@ -178,11 +178,17 @@ export default function App() {
   // Forced onboarding (US-053), on billing instances only: an account that has
   // never paid gets the checklist instead of the app, since every run it could
   // start would be refused anyway. Held until both statuses have answered, so
-  // the app is never shown behind a wall that then drops over it. Entitlement
-  // alone is the condition — once it is true this screen is done for good, and
-  // a key removed later is the Run view's banner to raise, not grounds to lock
-  // someone out of their own history.
-  if (multi && health?.billing && billingStatus && keyStatus && !billingStatus.entitled) {
+  // the app is never shown behind a wall that then drops over it. A key removed
+  // later is the Run view's banner to raise, not grounds to lock someone out of
+  // their own history.
+  //
+  // US-054 amends US-053's "entitlement alone raises it" by exactly one
+  // condition: an account that has paid but has no capacity yet is still behind
+  // the wall, on a fourth step. `activation_pending` is absent on every instance
+  // without an activation window — and on every server that predates one — so
+  // this reads as the pre-US-054 condition there.
+  const walled = !billingStatus?.entitled || billingStatus?.activation_pending;
+  if (multi && health?.billing && billingStatus && keyStatus && walled) {
     return (
       <Onboarding
         email={me?.email}

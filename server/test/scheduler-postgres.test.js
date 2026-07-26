@@ -51,7 +51,7 @@ try {
   console.log(`scheduler-postgres: skipped — ${skip}`);
 }
 
-/** @type {(now?: number) => Promise<{ fired: number, runs: number, skipped: number, blocked: number, keyless: number }>} */
+/** @type {(now?: number) => Promise<{ fired: number, runs: number, skipped: number, blocked: number, pending: number, keyless: number }>} */
 let tick;
 let userId;
 
@@ -122,7 +122,7 @@ test('a next_run_at written by Postgres is still claimable', { skip }, async () 
   const firedAfter = Date.now();
   assert.deepEqual(
     await tick(),
-    { fired: 0, runs: 0, skipped: 0, blocked: 0, keyless: 0 },
+    { fired: 0, runs: 0, skipped: 0, blocked: 0, pending: 0, keyless: 0 },
     'claimed, ran nothing'
   );
 

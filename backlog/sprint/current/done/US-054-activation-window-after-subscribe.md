@@ -5,7 +5,7 @@ wait in a stated activation window before it can run, **so that** I have time
 to add the capacity it just bought instead of selling a subscription to a
 server that cannot serve it.
 
-- **Status:** 📋 Planned
+- **Status:** 🟡 Built 2026-07-26 — every criterion but the staging round trip
 - **Priority:** High — it is the difference between a slow first run and a bad one
 - **Estimate:** ~0.5–1 day
 - **Depends on:** US-022 (billing), US-053 (the checklist this extends), US-021 (accounts), US-012 (mail)
@@ -117,25 +117,62 @@ The subtle ways it breaks:
 - **Nothing for the demo sandbox.** `AUTH_MODE=demo` leaves `authEnabled()`
   false, so billing is off and this is off with it.
 
+## What was decided while building it
+
+Three things the story did not say, each surfaced by writing the assertions
+first and each reviewed before any implementation existed.
+
+**The two gates are one middleware and one database read.** `requireEntitled`
+answers entitlement and then activation off a single `billingStateFor`, rather
+than a second middleware beside it. The story's own second failure mode is "one
+of the seven start paths misses it"; making it structurally impossible for a
+route to have the billing check and miss this one is worth more than a name
+that reads truer. The scheduler asks the same one question (`runGateFor`).
+
+**`010` backfills.** It sets `activated_at = now()` for every user who already
+has a `subscriptions` row — any row, including a lapsed one: this box has
+already served them. Without the backfill, the day `qassist.run` sets
+`ACTIVATION_SLA_HOURS=24` every existing paying customer is walled at once,
+which is this story's third failure mode arriving by deployment instead of by
+webhook. A no-op on a self-host, where the table is empty.
+
+**Off releases, it does not strand.** `slaHours` falsy resolves to
+`activated: true` for everybody rather than to "skip the check". That is what
+lets every call site ask the same question with no `if (enabled)` around it —
+and it means an operator who has since bought a box big enough to stop
+rationing capacity deletes the line from `.env`, restarts, and everyone
+mid-window is released. There is no backlog to work through by hand and no
+account left half-provisioned. Asked for explicitly during the build; the
+behaviour is pinned in `billing-gate.test.js`, not left to the shape of the
+code.
+
+One smaller reading: the webhook stamps `activation_requested_at`
+**unconditionally**, and only the operator mail is gated on the window being
+on. Recording is a write, not the "no column read" the off path promises, and
+it means an instance that switches the window on later finds a correct clock
+rather than a null. The gate itself reads nothing when off, and the two columns
+ride along in `billingStateFor`'s existing join — so "no new query" holds
+literally.
+
 ## Acceptance criteria
 
-- [ ] With `ACTIVATION_SLA_HOURS=24`, an account that has just subscribed sees
+- [x] With `ACTIVATION_SLA_HOURS=24`, an account that has just subscribed sees
       the fourth step with its deadline, not the Run view
-- [ ] Every run-start path refuses that account with 503 + `Retry-After` +
+- [x] Every run-start path refuses that account with 503 + `Retry-After` +
       `activation_pending`, and its schedules are claimed but do not fire
-- [ ] Reads stay open throughout: history, run detail, report, recording,
+- [x] Reads stay open throughout: history, run detail, report, recording,
       Settings
-- [ ] `npm run activate` lists it as pending; `npm run activate -- <email>`
+- [x] `npm run activate` lists it as pending; `npm run activate -- <email>`
       activates it, the wall falls with no reload of anything but state, and
       the next run starts
-- [ ] Activation survives a subsequent `customer.subscription.updated`, a
+- [x] Activation survives a subsequent `customer.subscription.updated`, a
       cancel and a resubscribe — the account is never walled a second time
-- [ ] `activation_requested_at` is stamped once: a second entitling event does
+- [x] `activation_requested_at` is stamped once: a second entitling event does
       not move the deadline
-- [ ] `ACTIVATION_SLA_HOURS` unset: byte-for-byte today's behaviour on a
+- [x] `ACTIVATION_SLA_HOURS` unset: byte-for-byte today's behaviour on a
       billing instance — no fourth step, no 503, no new query
-- [ ] `STRIPE_*` unset: no wall, no gate, no mail, self-host unchanged
-- [ ] The operator is mailed on subscribe with the deadline; the customer is
+- [x] `STRIPE_*` unset: no wall, no gate, no mail, self-host unchanged
+- [x] The operator is mailed on subscribe with the deadline; the customer is
       mailed on activation
 - [ ] Proven on staging with a real Checkout round trip: subscribe → walled →
       activate over SSH → run

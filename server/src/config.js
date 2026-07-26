@@ -178,6 +178,18 @@ export const STRIPE_PRICE_ID = process.env.STRIPE_PRICE_ID || '';
 // Overridable so a test can point the transport at a local server instead of
 // stubbing fetch — the request that goes out is then the real one (as RESEND_API_URL).
 export const STRIPE_API_URL = (process.env.STRIPE_API_URL || 'https://api.stripe.com/v1').replace(/\/+$/, '');
+// The activation window (US-054): how long after subscribing an account waits
+// while the operator adds the capacity it just bought. Unset or 0 is off — no
+// fourth onboarding step, no gate, nothing read — so an instance that already
+// charges does not acquire a hold on its next customer because we upgraded it.
+// Only meaningful with billing on; activationEnabled() ANDs the two.
+//
+// Turning it off is a one-line .env change and a restart, and it RELEASES
+// everyone currently waiting rather than stranding them: off resolves to
+// "activated" for every account (activation.js), not to "skip the check". So an
+// operator who has since bought a box big enough to stop rationing capacity
+// deletes the line and never has to activate the backlog by hand.
+export const ACTIVATION_SLA_HOURS = parseInt(process.env.ACTIVATION_SLA_HOURS || '0', 10) || 0;
 // Accounts that run without subscribing. The operator must be able to
 // smoke-test production without buying their own product, and a self-hosting
 // org needs to exempt its own staff — an explicit, logged-in-config bypass

@@ -78,6 +78,16 @@ export function entitledFrom(sub, { now = Date.now() } = {}) {
   return Number.isFinite(end) && end > now;
 }
 
+/**
+ * Whether a status is one that entitles outright — which is also what starts
+ * US-054's activation window. Exported so activation.js can ask "was this the
+ * entitling event?" without reopening the set, and without importing back.
+ * @param {string|null|undefined} status
+ */
+export function isEntitlingStatus(status) {
+  return !!status && ENTITLED.has(status);
+}
+
 /** @param {string|null|undefined} email */
 export function isExempt(email) {
   return !!email && BILLING_EXEMPT_EMAILS.includes(email.toLowerCase());
@@ -96,10 +106,17 @@ export async function billingStateFor(userId) {
     current_period_end: null,
     cancel_at: null,
     customerId: null,
+    activated_at: null,
+    activation_requested_at: null,
   };
   if (!userId || !db()) return none;
+  // The two US-054 columns ride along rather than costing a second query: the
+  // run gate needs both verdicts, and "no new query when the window is off" is
+  // an acceptance criterion. Nothing here interprets them — activation.js does.
   const { rows } = await db().query(
-    `select u.email, s.status, s.current_period_end, s.cancel_at, s.stripe_customer_id
+    `select u.email, u.activated_at,
+            s.status, s.current_period_end, s.cancel_at, s.stripe_customer_id,
+            s.activation_requested_at
        from users u left join subscriptions s on s.user_id = u.id
       where u.id = $1`,
     [userId]
@@ -114,6 +131,8 @@ export async function billingStateFor(userId) {
     current_period_end: row.current_period_end ?? null,
     cancel_at: row.cancel_at ?? null,
     customerId: row.stripe_customer_id ?? null,
+    activated_at: row.activated_at ?? null,
+    activation_requested_at: row.activation_requested_at ?? null,
   };
 }
 
@@ -232,38 +251,46 @@ function fromUnix(seconds) {
  *
  * Anything else is ignored — the endpoint acknowledges every event it can
  * verify, so Stripe does not retry what we chose not to act on.
+ *
+ * Returns what was actually written, or null when nothing was (an event we
+ * ignore, a customer we don't know, or one refused as stale). The webhook route
+ * hands that to activation.js — a stale event must not start a window either.
  * @param {any} event
+ * @returns {Promise<{ userId: string, status: string, at: Date } | null>}
  */
 export async function applySubscriptionEvent(event) {
   const object = event?.data?.object || {};
   const at = new Date(Number(event?.created || 0) * 1000);
-  if (!Number.isFinite(at.getTime())) return;
+  if (!Number.isFinite(at.getTime())) return null;
 
   if (event.type === 'checkout.session.completed') {
-    if (!object.client_reference_id || !object.customer) return;
-    await writeSubscription({
-      userId: String(object.client_reference_id),
+    if (!object.client_reference_id || !object.customer) return null;
+    const userId = String(object.client_reference_id);
+    const status = object.payment_status === 'paid' ? 'active' : 'incomplete';
+    const written = await writeSubscription({
+      userId,
       customerId: String(object.customer),
       subscriptionId: object.subscription ? String(object.subscription) : null,
-      status: object.payment_status === 'paid' ? 'active' : 'incomplete',
+      status,
       periodEnd: null,
       at,
     });
-    return;
+    return written ? { userId, status, at } : null;
   }
 
-  if (!SUBSCRIPTION_EVENTS.has(event.type) || !object.customer) return;
+  if (!SUBSCRIPTION_EVENTS.has(event.type) || !object.customer) return null;
   const { rows } = await db().query(
     'select user_id from subscriptions where stripe_customer_id = $1',
     [String(object.customer)]
   );
-  if (!rows.length) return;
-  await writeSubscription({
+  if (!rows.length) return null;
+  const status =
+    event.type === 'customer.subscription.deleted' ? 'canceled' : String(object.status || 'incomplete');
+  const written = await writeSubscription({
     userId: rows[0].user_id,
     customerId: String(object.customer),
     subscriptionId: object.id ? String(object.id) : null,
-    status:
-      event.type === 'customer.subscription.deleted' ? 'canceled' : String(object.status || 'incomplete'),
+    status,
     periodEnd: fromUnix(periodEndOf(object)),
     // Always passed on these events — Stripe sends the field with a null when
     // nothing is scheduled, and that null is what clears a cancellation the
@@ -273,6 +300,7 @@ export async function applySubscriptionEvent(event) {
     cancelAt: fromUnix(object.cancel_at),
     at,
   });
+  return written ? { userId: rows[0].user_id, status, at } : null;
 }
 
 /**
@@ -292,6 +320,7 @@ export async function applySubscriptionEvent(event) {
  * Portal arrives as exactly that null.
  * @param {{ userId: string, customerId: string, subscriptionId: string|null,
  *           status: string, periodEnd: Date|null, cancelAt?: Date|null, at: Date }} fields
+ * @returns {Promise<boolean>} false when the event was refused as stale
  */
 async function writeSubscription({ userId, customerId, subscriptionId, status, periodEnd, cancelAt, at }) {
   // `undefined` is "this event does not carry the field": only
@@ -311,16 +340,17 @@ async function writeSubscription({ userId, customerId, subscriptionId, status, p
         and (last_event_at is null or last_event_at <= $6)`,
     params
   );
-  if (rowCount) return;
+  if (rowCount) return true;
   // Either there is no row yet (insert it) or the update was refused as stale
   // (the conflict then makes this a no-op, which is the point).
-  await db().query(
+  const inserted = await db().query(
     `insert into subscriptions
        (user_id, stripe_customer_id, stripe_subscription_id, status, current_period_end, last_event_at, cancel_at)
      values ($1, $2, $3::text, $4, $5::timestamptz, $6, case when $7::boolean then $8::timestamptz end)
      on conflict (user_id) do nothing`,
     params
   );
+  return inserted.rowCount === 1;
 }
 
 // --- transport: the three calls we make to Stripe ---

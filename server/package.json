@@ -8,6 +8,7 @@
     "start": "node src/server.js",
     "predev": "docker compose -f ../docker-compose.yml up -d --wait db && node scripts/check-port.mjs",
     "dev": "PORT=\"${PORT:-8081}\" PYTHON_BIN=\"${PYTHON_BIN:-$PWD/../agent/.venv/bin/python}\" DATABASE_URL=\"${DATABASE_URL:-postgres://qassist:qassist@localhost:5433/qassist}\" node --watch --env-file=../.env src/server.js",
+    "activate": "node --env-file-if-exists=../.env scripts/activate.mjs",
     "test": "node --test 'test/**/*.test.js'",
     "check": "tsc -p jsconfig.json"
   },
