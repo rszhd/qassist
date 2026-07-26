@@ -91,7 +91,7 @@ client-side when a secret is referenced in the Start URL, so the UI still can't
 build a test the server would reject at run time (`RunView.test.jsx`).
 
 **Report (PDF) display** of a run's non-secret variables is the one piece left,
-and it's deferred to [US-020](../../next/US-020-report-v2-screenshots-recording.md):
+and it's deferred to [US-020](../US-020-report-v2-screenshots-recording.md):
 it needs the report-v2 layout rework rather than bolting onto the current
 verdict band, and it gates nothing (RunDetail already shows the same data
 in-app, and secrets already render redacted in the report via the agent's

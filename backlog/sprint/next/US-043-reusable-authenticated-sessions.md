@@ -6,8 +6,8 @@ testing my login form twenty times.
 
 - **Status:** 📋 Planned. Handles credentials at rest — the storage half is
   correctness-critical and owes a row in
-  [`correctness-critical.md`](../correctness-critical.md) when scheduled.
-- **Priority:** P2 among the unscheduled work — arguably the single largest
+  [`correctness-critical.md`](../../correctness-critical.md) when scheduled.
+- **Priority:** P2 of the next sprint (scheduled 2026-07-27) — arguably the single largest
   expansion of *what QAssist can test*, but it wants US-041's verdict to be
   trustworthy first.
 - **Estimate:** ~6–8 h. New concept (a saved session), new storage, a UI, and a

@@ -8,8 +8,8 @@ cloud metadata endpoint and tell me what it said".
 - **Status:** 📋 Planned. **Correctness-critical** — a fence that is off by
   default, or that lets one spelling of an address through, is worth less than
   no fence, because it is believed. Owes a row in
-  [`correctness-critical.md`](../correctness-critical.md).
-- **Priority:** P1 among the unscheduled work. Staging is publicly registrable
+  [`correctness-critical.md`](../../correctness-critical.md).
+- **Priority:** P1 of the next sprint (scheduled 2026-07-27). Staging is publicly registrable
   today.
 - **Estimate:** ~3 h (profile fields, config, per-project allowlist) + the
   assertions.
@@ -43,8 +43,8 @@ demo deployment never launches Chromium at all. The exposure is the ordinary
 multi-user instance — staging today, the hosted tier tomorrow, and any
 self-hoster who gives a team accounts.
 
-**And the bar is higher than it looks, which is why this is P1-unscheduled and
-not a hotfix.** Since US-039 a run is funded only by the caller's own key, so a
+**And the bar is higher than it looks, which is why this is a P1 story and not a
+hotfix.** Since US-039 a run is funded only by the caller's own key, so a
 drive-by stranger cannot even start one; the attacker has to bring a working
 OpenAI key and spend their own money to use your box as a proxy. That is a real
 cost to them and a genuine mitigation. It is not a fence.

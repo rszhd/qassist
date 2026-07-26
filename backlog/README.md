@@ -48,6 +48,8 @@ Sprints aren't split along a self-host/hosted-tier line — `sprint/current/` an
 |---|---|---|---|
 | [US-056](sprint/current/US-056-production-deployment.md) | Production deployment: `app.qassist.run` goes live | 📋 Planned (created 2026-07-26) — the production stand-up itself | US-007, US-038, US-052 |
 | [US-058](sprint/current/US-058-per-user-concurrency-override.md) | Raise one user's concurrency cap without raising everyone's | 📋 Planned (created 2026-07-27) | US-028, US-021 |
+| [US-057](sprint/current/US-057-html-email-template.md) | An HTML template for outgoing email (magic link, run reports, activation) | 🔨 **Built** 2026-07-27, 4/5 — stays open on the one criterion a test can't answer: the Gmail/Apple Mail render | — |
+| [US-020](sprint/current/US-020-report-v2-screenshots-recording.md) | Report v2: step screenshots + recording | 📋 Planned (P2, pulled up 2026-07-27) | US-006 |
 | [US-047](sprint/current/done/US-047-stop-a-run.md) | Stop a run | ✅ **Done** 2026-07-27, 6/6 — `cancelled` is a terminal status of its own, and a stop is not a red build | — |
 | [US-040](sprint/current/done/US-040-demo-deployment.md) | Deploy the demo sandbox at `demo.qassist.run` | ✅ **Done** 2026-07-26, 11/11 — live on `0.2.3` | US-036, US-007, US-038 |
 | [US-007](sprint/current/done/US-007-https-reverse-proxy.md) | Public HTTPS via reverse proxy (and the Resend sender domain) | ✅ **Closed** 2026-07-26 — overlay, proxy, DNS and sender domain proven; the five production-only criteria moved to US-056 | domain (owned) |
@@ -162,50 +164,66 @@ story above it made the queue busier.
   about the product rather than about shipping it, pulled up because the
   release plumbing had nearly stopped needing attention. A plain absence: a
   user watching a run go wrong could only wait, spending their own key.
+- **US-020 + US-057** (2026-07-27, from `sprint/next/`) — the two stories the
+  next-sprint folder had left, brought forward once release plumbing stopped
+  competing for the sprint. US-057 was already **built** out of sprint order on
+  2026-07-27 and only ever needed a mailbox to close, so leaving it in a later
+  sprint was filing, not planning: it touches `mail.js` and the `sendMail()`
+  callers (four, not three — `activation.js` sends two), not the PDF. US-020 is
+  still the story that makes a good report better rather than making anything
+  possible — the reason it lost its place three times — but it now has a
+  successor waiting on it: US-044 in `sprint/next/` needs the layout it builds.
 
 ## Next sprint — `sprint/next/`
 
-Split out of the current sprint on 2026-07-23: the hosted-tier stories plus the
-report improvement that was never gating anything. All three hosted-tier
-stories have since been pulled back into `sprint/current/`, so what remains is
-the report v2 polish and the mail template.
-
-Paid-tier ground rules (decided 2026-07-22, still standing): nothing extra
-beyond what payment requires. One plan, Stripe Checkout, **BYOK for LLM
-tokens** (payment covers hosting, not OpenAI usage). Billing code lives in this
-repo **env-gated** (`STRIPE_*` unset = everything free); the full repo/boundary
-rules live in [`docs/repo-model.md`](../docs/repo-model.md). Email provider:
-**Resend** (US-012, US-021 magic links).
+Split out of the current sprint on 2026-07-23 as the hosted-tier stories plus the
+report improvement that was never gating anything, and **emptied of both by
+2026-07-27** — the hosted-tier three were pulled back into `sprint/current/`, and
+so were US-020 and US-057. What stands here now is a different sprint entirely:
+US-042, US-043, US-044 and US-048, scheduled out of `unscheduled/` the same day.
+It is the first sprint that is about the product rather than about shipping it.
 
 | ID | Story | Status | Depends on |
 |---|---|---|---|
-| [US-020](sprint/next/US-020-report-v2-screenshots-recording.md) | Report v2: step screenshots + recording | 📋 Planned (P2) | US-006 |
-| [US-057](sprint/next/US-057-html-email-template.md) | An HTML template for outgoing email (magic link, run reports, activation) | 🔨 **Built** 2026-07-27, 4/5 — stays open on the one criterion a test can't answer: the Gmail/Apple Mail render | — |
+| [US-042](sprint/next/US-042-agent-navigation-confinement.md) | Confine where the agent may navigate | 📋 Planned (P1) | US-021 |
+| [US-043](sprint/next/US-043-reusable-authenticated-sessions.md) | Test what is behind the login (reusable sessions) | 📋 Planned (P2) | US-035, US-021 |
+| [US-044](sprint/next/US-044-network-and-console-evidence.md) | Say *why* it failed: network and console evidence | 📋 Planned (P2) | US-020, US-026 |
+| [US-048](sprint/next/US-048-file-upload-in-test-flows.md) | Test a flow that uploads a file | 📋 Planned (P3) | US-035, US-023 |
 
-US-020 is P2 because it makes a good report better rather than making anything
-possible, which is also why it left the current sprint. US-057 is independent
-of it — it touches `mail.js` and the `sendMail()` callers (four, not three:
-`activation.js` sends two), not the PDF. It was built out of sprint order on
-2026-07-27 precisely because that independence made it cost nothing to pull
-forward.
+**How they order themselves.** US-042 goes first: it is the P1, and it is the one
+with a security shape — staging is publicly registrable today and the fence does
+not exist. US-044 goes last of the three P1/P2s, because report v2 owns the layout
+its evidence lands in and US-020 is now a current-sprint story — the dependency
+lands a sprint early, which is the point of pulling it up. US-048 is P3,
+independent of all of them, and the cheapest thing in the folder. Two open
+questions the scheduling doesn't settle: **US-043 arrived without US-041**, which
+its own file says it wants first — a reusable session makes QAssist test more, but
+the verdict on what it finds is still the agent grading its own homework — and
+**US-042 and US-043 each owe a row in
+[`correctness-critical.md`](correctness-critical.md)**, added as part of doing the
+work, not on being scheduled.
+
+Paid-tier ground rules (decided 2026-07-22, still standing, and now entirely
+about current-sprint code): nothing extra beyond what payment requires. One plan,
+Stripe Checkout, **BYOK for LLM tokens** (payment covers hosting, not OpenAI
+usage). Billing code lives in this repo **env-gated** (`STRIPE_*` unset =
+everything free); the full repo/boundary rules live in
+[`docs/repo-model.md`](../docs/repo-model.md). Email provider: **Resend**
+(US-012, US-021 magic links).
 
 ## Unscheduled — `unscheduled/`
 
 | ID | Story | Status | Priority | Depends on |
 |---|---|---|---|---|
 | [US-041](unscheduled/US-041-judge-verdict-and-ground-truth.md) | The judge decides the verdict, and a test can state what it must prove | 📋 Planned | P1 | — |
-| [US-042](unscheduled/US-042-agent-navigation-confinement.md) | Confine where the agent may navigate | 📋 Planned | P1 | US-021 |
 | [US-029](unscheduled/US-029-cicd-action-and-github-app.md) | CI/CD: reusable Action + GitHub App | 📋 Planned | P2 | US-008 |
 | [US-024](unscheduled/US-024-memory-watchdog-pss-metric.md) | Memory watchdog: measure PSS, not summed RSS | 📋 Planned | P2 | — |
 | [US-037](unscheduled/US-037-enterprise-stack-and-readiness.md) | Enterprise stack & readiness: what to adopt, what to refuse | 📋 Planned (tiered) | P2 | US-021, US-007 |
-| [US-043](unscheduled/US-043-reusable-authenticated-sessions.md) | Test what is behind the login (reusable sessions) | 📋 Planned | P2 | US-035, US-021 |
-| [US-044](unscheduled/US-044-network-and-console-evidence.md) | Say *why* it failed: network and console evidence | 📋 Planned | P2 | US-020, US-026 |
 | [US-045](unscheduled/US-045-model-provider-choice.md) | Bring your own key, to your own provider (incl. local) | 📋 Planned | P2 | US-005, US-039 |
 | [US-015](unscheduled/US-015-horizontal-scaling-100-concurrent.md) | Horizontal scaling to ~100 concurrent | 📋 Planned | P3 | US-005, US-009 |
 | [US-013](sprint/current/done/US-013-registration-flow-verification.md) | Registration-flow tiers 2 (SMS) + 3 (social) | 📋 Planned | P3 | — |
 | [US-014](unscheduled/US-014-block-heavy-resources.md) | Block heavy page resources | 📋 Planned | P3 | — |
 | [US-046](unscheduled/US-046-token-usage-and-cost.md) | What did that run cost? (token usage + cost) | 📋 Planned | P3 | US-039 |
-| [US-048](unscheduled/US-048-file-upload-in-test-flows.md) | Test a flow that uploads a file | 📋 Planned | P3 | US-035, US-023 |
 | [US-049](unscheduled/US-049-typed-assertions.md) | Assert on a value, not on a paragraph | 📋 Planned | P3 | US-041 |
 | [US-050](unscheduled/US-050-fast-run-mode.md) | A fast, cheap mode for tests that already pass | 📋 Planned | P3 | US-046 |
 | [US-016](unscheduled/US-016-desktop-shell.md) | Desktop shell (Electron) | 📋 Planned | TBD | — |
@@ -215,21 +233,19 @@ forward.
 
 **US-041..US-050 (added 2026-07-26)** came out of one question — *what is
 browser-use already capable of that we do not use?* — answered by reading the
-installed 0.13.6 against `agent/run_agent.py` rather than the docs. They are
-unscheduled on purpose: the current sprint is release plumbing, and this is
-product.
+installed 0.13.6 against `agent/run_agent.py` rather than the docs. They were
+filed unscheduled because the current sprint is release plumbing and this is
+product; **four of them (US-042, US-043, US-044, US-048) were scheduled into
+`sprint/next/` on 2026-07-27**, which is that reason expiring rather than being
+overruled.
 
-The two P1s are pull-forward candidates the moment the sprint clears.
-**US-041** is closer to a defect than a feature: `Agent(use_judge=…)` defaults
-to `True` and we never override it, so every run already buys a judge call and
-then reports `history.is_successful()` — the *agent's self-report* — dropping
-the judgement on the floor. The product's leading claim ("judges pass/fail") is
-currently the agent grading its own homework. **US-042** is the one with a
-security shape: `BrowserProfile` carries `allowed_domains`,
-`prohibited_domains` and `block_ip_addresses`, we pass none of them, and
-`POST /api/runs` checks `start_url` for presence only. The demo is unaffected
-(US-036's interceptor never launches Chromium); the exposure is the ordinary
-multi-user instance.
+**US-041 is the pull-forward candidate left, and the strongest one.** It is
+closer to a defect than a feature: `Agent(use_judge=…)` defaults to `True` and we
+never override it, so every run already buys a judge call and then reports
+`history.is_successful()` — the *agent's self-report* — dropping the judgement on
+the floor. The product's leading claim ("judges pass/fail") is currently the
+agent grading its own homework. Two other stories want it first: US-049 builds on
+it, and US-043 is in the next sprint without it.
 
 **US-037 (added 2026-07-25)** is a decision as much as a story: which
 "enterprise standard" stack pieces we adopt and — more usefully — which we
@@ -245,9 +261,8 @@ decision deferred. If picked up: US-016 → US-017 → US-018 → US-019, Window
 before macOS, and `server.js` stays dual-mode (container + Electron) — never
 fork it. US-018 would realize US-005 (BYOK) on desktop.
 
-Three of these owe rows in [`correctness-critical.md`](correctness-critical.md)
-when scheduled — US-041 and US-049 define what "pass" means, US-042 is a fence
-that is worse than useless if it is believed and leaky. Rows are deliberately
+Two of these owe rows in [`correctness-critical.md`](correctness-critical.md) —
+US-041 and US-049 both define what "pass" means. Rows are deliberately
 *not* added yet: the register's own rule is that a row is added as part of doing
 the work, and a table of speculative rows is what makes it stop being read.
 

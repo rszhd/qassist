@@ -2,10 +2,12 @@
 
 **As a** user, **I want** the report to show per-step screenshots and give me the session recording, **so that** I can see exactly what the agent did — especially on failures — without rerunning the test.
 
-- **Status:** 📋 Planned (moved to next sprint on 2026-07-23 — current sprint is the
-  self-host launch, and a better report is not what gates it)
-- **Priority:** P2 (next sprint — lowered 2026-07-23: it blocks nothing, so it
-  yielded to US-010/US-012 and then out of the release entirely)
+- **Status:** 📋 Planned. Left the current sprint on 2026-07-23 (that sprint was the
+  self-host launch, and a better report is not what gates it) and was pulled back
+  into it on 2026-07-27, once the release plumbing stopped needing attention.
+- **Priority:** P2 — lowered 2026-07-23 because it blocks nothing, so it yielded
+  to US-010/US-012 and then out of the release entirely. It is now scheduled
+  ahead of US-044 (`sprint/next/`), which needs the layout this story builds.
 - **Estimate:** ~1–2 days
 - **Depends on:** US-006 (recording must exist to link/embed)
 

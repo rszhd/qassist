@@ -5,7 +5,7 @@ able to attach a file, **so that** "upload your CV and submit" is a goal QAssist
 can execute rather than one it gets stuck on.
 
 - **Status:** 📋 Planned.
-- **Priority:** P3 among the unscheduled work. Narrow, but it is a hard *no*
+- **Priority:** P3 of the next sprint (scheduled 2026-07-27). Narrow, but it is a hard *no*
   today, and a hard no is what makes someone conclude the tool cannot test their
   app.
 - **Estimate:** ~3–4 h (storage, the profile wiring, a UI to attach fixtures).

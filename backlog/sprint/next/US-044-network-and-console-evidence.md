@@ -5,7 +5,7 @@ name the request that 500'd and the exception the page threw, **so that** I can
 start debugging from the report instead of starting by reproducing it.
 
 - **Status:** 📋 Planned.
-- **Priority:** P2 among the unscheduled work.
+- **Priority:** P2 of the next sprint (scheduled 2026-07-27).
 - **Estimate:** ~5–6 h (CDP subscriptions, event plumbing, report section);
   more if HAR retention is included.
 - **Depends on:** US-020 (report v2 owns the layout this lands in), US-026 (the
