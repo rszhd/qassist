@@ -174,5 +174,9 @@ literally.
 - [x] `STRIPE_*` unset: no wall, no gate, no mail, self-host unchanged
 - [x] The operator is mailed on subscribe with the deadline; the customer is
       mailed on activation
-- [ ] Proven on staging with a real Checkout round trip: subscribe → walled →
-      activate over SSH → run
+- [ ] Proven on a live box with a real Checkout round trip: subscribe → walled →
+      activate over SSH → run. **Preview, not staging** — this story is what
+      showed that US-055's "no Stripe on preview" rule bought nothing and cost
+      every billing change the fast loop, so the rule was reversed rather than
+      the criterion honoured. Staging still owns what it always did: a
+      populated database and a CI-built image

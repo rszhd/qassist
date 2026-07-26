@@ -136,10 +136,14 @@ keep it that way when adding features.
   Never push to `main` directly. Runbook: `DEPLOY.md`.
 - **`preview` is a spur off that chain, not a stage in it** (US-055).
   `git push -f origin HEAD:preview` from *any* branch, merged or not, and
-  `preview.qassist.run` rebuilds on the box in ~2 min — no CI, no registry. Use
+  `preview.qassist.run` rebuilds on the box in seconds — no CI, no registry. Use
   it for a live look; nothing ever merges *out* of it, which is what keeps
-  `main`'s `--ff-only` fast-forward from staging true. It has console mail and
-  no Stripe, so a billing-gated change still goes to staging.
+  `main`'s `--ff-only` fast-forward from staging true. It runs **real mail and
+  Stripe in test mode** (revised 2026-07-26 — US-055 shipped without them and
+  that put every billing change on the slow loop for no saving). What it still
+  is not: seeded, CI-built, or promotable. A change that needs a *populated*
+  database is what genuinely still goes to staging. Rationale and the webhook
+  caveat: `DEPLOY.md` → "What preview must not become".
 - **CI does not run on a push to `dev`** (US-055) — only on a PR into `dev`, a
   push to `staging` or `main`, and inside the release workflow. So `npm test`
   locally after touching `server/src/` is load-bearing, not a courtesy: the next

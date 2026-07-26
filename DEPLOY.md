@@ -559,11 +559,18 @@ Four mechanics worth knowing, because none of them are obvious:
 - **There is no seed step.** Preview starts empty and is meant to. If a change
   needs a populated database, that is staging's `seed-staging.mjs`, and it is a
   hint that the change wants staging.
+- **Billing and mail are real here** (revised 2026-07-26 — see
+  [what preview must not become](#what-preview-must-not-become)). Stripe in
+  **test** mode and a live Resend key, so a billing-gated change (US-053's
+  checklist, US-054's activation window) can be looked at on the fast loop
+  instead of costing a staging round trip. The webhook secret must be
+  **preview's own**; the reason is below, and it is the one line in
+  `.env.preview.example` that is a security boundary.
 
 ### Verifying it
 
 ```sh
-curl -sS https://preview.qassist.run/api/health          # {"ok":true,…,"billing":false}
+curl -sS https://preview.qassist.run/api/health          # {"ok":true,…,"billing":true}
 curl -sSI https://preview.qassist.run | grep -i x-robots-tag     # noindex, nofollow
 ```
 
@@ -577,11 +584,36 @@ docker inspect "$(docker compose -p qassist-preview ps -q qassist)" \
 # did not recreate and you are looking at the last build
 ```
 
-Logging in is where the console mail transport shows up: preview runs the
-magic-link app, and the link is printed rather than sent.
+Mail is real, so a sign-in link arrives in an inbox rather than a log. If you
+have deliberately set `MAIL_DEV_CONSOLE=1` for an afternoon instead, it is
+printed:
 
 ```sh
 docker compose -p qassist-preview logs qassist | grep -A5 '\[mail:dev\]'
+```
+
+**The billing round trip**, which is the thing that used to require staging:
+
+```sh
+# sign in as an address that is NOT OPERATOR_EMAIL — an exempt account is never
+# walled, and is the usual reason "the wall does not appear" on a first try
+# then: store a key, Subscribe, pay with 4242 4242 4242 4242
+
+# with ACTIVATION_SLA_HOURS set, the account is now walled on the fourth step
+docker compose -p qassist-preview exec qassist \
+  npm --prefix /app/server run activate            # lists it, with time left
+docker compose -p qassist-preview exec qassist \
+  npm --prefix /app/server run activate -- you@example.com
+# the wall falls in the open tab within 30s, and the customer mail arrives
+```
+
+Confirm the webhook is preview's own and not staging's — a shared signing secret
+is the one isolation failure the checks below would not catch, because they test
+cookies and API keys and this is neither:
+
+```sh
+docker compose -p qassist-preview logs qassist | grep -i 'invalid signature'
+# and in the Stripe TEST dashboard: two endpoints, two secrets, one per host
 ```
 
 Isolation, same three checks as the other stacks:
@@ -609,15 +641,39 @@ With the bounded `buildx prune` in each cycle this is flat: three cycles on
 
 ### What preview must not become
 
-Staging's env file is strict because staging proves the real Resend path and a
-real Stripe round trip. Preview proves neither, so it is deliberately **looser,
-not a second staging**: console mail, no Stripe keys, no seed, its own freshly
-generated secrets.
+**Revised 2026-07-26.** US-055 drew this line at "console mail, no Stripe keys",
+reasoning that the day preview had both there would be two staging environments
+and no preview. That turned out to bundle two unlike things, and the bundle cost
+more than it saved.
 
-The day preview acquires Stripe keys and real mail, there are two staging
-environments and no preview, and the round trip this exists to shorten is back.
-A change that genuinely needs billing or a real send goes to staging — that is
-not preview failing, that is the split working.
+The bill preview exists to skip is a CI run, an image push and a `pull`.
+Environment variables cost none of it — preview still rebuilds in seconds with
+Stripe and Resend configured. What the rule actually did was put every billing
+and entitlement change (US-053, US-054, and everything after them) permanently
+on the slow loop, which is the class of change where a live look is worth most.
+So preview now runs Stripe in **test** mode and a real Resend key.
+
+What still separates it from staging is the part that was always doing the work:
+
+- **A populated database.** Staging is seeded (`seed-staging.mjs`); preview
+  starts empty and must stay that way. A migration meeting data it did not
+  expect is the failure staging exists to catch, and the one thing preview
+  structurally cannot tell you.
+- **A build that went through CI**, from a reviewed commit, through the same
+  registry production pulls from. Preview's image is built on the box from a
+  force-pushed branch.
+- **The promotion chain.** Nothing is ever promoted out of preview.
+
+So preview must never grow a seed step, a live Stripe key, or any secret
+production or staging also holds — and **its Stripe webhook secret must be its
+own**. The webhook is unauthenticated by design: its signature is its
+authentication, so a shared endpoint secret means an event minted for one stack
+verifies against the other. That is an isolation hole the session-cookie and
+API-key checks above would not find, because it is neither.
+
+The older, stricter line is still available for an afternoon when you would
+rather not have a live mail key on the box: set `MAIL_DEV_CONSOLE=1` and blank
+the three `STRIPE_*` values, and preview is what US-055 shipped.
 
 ### CI on `dev` went with it
 

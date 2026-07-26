@@ -204,6 +204,18 @@ Three, and none of them are free:
 
 ## What preview must not become
 
+> **Superseded in part, 2026-07-26 (while proving US-054).** The section below
+> draws the line at "no Stripe keys, no real mail". That line is gone: preview
+> now runs Stripe in **test** mode and a real Resend key. The reasoning it got
+> wrong is that the round trip this story shortens is a CI run, an image push
+> and a `pull` — environment variables are not part of that bill, so the rule
+> saved nothing while permanently excluding every billing and entitlement change
+> from the fast loop. What still separates preview from staging, and what the
+> paragraphs below were really protecting, is a **populated database**, a
+> CI-built image from a reviewed commit, and the promotion chain. Those stand.
+> Current statement of the boundary, including the webhook-secret caveat that
+> came with the change: `DEPLOY.md` → "What preview must not become".
+
 Staging's env file is strict because staging proves the real Resend path and a
 real Stripe round trip. Preview proves neither, so it is deliberately **looser,
 not a second staging**: `MAIL_DEV_CONSOLE=1`, `STRIPE_*` empty so the billing UI
@@ -252,6 +264,9 @@ and this makes that rule load-bearing.
       production and staging
 - [x] Preview cannot mail a stranger and shows no billing UI — a failing run
       sends nothing (console only) and `/api/health` reports `billing:false`
+      *(true as shipped; deliberately reversed 2026-07-26 — see the note under
+      "What preview must not become". `/api/health` now reports `billing:true`
+      and mail is real.)*
 - [x] Repeated rebuilds do not grow the disk without bound: the documented
       deploy prunes, and the box's image usage is stable after several cycles
 - [x] A push to `dev` runs no workflow; a PR into `dev` runs the full suite; a
