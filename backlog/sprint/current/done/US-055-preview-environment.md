@@ -5,7 +5,7 @@ force-push to a `preview` branch, built on the box itself, **so that** looking a
 a change live costs a minute instead of a staging round trip — and staging stays
 free to be the thing that replicates production.
 
-- **Status:** 🟢 **8/9, live at `https://preview.qassist.run`** (2026-07-26) on
+- **Status:** ✅ **Done 2026-07-26 — 9/9, live at `https://preview.qassist.run`** on
   its own Let's Encrypt certificate, `noindex, nofollow`, `billing:false`, its
   own `qassist-preview_pgdata`, built on the box from a `qassist:preview` tag
   that no registry has ever held. The loop was exercised three times end to end
@@ -34,14 +34,28 @@ free to be the thing that replicates production.
   container log with `RESEND_API_KEY` empty, so a stranger cannot be mailed. The
   three pushes to `preview` triggered no workflow run.
 
-  **The one open criterion is not preview's.** `git merge --ff-only staging` into
-  `main` **fails today**, and it failed before preview existed — `origin/preview`
-  is provably not in staging's ancestry. `origin/main` carries two GitHub PR
-  merge commits (`f8a2937` #2, `32aa949` #3) that `dev` and `staging` do not, and
-  US-052's reconciliation commit `15e7de3` merged `b3977f7`, which is not on
-  `origin/main` — so it reconciled a stale local `main`. US-052's scorecard says
-  the fast-forward is now possible; it is not. Fixing it is that story's, and it
-  wants the maintainer's call on how.
+  **The ninth criterion was failing on arrival, and not because of preview.**
+  `git merge --ff-only staging` into `main` aborted — but `origin/preview` is
+  provably not in staging's ancestry, so this was inherited rather than caused.
+  `origin/main` carried two GitHub PR merge commits (`f8a2937` #2, `32aa949` #3)
+  that `dev` and `staging` did not, because US-052's reconciliation commit
+  `15e7de3` merged `b3977f7` — a **stale local `main`**, while the real
+  `origin/main` had already moved on. US-052's scorecard claimed the
+  fast-forward was now possible; it never was.
+
+  **Fixed here** (`9f07713`): `origin/main` merged into `dev` for real, `staging`
+  fast-forwarded onto it, both pushed. Neither PR merge commit contributes
+  content — each has the tree of its second parent — so the merge changed not one
+  byte: `git diff HEAD^1 HEAD` is empty. It is history being reconciled, not
+  code. `git merge --ff-only staging` into `main` then succeeded, checked in a
+  detached worktree so `main` itself was not moved: promoting is a release
+  decision, and the criterion only asks that it *can*. US-052's record is
+  corrected too.
+
+  That the breakage was findable at all is the design working. Preview is the
+  one branch allowed to rewrite history, so it is the one that would have hidden
+  a `--ff-only` failure inside its own noise — and the ancestry check says it
+  did not.
 
   Also noticed while reading env files, unrelated but real: **`.env.staging` has
   no `TRUST_PROXY`**, so staging's per-IP limits count Traefik's address rather
@@ -49,16 +63,16 @@ free to be the thing that replicates production.
 
   Repo half, for the record:
   `.env.preview.example` exists and says why it is looser rather than only what
-  differs; `DEPLOY.md` carries the [Preview](../../../DEPLOY.md#preview) section
+  differs; `DEPLOY.md` carries the [Preview](../../../../DEPLOY.md#preview) section
   with its three costs, the build-and-`up -d` loop, the running-commit check and
   the "what preview must not become" boundary; `CLAUDE.md`, `CONTRIBUTING.md`
   and `README.md` all describe preview as a spur rather than a stage. `ci.yml`
   now triggers on `push: [main]` plus `pull_request`, so a push to `dev` runs
   nothing while a PR into it still runs the full suite and `staging.yml` still
-  gates its image on that suite — the last of which is only *observable* once
-  `dev` is pushed, since a `push` event runs the workflow file on the pushed
-  commit. No `docker-compose.preview.yml` exists and no compose file mentions
-  preview.
+  gates its image on that suite. All three halves are now observed rather than
+  reasoned about: pushing `dev` at `9f07713` triggered no run at all, and the
+  `staging` push of the same commit ran the full suite before publishing. No
+  `docker-compose.preview.yml` exists and no compose file mentions preview.
 
   One decision made while writing it, not in the plan above: the documented
   build stamps `--label org.opencontainers.image.revision="$(git rev-parse
@@ -69,11 +83,11 @@ free to be the thing that replicates production.
   place immediately: it is what caught the rebuild landing, and what would have
   caught it not landing.
 - **Priority:** P2 (current sprint) — it is the friction
-  [US-052](US-052-staging-branch-continuous-deploy.md) halved rather than
+  [US-052](../US-052-staging-branch-continuous-deploy.md) halved rather than
   removed, and every story that wants a live look pays it again
 - **Estimate:** ~1 h repo-side, plus one stand-up on the box
-- **Depends on:** [US-038](US-038-staging-environment.md) (the fourth-stack
-  shape this reuses) and [US-052](US-052-staging-branch-continuous-deploy.md)
+- **Depends on:** [US-038](../US-038-staging-environment.md) (the fourth-stack
+  shape this reuses) and [US-052](../US-052-staging-branch-continuous-deploy.md)
   (the chain this deliberately does *not* join)
 
 ## The problem: staging is the only place to look at a change
@@ -230,7 +244,7 @@ and this makes that rule load-bearing.
 - [x] A rebuild is actually picked up: `up -d` recreates the container from the
       new image ID with no tag change and no registry round trip, confirmed by
       the running commit rather than by the tag
-- [ ] A branch that has never been merged to `dev` can be previewed, and
+- [x] A branch that has never been merged to `dev` can be previewed, and
       preview's history never reaches `staging` — `git merge --ff-only staging`
       into `main` still succeeds afterwards
 - [x] Isolation holds as it does for the other three: its own `pgdata` volume,
