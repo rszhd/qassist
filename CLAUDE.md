@@ -134,5 +134,15 @@ keep it that way when adding features.
   so proving a change on a real box costs a merge, not a version tag. `main`
   only receives what staging survived, and releases are tagged from `main`.
   Never push to `main` directly. Runbook: `DEPLOY.md`.
+- **`preview` is a spur off that chain, not a stage in it** (US-055).
+  `git push -f origin HEAD:preview` from *any* branch, merged or not, and
+  `preview.qassist.run` rebuilds on the box in ~2 min — no CI, no registry. Use
+  it for a live look; nothing ever merges *out* of it, which is what keeps
+  `main`'s `--ff-only` fast-forward from staging true. It has console mail and
+  no Stripe, so a billing-gated change still goes to staging.
+- **CI does not run on a push to `dev`** (US-055) — only on a PR into `dev`, a
+  push to `staging` or `main`, and inside the release workflow. So `npm test`
+  locally after touching `server/src/` is load-bearing, not a courtesy: the next
+  thing that catches a red test is the merge to `staging`.
 - Never log or commit secrets; `.env` stays untracked. Bearer token required on
   every API/WS call.

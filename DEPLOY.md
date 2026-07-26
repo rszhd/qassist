@@ -6,9 +6,10 @@ the box, so a rebuilt server is this document plus `.env`.
 
 The app is on a **subdomain, not the apex** (decided 2026-07-25): `qassist.run`
 is a landing page built and served outside this repo, so the only hostnames that
-resolve to this box are `app.qassist.run`, `staging.qassist.run` and
-`demo.qassist.run`. That is why nothing here ever mentions the apex except for
-the mail records, which belong to the domain rather than to any one stack.
+resolve to this box are `app.qassist.run`, `staging.qassist.run`,
+`demo.qassist.run` and `preview.qassist.run`. That is why nothing here ever
+mentions the apex except for the mail records, which belong to the domain rather
+than to any one stack.
 
 Self-hosting does **not** need any of this: `cp .env.example .env && docker
 compose up` still serves the app on :8080 with no proxy and no certificate. This
@@ -16,7 +17,7 @@ is the overlay for putting it on a public hostname over HTTPS.
 
 ## What runs on the box
 
-Four compose projects, deliberately separate:
+Five compose projects, deliberately separate:
 
 | Project | Hostname | Files | What it is |
 |---|---|---|---|
@@ -24,16 +25,19 @@ Four compose projects, deliberately separate:
 | `qassist` | `app.qassist.run` | `docker-compose.yml` + `docker-compose.prod.yml` | Production: app + its Postgres. |
 | `qassist-staging` | `staging.qassist.run` | the same two files | [Staging](#staging): the same stack, production's data swapped out. |
 | `qassist-demo` | `demo.qassist.run` | the same two files | [The demo sandbox](#the-demo-sandbox): the same stack, `AUTH_MODE=demo`. |
+| `qassist-preview` | `preview.qassist.run` | the same two files | [Preview](#preview): the same stack, built on the box from a force-pushable branch. |
 
-Three of the four are the same two compose files with a different `-p` and
+Four of the five are the same two compose files with a different `-p` and
 `--env-file`. That is the design, not a coincidence: an environment is a project
 name and an env file, and the overlay never learns which one it is serving.
 
-What differs besides the env file is which image tag each one follows:
-`qassist-staging` tracks the mutable `:staging`, rebuilt on every push to the
-`staging` branch, while `qassist` pins an immutable `:x.y.z` cut from `main`.
-That asymmetry is the point — staging moves at the speed of a merge, production
-at the speed of a release.
+What differs besides the env file is where each one's image comes from.
+`qassist` pins an immutable `:x.y.z` cut from `main`; `qassist-staging` tracks
+the mutable `:staging`, rebuilt on every push to the `staging` branch; and
+`qassist-preview` runs a `qassist:preview` tag built on the box itself, with no
+registry in the loop at all. That spread is the point — production moves at the
+speed of a release, staging at the speed of a merge, preview at the speed of a
+force-push.
 
 **There is no separate API hostname**, and adding one would be a mistake. One
 Express process serves the built frontend and mounts the API under `/api` on the
@@ -57,10 +61,10 @@ firewall rule.
 ## First-time setup
 
 **1. DNS.** An `A` record for `app.qassist.run` → the box's public IP. Add the
-`staging.qassist.run` and `demo.qassist.run` records in the same sitting even if
-those stacks come later — they cost nothing now and save a second trip to the
-panel. The apex is not one of them: it points wherever the landing page is
-hosted, which is not here.
+`staging.qassist.run`, `demo.qassist.run` and `preview.qassist.run` records in
+the same sitting even if those stacks come later — they cost nothing now and
+save a second trip to the panel. The apex is not one of them: it points wherever
+the landing page is hosted, which is not here.
 
 While in the DNS panel, add Resend's **SPF and DKIM** records. Those go on the
 **apex** `qassist.run` whichever subdomain the app runs on, because mail sends
@@ -107,10 +111,11 @@ app knows it is on HTTPS — what makes the session cookie `Secure`.
 
 `MAX_CONCURRENT_SESSIONS` deserves a thought rather than the default.
 `.env.example`'s rule — `floor((RAM_GB − 1.5) / 1)` — assumes the box is yours
-alone. Subtract anything else living on it, and subtract staging, which borrows
-from the same RAM. A 4 vCPU / 8 GB box already running an unrelated database
-lands at **3 for production and 1 for staging**, not the 6 the rule alone would
-suggest.
+alone. Subtract anything else living on it, and subtract every other stack that
+borrows from the same RAM. A 4 vCPU / 8 GB box already running an unrelated
+database lands at **3 for production and 1 for staging**, not the 6 the rule
+alone would suggest — and standing [preview](#preview) up as well means that 3
+comes down, because a fourth app container brings a fourth Postgres with it.
 
 If this instance runs multi-user auth, also set `AUTH_ENABLED=1`,
 `SESSION_SECRET`, `RESEND_API_KEY` and `MAIL_FROM`; the app refuses to boot
@@ -396,6 +401,178 @@ version through step 4. Note that a migration is not rolled back by rolling back
 the image — there are no down-migrations, so what staging is really proving in
 step 1 is that you will not need to.
 
+## Preview
+
+`preview.qassist.run` runs whatever was last force-pushed to a `preview` branch,
+built **on the box** (US-055). It exists because staging's bill — the full CI
+suite, an image build carrying the Chromium layer, a push to ghcr, a `pull` here
+— is the right price for proving a release and the wrong price for "is that the
+right shade of grey". The fix is not a faster staging; it is to stop asking
+staging the questions that do not need production fidelity.
+
+**Preview is a spur off the chain, not a stage in it.** The chain is still
+`dev → staging → main`. `preview` hangs off the side:
+
+```sh
+git push -f origin HEAD:preview     # from dev, or from any WIP branch
+```
+
+Two things follow, and both are the point. A branch that is not on `dev` yet can
+be previewed — which is precisely when a live look is worth most. And US-052's
+`--ff-only` promotion is untouched, because rewritten preview history never
+enters staging's ancestry. **Nothing ever merges out of `preview`.**
+
+`dev → preview → staging → main` was rejected. It reads naturally and is wrong
+twice: it makes preview a mandatory gate, so everything must pass through the
+environment that exists to be *optional*; and it puts force-pushed history
+upstream of `staging`, which is the one invariant US-052 bought.
+
+### What it costs
+
+Three things, and none of them are free. Read them before standing it up:
+
+1. **The box gets a working tree for the first time.** US-032's
+   `build: !reset null` exists so that a server never sees source. Preview is a
+   deliberate exception and must stay confined to one — production and staging
+   still cannot build — and it runs unreviewed, untested commits on the same
+   Docker daemon as production.
+2. **Disk.** Each rebuild orphans a layer set of a couple of GB, and production
+   shares that disk; a full disk takes production down. The `docker image prune`
+   below is part of the deploy, not a habit someone is trusted to have.
+3. **RAM.** A fourth app container *and* a fourth Postgres.
+   `MAX_CONCURRENT_SESSIONS=1`, and production's own budget may have to come
+   down to pay for it — the worked example [above](#first-time-setup) already
+   lands at 3 + 1 on 8 GB with no room spare.
+
+### Standing it up
+
+**1. DNS.** An `A` record for `preview.qassist.run` → the same IP. (Added
+alongside production's in step 1 above.)
+
+**2. A clone, in its own directory.** Preview is the only stack that needs the
+source, so give it a checkout of its own rather than building in whatever
+directory the other stacks' env files live in:
+
+```sh
+git clone https://github.com/<owner>/qassist.git ~/qassist-preview
+cd ~/qassist-preview
+```
+
+`.gitignore` already covers `.env.*` and `runs-*/`, so the env file and the
+artifacts sit inside that clone and a force-push never disturbs them.
+
+**3. Configure.** Copy a *complete app* env into `~/qassist-preview/.env.preview`
+and work through [`.env.preview.example`](.env.preview.example) — the diff from
+that, not a second copy. Every secret **freshly generated**, as for the other
+stacks.
+
+**4. Up.** Fetch, build, start. This is also the update loop:
+
+```sh
+cd ~/qassist-preview
+git fetch origin && git checkout -B preview origin/preview
+
+docker build -t qassist:preview \
+  --label org.opencontainers.image.revision="$(git rev-parse --short HEAD)" .
+
+export ENV_FILE=.env.preview          # exported, not a command prefix — see Staging
+docker compose -p qassist-preview \
+  -f docker-compose.yml -f docker-compose.prod.yml --env-file "$ENV_FILE" up -d
+
+docker image prune -f
+```
+
+`git checkout -B` rather than `pull`, because the branch is force-pushed: a
+`pull` would try to merge two histories that diverged on purpose.
+
+The `--label` is not decoration. It is the only way to answer "which commit is
+this?" on an image that never went through a registry, and the check below reads
+it.
+
+Four mechanics worth knowing, because none of them are obvious:
+
+- **No `pull`, and that is correct here.** `docker-compose.prod.yml` sets
+  `pull_policy: missing`, so compose finds the `qassist:preview` image the build
+  just produced and never reaches for a registry. This is the whole trick that
+  lets a locally built image go through the same overlay as a published one.
+- **`up -d` does recreate on a rebuild.** Compose compares the image *ID* it
+  recorded against the container, not the tag string, so a fresh build under an
+  unchanged tag is picked up. This is the exact inverse of staging's trap, where
+  an unchanged *registry* tag is what silently is not fetched.
+- **The expensive layer is cached.** `pip install -r requirements.txt` and
+  `playwright install --with-deps chromium` are keyed on `agent/requirements.txt`,
+  so a code-only rebuild pays for the Vite build and the `COPY`s — about two
+  minutes, against the ~20 the fast CI workflow was designed to avoid.
+- **There is no seed step.** Preview starts empty and is meant to. If a change
+  needs a populated database, that is staging's `seed-staging.mjs`, and it is a
+  hint that the change wants staging.
+
+### Verifying it
+
+```sh
+curl -sS https://preview.qassist.run/api/health          # {"ok":true,…,"billing":false}
+curl -sSI https://preview.qassist.run | grep -i x-robots-tag     # noindex, nofollow
+```
+
+**Confirm the running commit, not the tag.** The tag never changes, so it can
+tell you nothing; the label the build stamped can:
+
+```sh
+docker inspect "$(docker compose -p qassist-preview ps -q qassist)" \
+  --format '{{index .Config.Labels "org.opencontainers.image.revision"}}'
+# the short sha of the preview branch tip — if it is the previous one, `up -d`
+# did not recreate and you are looking at the last build
+```
+
+Logging in is where the console mail transport shows up: preview runs the
+magic-link app, and the link is printed rather than sent.
+
+```sh
+docker compose -p qassist-preview logs qassist | grep -A5 '\[mail:dev\]'
+```
+
+Isolation, same three checks as the other stacks:
+
+```sh
+docker volume ls | grep pgdata      # qassist-preview_pgdata alongside the others
+
+# a preview API key is refused by production and by staging
+curl -sSo /dev/null -w '%{http_code}\n' https://app.qassist.run/api/runs \
+  -H "Authorization: Bearer <a preview key>"                    # 401
+```
+
+And that the disk is not growing without bound — after several rebuild cycles,
+with the prune in each one, image usage should be flat:
+
+```sh
+docker system df
+```
+
+### What preview must not become
+
+Staging's env file is strict because staging proves the real Resend path and a
+real Stripe round trip. Preview proves neither, so it is deliberately **looser,
+not a second staging**: console mail, no Stripe keys, no seed, its own freshly
+generated secrets.
+
+The day preview acquires Stripe keys and real mail, there are two staging
+environments and no preview, and the round trip this exists to shorten is back.
+A change that genuinely needs billing or a real send goes to staging — that is
+not preview failing, that is the split working.
+
+### CI on `dev` went with it
+
+The same reasoning one layer up. `ci.yml` no longer runs on pushes to `dev`
+(US-055): the gates are `staging.yml` and `release.yml`, both of which
+`uses: ./.github/workflows/ci.yml` before publishing anything, so an image whose
+tests never ran stays impossible either way. The `dev` run was informational,
+about a branch that takes WIP pushes. A PR into `dev` still runs the full suite,
+and so does a push to `staging`.
+
+The tradeoff, stated rather than discovered: a broken test is now found at
+merge-to-`staging` time, which is the slow round trip. Local `npm test` stops
+being optional.
+
 ## The demo sandbox
 
 `demo.qassist.run` is the product with no signup and no key: a visitor lands and
@@ -408,7 +585,7 @@ It is **the same box and the same two compose files** a third time, under
 is one variable, `AUTH_MODE=demo` (US-036): the app provisions an expiring
 cookie tenant per visitor, seeds it, and intercepts every run into a replay.
 
-**It is the cheapest of the three stacks to host.** A demo run spawns no
+**It is the cheapest of the app stacks to host.** A demo run spawns no
 Chromium, claims no queue slot and makes no LLM call — `createRun` short-circuits
 to the replay before the concurrency branch — and its artifacts are symlinks into
 `/app/demo`, so `runs-demo/` never grows. A visitor costs a few rows and a
@@ -524,7 +701,7 @@ failing test, and confirm nothing is sent — no `notifications` row reaches
 `status=sent`. This is the criterion that says a stranger cannot use the demo to
 mail a PDF to an address of their choosing.
 
-### Isolation from the other two
+### Isolation from the others
 
 Same checks as staging, one stack over:
 

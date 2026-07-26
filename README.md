@@ -486,7 +486,12 @@ docker compose -p qassist -f docker-compose.yml -f docker-compose.prod.yml up -d
 
 The runbook — DNS, the `.env` values the overlay reads, verifying the
 WebSocket, deploying a new tag, and the certificate store — is
-[`DEPLOY.md`](DEPLOY.md).
+[`DEPLOY.md`](DEPLOY.md). It also covers the hosted deployments this repo drives,
+each of which is those same two compose files with a different project name and
+env file: production, staging, the demo sandbox, and a preview environment. The
+promotion chain is **dev → staging → main**, with `preview` a force-pushable
+*spur* off the side of it rather than a stage in it — nothing merges out of
+preview, which is what keeps `main` a fast-forward of what staging proved.
 
 ## Roadmap
 

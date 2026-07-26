@@ -1,4 +1,5 @@
-# Fast checks on every push and PR (US-032).
+# Fast checks on every pull request (US-032), and on the branches that gate a
+# published image.
 #
 # "Fast" is the design constraint: no Docker image build lives here. The full
 # image (Python, Playwright, Chromium and its system libraries) takes ~20
@@ -13,10 +14,22 @@ name: CI
 
 on:
   push:
+    # Only `main`, and that costs nothing because nothing reaches it except a
+    # fast-forward from `staging`.
+    #
     # `staging` is deliberately absent: staging.yml is what a push there
     # triggers, and it calls this file. Listing it too would run the whole
     # suite twice for one push.
-    branches: [main, dev]
+    #
+    # `dev` was dropped in US-055. The gates are staging.yml and release.yml,
+    # both of which `uses: ./.github/workflows/ci.yml` before publishing
+    # anything, so an image whose tests never ran stays impossible either way —
+    # the `dev` run was informational, about a branch that takes WIP pushes and
+    # feeds a force-pushable `preview` spur. The tradeoff, stated rather than
+    # discovered: a broken test is now found at merge-to-`staging` time, which
+    # is the slow round trip, so local `npm test` stops being optional.
+    branches: [main]
+  # Kept, so a PR into `dev` is still fully checked.
   pull_request:
   workflow_call:
 

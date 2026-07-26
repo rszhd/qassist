@@ -5,7 +5,29 @@ force-push to a `preview` branch, built on the box itself, **so that** looking a
 a change live costs a minute instead of a staging round trip — and staging stays
 free to be the thing that replicates production.
 
-- **Status:** 📋 Planned (2026-07-26)
+- **Status:** 🟡 2/9 (2026-07-26) — **the repo half is in.**
+  `.env.preview.example` exists and says why it is looser rather than only what
+  differs; `DEPLOY.md` carries the [Preview](../../../DEPLOY.md#preview) section
+  with its three costs, the build-and-`up -d` loop, the running-commit check and
+  the "what preview must not become" boundary; `CLAUDE.md`, `CONTRIBUTING.md`
+  and `README.md` all describe preview as a spur rather than a stage. `ci.yml`
+  now triggers on `push: [main]` plus `pull_request`, so a push to `dev` runs
+  nothing while a PR into it still runs the full suite and `staging.yml` still
+  gates its image on that suite. Two criteria are closed on the repo alone: no
+  `docker-compose.preview.yml` exists and no compose file mentions preview.
+
+  One decision made while writing it, not in the plan above: the documented
+  build stamps `--label org.opencontainers.image.revision="$(git rev-parse
+  --short HEAD)"`. An image that never went through a registry has no other way
+  to answer "which commit is this?", and the criterion asks for the running
+  commit rather than the tag — so the label is what makes that check possible
+  at all, and `docker inspect` on the container reads it back.
+
+  **The remaining seven all need the box** and none of them can be faked
+  here: the hostname, its certificate, the rebuild actually being picked up by
+  image ID, the cross-stack refusal, mail staying in the console, and disk
+  staying flat across cycles. The `dev`/PR trigger split is also only observable
+  on the next push.
 - **Priority:** P2 (current sprint) — it is the friction
   [US-052](US-052-staging-branch-continuous-deploy.md) halved rather than
   removed, and every story that wants a live look pays it again
@@ -63,7 +85,10 @@ name and an env file, exactly as US-038 says an environment is.
 
 ```sh
 git fetch && git checkout -B preview origin/preview
-docker build -t qassist:preview .              # QASSIST_IMAGE=qassist:preview
+# the label is the only way to read the commit off a registry-less image
+docker build -t qassist:preview \
+  --label org.opencontainers.image.revision="$(git rev-parse --short HEAD)" .
+# .env.preview: QASSIST_IMAGE=qassist:preview
 export ENV_FILE=.env.preview
 docker compose -p qassist-preview -f docker-compose.yml -f docker-compose.prod.yml \
   --env-file "$ENV_FILE" up -d

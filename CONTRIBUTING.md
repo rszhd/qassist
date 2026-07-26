@@ -98,6 +98,16 @@ survived, and a version tag is cut from there. Nothing pushes to `main`
 directly. The mechanics are in [`DEPLOY.md`](DEPLOY.md#promoting-staging-to-production);
 as a contributor you only need `dev`.
 
+There is a fourth branch, `preview`, and it is **a spur off that chain rather
+than a stage in it**: force-pushing any branch to it rebuilds
+`preview.qassist.run` on the box for a quick live look, and nothing is ever
+merged back out of it. It is a maintainer's tool, not a step in the path a
+contribution takes — see [`DEPLOY.md`](DEPLOY.md#preview).
+
+Note that CI runs on your **pull request**, not on pushes to `dev`. Run the
+suites yourself before opening one — which ones, for what, is
+[above](#running-the-tests).
+
 Planned work lives in [`backlog/`](backlog/README.md), one file per user story.
 If your change implements one, read that `US-xxx` file first — it carries the
 acceptance criteria your PR will be measured against, and often the decisions
