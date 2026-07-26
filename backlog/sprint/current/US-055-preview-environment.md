@@ -5,7 +5,49 @@ force-push to a `preview` branch, built on the box itself, **so that** looking a
 a change live costs a minute instead of a staging round trip — and staging stays
 free to be the thing that replicates production.
 
-- **Status:** 🟡 2/9 (2026-07-26) — **the repo half is in.**
+- **Status:** 🟢 **8/9, live at `https://preview.qassist.run`** (2026-07-26) on
+  its own Let's Encrypt certificate, `noindex, nofollow`, `billing:false`, its
+  own `qassist-preview_pgdata`, built on the box from a `qassist:preview` tag
+  that no registry has ever held. The loop was exercised three times end to end
+  and the environment did what the story said it would — but three of the
+  story's own claims were wrong, and each is corrected in place above:
+
+  - **~2 minutes was pessimistic by a factor of thirty.** 2 s for a `server/src`
+    change, 4 s for a frontend one. Only a cold cache or an
+    `agent/requirements.txt` change costs real time.
+  - **`docker image prune -f` reclaims nothing.** BuildKit leaves no dangling
+    image; the **build cache** is what grows (5.05 → 7.81 GB over two rebuilds).
+    The deploy needs `docker buildx prune -f --max-used-space 6GB`. With it,
+    three cycles left Images, Build Cache and `df` all unchanged.
+  - **The box already had a working tree.** `~/qassist` has always held the
+    other stacks' compose and env files. The new exception is *building*, and
+    the separate `~/qassist-preview` clone is a requirement rather than tidiness:
+    `git checkout -B preview` in the shared tree would swap the compose files out
+    from under three running stacks.
+
+  Proven on the box: a `wip/preview-proof` branch that has never been on `dev`
+  was previewed; `up -d` recreated the container from a new image ID with no tag
+  change and no registry, confirmed by the revision label reading the branch tip
+  (`dceb6c6` → `d4d4e42` → `41b3516`); a preview session cookie forced onto
+  staging and demo with an explicit `Cookie:` header is 401 on both and 200 on
+  preview; and a sign-in link for `stranger@example.com` was printed to the
+  container log with `RESEND_API_KEY` empty, so a stranger cannot be mailed. The
+  three pushes to `preview` triggered no workflow run.
+
+  **The one open criterion is not preview's.** `git merge --ff-only staging` into
+  `main` **fails today**, and it failed before preview existed — `origin/preview`
+  is provably not in staging's ancestry. `origin/main` carries two GitHub PR
+  merge commits (`f8a2937` #2, `32aa949` #3) that `dev` and `staging` do not, and
+  US-052's reconciliation commit `15e7de3` merged `b3977f7`, which is not on
+  `origin/main` — so it reconciled a stale local `main`. US-052's scorecard says
+  the fast-forward is now possible; it is not. Fixing it is that story's, and it
+  wants the maintainer's call on how.
+
+  Also noticed while reading env files, unrelated but real: **`.env.staging` has
+  no `TRUST_PROXY`**, so staging's per-IP limits count Traefik's address rather
+  than each caller's.
+
+  Repo half, for the record:
   `.env.preview.example` exists and says why it is looser rather than only what
   differs; `DEPLOY.md` carries the [Preview](../../../DEPLOY.md#preview) section
   with its three costs, the build-and-`up -d` loop, the running-commit check and
@@ -13,21 +55,19 @@ free to be the thing that replicates production.
   and `README.md` all describe preview as a spur rather than a stage. `ci.yml`
   now triggers on `push: [main]` plus `pull_request`, so a push to `dev` runs
   nothing while a PR into it still runs the full suite and `staging.yml` still
-  gates its image on that suite. Two criteria are closed on the repo alone: no
-  `docker-compose.preview.yml` exists and no compose file mentions preview.
+  gates its image on that suite — the last of which is only *observable* once
+  `dev` is pushed, since a `push` event runs the workflow file on the pushed
+  commit. No `docker-compose.preview.yml` exists and no compose file mentions
+  preview.
 
   One decision made while writing it, not in the plan above: the documented
   build stamps `--label org.opencontainers.image.revision="$(git rev-parse
   --short HEAD)"`. An image that never went through a registry has no other way
   to answer "which commit is this?", and the criterion asks for the running
   commit rather than the tag — so the label is what makes that check possible
-  at all, and `docker inspect` on the container reads it back.
-
-  **The remaining seven all need the box** and none of them can be faked
-  here: the hostname, its certificate, the rebuild actually being picked up by
-  image ID, the cross-stack refusal, mail staying in the console, and disk
-  staying flat across cycles. The `dev`/PR trigger split is also only observable
-  on the next push.
+  at all, and `docker inspect` on the container reads it back. It earned its
+  place immediately: it is what caught the rebuild landing, and what would have
+  caught it not landing.
 - **Priority:** P2 (current sprint) — it is the friction
   [US-052](US-052-staging-branch-continuous-deploy.md) halved rather than
   removed, and every story that wants a live look pays it again
@@ -92,7 +132,7 @@ docker build -t qassist:preview \
 export ENV_FILE=.env.preview
 docker compose -p qassist-preview -f docker-compose.yml -f docker-compose.prod.yml \
   --env-file "$ENV_FILE" up -d
-docker image prune -f
+docker buildx prune -f --max-used-space 6GB   # NOT `image prune` — see cost 2
 ```
 
 No `docker-compose.preview.yml`, and none should appear — the moment the overlay
@@ -111,6 +151,11 @@ Two mechanics worth writing down because they are not obvious:
   the `COPY`s. That is the difference between ~2 minutes and the ~20 the fast
   workflow was designed to avoid.
 
+  **Measured on the box, and ~2 minutes was pessimistic by a factor of thirty:**
+  2 s for a `server/src` change, 4 s for a frontend one — Vite itself is 3.5 s.
+  The two builds that do cost are the first on a cold cache and any change to
+  `agent/requirements.txt`.
+
 ## What it costs
 
 Three, and none of them are free:
@@ -120,9 +165,24 @@ Three, and none of them are free:
    deliberate exception and must stay confined to one: production and staging
    still cannot build, and preview runs unreviewed, untested commits on the same
    Docker daemon as production.
+
+   **Wrong on the premise, right on the cost.** The box has had a checkout all
+   along — `~/qassist` is where every stack's compose files and env files live —
+   and it even carries a locally built `qassist:latest` from four days ago. So
+   the new thing is *building*, not seeing source. That also turns the separate
+   clone from tidiness into a requirement: preview's loop is
+   `git checkout -B preview`, and running it in `~/qassist` would swap the
+   compose files out from under three live stacks.
 2. **Disk.** Each rebuild orphans a layer set of a couple of GB, and production
    shares that disk — a full disk takes production down. So the prune is part of
    the documented deploy, not a habit someone is trusted to have.
+
+   **The mechanism is wrong and so is the prune.** Nothing orphans: BuildKit
+   moves the tag and drops the old manifest, leaving zero dangling images, and
+   `docker image prune -f` therefore reclaims 0 B. What grows is the **build
+   cache** — 5.05 GB → 7.81 GB over two rebuilds. The deploy line has to be
+   `docker buildx prune -f --max-used-space 6GB`: bounded rather than emptied,
+   because that cache is exactly what keeps a rebuild at seconds.
 3. **RAM.** This is a fourth app container *and* a fourth Postgres.
    `MAX_CONCURRENT_SESSIONS=1`, and production's own budget may have to come
    down to pay for it — `DEPLOY.md`'s worked example already lands at 3 + 1 on
@@ -161,27 +221,27 @@ and this makes that rule load-bearing.
 
 ## Acceptance criteria
 
-- [ ] A force-push to `preview` reaches `preview.qassist.run` in about two
+- [x] A force-push to `preview` reaches `preview.qassist.run` in about two
       minutes by `pull` + `build` + `up -d` on the box, on its own Let's Encrypt
       certificate, serving `noindex, nofollow`
-- [ ] The fourth stack is the same two compose files with a different `-p` and
+- [x] The fourth stack is the same two compose files with a different `-p` and
       `--env-file` — no `docker-compose.preview.yml` exists, and no compose file
       mentions preview
-- [ ] A rebuild is actually picked up: `up -d` recreates the container from the
+- [x] A rebuild is actually picked up: `up -d` recreates the container from the
       new image ID with no tag change and no registry round trip, confirmed by
       the running commit rather than by the tag
 - [ ] A branch that has never been merged to `dev` can be previewed, and
       preview's history never reaches `staging` — `git merge --ff-only staging`
       into `main` still succeeds afterwards
-- [ ] Isolation holds as it does for the other three: its own `pgdata` volume,
+- [x] Isolation holds as it does for the other three: its own `pgdata` volume,
       its own secrets, and a preview API key or session cookie is refused by
       production and staging
-- [ ] Preview cannot mail a stranger and shows no billing UI — a failing run
+- [x] Preview cannot mail a stranger and shows no billing UI — a failing run
       sends nothing (console only) and `/api/health` reports `billing:false`
-- [ ] Repeated rebuilds do not grow the disk without bound: the documented
+- [x] Repeated rebuilds do not grow the disk without bound: the documented
       deploy prunes, and the box's image usage is stable after several cycles
-- [ ] A push to `dev` runs no workflow; a PR into `dev` runs the full suite; a
+- [x] A push to `dev` runs no workflow; a PR into `dev` runs the full suite; a
       push to `staging` still gates its image on that suite
-- [ ] `DEPLOY.md` carries the preview section (including its costs), and
+- [x] `DEPLOY.md` carries the preview section (including its costs), and
       `CLAUDE.md`, `CONTRIBUTING.md` and `README.md` agree that preview is a
       spur off the chain rather than a stage in it

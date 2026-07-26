@@ -431,14 +431,21 @@ upstream of `staging`, which is the one invariant US-052 bought.
 
 Three things, and none of them are free. Read them before standing it up:
 
-1. **The box gets a working tree for the first time.** US-032's
-   `build: !reset null` exists so that a server never sees source. Preview is a
-   deliberate exception and must stay confined to one — production and staging
-   still cannot build — and it runs unreviewed, untested commits on the same
-   Docker daemon as production.
-2. **Disk.** Each rebuild orphans a layer set of a couple of GB, and production
-   shares that disk; a full disk takes production down. The `docker image prune`
-   below is part of the deploy, not a habit someone is trusted to have.
+1. **The box builds, for the first time.** US-032's `build: !reset null` exists
+   so that a deployment never compiles what it serves. Preview is a deliberate
+   exception and must stay confined to one — production and staging still
+   cannot build — and it builds *unreviewed, untested* commits on the same
+   Docker daemon as production. (The box already had a checkout before this:
+   `~/qassist` holds the compose files and every stack's env file. What is new
+   is building from one.)
+2. **Disk — and the obvious prune is the wrong one.** Measured on the box,
+   2026-07-26: `docker image prune -f` reclaims **nothing** across a rebuild.
+   BuildKit moves the tag and drops the old manifest itself, so no dangling
+   image is ever left. What grows is the **build cache** — two rebuilds took it
+   from 5.05 GB to 7.81 GB, none of which `image prune` can see. Production
+   shares that disk, and a full disk takes production down, so the bounded
+   `buildx prune` below is part of the deploy. `--max-used-space` rather than a
+   plain prune, because the cache is also what keeps a rebuild at seconds.
 3. **RAM.** A fourth app container *and* a fourth Postgres.
    `MAX_CONCURRENT_SESSIONS=1`, and production's own budget may have to come
    down to pay for it — the worked example [above](#first-time-setup) already
@@ -449,9 +456,12 @@ Three things, and none of them are free. Read them before standing it up:
 **1. DNS.** An `A` record for `preview.qassist.run` → the same IP. (Added
 alongside production's in step 1 above.)
 
-**2. A clone, in its own directory.** Preview is the only stack that needs the
-source, so give it a checkout of its own rather than building in whatever
-directory the other stacks' env files live in:
+**2. A clone, in its own directory.** The box already has a checkout at
+`~/qassist` — it is where the other stacks' compose files and env files live,
+and `docker compose ls` names it as their config path. Preview must **not**
+build there. Its whole loop is `git checkout -B preview`, and switching that
+branch would swap the compose files out from under three running stacks. So it
+gets a clone of its own:
 
 ```sh
 git clone https://github.com/<owner>/qassist.git ~/qassist-preview
@@ -479,7 +489,7 @@ export ENV_FILE=.env.preview          # exported, not a command prefix — see S
 docker compose -p qassist-preview \
   -f docker-compose.yml -f docker-compose.prod.yml --env-file "$ENV_FILE" up -d
 
-docker image prune -f
+docker buildx prune -f --max-used-space 6GB
 ```
 
 `git checkout -B` rather than `pull`, because the branch is force-pushed: a
@@ -499,10 +509,15 @@ Four mechanics worth knowing, because none of them are obvious:
   recorded against the container, not the tag string, so a fresh build under an
   unchanged tag is picked up. This is the exact inverse of staging's trap, where
   an unchanged *registry* tag is what silently is not fetched.
-- **The expensive layer is cached.** `pip install -r requirements.txt` and
-  `playwright install --with-deps chromium` are keyed on `agent/requirements.txt`,
-  so a code-only rebuild pays for the Vite build and the `COPY`s — about two
-  minutes, against the ~20 the fast CI workflow was designed to avoid.
+- **A rebuild is seconds, not minutes.** Measured on the box, 2026-07-26: **2 s**
+  for a `server/src` change and **4 s** for a frontend one, of which Vite itself
+  is 3.5 s. `pip install -r requirements.txt` and
+  `playwright install --with-deps chromium` are keyed on `agent/requirements.txt`
+  and `npm install` on `frontend/package.json`, so an ordinary change touches
+  nothing but the `COPY`s and the Vite build. Two builds still cost real time:
+  the first one on a cold cache, and any change to `agent/requirements.txt`,
+  which reinstalls Chromium and its system libraries. Budget ~20 minutes for
+  those and seconds for everything else.
 - **There is no seed step.** Preview starts empty and is meant to. If a change
   needs a populated database, that is staging's `seed-staging.mjs`, and it is a
   hint that the change wants staging.
@@ -541,12 +556,18 @@ curl -sSo /dev/null -w '%{http_code}\n' https://app.qassist.run/api/runs \
   -H "Authorization: Bearer <a preview key>"                    # 401
 ```
 
-And that the disk is not growing without bound — after several rebuild cycles,
-with the prune in each one, image usage should be flat:
+And that the disk is not growing without bound. Read the **Build Cache** row,
+not the Images one — images do not accumulate here, the cache does:
 
 ```sh
 docker system df
+df -h /
 ```
+
+With the bounded `buildx prune` in each cycle this is flat: three cycles on
+2026-07-26 left Images at 19.48 GB, Build Cache at 5.75 GB and the filesystem at
+31 G used, unchanged from the cycle before. Without it, two cycles alone added
+2.8 GB that `docker image prune` could not reclaim.
 
 ### What preview must not become
 

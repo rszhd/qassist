@@ -14,6 +14,18 @@ survived rather than a branch releases are hoped at.
   exists for. The three open items all need the box: it is still on a version
   tag, so `pull`, the revision check and the rollback are unproven in the place
   they matter
+
+  **Correction, 2026-07-26 (found while closing [US-055](US-055-preview-environment.md)):
+  the reconciliation did not take, and the `--ff-only` promotion fails today.**
+  `git merge --ff-only staging` on `main` aborts with *Not possible to
+  fast-forward*. `origin/main` carries two GitHub PR merge commits — `f8a2937`
+  (#2) and `32aa949` (#3, merged 01:33) — that `dev` and `staging` do not, while
+  the reconciliation commit `15e7de3` (12:26) merged `b3977f7`, which is not on
+  `origin/main` at all. So it merged a stale local `main` and the real one moved
+  on. Nothing about preview caused this: `origin/preview` is provably not in
+  staging's ancestry. The fix is to merge `origin/main` into `dev` for real and
+  re-branch `staging` from there, which is a maintainer decision about the chain
+  rather than a chore, so it is written down rather than done
 - **Priority:** P1 (current sprint) — it is the friction [US-038](US-038-staging-environment.md)
   left behind, and it gets worse with every story that wants a real box
 - **Estimate:** ~1 h repo-side, plus one deploy to move the box onto `:staging`
