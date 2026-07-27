@@ -10,7 +10,7 @@
 // project resolver; routes/modules.js imports them.
 import express from 'express';
 import { db, currentUserId, isUuid } from '../db.js';
-import { h, requireDb, requireAgentKey, requireEntitled, runTestsFromRequest, slugify } from './helpers.js';
+import { h, requireDb, requireAgentKey, requireEntitled, withUserCap, runTestsFromRequest, slugify } from './helpers.js';
 import { NOTIFY_MODES, cleanEmails } from '../notify.js';
 
 export const PROJECT_COLS =
@@ -289,6 +289,7 @@ export function projectsRouter({ checkToken }) {
     '/:project/run',
     requireEntitled,
     requireAgentKey,
+    withUserCap,
     h(async (req, res) => {
       // @ts-expect-error — set by r.param
       const project = req.project;
@@ -334,6 +335,7 @@ export function projectsRouter({ checkToken }) {
     '/:project/modules/:module/run',
     requireEntitled,
     requireAgentKey,
+    withUserCap,
     h(async (req, res) => {
       // @ts-expect-error — set by r.param
       const mod = await findModule(req.project.id, req.params.module);

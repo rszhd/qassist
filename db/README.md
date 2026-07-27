@@ -118,6 +118,14 @@ entitlement gate; `cancel_at` exists so Settings can say when access ends.
 - **BYOK stored keys**: `users.openai_key_ciphertext` is app-side encrypted
   (AES-256-GCM with a server secret from env), nullable — per-request keys
   (US-005 v1) keep working and nothing is persisted unless the user opts in.
+- **`users.max_concurrent_runs` is an exception, not a setting** (US-058).
+  Nullable with no default, because a default here would be a second home for
+  `MAX_CONCURRENT_PER_USER` and the resolution order has exactly one. `> 0` is
+  enforced by a *named* check constraint: zero would be an account suspension
+  rather than a capacity limit, and naming it means a later `drop constraint`
+  can't silently no-op on one engine (US-047's lesson). Note that **pg-mem can
+  neither parse the inline-check form nor enforce the named one**, so that
+  constraint is only ever provable against a real server.
 - **Retention (US-011, shipped)**: rows are kept forever, artifacts are not.
   After `ARTIFACT_RETENTION_DAYS` (default 7) the sweep stamps
   `artifacts_deleted_at` and *then* removes `runs/<id>/` — that order means a

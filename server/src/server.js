@@ -34,8 +34,16 @@ import { keysRouter } from './routes/keys.js';
 import { accountRouter } from './routes/account.js';
 import { billingRouter, billingWebhookHandler } from './routes/billing.js';
 import { billingEnabled } from './billing.js';
+import { loadUserConcurrencyCaps } from './concurrency.js';
 
 await initDb();
+
+// Per-user concurrency overrides (US-058), so the scheduler and the fair-share
+// dequeue see them before their owner's first request of this boot. The
+// run-start routes refresh the caller's own on every submit; this is the set
+// nobody has submitted for yet.
+const overrides = await loadUserConcurrencyCaps();
+if (overrides) console.log(`db: loaded ${overrides} per-user concurrency override(s)`);
 
 const app = express();
 

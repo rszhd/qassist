@@ -9,13 +9,13 @@ import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { db, currentUserId } from './db.js';
+import { getUserConcurrencyCap, anyCapInForce } from './concurrency.js';
 import { demoMode } from './auth.js';
 import { loadDemo, fixtureForRun, recordingPath, reportPath } from './demo.js';
 import { notifyRunFinished } from './notify.js';
 import { resolveForRun } from './variables.js';
 import {
   MAX_CONCURRENT,
-  MAX_CONCURRENT_PER_USER,
   DEFAULT_MAX_STEPS,
   RUN_TTL_MS,
   MAX_RUN_MEMORY_MB,
@@ -66,23 +66,13 @@ export function counts() {
   return { active, queued: queue.length };
 }
 
-// --- per-user concurrency cap (US-028) ---
+// --- per-user concurrency cap (US-028, per-user override US-058) ---
 // Accounting is in-memory, scanned off the live registry: correct for one
 // worker, and deliberately not a distributed counter — enforcing the cap across
-// a fleet is US-015's shared-state problem, not this story's.
-
-/**
- * The concurrent-run cap for a user, or null when uncapped (env unset = off).
- * Resolved through a function, not the bare constant, so US-022 can turn it into
- * a per-plan lookup without threading a new argument through the run engine.
- * The `userId` is unused in v1 — every user on the box gets the same number.
- * @param {string|null} userId
- * @returns {number | null}
- */
-export function getUserConcurrencyCap(userId) {
-  void userId;
-  return MAX_CONCURRENT_PER_USER;
-}
+// a fleet is US-015's shared-state problem, not this story's. The cap itself is
+// resolved in concurrency.js, which owns the one order the three gates below
+// read it in; re-exported here because that is where callers import it from.
+export { getUserConcurrencyCap };
 
 /** How many of a user's runs are running OR queued — what admission counts. */
 function inFlightForUser(uid) {
@@ -732,8 +722,11 @@ function linkFixtureArtifacts(run, slug) {
 }
 
 function startNext() {
-  if (MAX_CONCURRENT_PER_USER == null) {
-    // No per-user cap: byte-for-byte the pre-US-028 FIFO drain.
+  if (!anyCapInForce()) {
+    // Nothing capped anywhere: byte-for-byte the pre-US-028 FIFO drain. The
+    // test is "is any cap in force", not "is the env set" (US-058) — an
+    // override on an instance with no default is exactly what the latter would
+    // swallow, cap and all.
     while (active < MAX_CONCURRENT && queue.length) startRun(queue.shift());
   } else {
     // Fair-share (US-028): promote the first queued run whose owner is under

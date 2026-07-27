@@ -11,6 +11,7 @@
 import { db } from './db.js';
 import { demoMode } from './auth.js';
 import { runTests } from './runs.js';
+import { refreshUserConcurrencyCap } from './concurrency.js';
 import { runGateFor } from './activation.js';
 import { getUserOpenaiKey } from './openaiKey.js';
 import { nextSlot } from './schedule.js';
@@ -212,6 +213,12 @@ export async function tick(now = Date.now()) {
       console.log(`schedule ${schedule.id.slice(0, 8)}: ${label} still running — slot skipped`);
       continue;
     }
+
+    // The owner's concurrency override, re-read the way the HTTP paths do
+    // (US-058). A schedule bypasses admission by design, so this feeds the
+    // start gate rather than a refusal: it is what holds a scheduled burst to
+    // the owner's own cap instead of the instance default.
+    await refreshUserConcurrencyCap(schedule.user_id);
 
     const started = runTests(ready, {
       trigger: 'schedule',

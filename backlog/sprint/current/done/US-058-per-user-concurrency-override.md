@@ -5,7 +5,7 @@
 smoke-test account) can be given more or less of the box than the instance
 default without changing what everyone else gets.
 
-- **Status:** 📋 Planned (created 2026-07-27)
+- **Status:** ✅ Shipped (2026-07-27)
 - **Priority:** P2, pulled into the current sprint on 2026-07-27 — the missing
   operator lever. US-028 shipped the cap deliberately as *one env number for
   everyone including the operator*, and said so; this is the refinement it
@@ -107,22 +107,74 @@ and `concurrency-off.test.js`.
 
 ## Acceptance criteria
 
-- [ ] With no overrides set and `MAX_CONCURRENT_PER_USER` unset, behaviour is
+- [x] With no overrides set and `MAX_CONCURRENT_PER_USER` unset, behaviour is
       byte-for-byte today's: one global FIFO queue, no per-user accounting
-- [ ] With no overrides set and the env set, behaviour is byte-for-byte US-028's
-- [ ] An override **raises** one user past the env cap while every other account
+- [x] With no overrides set and the env set, behaviour is byte-for-byte US-028's
+- [x] An override **raises** one user past the env cap while every other account
       stays on the env number
-- [ ] An override **lowers** one user below the env cap, and their runs are
+- [x] An override **lowers** one user below the env cap, and their runs are
       refused/queued at the lower number
-- [ ] An override with the env **unset** is enforced — the FIFO fast path does
+- [x] An override with the env **unset** is enforced — the FIFO fast path does
       not swallow it
-- [ ] The override is honoured at admission (running + queued), at the start
+- [x] The override is honoured at admission (running + queued), at the start
       gate and at the fair-share dequeue, not at one of the three
-- [ ] A user at their overridden cap does not block another user's queued run
+- [x] A user at their overridden cap does not block another user's queued run
       from starting when a slot frees
-- [ ] The 429 message names the *effective* cap, not the env one
-- [ ] `cd server && npm test` and `npm run check` clean; the `correctness-critical.md`
+- [x] The 429 message names the *effective* cap, not the env one
+- [x] `cd server && npm test` and `npm run check` clean; the `correctness-critical.md`
       row is updated in the same commit
+
+## Results
+
+Shipped 2026-07-27. 405/405 server tests green (20 of them new), `npm run check`
+clean, both against real Postgres as well as pg-mem.
+
+**The cache won the fork, and for a reason the story did not have.** Stamping
+the cap on the run reads more correct — a queued run keeping the cap it was
+admitted under — right up until you notice which direction this lever is
+actually pulled in. The case it exists for is throttling one account *down*, and
+a stamp means the burst that provoked the throttle is exactly the burst the
+throttle cannot reach. Written down here because "the queued run keeps its own
+cap" will look like the better design again the next time someone reads it.
+
+**The "invisible until restart" problem the story flagged did not need to be
+accepted.** It offered two ways out — a reload trigger, or an honest line in
+`DEPLOY.md` — and took the second as likely. The third was cheaper than either:
+the run-start paths re-read *the caller's own* override before admission, so a
+write from the script's separate process lands on that account's next submit. A
+restart was never really available anyway; it kills every run in flight, which
+on the box this story is about is the thing you were trying to protect.
+
+**Zero and the above-global case both stopped being preference questions once
+looked at.** Rejecting a cap above `MAX_CONCURRENT_SESSIONS` at write time
+cannot work: the check would have to live in a database constraint, and a
+constraint cannot see an env var. So it is accepted, never binds, and the script
+warns — one truth in one gate, and the "friendlier" option was not on the table.
+
+**pg-mem cannot hold this feature up in either direction, and found that out by
+breaking.** It fails to parse an inline `check` inside `alter table add column`
+against this schema at all ("Corrupted alias" — it takes down *every* test that
+migrates in memory, not just the new ones), and having been split into the named
+two-statement form it parses fine and then does not enforce the constraint. So
+`> 0` is only ever provable against a real server, which is where the assertion
+went. A bare-table probe said the inline form was fine; the real schema said
+otherwise. Probe against the schema you actually have.
+
+**The middleware was deliberately not fused the way US-054's was.** Activation
+was folded into the billing gate so "one of the seven start paths missed it"
+could not happen by omission. This one is its own `withUserCap` on the six
+run-start routes plus the scheduler, because the failure is not the same shape:
+a missed billing gate is free service, a missed cap refresh is a stale number
+that is still a cap. Different price, different rule.
+
+**What is now true that US-028 promised:** `getUserConcurrencyCap(userId)` no
+longer throws the id away, and it did so without a new argument at any
+`createRun` call site — which is the whole reason the seam was built as a
+function in the first place. The one behavioural change outside the override
+path is `startNext` branching on `anyCapInForce()` instead of the env constant,
+and `concurrency-override-off.test.js` pins that the eligibility scan drains
+uncapped users in byte-for-byte FIFO order — asserted on drain *order*, since
+counts cannot see the difference.
 
 ## Later
 

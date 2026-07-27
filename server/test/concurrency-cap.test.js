@@ -50,6 +50,12 @@
 //
 //   D6  getUserConcurrencyCap(userId) ignores userId for v1 (returns the one env
 //       number); it's the seam US-022 turns into a per-plan lookup.
+//       SUPERSEDED by US-058, which fills the seam with a per-user override.
+//       The assertion below survives — no override is set in this file, so the
+//       env number is still every answer — but it now pins "the default when
+//       nobody is overridden" rather than "the id is thrown away". The override
+//       cases are concurrency-override*.test.js; everything else here is
+//       unchanged and is US-058's regression proof for the un-overridden path.
 // ─────────────────────────────────────────────────────────────────────────────
 import { test, before, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -114,7 +120,7 @@ afterEach(() =>
   })
 );
 
-test('getUserConcurrencyCap returns the env number, per user (v1 ignores the id)', () => {
+test('getUserConcurrencyCap returns the env number for a user with no override (D6)', () => {
   assert.equal(engine.getUserConcurrencyCap(A), 2);
   assert.equal(engine.getUserConcurrencyCap(B), 2);
 });

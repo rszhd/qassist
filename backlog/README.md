@@ -48,7 +48,7 @@ Sprints aren't split along a self-host/hosted-tier line — `sprint/current/` an
 |---|---|---|---|
 | [US-042](sprint/current/US-042-agent-navigation-confinement.md) | Confine where the agent may navigate | 📋 Planned (P1, pulled up 2026-07-27) — correctness-critical | US-021 |
 | [US-056](sprint/current/US-056-production-deployment.md) | Production deployment: `app.qassist.run` goes live | 📋 Planned (created 2026-07-26) — the production stand-up itself | US-007, US-038, US-052 |
-| [US-058](sprint/current/US-058-per-user-concurrency-override.md) | Raise one user's concurrency cap without raising everyone's | 📋 Planned (created 2026-07-27) | US-028, US-021 |
+| [US-058](sprint/current/done/US-058-per-user-concurrency-override.md) | Raise one user's concurrency cap without raising everyone's | ✅ **Done** 2026-07-27, 9/9 — the cap the operator can move for one account, and it lands without a restart | US-028, US-021 |
 | [US-057](sprint/current/US-057-html-email-template.md) | An HTML template for outgoing email (magic link, run reports, activation) | 🔨 **Built** 2026-07-27, 4/5 — stays open on the one criterion a test can't answer: the Gmail/Apple Mail render | — |
 | [US-020](sprint/current/US-020-report-v2-screenshots-recording.md) | Report v2: step screenshots + recording | 📋 Planned (P2, pulled up 2026-07-27) | US-006 |
 | [US-047](sprint/current/done/US-047-stop-a-run.md) | Stop a run | ✅ **Done** 2026-07-27, 6/6 — `cancelled` is a terminal status of its own, and a stop is not a red build | — |

@@ -224,6 +224,48 @@ undo. Running it twice is harmless and mails nobody a second time.
 in the window is released by that restart — there is no backlog to work
 through, and no account is left half-provisioned.
 
+## Giving one account more (or less) of the box
+
+`MAX_CONCURRENT_PER_USER` in `.env` is the number *everyone* gets, and changing
+it needs a restart that kills every run in flight. US-058 adds a per-account
+override that needs neither:
+
+```sh
+docker compose -p qassist -f docker-compose.yml -f docker-compose.prod.yml \
+  exec qassist npm --prefix /app/server run concurrency
+#   → the instance default, the whole-box cap, and every account that differs
+
+# give one team more of the box
+docker compose -p qassist -f docker-compose.yml -f docker-compose.prod.yml \
+  exec qassist npm --prefix /app/server run concurrency -- them@example.com 4
+
+# throttle one account back — the direction there was previously no lever for
+docker compose -p qassist -f docker-compose.yml -f docker-compose.prod.yml \
+  exec qassist npm --prefix /app/server run concurrency -- noisy@example.com 1
+
+# put them back on the instance default
+docker compose -p qassist -f docker-compose.yml -f docker-compose.prod.yml \
+  exec qassist npm --prefix /app/server run concurrency -- them@example.com -
+```
+
+**A change takes effect on that account's next submitted run, not instantly and
+not at the next restart.** The script runs in its own process and cannot reach
+the server's memory, so the server re-reads the caller's own override on every
+run-start request. Runs already queued keep going under whatever was in force
+when they were admitted.
+
+Three things the lever deliberately will not do. It **cannot raise anyone past
+`MAX_CONCURRENT_SESSIONS`** — a bigger number is accepted and simply never
+binds, because the whole-box cap is still the real throttle and resizing is
+still the only way to move it. It **cannot be set to 0**: that is an account
+suspension rather than a capacity limit, and the refusal a capped user sees
+says "wait for one to finish", which for 0 would never come true. And it is
+**not a plan entitlement** — nothing in billing writes this column, so a
+subscription change never moves a number you set by hand.
+
+Same exact-match rule as `activate`: no fuzzy matching, because throttling the
+wrong account is not something the script can undo.
+
 ## Staging
 
 `staging.qassist.run` is **the same box and the same two compose files** as

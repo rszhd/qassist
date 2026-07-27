@@ -6,7 +6,7 @@ import express from 'express';
 import { db, currentUserId, isUuid } from '../db.js';
 import { createRun } from '../runs.js';
 import { DEFAULT_MAX_STEPS } from '../config.js';
-import { h, requireDb, requireAgentKey, requireEntitled, respondOverCap, TRIGGERS } from './helpers.js';
+import { h, requireDb, requireAgentKey, requireEntitled, withUserCap, respondOverCap, TRIGGERS } from './helpers.js';
 import { normalizeDeclarations, validateReferences, resolveForRun } from '../variables.js';
 
 const COLS =
@@ -214,6 +214,7 @@ export function testsRouter({ checkToken }) {
     '/:id/run',
     requireEntitled,
     requireAgentKey,
+    withUserCap,
     h(async (req, res) => {
       if (!isUuid(req.params.id)) return res.status(404).json({ error: 'not found' });
       const { rows } = await db().query(`select ${COLS} from tests where id = $1 and user_id = $2`, [

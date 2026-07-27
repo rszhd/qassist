@@ -6,6 +6,7 @@ import { validOpenaiKeyShape } from '../crypto.js';
 import { getUserOpenaiKey, resolveRunKey } from '../openaiKey.js';
 import { billingEnabled } from '../billing.js';
 import { runGateFor, retryAfterSeconds } from '../activation.js';
+import { refreshUserConcurrencyCap } from '../concurrency.js';
 
 /** Triggers a caller may set; 'schedule' is US-010's, not callers'. */
 export const TRIGGERS = new Set(['ui', 'api', 'ci']);
@@ -117,6 +118,34 @@ export function requireEntitled(req, res, next) {
       subscription_status: gate.state.status,
     });
   })().catch(next);
+}
+
+/**
+ * Re-read the caller's per-user concurrency override before their run is
+ * admitted (US-058). The operator sets it with `npm run concurrency`, which
+ * runs in its own process and so cannot reach this one's cache — this is what
+ * makes their write land on the account's next submit rather than at the next
+ * restart, and a restart would kill every run in flight on a box that is
+ * serving.
+ *
+ * Its own middleware rather than folded into requireEntitled (which returns
+ * before its DB read when billing is off, and a self-hoster needs the override
+ * just as much) or requireAgentKey (waived in demo mode, skipped when the
+ * request brings its own key). Not in the request gate either: that runs on
+ * every media byte and history page, and this is one query the run paths owe.
+ *
+ * Unlike the billing and activation gates, a start path that missed this would
+ * fall back to the instance default — a stale cap, not an open door — so it is
+ * deliberately not fused into them the way US-054 fused activation into billing.
+ * @type {import('express').RequestHandler}
+ */
+export function withUserCap(_req, _res, next) {
+  if (!db()) return next();
+  refreshUserConcurrencyCap(currentUserId())
+    .then(() => next())
+    // A cap that can't be read is a cap that isn't overridden: fall through to
+    // the instance default rather than refusing a run over a cache refresh.
+    .catch(() => next());
 }
 
 /** @type {import('express').RequestHandler} */
