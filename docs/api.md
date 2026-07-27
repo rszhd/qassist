@@ -167,6 +167,42 @@ reached by join — so a run whose test was later deleted keeps its history row
 filter. Once retention prunes `runs/<id>/`, `artifacts_deleted_at` is set and
 the row reports no recording or report while the verdict survives.
 
+## Confining where a run may navigate
+
+Every run is fenced twice (US-042): the `start_url` is judged before a row is
+written, and the same policy arms the browser so a **redirect** into a blocked
+host is stopped mid-run. Instance-wide settings are `QA_BLOCK_PRIVATE_NETWORKS`
+and `QA_DENIED_HOSTS` (`.env.example`); per project, an allowlist:
+
+```bash
+# this project's tests may only visit our staging host and nothing else.
+# `*.x` matches the apex as well as its subdomains. [] removes the allowlist.
+curl -X PUT http://<host>:8080/api/projects/checkout \
+  -H "Authorization: Bearer $WORKER_API_TOKEN" -H "Content-Type: application/json" \
+  -d '{"allowed_domains":["*.staging.example.com"]}'
+```
+
+A refused `start_url` answers **400** with a machine-readable `reason` —
+`blocked_ip_address`, `blocked_host`, `not_in_allowed_domains`,
+`unsupported_scheme` or `invalid_url` — so CI can branch without parsing prose:
+
+```json
+{ "error": "navigation to 169.254.169.254 is blocked: this instance does not visit IP addresses. Set QA_BLOCK_PRIVATE_NETWORKS=0 to allow it.",
+  "reason": "blocked_ip_address" }
+```
+
+On the **batch** routes (suite, project, module) a blocked member is reported
+inside the 200 as `{ testId, blocked: true, error, reason }` and the rest of
+the batch still runs — one test pointed at localhost does not cost a suite its
+other results, the same partial-accept US-028 uses for the concurrency cap.
+
+An allowlist that would defeat the instance floor is refused when you try to
+store it (`"db" is blocked by this instance and cannot be allowed per-project`),
+because a project allowlist otherwise takes precedence over the denylist inside
+the browser. A run stopped mid-flight by the fence ends `failed` with
+`failure_reason: "navigation_blocked"` on the run detail and a named section in
+the PDF; `failure_reason` is null on every other run.
+
 ## Email notifications
 
 Off unless `RESEND_API_KEY` and `MAIL_FROM` are both set — `GET /api/health`

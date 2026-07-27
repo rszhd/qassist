@@ -23,7 +23,11 @@ const TICK_MS = 60 * 1000;
 const COLS =
   'id, user_id, test_id, module_id, suite_id, project_id, kind, interval_hours, hour, minute, weekday, tz, next_run_at';
 
-const TEST_COLS = 'id, goal, start_url, max_steps, model, variables';
+// The owning project's navigation allowlist rides along with every scheduled
+// target too (US-042) — a schedule fires with no human watching, so it is the
+// path where an unfenced run would go unnoticed longest.
+const TEST_COLS = 't.id, t.goal, t.start_url, t.max_steps, t.model, t.variables, p.allowed_domains';
+const TEST_FROM = 'tests t left join projects p on p.id = t.project_id';
 
 /**
  * Resolve a schedule's target to the tests it runs, in the order the matching
@@ -33,28 +37,30 @@ const TEST_COLS = 'id, goal, start_url, max_steps, model, variables';
  */
 async function testsOf(schedule) {
   if (schedule.test_id) {
-    const { rows } = await db().query(`select ${TEST_COLS} from tests where id = $1`, [
+    const { rows } = await db().query(`select ${TEST_COLS} from ${TEST_FROM} where t.id = $1`, [
       schedule.test_id,
     ]);
     return { label: `test ${schedule.test_id.slice(0, 8)}`, tests: rows };
   }
   if (schedule.module_id) {
     const { rows } = await db().query(
-      `select ${TEST_COLS} from tests where module_id = $1 order by created_at`,
+      `select ${TEST_COLS} from ${TEST_FROM} where t.module_id = $1 order by t.created_at`,
       [schedule.module_id]
     );
     return { label: `module ${schedule.module_id.slice(0, 8)}`, tests: rows };
   }
   if (schedule.project_id) {
     const { rows } = await db().query(
-      `select ${TEST_COLS} from tests where project_id = $1 order by created_at`,
+      `select ${TEST_COLS} from ${TEST_FROM} where t.project_id = $1 order by t.created_at`,
       [schedule.project_id]
     );
     return { label: `project ${schedule.project_id.slice(0, 8)}`, tests: rows };
   }
   const { rows } = await db().query(
-    `select t.id, t.goal, t.start_url, t.max_steps, t.model, t.variables
-       from suite_tests st join tests t on t.id = st.test_id
+    `select ${TEST_COLS}
+       from suite_tests st
+       join tests t on t.id = st.test_id
+       left join projects p on p.id = t.project_id
       where st.suite_id = $1 order by st.position`,
     [schedule.suite_id]
   );
@@ -225,10 +231,21 @@ export async function tick(now = Date.now()) {
       user_id: schedule.user_id,
       openai_api_key: storedKey,
     });
-    runs += started.length;
+    // A member the navigation fence refused (US-042) started nothing, so it
+    // must not be counted as a run — and it is logged by name, because a
+    // schedule fires with nobody watching and a silently-confined target would
+    // otherwise look like a schedule that simply stopped working.
+    const confined = started.filter((m) => 'blocked' in m);
+    runs += started.length - confined.length;
+    for (const member of confined) {
+      console.warn(
+        `schedule ${schedule.id.slice(0, 8)}: test ${member.testId.slice(0, 8)} not started — ${member.error}`
+      );
+    }
     console.log(
-      `schedule ${schedule.id.slice(0, 8)}: ${label} → ${started.length} run(s)` +
-        (busy.size ? `, ${busy.size} skipped as still running` : '')
+      `schedule ${schedule.id.slice(0, 8)}: ${label} → ${started.length - confined.length} run(s)` +
+        (busy.size ? `, ${busy.size} skipped as still running` : '') +
+        (confined.length ? `, ${confined.length} blocked by the navigation fence` : '')
     );
   }
 

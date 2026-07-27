@@ -30,7 +30,7 @@ const MAX_LIMIT = 200;
 const LIST_COLS = `r.id, r.test_id, r.trigger, r.goal, r.start_url, r.status,
   r.success, r.final_result, r.error, r.steps_count, r.created_at, r.started_at,
   r.finished_at, r.report_status, r.has_recording, r.artifacts_deleted_at,
-  r.variables, t.name as test_name, t.project_id, t.module_id`;
+  r.variables, r.failure_reason, t.name as test_name, t.project_id, t.module_id`;
 
 /**
  * Translate ?test_id/?status/?trigger/?project_id/?since/?until into a WHERE
@@ -137,6 +137,9 @@ function liveRow(run) {
     report_status: run.reportStatus || 'none',
     has_recording: !!run.recordingFile,
     variables: run.variables || {},
+    // US-042: null unless the navigation fence fired, so a reader can tell a
+    // confined run from a crashed one without parsing `error`.
+    failure_reason: res.failure_reason ?? null,
   };
 }
 
@@ -199,6 +202,7 @@ export function runsRouter({ checkToken, checkTokenOrQuery }) {
       max_steps,
       openai_api_key: /** @type {any} */ (req).runOpenaiKey,
     });
+    if ('blocked' in run) return res.status(400).json({ error: run.error, reason: run.reason });
     if ('rejected' in run) return respondOverCap(res, run);
     res.json({ runId: run.id, status: run.status });
   });

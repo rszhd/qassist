@@ -67,7 +67,9 @@ export default function RunPage({ token, needsToken, onOpenSettings }) {
       } catch {
         return;
       }
-      if (evt.type === 'step' || evt.type === 'progress') setSteps((s) => [...(s || []), evt]);
+      if (evt.type === 'step' || evt.type === 'progress' || evt.type === 'blocked') {
+        setSteps((s) => [...(s || []), evt]);
+      }
       else if (evt.type === 'frame' && evt.data) setFrame(`data:image/jpeg;base64,${evt.data}`);
       else if (evt.type === 'status') setRun((r) => r && { ...r, status: evt.status });
       else if (evt.type === 'end' || evt.type === 'done' || evt.type === 'error') load();

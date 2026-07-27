@@ -4,7 +4,10 @@
 // returns the run ids; callers poll each run (no suite_runs table).
 import express from 'express';
 import { db, currentUserId, isUuid } from '../db.js';
-import { h, requireDb, requireAgentKey, requireEntitled, withUserCap, runTestsFromRequest } from './helpers.js';
+import {
+  h, requireDb, requireAgentKey, requireEntitled, withUserCap, runTestsFromRequest,
+  RUNNABLE_TEST_COLS,
+} from './helpers.js';
 
 const COLS = 'id, name, project_id, created_at, updated_at';
 
@@ -192,8 +195,10 @@ export function suitesRouter({ checkToken }) {
       ]);
       if (!rowCount) return res.status(404).json({ error: 'not found' });
       const { rows: tests } = await db().query(
-        `select t.id, t.goal, t.start_url, t.max_steps, t.model, t.variables
-           from suite_tests st join tests t on t.id = st.test_id
+        `select ${RUNNABLE_TEST_COLS}
+           from suite_tests st
+           join tests t on t.id = st.test_id
+           left join projects p on p.id = t.project_id
           where st.suite_id = $1 order by st.position`,
         [req.params.id]
       );

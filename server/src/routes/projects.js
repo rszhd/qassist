@@ -10,13 +10,17 @@
 // project resolver; routes/modules.js imports them.
 import express from 'express';
 import { db, currentUserId, isUuid } from '../db.js';
-import { h, requireDb, requireAgentKey, requireEntitled, withUserCap, runTestsFromRequest, slugify } from './helpers.js';
+import {
+  h, requireDb, requireAgentKey, requireEntitled, withUserCap, runTestsFromRequest, slugify,
+  RUNNABLE_TEST_COLS, RUNNABLE_TEST_FROM,
+} from './helpers.js';
 import { NOTIFY_MODES, cleanEmails } from '../notify.js';
+import { validateAllowlist } from '../navigationPolicy.js';
+import { instancePolicy } from '../config.js';
 
 export const PROJECT_COLS =
-  'id, name, slug, notify, notify_emails, created_at, updated_at';
+  'id, name, slug, notify, notify_emails, allowed_domains, created_at, updated_at';
 export const MODULE_COLS = 'id, project_id, name, slug, created_at, updated_at';
-const TEST_RUN_COLS = 'id, goal, start_url, max_steps, model, variables';
 
 /**
  * Resolve a :project param (uuid or slug) to its row, or null.
@@ -152,25 +156,48 @@ function resolveNotify(body) {
 }
 
 /**
- * A `notify_emails` value as SQL. Spelled out as an array literal over
- * placeholders rather than bound as one parameter: pg-mem (the test harness)
- * has no array parameter binding, and a recipient list is a handful of
- * entries. Appends its values to `params`.
- * @param {string[] | undefined} emails
+ * Validate the navigation allowlist a write asks for (US-042). Returns
+ * `{ error }`, or `{ domains }` where `undefined` means "leave unchanged".
+ *
+ * The whole write is refused rather than filtered, deliberately: an operator
+ * who is told "saved" must not later discover that the one entry that mattered
+ * was dropped. `[]` is a legitimate value and means "no allowlist".
+ * @param {{ allowed_domains?: any }} body
+ */
+function resolveAllowedDomains(body) {
+  const { allowed_domains: domains } = body;
+  if (domains === undefined) return { domains: undefined };
+  const cleaned = Array.isArray(domains)
+    ? domains.map((d) => (typeof d === 'string' ? d.trim() : d)).filter((d) => d !== '')
+    : domains;
+  const invalid = validateAllowlist(cleaned, instancePolicy());
+  if (invalid) return { error: invalid.error };
+  return { domains: /** @type {string[]} */ (cleaned) };
+}
+
+/**
+ * A `text[]` column's new value as SQL, or the column itself when the write
+ * leaves it alone. Spelled out as an array literal over placeholders rather
+ * than bound as one parameter: pg-mem (the test harness) has no array parameter
+ * binding, and both lists are a handful of entries. Appends its values to
+ * `params`.
+ * @param {string} column
+ * @param {string[] | undefined} values
  * @param {any[]} params
  */
-function emailsSql(emails, params) {
-  if (emails === undefined) return 'notify_emails';
-  if (!emails.length) return `'{}'::text[]`;
-  const placeholders = emails.map((_, i) => `$${params.length + i + 1}`).join(', ');
-  params.push(...emails);
+function textArraySql(column, values, params) {
+  if (values === undefined) return column;
+  if (!values.length) return `'{}'::text[]`;
+  const placeholders = values.map((_, i) => `$${params.length + i + 1}`).join(', ');
+  params.push(...values);
   return `array[${placeholders}]::text[]`;
 }
 
 /** Start a run per member test of a module; `{ empty: true }` when it has none. */
 export async function runModule(mod, body, openaiApiKey = null) {
   const { rows: tests } = await db().query(
-    `select ${TEST_RUN_COLS} from tests where module_id = $1 order by created_at`,
+    `select ${RUNNABLE_TEST_COLS} from ${RUNNABLE_TEST_FROM}
+      where t.module_id = $1 order by t.created_at`,
     [mod.id]
   );
   if (!tests.length) return { empty: true };
@@ -261,11 +288,18 @@ export function projectsRouter({ checkToken }) {
       if (slug.error) return res.status(400).json({ error: slug.error });
       const notify = resolveNotify(body);
       if (notify.error) return res.status(400).json({ error: notify.error });
+      const allowed = resolveAllowedDomains(body);
+      if (allowed.error) return res.status(400).json({ error: allowed.error });
       const params = [project.id, body.name ?? null, slug.slug, notify.mode ?? null];
+      // Order matters: each helper appends its own placeholders to `params`, so
+      // the two array columns must be rendered in the order they are read.
+      const notifyEmails = textArraySql('notify_emails', notify.emails, params);
+      const allowedDomains = textArraySql('allowed_domains', allowed.domains, params);
       const { rows } = await db().query(
         `update projects set name = coalesce($2, name), slug = coalesce($3, slug),
                 notify = coalesce($4, notify),
-                notify_emails = ${emailsSql(notify.emails, params)},
+                notify_emails = ${notifyEmails},
+                allowed_domains = ${allowedDomains},
                 updated_at = now()
           where id = $1 returning ${PROJECT_COLS}`,
         params
@@ -294,7 +328,8 @@ export function projectsRouter({ checkToken }) {
       // @ts-expect-error — set by r.param
       const project = req.project;
       const { rows: tests } = await db().query(
-        `select ${TEST_RUN_COLS} from tests where project_id = $1 order by created_at`,
+        `select ${RUNNABLE_TEST_COLS} from ${RUNNABLE_TEST_FROM}
+          where t.project_id = $1 order by t.created_at`,
         [project.id]
       );
       if (!tests.length) return res.status(400).json({ error: 'project has no tests' });

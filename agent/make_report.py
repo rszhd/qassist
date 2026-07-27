@@ -12,7 +12,8 @@ fonts as data URIs, fully self-contained.
 
 The data JSON shape is produced by the Express server (see generateReport()):
   { runId, goal, start_url, model, status, success, duration_seconds,
-    steps_count, final_result, errors[], has_recording, recording_url,
+    steps_count, final_result, errors[], failure_reason, blocked_url,
+    has_recording, recording_url,
     generated_at,
     steps: [{ step, elapsed, next_goal, evaluation, url, screenshot_file }] }
 Screenshot files are resolved relative to the data file's directory.
@@ -137,6 +138,20 @@ def build_html(data: dict, base_dir: str) -> str:
         f'<div class="stat-v {vcls}">{v}</div></div>'
         for k, v, box, vcls in stat_items
     )
+
+    # A run the navigation fence stopped (US-042) says so first, above the raw
+    # errors: the agent's own message is a navigation failure, and a reader
+    # left with only that would debug the site rather than the allowlist.
+    blocked_html = ""
+    if data.get("failure_reason") == "navigation_blocked":
+        blocked = data.get("blocked_url")
+        target = f" to {esc(blocked)}" if blocked else ""
+        blocked_html = f"""
+        <section class="errors">
+          <div class="label">Blocked by this instance</div>
+          <ul><li>Navigation{target} was refused by the navigation policy.
+              Check the project's allowed domains and QA_BLOCK_PRIVATE_NETWORKS.</li></ul>
+        </section>"""
 
     errors = data.get("errors") or []
     errors_html = ""
@@ -480,6 +495,7 @@ def build_html(data: dict, base_dir: str) -> str:
         {summary_html}
       </section>
 
+      {blocked_html}
       {errors_html}
 
       <div class="cover-foot">

@@ -31,7 +31,9 @@ import {
   RECORDING_FILENAME,
   REPORT_DATA_FILENAME,
   DEMO_SPEED,
+  instancePolicy,
 } from './config.js';
+import { checkStartUrl, agentEnvFor } from './navigationPolicy.js';
 
 // --- in-memory run registry (live relay; DB holds the durable copy) ---
 /** @type {Map<string, any>} */
@@ -206,7 +208,8 @@ function persistUpdate(run) {
                 started_at    = $7,
                 finished_at   = $8,
                 report_status = $9,
-                has_recording = $10
+                has_recording = $10,
+                failure_reason = $11
           where id = $1`,
         [
           run.id,
@@ -219,6 +222,9 @@ function persistUpdate(run) {
           run.finishedAt ? new Date(run.finishedAt) : null,
           run.reportStatus || 'none',
           !!run.recordingFile,
+          // Null on every ordinary run, which is what keeps a value here
+          // meaning "the fence fired" rather than "something went wrong".
+          res.failure_reason ?? null,
         ]
       )
       .catch((err) => console.error(`db: update run ${run.id.slice(0, 8)} failed:`, err.message));
@@ -242,20 +248,36 @@ function maybeNotify(run) {
 
 /**
  * Enqueue a run (starts immediately when under the concurrency cap). Returns
- * the run, or — when the caller is over their per-user cap (US-028) and the
- * submit isn't a schedule/demo replay — a `{ rejected, cap, inFlight }` marker
- * and no run: nothing is inserted or queued. Callers branch with `'rejected' in`.
+ * the run, or one of two markers and no run — nothing inserted, nothing queued:
+ * `{ blocked, error, reason }` when the start_url is outside what this instance
+ * or this project may visit (US-042), and `{ rejected, cap, inFlight }` when the
+ * caller is over their per-user cap (US-028) and the submit isn't a
+ * schedule/demo replay. Callers branch with `'blocked' in` / `'rejected' in`.
  * @param {{ goal: string, start_url: string, max_steps?: number,
  *           model?: string | null, test_id?: string | null,
  *           trigger?: string, variables?: Record<string, string>,
  *           secrets?: Record<string, string>, user_id?: string | null,
- *           openai_api_key?: string | null }} fields
+ *           openai_api_key?: string | null,
+ *           allowed_domains?: string[] }} fields
  */
 export function createRun(fields) {
   // Explicit user_id for the scheduler (no request context); a request-borne run
   // falls back to the caller resolved by the gate (currentUserId()).
   const uid = fields.user_id ?? currentUserId();
   const trigger = fields.trigger || 'api';
+
+  // The navigation fence (US-042), before admission and before the insert. This
+  // is the sole funnel every trigger path reaches — the same property US-036's
+  // demo interceptor leans on — so no start path can acquire the fence by being
+  // remembered, and a refused run costs neither a row, a slot, nor a call on
+  // the caller's key. First, deliberately: a caller pointed at the metadata
+  // endpoint should hear that, not "you are over your concurrency cap".
+  const policy = instancePolicy(fields.allowed_domains);
+  const blocked = checkStartUrl(fields.start_url, policy);
+  // Cast because a THIRD marker in this return position stops tsc reducing the
+  // union, and every existing caller that reads `run.status` off the happy path
+  // would need a narrowing it never needed for `rejected`.
+  if (blocked) return /** @type {any} */ ({ blocked: true, ...blocked });
   // Admission (US-028): an interactive submit over the user's in-flight cap is
   // refused here, not queued — queueing silently would make the wait unbounded
   // and US-027's position meaningless. Demo replays claim no slot, and a
@@ -277,6 +299,10 @@ export function createRun(fields) {
     model: fields.model || null,
     test_id: fields.test_id || null,
     variables: fields.variables || {},
+    // The resolved policy, in-memory only (US-042): it is derived from config
+    // and the project's row, so persisting it would be a second copy that can
+    // disagree with both. Handed to the agent in startRun.
+    policy,
     // Real secret values, in-memory only — handed to the agent via QA_VARS in
     // startRun and deliberately never persisted or serialized (US-035).
     secrets: fields.secrets || {},
@@ -319,7 +345,7 @@ export function createRun(fields) {
  * the rest from its own defaults. A test that can't resolve (a required
  * variable with no value) is skipped with an `error` marker rather than
  * starting a broken run — one misconfigured member never blocks the batch.
- * @param {{ id: string, goal: string, start_url: string, max_steps: number, model: string|null, variables?: any }[]} tests
+ * @param {{ id: string, goal: string, start_url: string, max_steps: number, model: string|null, variables?: any, allowed_domains?: string[] }[]} tests
  * @param {{ start_url?: string|null, trigger?: string, variables?: Record<string, string>, user_id?: string|null, openai_api_key?: string|null }} [opts]
  */
 export function runTests(tests, opts = {}) {
@@ -342,7 +368,15 @@ export function runTests(tests, opts = {}) {
       secrets: resolved.secrets,
       user_id: opts.user_id,
       openai_api_key: opts.openai_api_key,
+      // The owning project's allowlist, joined in by whoever selected the test.
+      allowed_domains: t.allowed_domains,
     });
+    // Blocked (US-042) is a per-member outcome, beside the {error} above and
+    // for the same reason: one test pointed at localhost must not cost a suite
+    // the other nine results.
+    if ('blocked' in run) {
+      return { testId: t.id, blocked: true, error: run.error, reason: run.reason };
+    }
     // Partial accept (US-028): a batch over the cap starts what fits and reports
     // the rest as rejected rather than failing wholesale. Admission is applied
     // per member as it enqueues, so the first H (headroom) win and the rest are
@@ -508,6 +542,12 @@ function startRun(runId) {
     BROWSER_USE_MODEL: run.model || MODEL,
     OPENAI_API_KEY: run.openai_api_key,
     ARTIFACTS_DIR,
+    // US-042: the same policy the start_url was judged against, now arming
+    // SecurityWatchdog inside the browser — which is what catches a redirect
+    // from a permitted host to a blocked one. Always sent, even when every
+    // setting is off: an unsent variable leaves the profile on browser-use's
+    // own default, and its default for block_ip_addresses is False.
+    ...agentEnvFor(run.policy || instancePolicy()),
   };
   if (!run.openai_api_key) delete childEnv.OPENAI_API_KEY;
 
@@ -774,6 +814,11 @@ function generateReport(run) {
     steps_count: res.steps ?? run.events.filter((e) => e.type === 'step').length,
     final_result: res.final_result ?? res.message ?? null,
     errors: res.errors ?? (res.message ? [res.message] : []),
+    // US-042: a run the navigation fence stopped says so on the report, so the
+    // reader is not left reading a timeout and guessing. Null on every ordinary
+    // run, which is what keeps a value here meaning the fence fired.
+    failure_reason: res.failure_reason ?? null,
+    blocked_url: res.blocked_url ?? null,
     has_recording: !!run.recordingFile,
     // A PDF can only link a recording that has a public address; without one
     // the report says "recorded" and the app serves the video itself.

@@ -4,6 +4,7 @@
 import crypto from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { DEFAULT_DENIED_HOSTS } from './navigationPolicy.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -79,6 +80,51 @@ export function parseTrustProxy(raw) {
 }
 
 export const TRUST_PROXY = parseTrustProxy(process.env.TRUST_PROXY);
+
+// Where a run's browser may navigate (US-042). ON by default, because a fence
+// that has to be switched on is off wherever it matters — this instance is
+// registrable by strangers the moment US-021's auth is enabled, and the agent
+// runs on the compose network with whatever egress the box has.
+//
+// Off is the escape hatch for the self-hoster whose whole use case is testing
+// `http://localhost:3000`, which is real and common and cannot simply be
+// hardcoded away. It is ONE switch on purpose: it clears the address-literal
+// block AND the default hostname denylist below, because a half-open hatch —
+// literals allowed, `localhost` still refused — is an operator who set the
+// documented flag and still cannot test their own machine.
+export const BLOCK_PRIVATE_NETWORKS = !/^(0|false|no|off)$/i.test(
+  (process.env.QA_BLOCK_PRIVATE_NETWORKS || '').trim()
+);
+// Hostnames refused by name. Not redundant with the flag above: browser-use's
+// `block_ip_addresses` blocks IP *literals*, so despite its docstring it does
+// not stop `http://localhost:8080` (this app), `http://db:5432` (the control
+// plane) or `http://metadata.google.internal`. This list is what does.
+// Explicitly set = exactly that list, whatever the floor is doing; unset =
+// the defaults while the floor is up, and nothing once it is down.
+export const DENIED_HOSTS =
+  process.env.QA_DENIED_HOSTS !== undefined
+    ? process.env.QA_DENIED_HOSTS.split(',')
+        .map((h) => h.trim().toLowerCase())
+        .filter(Boolean)
+    : BLOCK_PRIVATE_NETWORKS
+      ? DEFAULT_DENIED_HOSTS
+      : [];
+
+/**
+ * This instance's navigation policy, with a project's allowlist folded in.
+ * Lives here rather than in navigationPolicy.js so that module stays pure and
+ * free of an import cycle — it is the thing config reads its default denylist
+ * from.
+ * @param {string[]} [allowedDomains] the project's `allowed_domains`, if any
+ */
+export function instancePolicy(allowedDomains = []) {
+  return {
+    blockPrivate: BLOCK_PRIVATE_NETWORKS,
+    deniedHosts: DENIED_HOSTS,
+    allowedDomains: allowedDomains || [],
+  };
+}
+
 export const RECORDING_FILENAME = 'recording.mp4';
 // What generateReport() writes and both the PDF renderer and US-026's steps
 // endpoint read back.

@@ -5,6 +5,20 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+// US-042: the navigation fence is only real if its settings reach the child —
+// an agent spawned without them runs an unfenced browser while every
+// server-side assertion stays green. Dumped as JSON so a test can tell an
+// absent variable from an empty one. Lives here rather than in
+// env_capture_agent.js because AGENT_SCRIPT is import-time config: a test can
+// only change what the child DOES via a per-run env var, not which file runs.
+if (process.env.QA_ENV_CAPTURE_FILE) {
+  const keys = ['QA_BLOCK_PRIVATE_NETWORKS', 'QA_DENIED_HOSTS', 'QA_ALLOWED_DOMAINS'];
+  fs.writeFileSync(
+    process.env.QA_ENV_CAPTURE_FILE,
+    JSON.stringify(Object.fromEntries(keys.map((k) => [k, process.env[k]])))
+  );
+}
+
 const runDir = path.join(process.env.ARTIFACTS_DIR, process.env.QA_RUN_ID);
 fs.mkdirSync(runDir, { recursive: true });
 fs.writeFileSync(path.join(runDir, 'recording.mp4'), 'fake mp4 for tests\n');

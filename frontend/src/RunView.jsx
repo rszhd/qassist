@@ -192,6 +192,13 @@ export default function RunView({ token, health, keyStatus, visible, needsToken,
         setCurrentAction(evt.message);
         setSteps((s) => [...s, evt]);
         break;
+      case 'blocked':
+        // The navigation fence fired (US-042). Rendered in the activity log
+        // beside the steps rather than as a red banner: the run is still going,
+        // and whoever set the allowlist needs to see WHICH url it refused.
+        setCurrentAction(`Navigation to ${evt.url} was blocked by this instance`);
+        setSteps((s) => [...s, evt]);
+        break;
       case 'recording':
         // Emitted before done/error, so the button is ready when the run ends.
         setHasRecording(true);

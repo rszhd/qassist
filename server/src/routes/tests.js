@@ -6,7 +6,10 @@ import express from 'express';
 import { db, currentUserId, isUuid } from '../db.js';
 import { createRun } from '../runs.js';
 import { DEFAULT_MAX_STEPS } from '../config.js';
-import { h, requireDb, requireAgentKey, requireEntitled, withUserCap, respondOverCap, TRIGGERS } from './helpers.js';
+import {
+  h, requireDb, requireAgentKey, requireEntitled, withUserCap, respondOverCap, TRIGGERS,
+  RUNNABLE_TEST_FROM,
+} from './helpers.js';
 import { normalizeDeclarations, validateReferences, resolveForRun } from '../variables.js';
 
 const COLS =
@@ -217,10 +220,14 @@ export function testsRouter({ checkToken }) {
     withUserCap,
     h(async (req, res) => {
       if (!isUuid(req.params.id)) return res.status(404).json({ error: 'not found' });
-      const { rows } = await db().query(`select ${COLS} from tests where id = $1 and user_id = $2`, [
-        req.params.id,
-        currentUserId(),
-      ]);
+      // The owning project's navigation allowlist rides along (US-042), so a
+      // saved test cannot be run past the fence its project set.
+      const { rows } = await db().query(
+        `select ${COLS.split(', ').map((c) => `t.${c}`).join(', ')}, p.allowed_domains
+           from ${RUNNABLE_TEST_FROM}
+          where t.id = $1 and t.user_id = $2`,
+        [req.params.id, currentUserId()]
+      );
       if (!rows.length) return res.status(404).json({ error: 'not found' });
       const test = rows[0];
       const body = /** @type {any} */ (req.body || {});
@@ -241,7 +248,9 @@ export function testsRouter({ checkToken }) {
         variables: resolved.variables,
         secrets: resolved.secrets,
         openai_api_key: /** @type {any} */ (req).runOpenaiKey,
+        allowed_domains: test.allowed_domains,
       });
+      if ('blocked' in run) return res.status(400).json({ error: run.error, reason: run.reason });
       if ('rejected' in run) return respondOverCap(res, run);
       res.json({ runId: run.id, testId: test.id, status: run.status });
     })

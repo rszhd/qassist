@@ -46,6 +46,7 @@ from PIL import Image
 
 from email_codes import ImapMailbox
 from redact import scrub
+import navigation_policy
 import secret_vars
 
 # Screencast tuning — keep bandwidth modest so stdout never backs up.
@@ -285,6 +286,15 @@ async def main() -> int:
         emit({"type": "error", "message": "QA_GOAL and QA_START_URL are required"})
         return 1
 
+    # Where this run may navigate (US-042). Resolved by the server and read here
+    # before anything expensive happens: a policy we cannot parse must stop the
+    # run, not silently run it unfenced.
+    try:
+        nav_kwargs = navigation_policy.profile_kwargs(os.environ)
+    except ValueError as e:
+        emit({"type": "error", "message": str(e), "failure_reason": "invalid_policy"})
+        return 1
+
     llm = ChatOpenAI(model=model)  # api_key read from OPENAI_API_KEY
 
     task = (
@@ -381,8 +391,40 @@ async def main() -> int:
             "open <secret>email_link</secret> as instructed by its result. Never guess codes."
         )
 
+    # URLs the fence has already been reported as refusing, so a block that
+    # persists across several steps is announced once (US-042).
+    reported_blocks = set()
+
+    def report_blocks(step_number=None):
+        """Emit a `blocked` event for any navigation the fence has refused.
+
+        SecurityWatchdog refuses inside the navigate action rather than by
+        taking the run down, so the evidence arrives in the agent's own error
+        history and the run otherwise looks like an ordinary failure. Whoever
+        set the allowlist needs to see that it fired, so it is surfaced live.
+        Never allowed to raise: a reporting bug must not cost a run.
+        """
+        found = []
+        try:
+            errors = safe(agent.history.errors, []) or []
+        except Exception:
+            return found
+        for entry in errors:
+            for message in entry if isinstance(entry, (list, tuple)) else [entry]:
+                blocked = navigation_policy.blocked_url_in(str(message or ""))
+                if not blocked or blocked in reported_blocks:
+                    continue
+                reported_blocks.add(blocked)
+                found.append(blocked)
+                event = {"type": "blocked", "url": blocked, "reason": "navigation_blocked"}
+                if step_number is not None:
+                    event["step"] = step_number
+                emit(event)
+        return found
+
     async def on_step(browser_state, agent_output, step_number):
         try:
+            report_blocks(step_number)
             url = scrub(getattr(browser_state, "url", None), sensitive)
 
             # Save a durable per-step screenshot for the PDF report (separate
@@ -415,6 +457,10 @@ async def main() -> int:
     profile = BrowserProfile(
         headless=True,
         chromium_sandbox=False,
+        # US-042: SecurityWatchdog enforces these on every navigation, including
+        # the ones a redirect chain arrives at — which is the case the server's
+        # own pre-check on start_url cannot see.
+        **nav_kwargs,
         args=[
             "--no-sandbox",
             "--disable-dev-shm-usage",
@@ -467,12 +513,31 @@ async def main() -> int:
             if saved:
                 emit({"type": "recording", "file": RECORD_FILENAME, "frames": recorder.frames})
 
+    # The fence's last word (US-042). A block that happened on the final step
+    # has no later on_step to announce it, and a block that took the run down
+    # never reached one at all — so the history is swept once more here, and the
+    # reason travels on the terminal event either way. A blocked run is a
+    # verdict with a `failure_reason`, not a crash.
+    late_blocks = report_blocks()
+    blocked_url = navigation_policy.blocked_url_in(failure or "")
+    if blocked_url and blocked_url not in reported_blocks:
+        reported_blocks.add(blocked_url)
+        emit({"type": "blocked", "url": blocked_url, "reason": "navigation_blocked"})
+    elif late_blocks:
+        blocked_url = late_blocks[-1]
+
     if failure is not None:
-        emit({"type": "error", "message": failure})
+        event = {"type": "error", "message": failure}
+        if reported_blocks:
+            event["failure_reason"] = "navigation_blocked"
+            event["blocked_url"] = blocked_url or sorted(reported_blocks)[0]
+        emit(event)
         return 1
 
     emit({
         "type": "done",
+        "failure_reason": "navigation_blocked" if reported_blocks else None,
+        "blocked_url": blocked_url if reported_blocks else None,
         "success": safe(history.is_successful),
         "steps": safe(history.number_of_steps),
         "duration_seconds": safe(history.total_duration_seconds),

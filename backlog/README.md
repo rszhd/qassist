@@ -46,7 +46,7 @@ Sprints aren't split along a self-host/hosted-tier line — `sprint/current/` an
 
 | ID | Story | Status | Depends on |
 |---|---|---|---|
-| [US-042](sprint/current/US-042-agent-navigation-confinement.md) | Confine where the agent may navigate | 📋 Planned (P1, pulled up 2026-07-27) — correctness-critical | US-021 |
+| [US-042](sprint/current/done/US-042-agent-navigation-confinement.md) | Confine where the agent may navigate | ✅ **Done** 2026-07-27, 5/6 — the fence is two settings, not one: `block_ip_addresses` does not stop `localhost` despite its docstring. The sixth (a live redirect) is wired, not provable in any test tier | US-021 |
 | [US-056](sprint/current/US-056-production-deployment.md) | Production deployment: `app.qassist.run` goes live | 📋 Planned (created 2026-07-26) — the production stand-up itself | US-007, US-038, US-052 |
 | [US-058](sprint/current/done/US-058-per-user-concurrency-override.md) | Raise one user's concurrency cap without raising everyone's | ✅ **Done** 2026-07-27, 9/9 — the cap the operator can move for one account, and it lands without a restart | US-028, US-021 |
 | [US-057](sprint/current/US-057-html-email-template.md) | An HTML template for outgoing email (magic link, run reports, activation) | 🔨 **Built** 2026-07-27, 4/5 — stays open on the one criterion a test can't answer: the Gmail/Apple Mail render | — |
