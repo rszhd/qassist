@@ -14,6 +14,8 @@ import {
   h, requireDb, requireAgentKey, requireEntitled, withUserCap, runTestsFromRequest, slugify,
   RUNNABLE_TEST_COLS, RUNNABLE_TEST_FROM,
 } from './helpers.js';
+import { fixtureBody, listFixtures, uploadFixture, deleteFixture } from './fixtures.js';
+import { removeProjectFixtures } from '../fixtures.js';
 import { NOTIFY_MODES, cleanEmails } from '../notify.js';
 import { validateAllowlist } from '../navigationPolicy.js';
 import { instancePolicy } from '../config.js';
@@ -308,16 +310,30 @@ export function projectsRouter({ checkToken }) {
     })
   );
 
-  // Cascades to modules and suites; member tests survive with project_id
-  // nulled (decision 5).
+  // Cascades to modules, suites and fixtures; member tests survive with
+  // project_id nulled (decision 5).
   r.delete(
     '/:project',
     h(async (req, res) => {
       // @ts-expect-error — set by r.param
-      await db().query('delete from projects where id = $1', [req.project.id]);
+      const projectId = req.project.id;
+      await db().query('delete from projects where id = $1', [projectId]);
+      // The rows cascade; the bytes do not. Fixtures live outside runs/<id>/ so
+      // retention never reaches them (US-048), which means this is the only
+      // thing that ever will — skip it and a deleted project's files sit on the
+      // disk forever, counting against nobody's quota and owned by no one.
+      removeProjectFixtures(projectId);
       res.status(204).end();
     })
   );
+
+  // Fixtures (US-048): files this project's tests may attach. Registered on
+  // this router, not mounted as a sub-router, so the `r.param('project')`
+  // resolver above — which is what scopes them to the calling tenant — runs
+  // first and a stranger's project 404s before any of this touches the disk.
+  r.get('/:project/fixtures', h(listFixtures));
+  r.post('/:project/fixtures', fixtureBody, h(uploadFixture));
+  r.delete('/:project/fixtures/:filename', h(deleteFixture));
 
   r.post(
     '/:project/run',

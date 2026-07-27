@@ -14,6 +14,7 @@ import { demoMode } from './auth.js';
 import { loadDemo, fixtureForRun, recordingPath, reportPath } from './demo.js';
 import { notifyRunFinished } from './notify.js';
 import { resolveForRun } from './variables.js';
+import { fixturePathsFor } from './fixtures.js';
 import {
   MAX_CONCURRENT,
   DEFAULT_MAX_STEPS,
@@ -257,7 +258,7 @@ function maybeNotify(run) {
  *           model?: string | null, test_id?: string | null,
  *           trigger?: string, variables?: Record<string, string>,
  *           secrets?: Record<string, string>, user_id?: string | null,
- *           openai_api_key?: string | null,
+ *           openai_api_key?: string | null, project_id?: string | null,
  *           allowed_domains?: string[] }} fields
  */
 export function createRun(fields) {
@@ -303,6 +304,12 @@ export function createRun(fields) {
     // and the project's row, so persisting it would be a second copy that can
     // disagree with both. Handed to the agent in startRun.
     policy,
+    // The owning project, for the fixture whitelist alone (US-048). It arrives
+    // off the test's row — never off a request body — because a caller who
+    // could name the project could name someone else's, and the whitelist is
+    // what browser-use gates both `upload_file` and `read_file` on. A run with
+    // no project (the ad-hoc path) resolves to no files at all.
+    project_id: fields.project_id || null,
     // Real secret values, in-memory only — handed to the agent via QA_VARS in
     // startRun and deliberately never persisted or serialized (US-035).
     secrets: fields.secrets || {},
@@ -345,7 +352,7 @@ export function createRun(fields) {
  * the rest from its own defaults. A test that can't resolve (a required
  * variable with no value) is skipped with an `error` marker rather than
  * starting a broken run — one misconfigured member never blocks the batch.
- * @param {{ id: string, goal: string, start_url: string, max_steps: number, model: string|null, variables?: any, allowed_domains?: string[] }[]} tests
+ * @param {{ id: string, goal: string, start_url: string, max_steps: number, model: string|null, variables?: any, project_id?: string|null, allowed_domains?: string[] }[]} tests
  * @param {{ start_url?: string|null, trigger?: string, variables?: Record<string, string>, user_id?: string|null, openai_api_key?: string|null }} [opts]
  */
 export function runTests(tests, opts = {}) {
@@ -368,8 +375,10 @@ export function runTests(tests, opts = {}) {
       secrets: resolved.secrets,
       user_id: opts.user_id,
       openai_api_key: opts.openai_api_key,
-      // The owning project's allowlist, joined in by whoever selected the test.
+      // The owning project's allowlist and id, joined in by whoever selected
+      // the test (RUNNABLE_TEST_COLS).
       allowed_domains: t.allowed_domains,
+      project_id: t.project_id,
     });
     // Blocked (US-042) is a per-member outcome, beside the {error} above and
     // for the same reason: one test pointed at localhost must not cost a suite
@@ -538,6 +547,12 @@ function startRun(runId) {
     QA_START_URL: run.start_url,
     QA_VARS: JSON.stringify(run.secrets || {}),
     QA_MAX_STEPS: String(run.max_steps),
+    // The files this run may attach (US-048), read off the project's fixture
+    // directory rather than from the DB: the list browser-use gates
+    // `upload_file` and `read_file` on has to be the thing that actually
+    // exists on disk. Always sent, even empty — absent and `[]` must be
+    // distinguishable in the child, and only one of them is a statement.
+    QA_FIXTURES: JSON.stringify(fixturePathsFor(run.project_id)),
     QA_RUN_ID: run.id,
     BROWSER_USE_MODEL: run.model || MODEL,
     OPENAI_API_KEY: run.openai_api_key,

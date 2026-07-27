@@ -203,6 +203,46 @@ the browser. A run stopped mid-flight by the fence ends `failed` with
 `failure_reason: "navigation_blocked"` on the run detail and a named section in
 the PDF; `failure_reason` is null on every other run.
 
+## Files a run may upload
+
+A project holds **fixtures** — files its tests may attach, uploaded once and
+reused (US-048). A goal names one by filename ("upload cv.pdf and submit") and
+the agent gets the paths.
+
+The bytes go up as the raw request body, with the name in the query string —
+there is no multipart form:
+
+```bash
+curl -X POST "http://<host>:8080/api/projects/careers/fixtures?filename=cv.pdf" \
+  -H "Authorization: Bearer $WORKER_API_TOKEN" \
+  -H "Content-Type: application/pdf" --data-binary @cv.pdf
+
+curl http://<host>:8080/api/projects/careers/fixtures \
+  -H "Authorization: Bearer $WORKER_API_TOKEN"
+# { "fixtures": [ { "id": "...", "filename": "cv.pdf", "size_bytes": 48213, ... } ],
+#   "used_bytes": 48213, "quota_bytes": 52428800, "max_bytes": 10485760 }
+
+curl -X DELETE http://<host>:8080/api/projects/careers/fixtures/cv.pdf \
+  -H "Authorization: Bearer $WORKER_API_TOKEN"
+```
+
+**A run can only ever attach its own project's fixtures.** That whitelist is a
+security boundary, not a convenience: it is what browser-use gates both
+`upload_file` and `read_file` on, so without it an agent that could be argued
+into calling either would be a file-read primitive pointed at the container.
+The project comes off the saved test's row and is never read from a request
+body — an ad-hoc `POST /api/runs` has no project and so may attach nothing.
+
+Filenames must start with a letter or digit and contain only letters, digits,
+spaces, dots, dashes and underscores; anything else is **400**. A duplicate
+name is **409** (delete it first — silently replacing would change what a saved
+test attaches with nothing in the history to say so), and either cap is **413**.
+Caps are `FIXTURE_MAX_BYTES` and `FIXTURE_PROJECT_QUOTA_BYTES`.
+
+Fixtures live under `FIXTURES_DIR`, **not** under `ARTIFACTS_DIR`, so
+`ARTIFACT_RETENTION_DAYS` never removes them; the app refuses to boot if the two
+overlap. They are deleted with their project.
+
 ## Email notifications
 
 Off unless `RESEND_API_KEY` and `MAIL_FROM` are both set — `GET /api/health`

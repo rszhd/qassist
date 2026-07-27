@@ -29,11 +29,16 @@ services:
         required: false
     environment:
       ARTIFACTS_DIR: /app/runs
+      FIXTURES_DIR: /app/fixtures
       DATABASE_URL: postgres://qassist:qassist@db:5432/qassist
     # Per-run screenshots, recordings, report data and PDFs persist across
-    # restarts.
+    # restarts. Project fixtures (US-048) get their own mount, deliberately
+    # beside runs/ and not inside it: artifact retention deletes uuid-named
+    # directories under ARTIFACTS_DIR, and a fixture directory is named after
+    # its project — nested, a customer's uploads would vanish after a week.
     volumes:
       - ./runs:/app/runs
+      - ./fixtures:/app/fixtures
     # Chromium needs shared memory; without this it crashes on heavy pages.
     shm_size: "1gb"
     restart: unless-stopped

@@ -11,9 +11,10 @@ import { WebSocketServer } from 'ws';
 import { createServer } from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { PORT, API_TOKEN, MAX_CONCURRENT, PUBLIC_DIR, AUTH_ENABLED, AUTH_MODE, DEMO_CTA_URL, TRUST_PROXY } from './config.js';
+import { PORT, API_TOKEN, MAX_CONCURRENT, PUBLIC_DIR, AUTH_ENABLED, AUTH_MODE, DEMO_CTA_URL, TRUST_PROXY, FIXTURES_DIR, ARTIFACTS_DIR } from './config.js';
 import { db, initDb, getOperatorUserId, userContext } from './db.js';
 import { missingBootRequirements } from './boot.js';
+import { fixturesDirConflict } from './fixtures.js';
 import { keyEncryptionEnabled } from './crypto.js';
 import { mailEnabled } from './mail.js';
 import { authEnabled, demoMode, userFromRequest, userFromCredentials, SESSION_COOKIE } from './auth.js';
@@ -228,6 +229,16 @@ if (isMain) {
   });
   if (missing.length) {
     console.error(`qassist can't start — missing: ${missing.join(', ')}.`);
+    process.exit(1);
+  }
+  // US-048: fixtures must not live where retention sweeps. This is not a missing
+  // variable but a pair of paths that disagree, and it fails silently a week
+  // later — retention deletes uuid-named directories under ARTIFACTS_DIR, and a
+  // fixture directory is named after its project — so it is refused here rather
+  // than discovered when a customer's file is already gone.
+  const dirConflict = fixturesDirConflict(FIXTURES_DIR, ARTIFACTS_DIR);
+  if (dirConflict) {
+    console.error(`qassist can't start — ${dirConflict.error}.`);
     process.exit(1);
   }
   // Only when actually serving: tests drive the app in-process and would

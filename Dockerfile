@@ -18,6 +18,7 @@ ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
     AGENT_SCRIPT=/app/agent/run_agent.py \
     REPORT_SCRIPT=/app/agent/make_report.py \
     ARTIFACTS_DIR=/app/runs \
+    FIXTURES_DIR=/app/fixtures \
     PORT=8080
 WORKDIR /app
 

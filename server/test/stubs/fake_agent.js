@@ -12,7 +12,15 @@ import path from 'node:path';
 // env_capture_agent.js because AGENT_SCRIPT is import-time config: a test can
 // only change what the child DOES via a per-run env var, not which file runs.
 if (process.env.QA_ENV_CAPTURE_FILE) {
-  const keys = ['QA_BLOCK_PRIVATE_NETWORKS', 'QA_DENIED_HOSTS', 'QA_ALLOWED_DOMAINS'];
+  // US-048 rides the same instrument for the same reason: the fixture whitelist
+  // is only real if it reaches the child, and a run spawned without it attaches
+  // nothing while every server-side assertion stays green.
+  const keys = [
+    'QA_BLOCK_PRIVATE_NETWORKS',
+    'QA_DENIED_HOSTS',
+    'QA_ALLOWED_DOMAINS',
+    'QA_FIXTURES',
+  ];
   fs.writeFileSync(
     process.env.QA_ENV_CAPTURE_FILE,
     JSON.stringify(Object.fromEntries(keys.map((k) => [k, process.env[k]])))

@@ -25,6 +25,36 @@ export async function api(path, { token, method = 'GET', body } = {}) {
 }
 
 /**
+ * Upload a project fixture (US-048). The file goes up as the raw request body
+ * with its name in the query string — a `File` is a `Blob`, so it is a valid
+ * body as-is and needs no FormData. Deliberately not routed through `api()`:
+ * that wrapper serializes its body as JSON, which is exactly what must not
+ * happen to a PDF.
+ */
+export async function uploadFixture(project, file, token) {
+  const res = await fetch(
+    `/api/projects/${project}/fixtures?filename=${encodeURIComponent(file.name)}`,
+    {
+      method: 'POST',
+      headers: {
+        // The browser's own guess, and only advisory server-side — the name is
+        // what identifies the fixture.
+        'Content-Type': file.type || 'application/octet-stream',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: file,
+    }
+  );
+  if (!res.ok) {
+    const payload = await res.json().catch(() => ({}));
+    const err = new Error(payload.error || `HTTP ${res.status}`);
+    err.status = res.status;
+    throw err;
+  }
+  return res.json();
+}
+
+/**
  * Open a run's PDF in a new tab. The report renders just after the run
  * finishes, so a 202 means "not yet" rather than an error — poll through it.
  * Fetched as a blob, not linked directly, because the endpoint needs the

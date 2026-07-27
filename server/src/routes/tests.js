@@ -249,6 +249,11 @@ export function testsRouter({ checkToken }) {
         secrets: resolved.secrets,
         openai_api_key: /** @type {any} */ (req).runOpenaiKey,
         allowed_domains: test.allowed_domains,
+        // US-048: which project's fixtures this run may attach. Off the test's
+        // row (COLS already selects it), never off the request body — this
+        // route builds its own column list rather than sharing
+        // RUNNABLE_TEST_COLS, so it is the one that drifts.
+        project_id: test.project_id,
       });
       if ('blocked' in run) return res.status(400).json({ error: run.error, reason: run.reason });
       if ('rejected' in run) return respondOverCap(res, run);

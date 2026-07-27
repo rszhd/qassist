@@ -125,6 +125,21 @@ export function instancePolicy(allowedDomains = []) {
   };
 }
 
+// Project fixtures (US-048): files a project's tests may attach. Deliberately
+// NOT under ARTIFACTS_DIR — retention prunes uuid-named directories there and a
+// fixture directory is named after its project, so the natural-looking nested
+// layout would delete a customer's fixtures a week after they uploaded them.
+// `fixturesDirConflict` refuses that at boot rather than trusting this default.
+export const FIXTURES_DIR = process.env.FIXTURES_DIR || path.join(__dirname, '..', '..', 'fixtures');
+// Per-file and per-project ceilings. Modest by default: a fixture is a CV, an
+// ID scan, a CSV — the things upload flows actually ask for — and an operator
+// who needs more says so, rather than everyone silently underwriting a video.
+export const FIXTURE_MAX_BYTES = parseInt(process.env.FIXTURE_MAX_BYTES || '10485760', 10);
+export const FIXTURE_PROJECT_QUOTA_BYTES = parseInt(
+  process.env.FIXTURE_PROJECT_QUOTA_BYTES || '52428800',
+  10
+);
+
 export const RECORDING_FILENAME = 'recording.mp4';
 // What generateReport() writes and both the PDF renderer and US-026's steps
 // endpoint read back.

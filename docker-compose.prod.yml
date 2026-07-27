@@ -43,6 +43,9 @@ services:
       # Per-stack on the host, so two stacks running from one checkout don't
       # write their artifacts into the same directory (US-038).
       - ${RUNS_DIR:-./runs}:/app/runs
+      # Same per-stack rule for project fixtures (US-048), and the same reason
+      # they are not under runs/: retention would eat them.
+      - ${FIXTURES_HOST_DIR:-./fixtures}:/app/fixtures
     networks:
       # Explicit `default` because naming any network opts out of the implicit
       # one — and losing it would cut the app off from its own db.

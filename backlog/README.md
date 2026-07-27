@@ -49,6 +49,7 @@ Sprints aren't split along a self-host/hosted-tier line — `sprint/current/` an
 | [US-042](sprint/current/done/US-042-agent-navigation-confinement.md) | Confine where the agent may navigate | ✅ **Done** 2026-07-27, 5/6 — the fence is two settings, not one: `block_ip_addresses` does not stop `localhost` despite its docstring. The sixth (a live redirect) is wired, not provable in any test tier | US-021 |
 | [US-056](sprint/current/US-056-production-deployment.md) | Production deployment: `app.qassist.run` goes live | 📋 Planned (created 2026-07-26) — the production stand-up itself | US-007, US-038, US-052 |
 | [US-058](sprint/current/done/US-058-per-user-concurrency-override.md) | Raise one user's concurrency cap without raising everyone's | ✅ **Done** 2026-07-27, 9/9 — the cap the operator can move for one account, and it lands without a restart | US-028, US-021 |
+| [US-048](sprint/current/done/US-048-file-upload-in-test-flows.md) | Test a flow that uploads a file | ✅ **Done** 2026-07-27, 5/5 — a project owns the files its tests may attach, and that whitelist is the boundary: browser-use gates `read_file` on it too. The end-to-end upload is hand-verified, not tested — it needs a live browser | US-035, US-023 |
 | [US-057](sprint/current/US-057-html-email-template.md) | An HTML template for outgoing email (magic link, run reports, activation) | 🔨 **Built** 2026-07-27, 4/5 — stays open on the one criterion a test can't answer: the Gmail/Apple Mail render | — |
 | [US-020](sprint/current/US-020-report-v2-screenshots-recording.md) | Report v2: step screenshots + recording | 📋 Planned (P2, pulled up 2026-07-27) | US-006 |
 | [US-047](sprint/current/done/US-047-stop-a-run.md) | Stop a run | ✅ **Done** 2026-07-27, 6/6 — `cancelled` is a terminal status of its own, and a stop is not a red build | — |
@@ -182,6 +183,14 @@ story above it made the queue busier.
   correctness-critical, so it owes a row in
   [`correctness-critical.md`](correctness-critical.md) and its assertions get
   written and reviewed before the implementation.
+- **US-048** (2026-07-27, from `sprint/next/`) — pulled up the same day it was
+  scheduled, and for the opposite reason to US-042: not urgency but cheapness.
+  It was the folder's P3 and its smallest story, and it turned out to share
+  US-042's shape once read properly — `available_file_paths` gates browser-use's
+  `read_file` as well as its `upload_file`, so "let the agent attach a file" is a
+  filesystem boundary wearing a feature's clothes. Correctness-critical, assertions
+  written and reviewed first, row added to
+  [`correctness-critical.md`](correctness-critical.md).
 
 ## Next sprint — `sprint/next/`
 
@@ -190,21 +199,22 @@ report improvement that was never gating anything, and **emptied of both by
 2026-07-27** — the hosted-tier three were pulled back into `sprint/current/`, and
 so were US-020 and US-057. What stands here now is a different sprint entirely:
 US-043, US-044 and US-048, scheduled out of `unscheduled/` the same day — the
-first sprint that is about the product rather than about shipping it. US-042 was
-scheduled here with them and pulled into `sprint/current/` the same day.
+first sprint that is about the product rather than about shipping it. US-042 and
+US-048 were scheduled here with them and both pulled into `sprint/current/` the
+same day.
 
 | ID | Story | Status | Depends on |
 |---|---|---|---|
 | [US-043](sprint/next/US-043-reusable-authenticated-sessions.md) | Test what is behind the login (reusable sessions) | 📋 Planned (P2) | US-035, US-021 |
 | [US-044](sprint/next/US-044-network-and-console-evidence.md) | Say *why* it failed: network and console evidence | 📋 Planned (P2) | US-020, US-026 |
-| [US-048](sprint/next/US-048-file-upload-in-test-flows.md) | Test a flow that uploads a file | 📋 Planned (P3) | US-035, US-023 |
 
 **How they order themselves.** US-042 was the P1 and the one with a security
 shape, which is exactly why it did not stay here — see the current sprint. Of
 what is left, US-043 goes first and US-044 last, because report v2 owns the layout
 its evidence lands in and US-020 is now a current-sprint story — the dependency
-lands a sprint early, which is the point of pulling it up. US-048 is P3,
-independent of both, and the cheapest thing in the folder. Two open questions the
+lands a sprint early, which is the point of pulling it up. US-048 was the P3 and
+the cheapest thing in the folder, which is why it went the same way as US-042 —
+see the current sprint. Two open questions the
 scheduling doesn't settle: **US-043 arrived without US-041**, which its own file
 says it wants first — a reusable session makes QAssist test more, but the verdict
 on what it finds is still the agent grading its own homework — and **US-043 owes a
@@ -244,8 +254,8 @@ browser-use already capable of that we do not use?* — answered by reading the
 installed 0.13.6 against `agent/run_agent.py` rather than the docs. They were
 filed unscheduled because the current sprint is release plumbing and this is
 product; **four of them (US-042, US-043, US-044, US-048) were scheduled into
-`sprint/next/` on 2026-07-27** — US-042 straight on into `sprint/current/` — which
-is that reason expiring rather than being overruled.
+`sprint/next/` on 2026-07-27** — US-042 and US-048 straight on into
+`sprint/current/` — which is that reason expiring rather than being overruled.
 
 **US-041 is the pull-forward candidate left, and the strongest one.** It is
 closer to a defect than a feature: `Agent(use_judge=…)` defaults to `True` and we

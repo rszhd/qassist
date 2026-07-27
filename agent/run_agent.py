@@ -24,6 +24,8 @@ Inputs come from environment variables:
   QA_GOAL, QA_START_URL, QA_MAX_STEPS, BROWSER_USE_MODEL, OPENAI_API_KEY
   QA_RUN_ID, ARTIFACTS_DIR (recording + step screenshots)
   QA_RECORD=0 disables recording (US-002's viewer gating then applies again)
+  QA_FIXTURES (JSON array of absolute paths — the only files this run may
+  attach or read; see fixtures.py)
   QA_IMAP_* / QA_MAILBOX_DOMAIN (optional — enables email confirmation, see
   email_codes.py)
 """
@@ -46,6 +48,7 @@ from PIL import Image
 
 from email_codes import ImapMailbox
 from redact import scrub
+import fixtures
 import navigation_policy
 import secret_vars
 
@@ -303,6 +306,13 @@ async def main() -> int:
         f"When finished, clearly state whether the goal succeeded or failed and why."
     )
 
+    # The files this run may attach (US-048). Everything not on this list is
+    # refused by browser-use for both `upload_file` and `read_file`, so an empty
+    # list — the case for every run whose test has no project — leaves the agent
+    # with no filesystem reach at all, which is the default we want.
+    fixture_paths = fixtures.load(os.environ)
+    task += fixtures.task_note(fixture_paths)
+
     run_id = os.environ.get("QA_RUN_ID")
     artifacts_dir = os.environ.get("ARTIFACTS_DIR")
     run_started = time.monotonic()
@@ -484,6 +494,10 @@ async def main() -> int:
         register_new_step_callback=on_step,
         tools=tools,
         sensitive_data=sensitive,
+        # US-048: the whitelist, and the whole of it. Passing None here is what
+        # browser-use defaults to, and it means the same "nothing" — but only
+        # this spelling says so on purpose.
+        available_file_paths=fixture_paths,
     )
 
     emit({"type": "start", "goal": goal, "start_url": start_url, "model": model})

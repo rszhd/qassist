@@ -10,7 +10,10 @@ import { refreshUserConcurrencyCap } from '../concurrency.js';
 
 /**
  * The columns a run needs off a saved test, plus the owning project's
- * navigation allowlist (US-042). One fragment shared by every place that
+ * navigation allowlist (US-042) and its id — which is what resolves the run's
+ * fixture whitelist at spawn (US-048). Both come off the test's own row rather
+ * than off the request, so a caller can never name the project whose files
+ * their run may open. One fragment shared by every place that
  * selects a runnable test — the flat routes, the batch routes and the scheduler
  * — because a query that forgot the join would hand `createRun` an undefined
  * allowlist and quietly run the test under the instance floor alone. A LEFT
@@ -18,7 +21,7 @@ import { refreshUserConcurrencyCap } from '../concurrency.js';
  * resolve an outer alias inside one (projects.js documents the same trap).
  */
 export const RUNNABLE_TEST_COLS =
-  't.id, t.goal, t.start_url, t.max_steps, t.model, t.variables, p.allowed_domains';
+  't.id, t.goal, t.start_url, t.max_steps, t.model, t.variables, t.project_id, p.allowed_domains';
 export const RUNNABLE_TEST_FROM = 'tests t left join projects p on p.id = t.project_id';
 
 /** Triggers a caller may set; 'schedule' is US-010's, not callers'. */
@@ -174,7 +177,7 @@ export function requireDb(_req, res, next) {
  * The batch enqueue as an HTTP caller reaches it: same runs.js `runTests`, but
  * the trigger is whatever the request claimed, filtered to what a caller is
  * allowed to say it is. The scheduler calls runTests directly with 'schedule'.
- * @param {{ id: string, goal: string, start_url: string, max_steps: number, model: string|null, variables?: any, allowed_domains?: string[] }[]} tests
+ * @param {{ id: string, goal: string, start_url: string, max_steps: number, model: string|null, variables?: any, project_id?: string|null, allowed_domains?: string[] }[]} tests
  * @param {{ start_url?: string, trigger?: string, variables?: Record<string, string> }} body
  * @param {string|null} [openaiApiKey] the run key requireAgentKey resolved (req.runOpenaiKey)
  */
