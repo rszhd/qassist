@@ -141,6 +141,14 @@ export const FIXTURE_PROJECT_QUOTA_BYTES = parseInt(
 );
 
 export const RECORDING_FILENAME = 'recording.mp4';
+// The full network archive (US-044), written by the browser when a run asks for
+// it. Off by default: the curated diagnostics summary is the always-on artifact,
+// and this one is large and — unlike the summary — is written by Chromium, so
+// `scrub` never sees it and a secret in a query string lands in it verbatim.
+// CAPTURE_HAR=1 turns it on for every run on this instance; a caller can also
+// ask per run with `har: true`.
+export const HAR_FILENAME = 'network.har';
+export const CAPTURE_HAR = /^(1|true|yes)$/i.test(process.env.CAPTURE_HAR || '');
 // What generateReport() writes and both the PDF renderer and US-026's steps
 // endpoint read back.
 export const REPORT_DATA_FILENAME = 'report_data.json';

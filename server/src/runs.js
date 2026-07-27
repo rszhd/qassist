@@ -31,6 +31,7 @@ import {
   PUBLIC_BASE_URL,
   RECORDING_FILENAME,
   REPORT_DATA_FILENAME,
+  CAPTURE_HAR,
   DEMO_SPEED,
   instancePolicy,
 } from './config.js';
@@ -122,6 +123,28 @@ export function stepsOf(run) {
       url: e.url,
       screenshot_file: e.screenshot_file,
     }));
+}
+
+/**
+ * Why the run failed, in the one shape everything reads it in (US-044): the
+ * failed requests, console errors and uncaught exceptions the agent captured,
+ * each already scrubbed, capped, deduplicated and stamped with the step it
+ * happened during.
+ *
+ * Flat rather than nested under `stepsOf`, because a finding can arrive before
+ * the first step (a page's own load errors do) and would have no step object to
+ * hang off. Both renderers group by `step` themselves.
+ *
+ * `dropped` is the agent's run total, not a sum: each event carries the tally so
+ * far, so the last one to arrive is the whole answer. Reading it as a sum would
+ * multiply it by the number of steps.
+ */
+export function diagnosticsOf(run) {
+  const events = run.events.filter((e) => e.type === 'diagnostics');
+  return {
+    diagnostics: events.flatMap((e) => e.entries || []),
+    diagnostics_dropped: events.reduce((most, e) => Math.max(most, e.dropped || 0), 0),
+  };
 }
 
 function send(run, evt) {
@@ -259,7 +282,7 @@ function maybeNotify(run) {
  *           trigger?: string, variables?: Record<string, string>,
  *           secrets?: Record<string, string>, user_id?: string | null,
  *           openai_api_key?: string | null, project_id?: string | null,
- *           allowed_domains?: string[] }} fields
+ *           allowed_domains?: string[], har?: boolean }} fields
  */
 export function createRun(fields) {
   // Explicit user_id for the scheduler (no request context); a request-borne run
@@ -313,6 +336,11 @@ export function createRun(fields) {
     // Real secret values, in-memory only — handed to the agent via QA_VARS in
     // startRun and deliberately never persisted or serialized (US-035).
     secrets: fields.secrets || {},
+    // Whether this run also writes a full HAR (US-044). Opt-in per run, with an
+    // instance-wide default for an operator debugging their whole box. In-memory
+    // only: it is an argument to one spawn, not a property of the run worth a
+    // column — the file's presence on disk is what the download route reads.
+    har: fields.har ?? CAPTURE_HAR,
     // BYOK key (US-005): request- or account-resolved, in-memory only. Handed to
     // the agent as OPENAI_API_KEY in startRun; never a column, an event, or an
     // artifact — persistInsert/broadcast/generateReport never read this field.
@@ -554,6 +582,10 @@ function startRun(runId) {
     // distinguishable in the child, and only one of them is a statement.
     QA_FIXTURES: JSON.stringify(fixturePathsFor(run.project_id)),
     QA_RUN_ID: run.id,
+    // US-044. Sent as '1'/'0' rather than left unset, for the same reason as
+    // QA_FIXTURES: the spread below carries the server's own environment, and an
+    // unsent variable would inherit whatever this process happens to hold.
+    QA_HAR: run.har ? '1' : '0',
     BROWSER_USE_MODEL: run.model || MODEL,
     OPENAI_API_KEY: run.openai_api_key,
     ARTIFACTS_DIR,
@@ -843,6 +875,10 @@ function generateReport(run) {
         : null,
     generated_at: new Date().toISOString(),
     steps: stepsOf(run),
+    // US-044: what the browser said while this run was failing. Bounded by the
+    // agent's per-step cap, so this stays a section and not an archive — the
+    // archive is the opt-in HAR beside it.
+    ...diagnosticsOf(run),
   };
   const dataPath = path.join(runDir, REPORT_DATA_FILENAME);
   const pdfPath = path.join(runDir, 'report.pdf');

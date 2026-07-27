@@ -1,0 +1,73 @@
+<!doctype html>
+<!--
+  A deliberately broken page, for US-044's hand-verification leg.
+
+  Every failure a QAssist report should be able to name is on this page, and
+  none of them are visible in a screenshot — which is the whole argument for
+  capturing them. A run against this page must come back naming the 500, not
+  just saying the goal was not achieved.
+
+  Serve it and point a run at it:
+
+    cd agent/tests/fixtures && python3 -m http.server 8099
+    # the navigation fence blocks private networks by default (US-042), so this
+    # one run has to be let out:
+    QA_BLOCK_PRIVATE_NETWORKS=0 \
+    QA_GOAL='submit the order form and confirm it succeeded' \
+    QA_START_URL=http://localhost:8099/broken-page.html \
+    QA_RUN_ID=har-check ARTIFACTS_DIR=/tmp/qa-runs QA_HAR=1 \
+    OPENAI_API_KEY=… agent/.venv/bin/python agent/run_agent.py
+
+  What the report must then contain: the 500 from /api/order, the two requests
+  that never resolve, the uncaught TypeError from the submit handler, and the
+  console error — each stamped with the step it happened during.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Checkout — QAssist broken fixture</title>
+  <!-- 404 on a stylesheet: a failed request that changes nothing visible. -->
+  <link rel="stylesheet" href="/static/missing-stylesheet.css">
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 34rem; margin: 4rem auto; }
+    button { padding: .6rem 1.2rem; font-size: 1rem; }
+    #status { margin-top: 1rem; min-height: 1.5rem; color: #666; }
+  </style>
+</head>
+<body>
+  <h1>Complete your order</h1>
+  <p>Everything below looks fine in a screenshot. None of it works.</p>
+
+  <form id="order">
+    <label>Email <input type="email" name="email" value="buyer@example.test" required></label>
+    <p><button type="submit">Place order</button></p>
+  </form>
+  <div id="status"></div>
+
+  <!-- A script that does not exist: the console error with no visual trace. -->
+  <script src="/static/missing-analytics.js"></script>
+  <script>
+    // A request to a host that does not resolve — the transport failure that
+    // arrives with no status code at all.
+    fetch('https://this-host-does-not-resolve.invalid/beacon').catch(() => {});
+
+    document.getElementById('order').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      document.getElementById('status').textContent = 'Placing order…';
+
+      // The 500 the report exists to name.
+      try {
+        const res = await fetch('/api/order', { method: 'POST' });
+        if (!res.ok) throw new Error('order rejected');
+      } catch (err) {
+        console.error('Order submission failed:', err.message);
+      }
+
+      // And the uncaught TypeError that kills the handler: the status text is
+      // never updated, so the page just sits there looking like it is thinking.
+      const receipt = null;
+      document.getElementById('status').textContent = receipt.confirmationNumber;
+    });
+  </script>
+</body>
+</html>

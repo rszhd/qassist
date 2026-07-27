@@ -9,6 +9,13 @@ Two kinds of visual events are emitted:
                                             a viewer is attached (see below)
   - {"type":"step",  ...}                   one per agent reasoning step
 
+Why a run failed comes over a third (US-044):
+  - {"type":"diagnostics", "entries":[…], "dropped": n}
+    failed requests, console errors and uncaught exceptions, each stamped with
+    the step it happened during. Batched one event per step boundary — never per
+    console line — capped and deduplicated in `diagnostics.py` before it crosses
+    stdout, and scrubbed of the run's secrets on the way in.
+
 Every run is also recorded to <ARTIFACTS_DIR>/<runId>/recording.mp4 off the
 same frame stream (US-006); a {"type":"recording"} event announces the file
 just before the run's done/error event.
@@ -24,6 +31,8 @@ Inputs come from environment variables:
   QA_GOAL, QA_START_URL, QA_MAX_STEPS, BROWSER_USE_MODEL, OPENAI_API_KEY
   QA_RUN_ID, ARTIFACTS_DIR (recording + step screenshots)
   QA_RECORD=0 disables recording (US-002's viewer gating then applies again)
+  QA_HAR=1 also writes runs/<runId>/network.har — the full archive beside the
+  curated summary, headers and bodies omitted (US-044)
   QA_FIXTURES (JSON array of absolute paths — the only files this run may
   attach or read; see fixtures.py)
   QA_IMAP_* / QA_MAILBOX_DOMAIN (optional — enables email confirmation, see
@@ -48,6 +57,7 @@ from PIL import Image
 
 from email_codes import ImapMailbox
 from redact import scrub
+import diagnostics
 import fixtures
 import navigation_policy
 import secret_vars
@@ -67,6 +77,14 @@ FRAME_MIN_INTERVAL = 1 / 6  # cap emitted frames to ~6 fps
 RECORD_FILENAME = "recording.mp4"
 RECORD_FPS = 3  # sample rate and video framerate — reviewable, cheap to encode
 RECORD_MIN_INTERVAL = 1 / RECORD_FPS
+
+# Full network archive (US-044), opt-in via QA_HAR=1. Written by the browser
+# itself, headers and bodies omitted — see the profile kwargs in main().
+HAR_FILENAME = "network.har"
+# We never read a response body, so Chromium has no reason to hold one. Keep its
+# network buffers small: this process shares MAX_RUN_MEMORY_MB with Chromium.
+NETWORK_BUFFER_BYTES = 1_000_000
+NETWORK_RESOURCE_BUFFER_BYTES = 100_000
 
 
 def emit(obj: dict) -> None:
@@ -279,6 +297,94 @@ async def screencast(
     await stop_current()
 
 
+async def diagnostics_watch(session, diag, stop_event: asyncio.Event) -> None:
+    """Collect console errors, uncaught exceptions and failed requests (US-044).
+
+    Subscribes on the agent's focused target and re-arms when it switches tabs,
+    the same shape `screencast` uses — but deliberately its own loop rather than
+    a passenger on that one, which parks itself whenever nobody is watching and
+    nothing is being recorded (US-002). Evidence for the report has to be
+    collected either way.
+
+    Handlers register once: `register` is per CDP client and dispatches for every
+    session, while the per-target `Runtime.enable`/`Network.enable` below are what
+    actually start the flow. Nothing in here is allowed to raise — these run on
+    the hot path of every request the page makes, and a reporting bug must not
+    cost a run.
+    """
+    pending = diagnostics.PendingRequests()
+
+    def on_console(event, session_id):
+        diag.console(event.get("type"), diagnostics.console_text(event.get("args")))
+
+    def on_exception(event, session_id):
+        diag.exception(diagnostics.exception_text(event.get("exceptionDetails")))
+
+    def on_request(event, session_id):
+        pending.started(event.get("requestId"), (event.get("request") or {}).get("url"))
+
+    def on_response(event, session_id):
+        response = event.get("response") or {}
+        pending.finished(event.get("requestId"))
+        diag.request(response.get("url"), status=response.get("status"))
+
+    def on_failed(event, session_id):
+        url = pending.finished(event.get("requestId"))
+        # A cancelled request is not a failure. Every navigation aborts whatever
+        # was still in flight, so counting those would spend the step's whole
+        # budget on page transitions and crowd out the 500 we came for.
+        error = str(event.get("errorText") or "")
+        if event.get("canceled") or "ERR_ABORTED" in error:
+            return
+        diag.request(url, error=error or "request failed")
+
+    registered = False
+    armed = set()
+
+    while not stop_event.is_set():
+        try:
+            # focus=False so polling never steals focus from the agent.
+            cdp_session = await session.get_or_create_cdp_session(target_id=None, focus=False)
+        except Exception:
+            await asyncio.sleep(0.5)
+            continue
+
+        if not registered:
+            try:
+                register = session.cdp_client.register
+                register.Runtime.consoleAPICalled(on_console)
+                register.Runtime.exceptionThrown(on_exception)
+                register.Network.requestWillBeSent(on_request)
+                register.Network.responseReceived(on_response)
+                register.Network.loadingFailed(on_failed)
+                registered = True
+            except Exception as e:
+                emit({"type": "warn", "message": f"diagnostics unavailable: {type(e).__name__}: {e}"})
+                return
+
+        sid = cdp_session.session_id
+        if sid not in armed:
+            armed.add(sid)
+            try:
+                await cdp_session.cdp_client.send.Runtime.enable(session_id=sid)
+                await cdp_session.cdp_client.send.Network.enable(
+                    params={
+                        "maxTotalBufferSize": NETWORK_BUFFER_BYTES,
+                        "maxResourceBufferSize": NETWORK_RESOURCE_BUFFER_BYTES,
+                    },
+                    session_id=sid,
+                )
+            except Exception as e:
+                # A target we could not arm collects nothing; say so once rather
+                # than leaving a silently empty diagnostics section.
+                emit({"type": "warn", "message": f"diagnostics not armed on a tab: {type(e).__name__}"})
+
+        try:
+            await asyncio.wait_for(stop_event.wait(), timeout=1.0)
+        except asyncio.TimeoutError:
+            pass  # re-check the focused target each second
+
+
 async def main() -> int:
     goal = os.environ.get("QA_GOAL", "").strip()
     start_url = os.environ.get("QA_START_URL", "").strip()
@@ -401,6 +507,24 @@ async def main() -> int:
             "open <secret>email_link</secret> as instructed by its result. Never guess codes."
         )
 
+    # Network/console evidence (US-044). Created here, after the mailbox block
+    # has finished deciding what `sensitive` is, so the buffer holds the *same*
+    # dict browser-use does — get_email_code adds the fetched code to it mid-run,
+    # and a copy taken earlier would keep scrubbing against the old contents.
+    diag = diagnostics.Diagnostics(sensitive=sensitive)
+
+    def flush_diagnostics():
+        """Hand the step's findings to Express as one event.
+
+        Batched at step boundaries, never one event per console line: the NDJSON
+        pipe is the one thing in this architecture that must not back up (see the
+        screencast note above), and a page can emit thousands of lines per step.
+        `dropped` is the run total, so the report can say what the cap refused.
+        """
+        entries = diag.drain()
+        if entries:
+            emit({"type": "diagnostics", "entries": entries, "dropped": diag.dropped})
+
     # URLs the fence has already been reported as refusing, so a block that
     # persists across several steps is announced once (US-042).
     reported_blocks = set()
@@ -435,6 +559,13 @@ async def main() -> int:
     async def on_step(browser_state, agent_output, step_number):
         try:
             report_blocks(step_number)
+            # Hand over what the previous step turned up, then move the
+            # attribution on: this callback reports the goal the agent is *about*
+            # to pursue, so everything the browser says from here belongs to
+            # `step_number`. set_step also refreshes the per-step cap budget,
+            # which is what stops a chatty first step silencing the one that fails.
+            flush_diagnostics()
+            diag.set_step(step_number)
             url = scrub(getattr(browser_state, "url", None), sensitive)
 
             # Save a durable per-step screenshot for the PDF report (separate
@@ -464,9 +595,26 @@ async def main() -> int:
         except Exception as e:
             emit({"type": "warn", "message": f"step callback error: {e}"})
 
+    # Full HAR (US-044), opt-in. The always-on artifact is the curated summary
+    # above; this is the archive, and it is the one thing here `scrub` cannot
+    # reach — the browser writes the file, so a secret in a query string lands in
+    # it verbatim. Hence opt-in, hence `omit`/`minimal`: no headers (no `Bearer`,
+    # no `Cookie`) and no bodies unless someone deliberately asks. It lives in
+    # runs/<id>/, so ARTIFACT_RETENTION_DAYS prunes it with everything else.
+    har_kwargs = {}
+    if run_id and artifacts_dir and os.environ.get("QA_HAR", "0") == "1":
+        har_path = os.path.join(artifacts_dir, run_id, HAR_FILENAME)
+        os.makedirs(os.path.dirname(har_path), exist_ok=True)
+        har_kwargs = {
+            "record_har_path": har_path,
+            "record_har_content": "omit",
+            "record_har_mode": "minimal",
+        }
+
     profile = BrowserProfile(
         headless=True,
         chromium_sandbox=False,
+        **har_kwargs,
         # US-042: SecurityWatchdog enforces these on every navigation, including
         # the ones a redirect chain arrives at — which is the case the server's
         # own pre-check on start_url cannot see.
@@ -508,6 +656,7 @@ async def main() -> int:
     watch_event = asyncio.Event()  # set while at least one viewer is attached
     ctl_task = asyncio.create_task(stdin_control(agent, watch_event, stop_event))
     sc_task = asyncio.create_task(screencast(agent.browser_session, watch_event, stop_event, recorder))
+    dg_task = asyncio.create_task(diagnostics_watch(agent.browser_session, diag, stop_event))
     # The failure is reported after cleanup, so the recording event always
     # reaches Express before done/error — the report is built off those.
     failure = None
@@ -518,10 +667,16 @@ async def main() -> int:
     finally:
         stop_event.set()
         ctl_task.cancel()
-        try:
-            await asyncio.wait_for(sc_task, timeout=5)
-        except Exception:
-            pass
+        for task in (sc_task, dg_task):
+            try:
+                await asyncio.wait_for(task, timeout=5)
+            except Exception:
+                pass
+        # The last step's evidence, and a crashed run's only evidence: whatever
+        # the browser said during the final step has no later on_step to flush it,
+        # exactly as with the fence's late blocks below. Emitted here so it
+        # reaches Express before done/error, which is when the report is built.
+        flush_diagnostics()
         if recorder is not None:
             saved = await asyncio.to_thread(recorder.stop)
             if saved:

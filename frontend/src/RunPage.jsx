@@ -25,6 +25,9 @@ export default function RunPage({ token, needsToken, onOpenSettings }) {
   const { id } = useParams();
   const [run, setRun] = useState(null);
   const [steps, setSteps] = useState(null);
+  // US-044's evidence, accumulated off the relay so a run in flight explains
+  // itself as it goes rather than only once the report exists.
+  const [evidence, setEvidence] = useState({ diagnostics: [], dropped: 0 });
   const [frame, setFrame] = useState(null);
   const [error, setError] = useState(null);
   const [missing, setMissing] = useState(false);
@@ -60,6 +63,7 @@ export default function RunPage({ token, needsToken, onOpenSettings }) {
     // The relay replays the run's buffered events on connect, so the list is
     // built from scratch here rather than seeded from GET /:id/steps.
     setSteps([]);
+    setEvidence({ diagnostics: [], dropped: 0 });
     ws.onmessage = (m) => {
       let evt;
       try {
@@ -69,6 +73,14 @@ export default function RunPage({ token, needsToken, onOpenSettings }) {
       }
       if (evt.type === 'step' || evt.type === 'progress' || evt.type === 'blocked') {
         setSteps((s) => [...(s || []), evt]);
+      }
+      else if (evt.type === 'diagnostics') {
+        // `dropped` is the agent's running total, so the newest event is the
+        // whole answer — accumulating it would multiply it by the step count.
+        setEvidence((e) => ({
+          diagnostics: [...e.diagnostics, ...(evt.entries || [])],
+          dropped: evt.dropped || e.dropped,
+        }));
       }
       else if (evt.type === 'frame' && evt.data) setFrame(`data:image/jpeg;base64,${evt.data}`);
       else if (evt.type === 'status') setRun((r) => r && { ...r, status: evt.status });
@@ -152,6 +164,7 @@ export default function RunPage({ token, needsToken, onOpenSettings }) {
               token={token}
               onError={setError}
               liveSteps={unfinished ? steps : null}
+              liveDiagnostics={unfinished ? evidence : null}
               layout="page"
               onStopped={load}
             />

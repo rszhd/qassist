@@ -1,0 +1,98 @@
+{
+  "runId": "8f0d5a3c-1b2e-4d7a-9c11-broken00fixt",
+  "goal": "Submit the order form and confirm the order succeeded",
+  "start_url": "http://localhost:8099/broken-page.html",
+  "model": "gpt-4.1",
+  "status": "failed",
+  "success": false,
+  "duration_seconds": 21.4,
+  "steps_count": 3,
+  "final_result": "Goal failed: the order form was submitted but no confirmation ever appeared.",
+  "errors": [],
+  "failure_reason": null,
+  "blocked_url": null,
+  "has_recording": true,
+  "recording_url": null,
+  "generated_at": "2026-07-27T09:41:02.000Z",
+  "steps": [
+    {
+      "step": 1,
+      "elapsed": 3.1,
+      "next_goal": "Open the checkout page",
+      "evaluation": "Success — the page loaded",
+      "url": "http://localhost:8099/broken-page.html",
+      "screenshot_file": null
+    },
+    {
+      "step": 2,
+      "elapsed": 11.8,
+      "next_goal": "Fill the email field and place the order",
+      "evaluation": "Success — the form was submitted",
+      "url": "http://localhost:8099/broken-page.html",
+      "screenshot_file": null
+    },
+    {
+      "step": 3,
+      "elapsed": 20.9,
+      "next_goal": "Confirm the order confirmation appeared",
+      "evaluation": "Failed — no confirmation number is shown and the status still reads 'Placing order…'",
+      "url": "http://localhost:8099/broken-page.html",
+      "screenshot_file": null
+    }
+  ],
+  "diagnostics": [
+    {
+      "kind": "request",
+      "step": 1,
+      "url": "http://localhost:8099/static/missing-stylesheet.css",
+      "status": 404,
+      "error": null,
+      "count": 1
+    },
+    {
+      "kind": "request",
+      "step": 1,
+      "url": "http://localhost:8099/static/missing-analytics.js",
+      "status": 404,
+      "error": null,
+      "count": 1
+    },
+    {
+      "kind": "request",
+      "step": 1,
+      "url": "https://this-host-does-not-resolve.invalid/beacon",
+      "status": null,
+      "error": "net::ERR_NAME_NOT_RESOLVED",
+      "count": 1
+    },
+    {
+      "kind": "request",
+      "step": 2,
+      "url": "http://localhost:8099/api/order",
+      "status": 500,
+      "error": null,
+      "count": 1
+    },
+    {
+      "kind": "console",
+      "step": 2,
+      "level": "error",
+      "text": "Order submission failed: order rejected",
+      "count": 1
+    },
+    {
+      "kind": "exception",
+      "step": 2,
+      "text": "TypeError: Cannot read properties of null (reading 'confirmationNumber')",
+      "count": 1
+    },
+    {
+      "kind": "console",
+      "step": 3,
+      "level": "warning",
+      "text": "A form field element should have an id or name attribute",
+      "count": 4
+    }
+  ],
+  "diagnostics_dropped": 12
+}

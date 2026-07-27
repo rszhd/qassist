@@ -167,6 +167,66 @@ reached by join — so a run whose test was later deleted keeps its history row
 filter. Once retention prunes `runs/<id>/`, `artifacts_deleted_at` is set and
 the row reports no recording or report while the verdict survives.
 
+## Why a run failed: network and console evidence
+
+A verdict says the goal was not reached; the diagnostics say what broke. Every
+run captures the **failed requests** (status ≥ 400 and transport failures), the
+**console errors and warnings** and the **uncaught exceptions** the browser
+reported, each stamped with the step it happened during (US-044). They ride on
+the step endpoint, because they are the same read for the same view:
+
+```bash
+curl http://<host>:8080/api/runs/<runId>/steps \
+  -H "Authorization: Bearer $WORKER_API_TOKEN"
+# -> {"steps":[…],
+#     "diagnostics":[
+#       {"kind":"request","step":2,"url":"https://api/order","status":500,"error":null,"count":1},
+#       {"kind":"console","step":2,"level":"error","text":"TypeError: …","count":7},
+#       {"kind":"exception","step":3,"text":"Error: submit handler died","count":1}],
+#     "diagnostics_dropped":0}
+```
+
+`kind` is `request`, `console` or `exception`. A `request` with a null `status`
+never came back at all and carries the transport `error` instead — a CORS
+rejection or a DNS failure, neither of which a screenshot can show. `count` is
+how many times an identical finding repeated. `step` is null for a finding that
+predates the first step, which is where a page's own failed assets land.
+
+The list is deliberately a **summary, not an archive**: the agent keeps at most
+five distinct findings per kind per step, counts the rest into
+`diagnostics_dropped`, and truncates each line to 300 characters — all before
+anything crosses its stdout, so a page emitting thousands of console lines per
+step cannot stall the run. Everything captured is scrubbed of the run's secret
+variables first, so nothing here leaks into the PDF that US-012 emails.
+
+Same data, same shape, in `runs/<id>/report_data.json` and as a named section in
+the PDF report.
+
+### The full archive (opt-in)
+
+When the summary is not enough, a run can also write a complete HAR:
+
+```bash
+curl -X POST http://<host>:8080/api/runs \
+  -H "Authorization: Bearer $WORKER_API_TOKEN" -H "Content-Type: application/json" \
+  -d '{"goal":"…","start_url":"https://example.com","har":true}'
+
+# 404 unless that run asked for one
+curl -L http://<host>:8080/api/runs/<runId>/network.har \
+  -H "Authorization: Bearer $WORKER_API_TOKEN" -o network.har
+```
+
+`CAPTURE_HAR=1` turns it on for every run on the instance; an explicit
+`"har": false` on the request still turns it off for one run. Headers and
+bodies are **not** recorded (`record_har_content: omit`, `record_har_mode:
+minimal`), so no `Bearer` or `Cookie` value reaches the file.
+
+> **The HAR is the one artifact redaction does not reach.** Chromium writes it,
+> not the agent, so a secret in a query string appears in it verbatim. That is
+> why it is off by default and why it is a download rather than something the
+> report embeds or an email attaches. It lives in `runs/<id>/` and
+> `ARTIFACT_RETENTION_DAYS` prunes it with the recording and the PDF.
+
 ## Confining where a run may navigate
 
 Every run is fenced twice (US-042): the `start_url` is judged before a row is

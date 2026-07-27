@@ -6,8 +6,13 @@
   self-host launch, and a better report is not what gates it) and was pulled back
   into it on 2026-07-27, once the release plumbing stopped needing attention.
 - **Priority:** P2 — lowered 2026-07-23 because it blocks nothing, so it yielded
-  to US-010/US-012 and then out of the release entirely. It is now scheduled
-  ahead of US-044 (`sprint/next/`), which needs the layout this story builds.
+  to US-010/US-012 and then out of the release entirely. It was pulled up on
+  2026-07-27 to land ahead of US-044, which was thought to need the layout this
+  story builds — **it didn't**, and shipped first (2026-07-27). So this story is
+  back to blocking nothing. What US-044 leaves behind for it: a `diagnostics`
+  section already renders on its own page, and each finding carries a step
+  number, so folding it into the execution log this story builds is a rendering
+  change with no data change.
 - **Estimate:** ~1–2 days
 - **Depends on:** US-006 (recording must exist to link/embed)
 

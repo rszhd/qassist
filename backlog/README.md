@@ -50,6 +50,7 @@ Sprints aren't split along a self-host/hosted-tier line — `sprint/current/` an
 | [US-056](sprint/current/US-056-production-deployment.md) | Production deployment: `app.qassist.run` goes live | 📋 Planned (created 2026-07-26) — the production stand-up itself | US-007, US-038, US-052 |
 | [US-058](sprint/current/done/US-058-per-user-concurrency-override.md) | Raise one user's concurrency cap without raising everyone's | ✅ **Done** 2026-07-27, 9/9 — the cap the operator can move for one account, and it lands without a restart | US-028, US-021 |
 | [US-048](sprint/current/done/US-048-file-upload-in-test-flows.md) | Test a flow that uploads a file | ✅ **Done** 2026-07-27, 5/5 — a project owns the files its tests may attach, and that whitelist is the boundary: browser-use gates `read_file` on it too. The end-to-end upload is hand-verified, not tested — it needs a live browser | US-035, US-023 |
+| [US-044](sprint/current/done/US-044-network-and-console-evidence.md) | Say *why* it failed: network and console evidence | ✅ **Done** 2026-07-27, 6/6 — a failing run now names the 500, the dead request and the uncaught exception, each stamped with its step. Shipped *ahead* of US-020: the "depends on" was really "would look nicer alongside". Capped at 5 findings per kind per step, which holds `report_data.json` flat at 84 KB where uncapped it reaches 17 MB. The opt-in HAR is the one artifact redaction cannot reach, and says so | US-026 (US-020 not needed) |
 | [US-057](sprint/current/US-057-html-email-template.md) | An HTML template for outgoing email (magic link, run reports, activation) | 🔨 **Built** 2026-07-27, 4/5 — stays open on the one criterion a test can't answer: the Gmail/Apple Mail render | — |
 | [US-020](sprint/current/US-020-report-v2-screenshots-recording.md) | Report v2: step screenshots + recording | 📋 Planned (P2, pulled up 2026-07-27) | US-006 |
 | [US-047](sprint/current/done/US-047-stop-a-run.md) | Stop a run | ✅ **Done** 2026-07-27, 6/6 — `cancelled` is a terminal status of its own, and a stop is not a red build | — |
@@ -173,8 +174,9 @@ story above it made the queue busier.
   sprint was filing, not planning: it touches `mail.js` and the `sendMail()`
   callers (four, not three — `activation.js` sends two), not the PDF. US-020 is
   still the story that makes a good report better rather than making anything
-  possible — the reason it lost its place three times — but it now has a
-  successor waiting on it: US-044 in `sprint/next/` needs the layout it builds.
+  possible — the reason it lost its place three times. It was pulled up believing
+  US-044 needed the layout it builds; US-044 shipped without it the same day, so
+  that justification did not survive contact. It blocks nothing again.
 - **US-042** (2026-07-27, from `sprint/next/`) — pulled up the day it was
   scheduled, because it is the one story whose cost of waiting is not a delayed
   feature: staging is publicly registrable today and the fence does not exist,
@@ -199,27 +201,34 @@ report improvement that was never gating anything, and **emptied of both by
 2026-07-27** — the hosted-tier three were pulled back into `sprint/current/`, and
 so were US-020 and US-057. What stands here now is a different sprint entirely:
 US-043, US-044 and US-048, scheduled out of `unscheduled/` the same day — the
-first sprint that is about the product rather than about shipping it. US-042 and
-US-048 were scheduled here with them and both pulled into `sprint/current/` the
-same day.
+first sprint that is about the product rather than about shipping it. Three of
+the four then left again within the day: US-042 and US-048 were pulled into
+`sprint/current/` and shipped, and so was US-044, which was scheduled *last* here
+and turned out not to need the dependency that put it there. US-043 is what is
+left.
 
 | ID | Story | Status | Depends on |
 |---|---|---|---|
 | [US-043](sprint/next/US-043-reusable-authenticated-sessions.md) | Test what is behind the login (reusable sessions) | 📋 Planned (P2) | US-035, US-021 |
-| [US-044](sprint/next/US-044-network-and-console-evidence.md) | Say *why* it failed: network and console evidence | 📋 Planned (P2) | US-020, US-026 |
 
 **How they order themselves.** US-042 was the P1 and the one with a security
-shape, which is exactly why it did not stay here — see the current sprint. Of
-what is left, US-043 goes first and US-044 last, because report v2 owns the layout
-its evidence lands in and US-020 is now a current-sprint story — the dependency
-lands a sprint early, which is the point of pulling it up. US-048 was the P3 and
-the cheapest thing in the folder, which is why it went the same way as US-042 —
-see the current sprint. Two open questions the
-scheduling doesn't settle: **US-043 arrived without US-041**, which its own file
-says it wants first — a reusable session makes QAssist test more, but the verdict
-on what it finds is still the agent grading its own homework — and **US-043 owes a
-row in [`correctness-critical.md`](correctness-critical.md)**, added as part of
-doing the work, not on being scheduled.
+shape, which is exactly why it did not stay here — see the current sprint. US-048
+was the P3 and the cheapest thing in the folder, which is why it went the same
+way. **US-044 went too, and it is the one worth reading the reasoning on**: it was
+scheduled last of the three because report v2 owned the layout its evidence lands
+in, and that turned out to be wrong. US-020 owns the *execution log*; a
+step-stamped diagnostics section does not need to live inside one, and US-026's
+step list was already step-keyed. So US-044 shipped the day it was scheduled and
+US-020 is still open. The lesson is cheap to state and was not free to learn: **a
+"depends on" that is really "would look nicer alongside" costs a sprint if nobody
+checks which it is** — check before scheduling around it.
+
+That leaves US-043 alone here, with the two open questions the scheduling never
+settled: **it arrived without US-041**, which its own file says it wants first — a
+reusable session makes QAssist test more, but the verdict on what it finds is
+still the agent grading its own homework — and **it owes a row in
+[`correctness-critical.md`](correctness-critical.md)**, added as part of doing the
+work, not on being scheduled.
 
 Paid-tier ground rules (decided 2026-07-22, still standing, and now entirely
 about current-sprint code): nothing extra beyond what payment requires. One plan,
@@ -254,8 +263,9 @@ browser-use already capable of that we do not use?* — answered by reading the
 installed 0.13.6 against `agent/run_agent.py` rather than the docs. They were
 filed unscheduled because the current sprint is release plumbing and this is
 product; **four of them (US-042, US-043, US-044, US-048) were scheduled into
-`sprint/next/` on 2026-07-27** — US-042 and US-048 straight on into
-`sprint/current/` — which is that reason expiring rather than being overruled.
+`sprint/next/` on 2026-07-27** — US-042, US-044 and US-048 straight on into
+`sprint/current/` and shipped the same day — which is that reason expiring rather
+than being overruled.
 
 **US-041 is the pull-forward candidate left, and the strongest one.** It is
 closer to a defect than a feature: `Agent(use_judge=…)` defaults to `True` and we

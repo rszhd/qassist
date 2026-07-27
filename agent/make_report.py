@@ -15,7 +15,9 @@ The data JSON shape is produced by the Express server (see generateReport()):
     steps_count, final_result, errors[], failure_reason, blocked_url,
     has_recording, recording_url,
     generated_at,
-    steps: [{ step, elapsed, next_goal, evaluation, url, screenshot_file }] }
+    steps: [{ step, elapsed, next_goal, evaluation, url, screenshot_file }],
+    diagnostics: [{ kind, step, count, url?, status?, error?, level?, text? }],
+    diagnostics_dropped: n }
 Screenshot files are resolved relative to the data file's directory.
 """
 from __future__ import annotations
@@ -28,7 +30,17 @@ import sys
 
 from playwright.sync_api import sync_playwright
 
-from report_format import esc, fmt_date, fmt_duration, fmt_elapsed, step_ok
+from report_format import (
+    diagnostic_detail,
+    diagnostic_label,
+    esc,
+    fmt_date,
+    fmt_duration,
+    fmt_elapsed,
+    fmt_occurrences,
+    group_diagnostics,
+    step_ok,
+)
 
 FONTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fonts")
 
@@ -233,6 +245,51 @@ def build_html(data: dict, base_dir: str) -> str:
           </div>
         </div>"""
 
+    # What the browser said while this was failing (US-044). Its own section on
+    # its own page: this is the part a developer reading a 3am failure mail
+    # starts from, and it has to be findable without scrolling the whole log.
+    # Step-stamped rather than nested inside the execution log, so it reads
+    # correctly today and folds into that log when US-020 builds it.
+    diagnostics_html = ""
+    groups = group_diagnostics(data.get("diagnostics"))
+    if groups:
+        blocks = []
+        for step, entries in groups:
+            heading = f"Step {step}" if step is not None else "Before the first step"
+            rows = "".join(
+                f'<div class="diag-row">'
+                # Keyed on severity, not kind: a console *error* is a failure and
+                # reads red like the rest, only a warning is amber.
+                f'<span class="diag-tag{" diag-warn" if e.get("level") == "warning" else ""}">'
+                f"{esc(diagnostic_label(e))}</span>"
+                f'<span class="diag-detail">{esc(diagnostic_detail(e))}</span>'
+                f'<span class="diag-count">{esc(fmt_occurrences(e.get("count")))}</span>'
+                f"</div>"
+                for e in entries
+            )
+            blocks.append(
+                f'<div class="diag-group"><div class="diag-step">{esc(heading)}</div>{rows}</div>'
+            )
+        dropped = data.get("diagnostics_dropped") or 0
+        dropped_html = (
+            f'<p class="diag-note">A further {esc(dropped)} distinct '
+            f"{'finding' if dropped == 1 else 'findings'} exceeded the per-step "
+            f"capture limit and were counted but not recorded.</p>"
+            if isinstance(dropped, int) and dropped > 0
+            else ""
+        )
+        diagnostics_html = f"""
+        <section class="diagnostics">
+          <div class="log-head">
+            <div class="label">Browser diagnostics</div>
+            <div class="log-count">{esc(sum(len(e) for _, e in groups))} findings</div>
+          </div>
+          <p class="diag-intro">Failed requests, console errors and uncaught exceptions
+             captured while the test ran, in the order the browser reported them.</p>
+          {"".join(blocks)}
+          {dropped_html}
+        </section>"""
+
     recording_url = data.get("recording_url")
     if recording_url:
         rec_cta = f'<a class="rec-cta" href="{esc(recording_url)}">▶&nbsp; View recording</a>'
@@ -356,6 +413,40 @@ def build_html(data: dict, base_dir: str) -> str:
 
   .errors {{ margin: -16px 0 40px; }}
   .errors ul {{ margin: 6px 0 0; padding-left: 18px; color: #8C1D18; font-size: 15px; }}
+
+  /* ============ BROWSER DIAGNOSTICS (US-044) ============ */
+  /* Its own page, straight after the cover: the reason the run failed is what
+     a developer opens this report for, so it precedes the execution log. */
+  .diagnostics {{ page-break-before: always; }}
+  .diag-intro {{ font-size: 14.5px; color: #6E747B; margin: 0 0 24px; max-width: 68ch; }}
+  .diag-group {{ margin-bottom: 22px; page-break-inside: avoid; }}
+  .diag-step {{
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-size: 12px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase;
+    color: #14161A; padding-bottom: 6px; margin-bottom: 8px;
+    border-bottom: 1px solid #E4E6E8;
+  }}
+  .diag-row {{
+    display: grid; grid-template-columns: 64px 1fr auto; gap: 12px;
+    align-items: baseline; padding: 7px 0; page-break-inside: avoid;
+  }}
+  .diag-row + .diag-row {{ border-top: 1px solid #F1F2F3; }}
+  .diag-tag {{
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-size: 11px; font-weight: 600; letter-spacing: .06em; text-align: center;
+    padding: 3px 0; border-radius: 5px; color: #8C1D18; background: #FBEEED;
+  }}
+  /* A warning is not a failure — the one row here that isn't red. */
+  .diag-warn {{ color: #7A4A0B; background: #FBF3E6; }}
+  .diag-detail {{
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-size: 12.5px; line-height: 1.5; color: #45494F; word-break: break-word;
+  }}
+  .diag-count {{
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-size: 11.5px; color: #8A9096; white-space: nowrap;
+  }}
+  .diag-note {{ font-size: 13px; color: #8A9096; margin-top: 18px; }}
 
   /* execution log always starts on a fresh page */
   .exec {{ page-break-before: always; }}
@@ -503,6 +594,8 @@ def build_html(data: dict, base_dir: str) -> str:
       </div>
     </div>
   </div>
+
+  {diagnostics_html}
 </body></html>"""
 
 

@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { api, openReport } from './api.js';
 import ActivityLog from './Activity.jsx';
+import Diagnostics from './Diagnostics.jsx';
 import { Button, CardHead, EmptyState, IconButton, Stat } from './ui.jsx';
 import { formatWhen, formatDuration, statusLabel } from './status.js';
 
@@ -29,13 +30,16 @@ import { formatWhen, formatDuration, statusLabel } from './status.js';
 //
 // `onStopped` is the caller's cue to refetch after US-047's Stop: this card
 // renders the row it was handed, so it cannot update the row itself.
-export default function RunDetail({ run, token, onError, liveSteps, permalink, layout = 'panel', onStopped }) {
+export default function RunDetail({ run, token, onError, liveSteps, liveDiagnostics, permalink, layout = 'panel', onStopped }) {
   const [reportBusy, setReportBusy] = useState(false);
   const [showRecording, setShowRecording] = useState(false);
   const [stopping, setStopping] = useState(false);
   // null until the fetch settles, so an empty list reads as "none recorded"
   // rather than flashing that message under every run while it loads.
   const [fetched, setFetched] = useState(null);
+  // US-044's evidence rides on the same response as the steps, so it settles
+  // with them; no findings is the normal case and renders nothing at all.
+  const [evidence, setEvidence] = useState({ diagnostics: [], dropped: 0 });
 
   const [goalOpen, setGoalOpen] = useState(false);
   const goalRef = useRef(null);
@@ -44,6 +48,10 @@ export default function RunDetail({ run, token, onError, liveSteps, permalink, l
   const pruned = !!run.artifacts_deleted_at;
   const steps = liveSteps ?? fetched;
   const unfinished = run.status === 'queued' || run.status === 'running';
+  // Same override as `liveSteps`, for the same reason: a run in flight has its
+  // evidence arriving over the WebSocket, and refetching would replace a live
+  // list with a stale one.
+  const { diagnostics, dropped } = liveDiagnostics ?? evidence;
 
   // Whether the goal actually outgrows its clamp, so a goal that already fits
   // doesn't get a toggle that does nothing. Only measurable while collapsed —
@@ -71,7 +79,13 @@ export default function RunDetail({ run, token, onError, liveSteps, permalink, l
     if (pruned || liveSteps) return;
     let current = true;
     api(`/api/runs/${run.id}/steps`, { token })
-      .then((data) => current && setFetched(data.steps))
+      .then((data) => {
+        if (!current) return;
+        setFetched(data.steps);
+        // US-044 rides the same response, so it lands in the same tick as the
+        // steps it is attributed to — never a second request that can disagree.
+        setEvidence({ diagnostics: data.diagnostics || [], dropped: data.diagnostics_dropped || 0 });
+      })
       .catch(() => current && setFetched([]));
     return () => {
       current = false;
@@ -243,6 +257,18 @@ export default function RunDetail({ run, token, onError, liveSteps, permalink, l
     </>
   );
 
+  // US-044. Above the activity list rather than below it: on a failed run this
+  // is the answer and the step log is the context, so it should not be the thing
+  // you scroll past the log to find. Absent entirely when the browser had
+  // nothing to say, which is most runs — an empty "Diagnostics" heading under
+  // every passing run would be a permanent question mark.
+  const evidenceBlock = !pruned && diagnostics.length > 0 && (
+    <>
+      <CardHead title="Diagnostics" count={diagnostics.length} />
+      <Diagnostics diagnostics={diagnostics} dropped={dropped} />
+    </>
+  );
+
   const actions = pruned ? (
     <p className="hint">
       Artifacts were removed on {formatWhen(run.artifacts_deleted_at)} — the report and
@@ -291,6 +317,7 @@ export default function RunDetail({ run, token, onError, liveSteps, permalink, l
           {recording}
           {goal}
           {outcome}
+          {evidenceBlock}
           {activity}
         </section>
         <aside className="card detail-side">
@@ -310,6 +337,7 @@ export default function RunDetail({ run, token, onError, liveSteps, permalink, l
       {facts}
       {goal}
       {outcome}
+      {evidenceBlock}
       {/* Direct children of `.run-detail`, so the header and the list take the
           card's own gap — the same rhythm the live panel reads at. */}
       {activity}

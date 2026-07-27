@@ -15,11 +15,14 @@ if (process.env.QA_ENV_CAPTURE_FILE) {
   // US-048 rides the same instrument for the same reason: the fixture whitelist
   // is only real if it reaches the child, and a run spawned without it attaches
   // nothing while every server-side assertion stays green.
+  // US-044 rides it a third time: HAR capture is opt-in, so the only proof that
+  // "off" and "on" are different runs is which flag the child was handed.
   const keys = [
     'QA_BLOCK_PRIVATE_NETWORKS',
     'QA_DENIED_HOSTS',
     'QA_ALLOWED_DOMAINS',
     'QA_FIXTURES',
+    'QA_HAR',
   ];
   fs.writeFileSync(
     process.env.QA_ENV_CAPTURE_FILE,
@@ -31,12 +34,45 @@ const runDir = path.join(process.env.ARTIFACTS_DIR, process.env.QA_RUN_ID);
 fs.mkdirSync(runDir, { recursive: true });
 fs.writeFileSync(path.join(runDir, 'recording.mp4'), 'fake mp4 for tests\n');
 
+// The real agent writes the HAR itself (BrowserProfile.record_har_path), so the
+// stub's job is only to prove the flag decided whether a file appears (US-044).
+if (process.env.QA_HAR === '1') {
+  fs.writeFileSync(
+    path.join(runDir, 'network.har'),
+    JSON.stringify({ log: { version: '1.2', entries: [] } })
+  );
+}
+
 // QA_STUB_FAIL flips the verdict, so a test can exercise what a failing run
 // triggers (US-012's email) without a browser that actually fails.
 const failed = process.env.QA_STUB_FAIL === '1';
 
+// US-044: the evidence events, emitted only when a test asks for them — most
+// runs have nothing to report and the empty case is the normal one. Batched per
+// step boundary exactly as the real agent batches them, and `dropped` carries the
+// run total so far, which is what stops the server summing it per event.
+const diagnosticEvents =
+  process.env.QA_STUB_DIAGNOSTICS === '1'
+    ? [
+        {
+          type: 'diagnostics',
+          dropped: 3,
+          entries: [
+            { kind: 'request', step: 1, url: 'https://api.example.com/cart', status: 500, error: null, count: 2 },
+            { kind: 'console', step: 1, level: 'error', text: 'TypeError: x is not a function', count: 7 },
+          ],
+        },
+        {
+          type: 'diagnostics',
+          dropped: 5,
+          entries: [{ kind: 'exception', step: 2, text: 'Error: submit handler died', count: 1 }],
+        },
+      ]
+    : [];
+
 const events = [
   { type: 'step', step: 1, elapsed: 0.1, next_goal: 'open page', evaluation: null, url: process.env.QA_START_URL, screenshot_file: null },
+  ...diagnosticEvents,
   { type: 'recording', file: 'recording.mp4', frames: 3 },
   {
     type: 'done',

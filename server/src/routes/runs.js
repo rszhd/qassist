@@ -10,8 +10,8 @@ import express from 'express';
 import fs from 'node:fs';
 import path from 'node:path';
 import { db, isUuid, currentUserId } from '../db.js';
-import { createRun, getRun, stepsOf, stopRun, verdictOf } from '../runs.js';
-import { ARTIFACTS_DIR, RECORDING_FILENAME, REPORT_DATA_FILENAME } from '../config.js';
+import { createRun, diagnosticsOf, getRun, stepsOf, stopRun, verdictOf } from '../runs.js';
+import { ARTIFACTS_DIR, HAR_FILENAME, RECORDING_FILENAME, REPORT_DATA_FILENAME } from '../config.js';
 import { h, requireDb, requireAgentKey, requireEntitled, withUserCap, respondOverCap, STORED_TRIGGERS } from './helpers.js';
 
 /** Mirrors the runs.status check constraint (001_init.sql, widened by 011). */
@@ -190,7 +190,7 @@ export function runsRouter({ checkToken, checkTokenOrQuery }) {
   const r = express.Router();
 
   r.post('/', checkToken, requireEntitled, requireAgentKey, withUserCap, (req, res) => {
-    const { goal, start_url, max_steps } = req.body || {};
+    const { goal, start_url, max_steps, har } = req.body || {};
     if (!goal || !start_url) {
       return res.status(400).json({ error: 'goal and start_url are required' });
     }
@@ -200,6 +200,9 @@ export function runsRouter({ checkToken, checkTokenOrQuery }) {
       goal,
       start_url,
       max_steps,
+      // US-044: `har` absent leaves the instance default in force, so an
+      // explicit `false` can still turn it off on a box that has it on.
+      har: har === undefined ? undefined : !!har,
       openai_api_key: /** @type {any} */ (req).runOpenaiKey,
     });
     if ('blocked' in run) return res.status(400).json({ error: run.error, reason: run.reason });
@@ -325,18 +328,49 @@ export function runsRouter({ checkToken, checkTokenOrQuery }) {
   // wrote: the live buffer while the run is still in the relay, report_data.json
   // afterwards. Pruned (or never written, if the process died before finishing)
   // => 404, same as a missing recording.
+  //
+  // `diagnostics` rides along on the same response (US-044) rather than taking a
+  // route of its own: it is the same read, from the same two sources, for the
+  // same view — RunDetail already fetches this and would otherwise make a second
+  // request that can only ever succeed or fail together with this one.
   r.get(
     '/:id/steps',
     checkToken,
     h(async (req, res) => {
       const run = ownedLiveRun(req.params.id);
-      if (run) return res.json({ steps: stepsOf(run) });
+      if (run) return res.json({ steps: stepsOf(run), ...diagnosticsOf(run) });
       if (!isUuid(req.params.id)) return res.status(404).json({ error: 'not found' });
       if (!(await runOwned(req.params.id))) return res.status(404).json({ error: 'not found' });
       const file = path.join(ARTIFACTS_DIR, req.params.id, REPORT_DATA_FILENAME);
       if (!fs.existsSync(file)) return res.status(404).json({ error: 'no steps' });
       const data = JSON.parse(fs.readFileSync(file, 'utf8'));
-      res.json({ steps: data.steps || [] });
+      res.json({
+        steps: data.steps || [],
+        diagnostics: data.diagnostics || [],
+        diagnostics_dropped: data.diagnostics_dropped || 0,
+      });
+    })
+  );
+
+  // The full network archive (US-044), when the run asked for one. Opt-in, so
+  // most runs 404 here and that is the normal answer. Deliberately a download
+  // rather than something rendered: it is a debugging escape hatch for whoever
+  // set the flag, and it is the one artifact `scrub` never saw — the browser
+  // wrote it, so its URLs are verbatim. Pruned with the rest of runs/<id>/.
+  r.get(
+    '/:id/network.har',
+    checkToken,
+    h(async (req, res) => {
+      if (!isUuid(req.params.id)) return res.status(404).json({ error: 'not found' });
+      if (!(await runOwned(req.params.id))) return res.status(404).json({ error: 'not found' });
+      const file = path.join(ARTIFACTS_DIR, req.params.id, HAR_FILENAME);
+      if (!fs.existsSync(file)) return res.status(404).json({ error: 'no har' });
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="qassist-${req.params.id.slice(0, 8)}.har"`
+      );
+      res.sendFile(file);
     })
   );
 

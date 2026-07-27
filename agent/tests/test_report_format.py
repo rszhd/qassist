@@ -99,3 +99,91 @@ class TestStepOk:
     def test_failure_wins_over_success_when_both_present(self):
         # Failure words are checked first, so a mixed line reads as failed.
         assert rf.step_ok("success was expected but the step failed") is False
+
+
+class TestGroupDiagnostics:
+    """US-044's flat evidence list, grouped for the report's step-keyed section."""
+
+    def test_entries_group_by_step_in_step_order(self):
+        diags = [
+            {"kind": "console", "step": 3, "text": "late"},
+            {"kind": "console", "step": 1, "text": "early"},
+            {"kind": "request", "step": 3, "url": "/x"},
+        ]
+        grouped = rf.group_diagnostics(diags)
+        assert [step for step, _ in grouped] == [1, 3]
+        assert [e["text"] for e in grouped[1][1] if "text" in e] == ["late"]
+
+    def test_findings_before_the_first_step_lead(self):
+        # A page whose own assets failed broke before the agent did anything —
+        # that reads first, not as a trailing footnote.
+        diags = [{"kind": "console", "step": 2, "text": "b"}, {"kind": "console", "step": None, "text": "a"}]
+        assert [step for step, _ in rf.group_diagnostics(diags)] == [None, 2]
+
+    def test_order_within_a_step_is_capture_order(self):
+        diags = [
+            {"kind": "console", "step": 1, "text": "first"},
+            {"kind": "console", "step": 1, "text": "second"},
+        ]
+        (_, entries), = rf.group_diagnostics(diags)
+        assert [e["text"] for e in entries] == ["first", "second"]
+
+    def test_empty_and_junk_are_empty(self):
+        assert rf.group_diagnostics(None) == []
+        assert rf.group_diagnostics([]) == []
+        assert rf.group_diagnostics(["not a dict", None]) == []
+
+    def test_an_unreadable_step_groups_with_the_stepless(self):
+        assert [s for s, _ in rf.group_diagnostics([{"kind": "console", "step": "?"}])] == [None]
+
+
+class TestDiagnosticLabel:
+    def test_a_failed_request_reads_as_its_status(self):
+        assert rf.diagnostic_label({"kind": "request", "status": 500}) == "500"
+
+    def test_a_transport_failure_has_no_status_to_show(self):
+        assert rf.diagnostic_label({"kind": "request", "status": None}) == "FAILED"
+
+    def test_console_levels_split_error_from_warning(self):
+        assert rf.diagnostic_label({"kind": "console", "level": "error"}) == "ERROR"
+        assert rf.diagnostic_label({"kind": "console", "level": "warning"}) == "WARN"
+
+    def test_an_exception_says_uncaught(self):
+        assert rf.diagnostic_label({"kind": "exception"}) == "UNCAUGHT"
+
+    def test_junk_is_a_dash_not_a_crash(self):
+        assert rf.diagnostic_label(None) == "—"
+        assert rf.diagnostic_label({}) == "—"
+
+
+class TestDiagnosticDetail:
+    def test_a_failed_request_shows_its_url(self):
+        assert rf.diagnostic_detail({"kind": "request", "url": "https://a/b"}) == "https://a/b"
+
+    def test_a_transport_failure_shows_the_url_and_the_reason(self):
+        # Neither half is worth much alone: "the request that never came back"
+        # is the URL plus why.
+        detail = rf.diagnostic_detail(
+            {"kind": "request", "url": "https://a/b", "error": "net::ERR_FAILED"}
+        )
+        assert detail == "https://a/b — net::ERR_FAILED"
+
+    def test_console_and_exception_show_their_text(self):
+        assert rf.diagnostic_detail({"kind": "console", "text": "boom"}) == "boom"
+        assert rf.diagnostic_detail({"kind": "exception", "text": "died"}) == "died"
+
+    def test_junk_is_empty_not_a_crash(self):
+        assert rf.diagnostic_detail(None) == ""
+        assert rf.diagnostic_detail({"kind": "request"}) == ""
+
+
+class TestFmtOccurrences:
+    def test_a_repeat_is_counted(self):
+        assert rf.fmt_occurrences(7) == "7×"
+
+    def test_a_single_occurrence_is_not_labelled(self):
+        # "1×" on every row is noise; the count only earns its place when it
+        # tells you something.
+        assert rf.fmt_occurrences(1) == ""
+        assert rf.fmt_occurrences(None) == ""
+        assert rf.fmt_occurrences("many") == ""
