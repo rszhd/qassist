@@ -105,7 +105,15 @@ let strangerProjectId = '';
 
 before(async () => {
   artifactsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'qassist-fx-runs-'));
-  fixturesDir = fs.mkdtempSync(path.join(os.tmpdir(), 'qassist-fx-store-'));
+  // The fixtures root gets its own private parent, and that nesting is
+  // load-bearing for one assertion below: "a traversal never reaches outside the
+  // fixtures root at all" reads `path.dirname(fixturesDir)`, so with the root
+  // mkdtemp'd straight into os.tmpdir() that assertion was diffing the whole of
+  // /tmp — a directory this file does not own. `node --test` runs test files in
+  // parallel, and any sibling creating a temp dir between the two listings failed
+  // it. Same claim, hermetic instrument.
+  fixturesDir = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'qassist-fx-store-')), 'fixtures');
+  fs.mkdirSync(fixturesDir);
   delete process.env.AUTH_ENABLED;
   delete process.env.AUTH_MODE;
   delete process.env.MAX_CONCURRENT_PER_USER;
