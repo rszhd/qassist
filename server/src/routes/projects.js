@@ -15,13 +15,15 @@ import {
   RUNNABLE_TEST_COLS, RUNNABLE_TEST_FROM,
 } from './helpers.js';
 import { fixtureBody, listFixtures, uploadFixture, deleteFixture } from './fixtures.js';
+import { listSessions, createSession, updateSession, deleteSession } from './sessions.js';
+import { normalizePreamble } from '../browserSession.js';
 import { removeProjectFixtures } from '../fixtures.js';
 import { NOTIFY_MODES, cleanEmails } from '../notify.js';
 import { validateAllowlist } from '../navigationPolicy.js';
 import { instancePolicy } from '../config.js';
 
 export const PROJECT_COLS =
-  'id, name, slug, notify, notify_emails, allowed_domains, created_at, updated_at';
+  'id, name, slug, notify, notify_emails, allowed_domains, initial_actions, created_at, updated_at';
 export const MODULE_COLS = 'id, project_id, name, slug, created_at, updated_at';
 
 /**
@@ -178,6 +180,25 @@ function resolveAllowedDomains(body) {
 }
 
 /**
+ * Validate the per-project preamble a write asks for (US-043). Returns
+ * `{ error }`, or `{ actions }` where `undefined` means "leave unchanged".
+ *
+ * Refused whole rather than filtered, like the allowlist above and for the same
+ * reason — and note what the refusal covers: a preamble `navigate` is fenced
+ * here, at WRITE time, against the same policy a start_url is judged by. A
+ * preamble never passes through `createRun`'s fence, so without this it would
+ * be a documented bypass of it.
+ * @param {{ initial_actions?: any }} body
+ */
+function resolvePreamble(body) {
+  const { initial_actions: raw } = body;
+  if (raw === undefined) return { actions: undefined };
+  const normalized = normalizePreamble(raw, instancePolicy());
+  if ('error' in normalized) return { error: normalized.error };
+  return { actions: normalized.actions };
+}
+
+/**
  * A `text[]` column's new value as SQL, or the column itself when the write
  * leaves it alone. Spelled out as an array literal over placeholders rather
  * than bound as one parameter: pg-mem (the test harness) has no array parameter
@@ -203,7 +224,7 @@ export async function runModule(mod, body, openaiApiKey = null) {
     [mod.id]
   );
   if (!tests.length) return { empty: true };
-  return { moduleId: mod.id, runs: runTestsFromRequest(tests, body, openaiApiKey) };
+  return { moduleId: mod.id, runs: await runTestsFromRequest(tests, body, openaiApiKey) };
 }
 
 /** @param {{ checkToken: import('express').RequestHandler }} deps */
@@ -292,16 +313,21 @@ export function projectsRouter({ checkToken }) {
       if (notify.error) return res.status(400).json({ error: notify.error });
       const allowed = resolveAllowedDomains(body);
       if (allowed.error) return res.status(400).json({ error: allowed.error });
+      const preamble = resolvePreamble(body);
+      if (preamble.error) return res.status(400).json({ error: preamble.error });
       const params = [project.id, body.name ?? null, slug.slug, notify.mode ?? null];
       // Order matters: each helper appends its own placeholders to `params`, so
       // the two array columns must be rendered in the order they are read.
       const notifyEmails = textArraySql('notify_emails', notify.emails, params);
       const allowedDomains = textArraySql('allowed_domains', allowed.domains, params);
+      params.push(preamble.actions !== undefined ? JSON.stringify(preamble.actions) : null);
+      const initialActions = `coalesce($${params.length}::jsonb, initial_actions)`;
       const { rows } = await db().query(
         `update projects set name = coalesce($2, name), slug = coalesce($3, slug),
                 notify = coalesce($4, notify),
                 notify_emails = ${notifyEmails},
                 allowed_domains = ${allowedDomains},
+                initial_actions = ${initialActions},
                 updated_at = now()
           where id = $1 returning ${PROJECT_COLS}`,
         params
@@ -335,6 +361,14 @@ export function projectsRouter({ checkToken }) {
   r.post('/:project/fixtures', fixtureBody, h(uploadFixture));
   r.delete('/:project/fixtures/:filename', h(deleteFixture));
 
+  // Saved browser sessions (US-043), registered here for exactly the reason
+  // above: the tenant scoping is `r.param('project')`, and a session blob is a
+  // credential, so it must not be reachable by a mounting mistake.
+  r.get('/:project/sessions', h(listSessions));
+  r.post('/:project/sessions', h(createSession));
+  r.put('/:project/sessions/:id', h(updateSession));
+  r.delete('/:project/sessions/:id', h(deleteSession));
+
   r.post(
     '/:project/run',
     requireEntitled,
@@ -351,7 +385,7 @@ export function projectsRouter({ checkToken }) {
       if (!tests.length) return res.status(400).json({ error: 'project has no tests' });
       res.json({
         projectId: project.id,
-        runs: runTestsFromRequest(tests, req.body || {}, /** @type {any} */ (req).runOpenaiKey),
+        runs: await runTestsFromRequest(tests, req.body || {}, /** @type {any} */ (req).runOpenaiKey),
       });
     })
   );

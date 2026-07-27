@@ -11,6 +11,7 @@
 import { db } from './db.js';
 import { demoMode } from './auth.js';
 import { runTests } from './runs.js';
+import { sessionsForTests } from './browserSession.js';
 import { refreshUserConcurrencyCap } from './concurrency.js';
 import { runGateFor } from './activation.js';
 import { getUserOpenaiKey } from './openaiKey.js';
@@ -230,6 +231,11 @@ export async function tick(now = Date.now()) {
       trigger: 'schedule',
       user_id: schedule.user_id,
       openai_api_key: storedKey,
+      // Sessions are decrypted before the (synchronous) run engine is entered,
+      // the same way the HTTP paths do it in runTestsFromRequest (US-043).
+      // Nightly refresh is the whole refresh story, so this is the path that
+      // matters most: a schedule is what re-runs the login test.
+      sessions: await sessionsForTests(ready),
     });
     // A member the navigation fence refused (US-042) started nothing, so it
     // must not be counted as a run — and it is logged by name, because a

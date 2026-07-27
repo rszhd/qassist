@@ -50,6 +50,7 @@ Sprints aren't split along a self-host/hosted-tier line — `sprint/current/` an
 | [US-056](sprint/current/US-056-production-deployment.md) | Production deployment: `app.qassist.run` goes live | 📋 Planned (created 2026-07-26) — the production stand-up itself | US-007, US-038, US-052 |
 | [US-058](sprint/current/done/US-058-per-user-concurrency-override.md) | Raise one user's concurrency cap without raising everyone's | ✅ **Done** 2026-07-27, 9/9 — the cap the operator can move for one account, and it lands without a restart | US-028, US-021 |
 | [US-048](sprint/current/done/US-048-file-upload-in-test-flows.md) | Test a flow that uploads a file | ✅ **Done** 2026-07-27, 5/5 — a project owns the files its tests may attach, and that whitelist is the boundary: browser-use gates `read_file` on it too. The end-to-end upload is hand-verified, not tested — it needs a live browser | US-035, US-023 |
+| [US-043](sprint/current/done/US-043-reusable-authenticated-sessions.md) | Test what is behind the login (reusable sessions) | 🔨 **Built** 2026-07-27, 5/6 — a project owns a signed-in browser state its tests start from. Two browser-use findings shaped it: `storage_state` as a *dict* silently loads nothing, and the watchdog's `.bak` sibling means teardown must remove a directory. Open on the measured before/after, which needs a live login-protected target | US-035, US-021 (**not** US-041, which it wanted) |
 | [US-044](sprint/current/done/US-044-network-and-console-evidence.md) | Say *why* it failed: network and console evidence | ✅ **Done** 2026-07-27, 6/6 — a failing run now names the 500, the dead request and the uncaught exception, each stamped with its step. Shipped *ahead* of US-020: the "depends on" was really "would look nicer alongside". Capped at 5 findings per kind per step, which holds `report_data.json` flat at 84 KB where uncapped it reaches 17 MB. The opt-in HAR is the one artifact redaction cannot reach, and says so | US-026 (US-020 not needed) |
 | [US-057](sprint/current/US-057-html-email-template.md) | An HTML template for outgoing email (magic link, run reports, activation) | 🔨 **Built** 2026-07-27, 4/5 — stays open on the one criterion a test can't answer: the Gmail/Apple Mail render | — |
 | [US-020](sprint/current/US-020-report-v2-screenshots-recording.md) | Report v2: step screenshots + recording | 📋 Planned (P2, pulled up 2026-07-27) | US-006 |
@@ -185,6 +186,17 @@ story above it made the queue busier.
   correctness-critical, so it owes a row in
   [`correctness-critical.md`](correctness-critical.md) and its assertions get
   written and reviewed before the implementation.
+- **US-043** (2026-07-27, from `sprint/next/`) — the last of the four, pulled up
+  and built the same day it was scheduled. The estimate said 6-8h for "a new
+  concept, new storage, a UI, and a security story"; what actually dominated was
+  none of those but **reading browser-use**, which is where both of the failures
+  that would have shipped silently were found — `storage_state` as a dict loads
+  nothing, and the storage-state watchdog leaves a `.bak` holding the credential
+  beside the file teardown removes. Neither is visible from our own code, and
+  neither produces an error. The lesson generalizes past this story: **when a
+  feature is a thin wrapper over a dependency's field, the assertion belongs on
+  what we pass, not on what we configured** — US-042 said the same thing about
+  `allowed_domains` and it was learned twice.
 - **US-048** (2026-07-27, from `sprint/next/`) — pulled up the same day it was
   scheduled, and for the opposite reason to US-042: not urgency but cheapness.
   It was the folder's P3 and its smallest story, and it turned out to share
@@ -207,11 +219,11 @@ the four then left again within the day: US-042 and US-048 were pulled into
 and turned out not to need the dependency that put it there. US-043 is what is
 left.
 
-| ID | Story | Status | Depends on |
-|---|---|---|---|
-| [US-043](sprint/next/US-043-reusable-authenticated-sessions.md) | Test what is behind the login (reusable sessions) | 📋 Planned (P2) | US-035, US-021 |
+**Empty as of 2026-07-27.** US-043 followed the other three into
+`sprint/current/` and was built the same day, so the folder that was created on
+2026-07-23 and refilled on 2026-07-27 emptied twice inside five days.
 
-**How they order themselves.** US-042 was the P1 and the one with a security
+**How they ordered themselves.** US-042 was the P1 and the one with a security
 shape, which is exactly why it did not stay here — see the current sprint. US-048
 was the P3 and the cheapest thing in the folder, which is why it went the same
 way. **US-044 went too, and it is the one worth reading the reasoning on**: it was
@@ -223,12 +235,13 @@ US-020 is still open. The lesson is cheap to state and was not free to learn: **
 "depends on" that is really "would look nicer alongside" costs a sprint if nobody
 checks which it is** — check before scheduling around it.
 
-That leaves US-043 alone here, with the two open questions the scheduling never
-settled: **it arrived without US-041**, which its own file says it wants first — a
-reusable session makes QAssist test more, but the verdict on what it finds is
-still the agent grading its own homework — and **it owes a row in
-[`correctness-critical.md`](correctness-critical.md)**, added as part of doing the
-work, not on being scheduled.
+US-043 went last, and only one of its two open questions closed. It owed a row
+in [`correctness-critical.md`](correctness-critical.md) and got one, written
+before the implementation. **It still arrived without US-041**, which its own
+file says it wants first, and building it did not make that less true — the
+opposite: a reusable session is the single largest expansion of what QAssist can
+reach, and the verdict on everything it now reaches is still the agent grading
+its own homework. US-041 is the next thing that should move.
 
 Paid-tier ground rules (decided 2026-07-22, still standing, and now entirely
 about current-sprint code): nothing extra beyond what payment requires. One plan,

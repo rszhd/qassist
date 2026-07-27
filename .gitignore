@@ -9,6 +9,8 @@ dist/
 runs/
 # Anchored: server/test/fixtures/ is tracked and must not be swept up by this.
 /fixtures/
+# US-043: a run's decrypted session blob, for the length of one spawn.
+/sessions/
 # A second stack on the same box points RUNS_DIR at its own artifact directory.
 runs-*/
 *.log

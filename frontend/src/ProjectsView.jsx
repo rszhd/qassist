@@ -3,6 +3,7 @@ import { AlertTriangle, Bell, FolderTree, Layers, Pencil, Plus, Terminal, Trash2
 import { api } from './api.js';
 import CiCommand from './CiCommand.jsx';
 import Fixtures from './Fixtures.jsx';
+import Sessions from './Sessions.jsx';
 import NotifyPrefs from './NotifyPrefs.jsx';
 import Suites from './Suites.jsx';
 import { Button, CardHead, EmptyState, IconButton, PageHeader } from './ui.jsx';
@@ -258,6 +259,7 @@ export default function ProjectsView({ token, health }) {
               </form>
               <Suites projectId={detail.id} token={token} />
               <Fixtures projectId={detail.id} token={token} />
+              <Sessions projectId={detail.id} token={token} />
             </>
           )}
         </section>

@@ -13,6 +13,10 @@ services:
     environment:
       ARTIFACTS_DIR: /app/runs
       FIXTURES_DIR: /app/fixtures
+      # US-043. Deliberately NOT mounted from the host: a session blob is a
+      # credential that exists for the length of one spawn, and one that
+      # outlived the container would be a credential nothing ever collects.
+      SESSIONS_DIR: /app/sessions
       DATABASE_URL: postgres://qassist:qassist@db:5432/qassist
     # Per-run screenshots, recordings, report data and PDFs persist across
     # restarts. Project fixtures (US-048) get their own mount, deliberately

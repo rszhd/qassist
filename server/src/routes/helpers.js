@@ -7,6 +7,7 @@ import { getUserOpenaiKey, resolveRunKey } from '../openaiKey.js';
 import { billingEnabled } from '../billing.js';
 import { runGateFor, retryAfterSeconds } from '../activation.js';
 import { refreshUserConcurrencyCap } from '../concurrency.js';
+import { sessionsForTests } from '../browserSession.js';
 
 /**
  * The columns a run needs off a saved test, plus the owning project's
@@ -19,10 +20,29 @@ import { refreshUserConcurrencyCap } from '../concurrency.js';
  * allowlist and quietly run the test under the instance floor alone. A LEFT
  * JOIN rather than a correlated subquery: pg-mem (the test harness) cannot
  * resolve an outer alias inside one (projects.js documents the same trap).
+ *
+ * US-043 adds three, on the same principle and for the third time: the session
+ * a test opts into (`t.browser_session_id`), the project's preamble
+ * (`p.initial_actions`), and — the one that reads backwards —
+ * `bs.id as captures_session_id`, the session this test's passing run
+ * refreshes. That last join is by `login_test_id`, so a login test is
+ * recognised by the session pointing at it rather than by a flag on the test,
+ * which keeps "which session does this refresh" answerable from one row.
  */
 export const RUNNABLE_TEST_COLS =
-  't.id, t.goal, t.start_url, t.max_steps, t.model, t.variables, t.project_id, p.allowed_domains';
-export const RUNNABLE_TEST_FROM = 'tests t left join projects p on p.id = t.project_id';
+  't.id, t.goal, t.start_url, t.max_steps, t.model, t.variables, t.project_id, ' +
+  't.browser_session_id, p.allowed_domains, p.initial_actions, bs.id as captures_session_id';
+/**
+ * The joins RUNNABLE_TEST_COLS needs, on their own — because the suite route
+ * starts from `suite_tests` and so cannot use RUNNABLE_TEST_FROM. It used to
+ * spell its own `left join projects` out, which is the same drift US-048 caught
+ * in the flat run route: the day a column moves behind a new join, one query
+ * silently answers without it.
+ */
+export const RUNNABLE_TEST_JOINS =
+  'left join projects p on p.id = t.project_id ' +
+  'left join browser_sessions bs on bs.login_test_id = t.id';
+export const RUNNABLE_TEST_FROM = `tests t ${RUNNABLE_TEST_JOINS}`;
 
 /** Triggers a caller may set; 'schedule' is US-010's, not callers'. */
 export const TRIGGERS = new Set(['ui', 'api', 'ci']);
@@ -177,16 +197,22 @@ export function requireDb(_req, res, next) {
  * The batch enqueue as an HTTP caller reaches it: same runs.js `runTests`, but
  * the trigger is whatever the request claimed, filtered to what a caller is
  * allowed to say it is. The scheduler calls runTests directly with 'schedule'.
- * @param {{ id: string, goal: string, start_url: string, max_steps: number, model: string|null, variables?: any, project_id?: string|null, allowed_domains?: string[] }[]} tests
+ *
+ * Async since US-043: a run that starts authenticated needs its session blob
+ * decrypted, which is a DB read, and `createRun`/`startRun` are synchronous —
+ * every trigger path funnels through them. So the material is pre-resolved
+ * here, exactly as `requireAgentKey` pre-resolves the BYOK key.
+ * @param {{ id: string, goal: string, start_url: string, max_steps: number, model: string|null, variables?: any, project_id?: string|null, allowed_domains?: string[], browser_session_id?: string|null, captures_session_id?: string|null, initial_actions?: any }[]} tests
  * @param {{ start_url?: string, trigger?: string, variables?: Record<string, string> }} body
  * @param {string|null} [openaiApiKey] the run key requireAgentKey resolved (req.runOpenaiKey)
  */
-export function runTestsFromRequest(tests, body = {}, openaiApiKey = null) {
+export async function runTestsFromRequest(tests, body = {}, openaiApiKey = null) {
   return runTests(tests, {
     start_url: body.start_url,
     variables: body.variables,
     trigger: TRIGGERS.has(body.trigger) ? body.trigger : 'api',
     openai_api_key: openaiApiKey,
+    sessions: await sessionsForTests(tests),
   });
 }
 

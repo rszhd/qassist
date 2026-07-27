@@ -6,7 +6,7 @@ import express from 'express';
 import { db, currentUserId, isUuid } from '../db.js';
 import {
   h, requireDb, requireAgentKey, requireEntitled, withUserCap, runTestsFromRequest,
-  RUNNABLE_TEST_COLS,
+  RUNNABLE_TEST_COLS, RUNNABLE_TEST_JOINS,
 } from './helpers.js';
 
 const COLS = 'id, name, project_id, created_at, updated_at';
@@ -198,14 +198,14 @@ export function suitesRouter({ checkToken }) {
         `select ${RUNNABLE_TEST_COLS}
            from suite_tests st
            join tests t on t.id = st.test_id
-           left join projects p on p.id = t.project_id
+           ${RUNNABLE_TEST_JOINS}
           where st.suite_id = $1 order by st.position`,
         [req.params.id]
       );
       if (!tests.length) return res.status(400).json({ error: 'suite has no tests' });
       res.json({
         suiteId: req.params.id,
-        runs: runTestsFromRequest(tests, req.body || {}, /** @type {any} */ (req).runOpenaiKey),
+        runs: await runTestsFromRequest(tests, req.body || {}, /** @type {any} */ (req).runOpenaiKey),
       });
     })
   );

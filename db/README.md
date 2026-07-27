@@ -12,6 +12,15 @@ live in [`migrations/`](migrations/), numbered SQL files applied in order —
 - **Artifacts stay on disk**, under `runs/<id>/` exactly as now. The DB stores
   verdicts and status, never blobs. `runs.id` doubles as the directory name,
   so no path columns are needed.
+- **A migration that has been applied anywhere is never edited.** Fix it
+  forward with the next number. `schema_migrations` records a filename, so an
+  edited file does not re-run: the change then exists only in the repo, and
+  every database that already ran it stays silently on the old shape while every
+  fresh install is correct. That divergence is invisible to the test suite,
+  which always builds from zero — it surfaces as a 500 on one box and nowhere
+  else. `016` exists because this was learned the expensive way on a
+  one-day-old, uncommitted `015`; "it can't have run anywhere yet" is not a
+  question the file can answer about itself.
 - **Column names mirror `server.js`** (`goal`, `start_url`, `max_steps`,
   `status` values `queued/running/passed/failed/completed/error/cancelled`
   (the last added by `011`, US-047 — a stop is terminal but is not a failure),
@@ -33,6 +42,9 @@ erDiagram
   tests    ||--o{ suite_tests : "member of"
   tests    ||--o{ runs : "produced (nullable — ad-hoc runs have no test)"
   runs     ||--o{ notifications : "emailed as"
+  projects ||--o{ fixtures : "files its tests may attach"
+  projects ||--o{ browser_sessions : "signed-in state its tests may start from"
+  browser_sessions ||--o{ tests : "started by (nullable)"
 ```
 
 | Table | Owns | Story |
@@ -44,12 +56,25 @@ erDiagram
 | `modules` | grouping inside a project; a test belongs to at most one | US-023 |
 | `suites` + `suite_tests` | named test groups for one-shot triggering (US-008 CI), scoped to a project | US-009/023 |
 | `runs` | durable run history — replaces the in-memory Map for finished runs | US-009/011 |
+| `fixtures` | metadata for the files a project's tests may attach — never the bytes | US-048 |
+| `browser_sessions` | a project's saved, signed-in browser state, encrypted; never read back | US-043 |
 | `notifications` | per-recipient email delivery log (idempotent sends) | US-012 |
 | `email_suppressions` | addresses that unsubscribed, instance-wide | US-012 |
 | `subscriptions` | one row per paying user: Stripe ids, status, period end, scheduled cancellation | US-022/051 |
 | `stripe_events` | idempotency ledger — a conflicting insert means "already applied" | US-022 |
 
 The diagram above is the deployed schema through `002_projects_modules.sql`.
+
+`browser_sessions.storage_state_ciphertext` is the only credential in this
+schema besides `users.openai_key_ciphertext`, and it is held in the same
+envelope for the same reason — a value we must be able to hand to a spawn, so it
+cannot be a one-way hash. It differs from every other column here in one
+respect worth stating: **no read path selects it.** The counts and `captured_at`
+beside it exist so that a session can be described without being readable, which
+is the only way a user can tell a live session from a stale one. Everything
+about how the decrypted blob reaches a browser, and what removes it afterwards,
+is `server/src/browserSession.js` and its row in
+`backlog/correctness-critical.md`.
 
 Both billing tables are inert unless the instance is configured for billing
 (`STRIPE_*`, which no self-host sets): nothing writes to them and nothing reads

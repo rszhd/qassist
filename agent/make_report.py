@@ -155,7 +155,19 @@ def build_html(data: dict, base_dir: str) -> str:
     # errors: the agent's own message is a navigation failure, and a reader
     # left with only that would debug the site rather than the allowlist.
     blocked_html = ""
-    if data.get("failure_reason") == "navigation_blocked":
+    # An expired session, likewise (US-043): the reader at 9am is looking at a
+    # suite that went red at 3am, and the difference between "the login cookie
+    # expired" and "the checkout button moved" is the whole value of the report.
+    if data.get("failure_reason") == "session_expired":
+        blocked_html = """
+        <section class="errors">
+          <div class="label">The saved session had expired</div>
+          <ul><li>This test starts from a saved browser session, and that session was no
+              longer signed in when the run began — so nothing after the login page was
+              actually tested. Refresh the session in the project's settings, or re-run
+              the login test that produces it.</li></ul>
+        </section>"""
+    elif data.get("failure_reason") == "navigation_blocked":
         blocked = data.get("blocked_url")
         target = f" to {esc(blocked)}" if blocked else ""
         blocked_html = f"""

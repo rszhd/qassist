@@ -35,6 +35,10 @@ Inputs come from environment variables:
   curated summary, headers and bodies omitted (US-044)
   QA_FIXTURES (JSON array of absolute paths — the only files this run may
   attach or read; see fixtures.py)
+  QA_STORAGE_STATE / QA_INITIAL_ACTIONS / QA_SESSION_VERIFY / QA_STORAGE_STATE_OUT
+  (US-043: start authenticated, run a deterministic preamble first, notice a
+  session that has expired, and export what a login run captured — see
+  browser_session.py)
   QA_IMAP_* / QA_MAILBOX_DOMAIN (optional — enables email confirmation, see
   email_codes.py)
 """
@@ -61,6 +65,7 @@ import diagnostics
 import fixtures
 import navigation_policy
 import secret_vars
+import browser_session
 
 # Screencast tuning — keep bandwidth modest so stdout never backs up.
 FRAME_FORMAT = "jpeg"
@@ -611,10 +616,16 @@ async def main() -> int:
             "record_har_mode": "minimal",
         }
 
+    # US-043: the saved session, as a PATH. browser-use only loads a storage
+    # state from a file — a dict passes the type hint and loads nothing at all,
+    # which is a cold browser wearing a configured session's clothes.
+    session_kwargs = browser_session.profile_kwargs(os.environ)
+
     profile = BrowserProfile(
         headless=True,
         chromium_sandbox=False,
         **har_kwargs,
+        **session_kwargs,
         # US-042: SecurityWatchdog enforces these on every navigation, including
         # the ones a redirect chain arrives at — which is the case the server's
         # own pre-check on start_url cannot see.
@@ -635,10 +646,18 @@ async def main() -> int:
         ],
     )
 
+    # The project's preamble (US-043 AC #5): deterministic actions executed
+    # before the first LLM step, recorded by browser-use as step 0
+    # (agent/service.py:3300) so the steps this run is charged for still start
+    # at 1. None when the project has none, which leaves browser-use's own
+    # URL-from-the-task navigation exactly as it is today.
+    preamble = browser_session.initial_actions(os.environ, start_url)
+
     agent = Agent(
         task=task,
         llm=llm,
         browser_profile=profile,
+        initial_actions=preamble,
         register_new_step_callback=on_step,
         tools=tools,
         sensitive_data=sensitive,
@@ -647,6 +666,106 @@ async def main() -> int:
         # this spelling says so on purpose.
         available_file_paths=fixture_paths,
     )
+
+    # US-043 AC #4: is the session we were handed still signed in? Checked in
+    # the on_step_start hook, which browser-use awaits at the top of a step and
+    # BEFORE that step's LLM call (agent/service.py:2442) — and the preamble has
+    # already run by then, so this sees the page the agent would have started
+    # reasoning about. Cheaper than the alternative in the only currency that
+    # matters: an expired session costs one verdict instead of twenty steps of
+    # an agent hunting a checkout button on a login screen.
+    session_check = browser_session.verify_config(os.environ)
+    expired = None
+
+    async def check_session(agent_ref):
+        nonlocal expired, session_check
+        if session_check is None:
+            return
+        check, session_check = session_check, None  # once, on the first step only
+        try:
+            url = await agent_ref.browser_session.get_current_page_url()
+        except Exception:
+            return  # a browser we cannot ask is not a session we can judge
+        page_text = None
+        try:
+            cdp = await agent_ref.browser_session.get_or_create_cdp_session(focus=False)
+            result = await cdp.cdp_client.send.Runtime.evaluate(
+                params={"expression": "document.body ? document.body.innerText : \'\'",
+                        "returnByValue": True},
+                session_id=cdp.session_id,
+            )
+            page_text = (result.get("result") or {}).get("value")
+        except Exception:
+            page_text = None  # unread, which is NOT the same as "text absent"
+        reason = browser_session.expiry_reason(check, url, page_text)
+        if reason:
+            expired = reason
+            emit({"type": "progress", "message": reason})
+            agent_ref.stop()
+
+    # A login run's capture (US-043), taken at the END OF EVERY STEP rather than
+    # after the run.
+    #
+    # The obvious place is after `agent.run()` returns — and it cannot work:
+    # `run()` calls `await self.close()` in its own finally
+    # (agent/service.py:2716), which kills the browser session, so by the time
+    # our own finally block executes there is nothing left to read cookies from.
+    # It fails quietly, which is the third time this story has met that shape.
+    #
+    # `on_step_end` runs at service.py:2471, BEFORE the is_done() check and
+    # while the browser is alive, so it fires on the final step too. Each step
+    # overwrites the file; the last write is the state at the end of the last
+    # step, which is exactly what a login run means to capture. A handful of
+    # cheap CDP reads on login runs only — nothing else sets the variable.
+    #
+    # Written on every step regardless of how the run ends: the SERVER decides
+    # whether to keep it, and keeps it only on a pass. Judging here would rest
+    # the decision on the agent's own self-report, which the server already
+    # refuses to trust for the verdict (US-047).
+    capture_to = browser_session.export_path(os.environ)
+    capture_failed = False
+
+    async def capture_session(agent_ref):
+        nonlocal capture_failed
+        if capture_to is None or capture_failed:
+            return
+        try:
+            os.makedirs(os.path.dirname(capture_to), exist_ok=True)
+            session = agent_ref.browser_session
+            # `_cdp_get_storage_state`, NOT the public `export_storage_state`.
+            # The public one calls the cookie half and then hardcodes
+            # `'origins': []` (browser/session.py:1456, "Could add
+            # localStorage/sessionStorage extraction if needed"), so a session
+            # captured through it silently drops localStorage — and an app that
+            # keeps its token there gets a session that looks captured (cookies
+            # counted, timestamp fresh) and authenticates nobody. The private
+            # one is what StorageStateWatchdog itself uses and returns both.
+            #
+            # Private, so it may be renamed; the public wrapper is the fallback
+            # rather than the default, because cookies-only is worth having and
+            # a failed capture is not.
+            getter = getattr(session, "_cdp_get_storage_state", None)
+            if getter is not None:
+                state = browser_session.to_storage_state(await getter())
+            else:
+                emit({"type": "warn", "message": "session captured without localStorage support"})
+                state = await session.export_storage_state()
+            with open(capture_to, "w", encoding="utf-8") as f:
+                json.dump(state, f)
+        except Exception as e:
+            # Once, not per step: a login run that cannot be captured should say
+            # so, and should not say so twenty times.
+            capture_failed = True
+            emit({"type": "warn", "message": f"session not captured: {type(e).__name__}: {e}"})
+
+    if preamble:
+        # Announce it so the viewer and the report can show that these ran and
+        # that none of them was charged as a step.
+        emit({
+            "type": "preamble",
+            "actions": [next(iter(a)) for a in preamble],
+            "count": len(preamble),
+        })
 
     emit({"type": "start", "goal": goal, "start_url": start_url, "model": model})
     if mailbox:
@@ -661,7 +780,9 @@ async def main() -> int:
     # reaches Express before done/error — the report is built off those.
     failure = None
     try:
-        history = await agent.run(max_steps=max_steps)
+        history = await agent.run(
+            max_steps=max_steps, on_step_start=check_session, on_step_end=capture_session
+        )
     except Exception as e:
         failure = f"{type(e).__name__}: {e}"
     finally:
@@ -694,6 +815,23 @@ async def main() -> int:
         emit({"type": "blocked", "url": blocked_url, "reason": "navigation_blocked"})
     elif late_blocks:
         blocked_url = late_blocks[-1]
+
+    # An expired session is a FAILED run carrying a reason, not a crash and not
+    # a goal that was not met (AC #4). `error` would make it a US-012 alert and
+    # a red build for something that is merely stale, and an ordinary `failed`
+    # would send whoever reads the report hunting a checkout button that was
+    # never the problem. Same shape US-042 gives a fenced run.
+    if expired is not None:
+        emit({
+            "type": "done",
+            "success": False,
+            "failure_reason": "session_expired",
+            "steps": safe(history.number_of_steps) if failure is None else 0,
+            "duration_seconds": round(time.monotonic() - run_started, 1),
+            "final_result": expired,
+            "errors": [expired],
+        })
+        return 0
 
     if failure is not None:
         event = {"type": "error", "message": failure}

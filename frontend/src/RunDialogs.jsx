@@ -9,7 +9,7 @@ import { Button, Field, IconButton, Modal } from './ui.jsx';
  */
 export function TestDialog({
   mode, goal, setGoal, startUrl, setStartUrl, editing, setEditing, variables, setVariables,
-  projects, modules, hasDb, saving, onClose, onRun, onSave, onDelete, onSwitchToSave,
+  projects, modules, sessions = [], hasDb, saving, onClose, onRun, onSave, onDelete, onSwitchToSave,
 }) {
   const isRun = mode === 'run';
   const ready = startUrl.trim() && goal.trim() && (isRun || editing?.name.trim());
@@ -93,6 +93,25 @@ export function TestDialog({
               </Field>
             )}
           </div>
+        )}
+
+        {!isRun && sessions.length > 0 && (
+          <Field
+            label="Start signed in"
+            hint="A saved session from this project. The run begins already logged in, so the login steps never happen."
+          >
+            <select
+              value={editing.browser_session_id || ''}
+              onChange={(e) =>
+                setEditing((cur) => ({ ...cur, browser_session_id: e.target.value || null }))
+              }
+            >
+              <option value="">No session — start from a cold browser</option>
+              {sessions.map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+          </Field>
         )}
 
         <Field label="Start URL">

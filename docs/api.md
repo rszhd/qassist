@@ -303,6 +303,86 @@ Fixtures live under `FIXTURES_DIR`, **not** under `ARTIFACTS_DIR`, so
 `ARTIFACT_RETENTION_DAYS` never removes them; the app refuses to boot if the two
 overlap. They are deleted with their project.
 
+## Starting a run already logged in
+
+A project holds **sessions** — a saved, signed-in browser state its tests can
+start from (US-043), so a suite tests the product instead of testing the login
+form once per test per night.
+
+```bash
+# the usual way: name a session and point it at the test that logs in.
+# `storage_state` is optional — the next PASSING run of that test fills this.
+curl -X POST http://<host>:8080/api/projects/shop/sessions \
+  -H "Authorization: Bearer $WORKER_API_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"name":"staging login","login_test_id":"<test id>","verify_url_contains":"/dashboard"}'
+
+# or, if you already have one, paste a Playwright storageState.json
+curl -X POST http://<host>:8080/api/projects/shop/sessions \
+  -H "Authorization: Bearer $WORKER_API_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"name":"from playwright","storage_state":'"$(cat storageState.json)"'}'
+
+curl http://<host>:8080/api/projects/shop/sessions \
+  -H "Authorization: Bearer $WORKER_API_TOKEN"
+# { "sessions": [ { "id": "...", "name": "staging login", "cookie_count": 14,
+#     "origin_count": 2, "source": "pasted", "captured_at": "...", ... } ] }
+
+# a test opts in
+curl -X PUT http://<host>:8080/api/tests/<id> \
+  -H "Authorization: Bearer $WORKER_API_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"browser_session_id":"<session id>"}'
+```
+
+`PUT /api/projects/:project/sessions/:id` renames, re-points or replaces one
+(send `storage_state` again); `DELETE` removes it and leaves its tests running
+signed out.
+
+**No read ever returns the stored session.** A `storageState` *is* the
+credential — holding one is being logged in — so it is encrypted at rest with
+the same key `KEY_ENCRYPTION_SECRET` protects stored OpenAI keys with, decrypted
+only to write one spawn's temp file, and that file's directory is removed when
+the run ends. The counts and `captured_at` are there so you can tell a live
+session from a stale one without being able to read it back.
+
+**Two ways to produce one, and you need no Playwright for either.** Set
+`login_test_id` to a test whose job is to log in and leave `storage_state` out:
+the session is created empty and the next *passing* run of that test saves the
+browser's session into it, so a nightly schedule (US-010) keeps it fresh. Or
+paste a `storageState.json` if you already have one — the escape hatch, and the
+only thing that covers SSO flows an agent will never survive. A failing login
+run never touches the stored session.
+
+Until it has been captured, a session reads `"captured_at": null`, and a test
+that opts into it is **refused at run start** (400, nothing enqueued) rather
+than run signed out — a test that quietly runs signed out passes nothing and
+fails everything. A session with neither a blob nor a login test is refused at
+creation, since nothing could ever fill it.
+
+**An expired session is a verdict, not a mystery.** Set `verify_url_contains`
+and/or `verify_text` and the run checks them *before* its first LLM step; if the
+session is dead the run ends `failed` with `failure_reason: "session_expired"`
+and a named section in the PDF, instead of wandering into the login page and
+blaming the goal.
+
+### A preamble before the first step
+
+A project can also carry `initial_actions` — deterministic browser actions run
+before the agent's first LLM step, at no token cost. Useful with or without a
+session: dismissing a cookie dialog is otherwise two wasted steps on every run
+in the project, forever.
+
+```bash
+curl -X PUT http://<host>:8080/api/projects/shop \
+  -H "Authorization: Bearer $WORKER_API_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"initial_actions":[{"send_keys":{"keys":"Escape"}},{"wait":{"seconds":2}}]}'
+```
+
+Only `navigate`, `wait`, `send_keys` and `scroll` are allowed — everything else
+browser-use offers needs an element index that does not exist before the page
+has been looked at, and `upload_file`/`read_file` are the fixture whitelist's
+boundary. A `navigate` URL is checked against the same navigation fence a
+`start_url` is, when you save it. The preamble is recorded as step 0, so the
+steps a run is charged for still start at 1.
+
 ## Email notifications
 
 Off unless `RESEND_API_KEY` and `MAIL_FROM` are both set — `GET /api/health`

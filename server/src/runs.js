@@ -16,6 +16,14 @@ import { notifyRunFinished } from './notify.js';
 import { resolveForRun } from './variables.js';
 import { fixturePathsFor } from './fixtures.js';
 import {
+  writeSessionFile,
+  removeSessionFiles,
+  exportPathFor,
+  readExportedState,
+  refreshCapturedSession,
+  preambleForRun,
+} from './browserSession.js';
+import {
   MAX_CONCURRENT,
   DEFAULT_MAX_STEPS,
   RUN_TTL_MS,
@@ -255,6 +263,20 @@ function persistUpdate(run) {
   run.persisted = (run.persisted || Promise.resolve()).then(update);
 }
 
+// Store what a passing login run captured (US-043). Chained on `run.persisted`
+// for persistInsert's reason — it must not race the run's own row — and
+// fire-and-forget from the agent's point of view, which is why a failure here
+// is logged rather than thrown: the run itself passed, and the session simply
+// did not refresh.
+function captureSession(run, exported) {
+  if (!db()) return;
+  run.persisted = (run.persisted || Promise.resolve()).then(() =>
+    refreshCapturedSession(run.capture_session_id, exported).catch((err) =>
+      console.error(`db: refresh session for run ${run.id.slice(0, 8)} failed:`, err.message)
+    )
+  );
+}
+
 // A run is mailable (US-012) once it has finished *and* the report it would
 // attach has stopped changing. Those two arrive in either order — the renderer
 // usually outlives the agent process, but a watchdog kill doesn't wait for it —
@@ -282,7 +304,9 @@ function maybeNotify(run) {
  *           trigger?: string, variables?: Record<string, string>,
  *           secrets?: Record<string, string>, user_id?: string | null,
  *           openai_api_key?: string | null, project_id?: string | null,
- *           allowed_domains?: string[], har?: boolean }} fields
+ *           allowed_domains?: string[], har?: boolean,
+ *           storage_state?: string | null, session_verify?: any,
+ *           capture_session_id?: string | null, preamble?: any[] }} fields
  */
 export function createRun(fields) {
   // Explicit user_id for the scheduler (no request context); a request-borne run
@@ -345,6 +369,22 @@ export function createRun(fields) {
     // the agent as OPENAI_API_KEY in startRun; never a column, an event, or an
     // artifact — persistInsert/broadcast/generateReport never read this field.
     openai_api_key: fields.openai_api_key || null,
+    // The decrypted session blob (US-043), in-memory only and under exactly the
+    // containment `openai_api_key` has above — with one addition it does not
+    // need: this one also reaches a FILE, because browser-use will only load a
+    // storage state from a path (a dict silently loads nothing). `startRun`
+    // writes it, `close` removes the directory it is in.
+    //
+    // A session blob IS the credential, and `scrub` is not the guard: it never
+    // enters the LLM's context, so there is nothing to match on. Containment is
+    // the whole mechanism.
+    storage_state: fields.storage_state || null,
+    session_verify: fields.session_verify || null,
+    // The session this run's PASS refreshes, when this test is a login test.
+    capture_session_id: fields.capture_session_id || null,
+    // The project's deterministic preamble (AC #5), already validated at write
+    // time and re-filtered on read.
+    preamble: fields.preamble || [],
     user_id: uid,
     trigger,
     status: 'queued',
@@ -380,8 +420,8 @@ export function createRun(fields) {
  * the rest from its own defaults. A test that can't resolve (a required
  * variable with no value) is skipped with an `error` marker rather than
  * starting a broken run — one misconfigured member never blocks the batch.
- * @param {{ id: string, goal: string, start_url: string, max_steps: number, model: string|null, variables?: any, project_id?: string|null, allowed_domains?: string[] }[]} tests
- * @param {{ start_url?: string|null, trigger?: string, variables?: Record<string, string>, user_id?: string|null, openai_api_key?: string|null }} [opts]
+ * @param {{ id: string, goal: string, start_url: string, max_steps: number, model: string|null, variables?: any, project_id?: string|null, allowed_domains?: string[], browser_session_id?: string|null, captures_session_id?: string|null, initial_actions?: any }[]} tests
+ * @param {{ start_url?: string|null, trigger?: string, variables?: Record<string, string>, user_id?: string|null, openai_api_key?: string|null, sessions?: Map<string, any> }} [opts]
  */
 export function runTests(tests, opts = {}) {
   return tests.map((t) => {
@@ -392,6 +432,13 @@ export function runTests(tests, opts = {}) {
       start_url: opts.start_url || t.start_url,
     });
     if ('error' in resolved) return { testId: t.id, error: resolved.error };
+    // The session material the caller pre-resolved (US-043). A session that
+    // could not be decrypted skips its test with an error marker rather than
+    // starting a run that silently isn't logged in — one misconfigured member
+    // never blocks the batch, and a run that quietly starts anonymous is the
+    // false green the whole story exists to remove.
+    const session = opts.sessions?.get(t.id) || {};
+    if (session.error) return { testId: t.id, error: session.error };
     const run = createRun({
       goal: resolved.goal,
       start_url: resolved.start_url,
@@ -407,6 +454,10 @@ export function runTests(tests, opts = {}) {
       // the test (RUNNABLE_TEST_COLS).
       allowed_domains: t.allowed_domains,
       project_id: t.project_id,
+      storage_state: session.storageState,
+      session_verify: session.verify,
+      capture_session_id: session.captureSessionId,
+      preamble: preambleForRun(t.initial_actions),
     });
     // Blocked (US-042) is a per-member outcome, beside the {error} above and
     // for the same reason: one test pointed at localhost must not cost a suite
@@ -545,6 +596,10 @@ export function stopRun(run) {
 // counted.
 function finishCancelled(run) {
   run.status = 'cancelled';
+  // The other end: a queued run stopped before it ever spawned has no `close`
+  // to reach. It has no session file either — startRun writes it — but calling
+  // this is free and the alternative is a rule that holds only by coincidence.
+  removeSessionFiles(run.id);
   run.queueEvent = null;
   run.finishedAt = Date.now();
   persistUpdate(run);
@@ -569,6 +624,7 @@ function startRun(runId) {
   // server's own environment, so an absent key would silently inherit whatever
   // OPENAI_API_KEY this process happens to hold and fund the run out of the
   // operator's pocket at the one layer that actually spends money.
+  /** @type {Record<string, any>} */
   const childEnv = {
     ...process.env,
     QA_GOAL: run.goal,
@@ -582,6 +638,14 @@ function startRun(runId) {
     // distinguishable in the child, and only one of them is a statement.
     QA_FIXTURES: JSON.stringify(fixturePathsFor(run.project_id)),
     QA_RUN_ID: run.id,
+    // US-043. A PATH, never the blob itself and never the parsed object:
+    // `BrowserProfile.storage_state` is typed `str | Path | dict`, and in this
+    // version a dict silently loads NOTHING — the file-loading validator is
+    // commented out and the watchdog gates on `os.path.exists(str(load_path))`.
+    // The run would then open a cold browser and fail exactly the way an
+    // expired session fails, which is the other thing this story has to be able
+    // to tell apart. Set below, so it is absent when there is no session.
+    QA_INITIAL_ACTIONS: JSON.stringify(run.preamble || []),
     // US-044. Sent as '1'/'0' rather than left unset, for the same reason as
     // QA_FIXTURES: the spread below carries the server's own environment, and an
     // unsent variable would inherit whatever this process happens to hold.
@@ -597,6 +661,36 @@ function startRun(runId) {
     ...agentEnvFor(run.policy || instancePolicy()),
   };
   if (!run.openai_api_key) delete childEnv.OPENAI_API_KEY;
+
+  // The session's plaintext reaches disk here and only here, in a directory of
+  // this run's own — teardown is `rm -rf` on that directory rather than an
+  // unlink of this path, because browser-use rewrites the file we hand it and
+  // leaves `.json.bak`/`.json.tmp` siblings holding the same credential.
+  if (run.storage_state) {
+    try {
+      childEnv.QA_STORAGE_STATE = writeSessionFile(run.id, run.storage_state).path;
+      if (run.session_verify) childEnv.QA_SESSION_VERIFY = JSON.stringify(run.session_verify);
+    } catch (err) {
+      // Refuse rather than run unauthenticated: a run that silently isn't
+      // logged in fails its goal and blames the goal.
+      const msg = `could not prepare the saved session: ${/** @type {any} */ (err).message}`;
+      run.status = 'failed';
+      run.result = { success: false, message: msg, failure_reason: 'session_expired' };
+      active--;
+      run.finishedAt = Date.now();
+      persistUpdate(run);
+      broadcast(run, { type: 'error', message: msg, failure_reason: 'session_expired' });
+      broadcast(run, { type: 'end', status: run.status });
+      removeSessionFiles(run.id);
+      maybeNotify(run);
+      startNext();
+      setTimeout(() => runs.delete(runId), RUN_TTL_MS).unref();
+      return;
+    }
+  }
+  // Where a login run writes what it captured. Inside the same per-run
+  // directory, so the export is swept by the same teardown.
+  if (run.capture_session_id) childEnv.QA_STORAGE_STATE_OUT = exportPathFor(run.id);
 
   const child = spawn(PYTHON_BIN, [AGENT_SCRIPT], {
     detached: true, // own process group, so the watchdog can kill the whole tree
@@ -672,6 +766,18 @@ function startRun(runId) {
             : evt.success === false
               ? 'failed'
               : 'completed';
+        // A login run refreshes its session, and ONLY on a pass (US-043). Read
+        // synchronously here, before `close` removes the directory; the DB
+        // write is chained on `run.persisted` like every other write for this
+        // run. A failed login run must not touch the stored blob — refreshing
+        // is "run the login test again, nightly", so a failure is Tuesday, and
+        // overwriting on one would replace a working session with an anonymous
+        // browser's empty jar and turn the whole project red for a reason that
+        // points at the wrong thing.
+        if (run.capture_session_id && run.status === 'passed') {
+          const exported = readExportedState(run.id);
+          if (exported) captureSession(run, exported);
+        }
         generateReport(run);
       } else if (evt.type === 'error') {
         run.result = evt;
@@ -688,6 +794,12 @@ function startRun(runId) {
 
   child.on('close', (code) => {
     active--;
+    // The session's plaintext goes here, and this is the one funnel every way a
+    // run can end passes through: a clean agent exit, either watchdog's kill, a
+    // stop, and a spawn that failed outright. Tearing down in the `done`
+    // handler instead would look correct and leave a credential on disk after
+    // all four of the others.
+    removeSessionFiles(run.id);
     clearInterval(run.memWatch);
     clearTimeout(run.timeoutWatch);
     // An armed grace window outlives the pid it was going to kill, and

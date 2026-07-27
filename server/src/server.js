@@ -11,10 +11,11 @@ import { WebSocketServer } from 'ws';
 import { createServer } from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { PORT, API_TOKEN, MAX_CONCURRENT, PUBLIC_DIR, AUTH_ENABLED, AUTH_MODE, DEMO_CTA_URL, TRUST_PROXY, FIXTURES_DIR, ARTIFACTS_DIR } from './config.js';
+import { PORT, API_TOKEN, MAX_CONCURRENT, PUBLIC_DIR, AUTH_ENABLED, AUTH_MODE, DEMO_CTA_URL, TRUST_PROXY, FIXTURES_DIR, ARTIFACTS_DIR, SESSIONS_DIR } from './config.js';
 import { db, initDb, getOperatorUserId, userContext } from './db.js';
 import { missingBootRequirements } from './boot.js';
 import { fixturesDirConflict } from './fixtures.js';
+import { sessionsDirConflict, sweepSessions } from './browserSession.js';
 import { keyEncryptionEnabled } from './crypto.js';
 import { mailEnabled } from './mail.js';
 import { authEnabled, demoMode, userFromRequest, userFromCredentials, SESSION_COOKIE } from './auth.js';
@@ -241,6 +242,26 @@ if (isMain) {
     console.error(`qassist can't start — ${dirConflict.error}.`);
     process.exit(1);
   }
+  // US-043, and the worse of the two overlaps: a session blob under FIXTURES_DIR
+  // joins the whitelist browser-use gates `read_file` on, so the agent could be
+  // argued into reading the credential into its own LLM context. Under
+  // ARTIFACTS_DIR it merely sits beside the files users download for a week.
+  // Neither is a bug in any code path — both arrive purely by configuration.
+  const sessionConflict = sessionsDirConflict({
+    sessionsDir: SESSIONS_DIR,
+    fixturesDir: FIXTURES_DIR,
+    artifactsDir: ARTIFACTS_DIR,
+  });
+  if (sessionConflict) {
+    console.error(`qassist can't start — ${sessionConflict.error}.`);
+    process.exit(1);
+  }
+  // Teardown covers every run-end path this process controls and none of the
+  // ones it does not — `kill -9`, an OOM, a container stopped mid-run. Nothing
+  // else will ever remove those files and they are credentials; a few KB each,
+  // so the disk never complains and the absence of this is silent.
+  const swept = sweepSessions();
+  if (swept) console.log(`swept ${swept} session blob(s) left by a previous process`);
   // Only when actually serving: tests drive the app in-process and would
   // otherwise sweep a temp dir — or start runs on a timer — on every import.
   // sweepArtifacts() and tick() are tested directly instead.

@@ -166,6 +166,13 @@ export default function RunView({ token, health, keyStatus, visible, needsToken,
     filterProjectId && `/api/suites?project_id=${filterProjectId}`,
     'suites', token, setError, refreshTick
   );
+  // The saved sessions of the project the editor points at (US-043). Same
+  // shape as editModules, and same reason: a test opts into a session of its
+  // own project, so the picker follows the project the write will land in.
+  const editSessions = useProjectList(
+    editing?.project_id ? `/api/projects/${editing.project_id}/sessions` : null,
+    'sessions', token, setError, refreshTick
+  );
 
   function handleEvent(evt) {
     switch (evt.type) {
@@ -344,6 +351,9 @@ export default function RunView({ token, health, keyStatus, visible, needsToken,
       if (projects.length) {
         body.project_id = editing.project_id || null;
         body.module_id = editing.module_id || null;
+        // Sent whenever grouping is, so clearing the picker actually clears the
+        // opt-in. Scoped server-side to the project this write lands in.
+        body.browser_session_id = editing.browser_session_id || null;
       }
       if (editing.id) await api(`/api/tests/${editing.id}`, { token, method: 'PUT', body });
       else await api('/api/tests', { token, method: 'POST', body });
@@ -369,6 +379,7 @@ export default function RunView({ token, health, keyStatus, visible, needsToken,
       name: test.name,
       project_id: test.project_id,
       module_id: test.module_id,
+      browser_session_id: test.browser_session_id,
     });
     setGoal(test.goal);
     setStartUrl(test.start_url);
@@ -838,6 +849,7 @@ export default function RunView({ token, health, keyStatus, visible, needsToken,
           setVariables={setVariables}
           projects={projects}
           modules={editModules}
+          sessions={editSessions}
           hasDb={!!health?.db}
           saving={savingTest}
           onClose={closeDialog}

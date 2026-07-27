@@ -140,6 +140,27 @@ export const FIXTURE_PROJECT_QUOTA_BYTES = parseInt(
   10
 );
 
+// Saved browser sessions (US-043): where a run's decrypted `storageState` lives
+// for the length of one spawn. Its own directory, and NOT under either of the
+// two above — `sessionsDirConflict` refuses both at boot, because either
+// overlap leaks a credential with no bug anywhere in the code:
+//   * under FIXTURES_DIR the blob becomes an entry in `available_file_paths`,
+//     which is the list browser-use gates `read_file` on — the agent could be
+//     argued into reading the credential into its own LLM context.
+//   * under ARTIFACTS_DIR it sits in runs/<id>/ for ARTIFACT_RETENTION_DAYS,
+//     beside the files users download.
+export const SESSIONS_DIR = process.env.SESSIONS_DIR || path.join(__dirname, '..', '..', 'sessions');
+// A storageState is cookies and localStorage; a megabyte is already a very
+// chatty app. The cap is here so a paste cannot make the spawn's temp write,
+// the AES round-trip and the row unbounded on someone else's input.
+export const SESSION_MAX_BYTES = parseInt(process.env.SESSION_MAX_BYTES || '1048576', 10);
+// A preamble is per-project config that fires before every run in it, so both
+// ceilings bound something an operator would otherwise never see going wrong:
+// the wall-clock watchdog is all that stands between a 3600-second `wait` and a
+// squatted browser slot.
+export const PREAMBLE_MAX_ACTIONS = 12;
+export const PREAMBLE_MAX_WAIT_SECONDS = 30;
+
 export const RECORDING_FILENAME = 'recording.mp4';
 // The full network archive (US-044), written by the browser when a run asks for
 // it. Off by default: the curated diagnostics summary is the always-on artifact,
