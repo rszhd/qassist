@@ -319,7 +319,9 @@ overlap. They are deleted with their project.
 
 A project holds **sessions** — a saved, signed-in browser state its tests can
 start from (US-043), so a suite tests the product instead of testing the login
-form once per test per night.
+form once per test per night. Which strategy to reach for, and what social
+login and confirmation codes can and cannot do, is
+[auth-in-tested-flows.md](auth-in-tested-flows.md).
 
 ```bash
 # the usual way: name a session and point it at the test that logs in.

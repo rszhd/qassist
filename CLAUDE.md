@@ -64,6 +64,9 @@ keep it that way when adding features.
 - `docs/api.md` — the HTTP surface. A new endpoint is documented **here**, not
   in `README.md`; the README keeps only the four calls that get a first run out
   of the box and links here for the rest.
+- `docs/auth-in-tested-flows.md` — reaching what is behind the *tested app's*
+  login: saved sessions, email codes, social login, and what is out of reach.
+  Not US-021, which is QAssist's own login.
 - `db/README.md` — control-plane schema ground rules.
 - `docs/design-system.md` — UI vocabulary, type/spacing/size tokens, palette.
 - `docs/repo-model.md` — open-source vs paid-cloud boundary.

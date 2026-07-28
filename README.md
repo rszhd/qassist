@@ -199,7 +199,9 @@ curl -L http://<host>:8080/api/runs/<runId>/report.pdf \
 The rest — saved tests, projects and modules, suites, schedules, run history,
 email notifications, recordings and billing — is
 **[docs/api.md](docs/api.md)**. Wiring a pipeline to it is
-[docs/ci.md](docs/ci.md).
+[docs/ci.md](docs/ci.md). Testing the part of your product that is behind a
+login — saved sessions, email codes, social login — is
+[docs/auth-in-tested-flows.md](docs/auth-in-tested-flows.md).
 
 ## Local development
 
