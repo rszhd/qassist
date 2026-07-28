@@ -171,7 +171,8 @@ timings and step count, and simply stops offering the report and recording.
 
 A handful of further variables — `APP_HOST`, `ACME_EMAIL`, `QASSIST_IMAGE`,
 `RUNS_DIR`, `ROBOTS_TAG` — are read *only* by the production overlay and are
-documented in [`DEPLOY.md`](DEPLOY.md). A plain `docker compose up` ignores
+documented in [`docs/deploy/production.md`](docs/deploy/production.md). A plain
+`docker compose up` ignores
 them entirely.
 
 ## API

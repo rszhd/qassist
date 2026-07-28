@@ -15,8 +15,9 @@ the proxy's default certificate.
 - **Priority:** P1 (current sprint) — US-040's CTA already points here
   (`DEMO_CTA_URL=https://app.qassist.run`, live on the demo), so every demo
   visitor who converts currently lands on a certificate error.
-- **Estimate:** ~1–2 h on the box. The runbook exists (`DEPLOY.md`, first-time
-  setup + promotion), and its shape has been rehearsed three times — staging,
+- **Estimate:** ~1–2 h on the box. The runbook exists
+  (`docs/deploy/production.md` first-time setup, `docs/deploy/staging.md`
+  promotion), and its shape has been rehearsed three times — staging,
   demo and preview are the same two compose files with a different `-p` and
   `--env-file`.
 - **Depends on:** [US-007](done/US-007-https-reverse-proxy.md) (proxy, overlay,
@@ -37,7 +38,7 @@ Everything except the stack itself:
   config does not change.
 - qassist.run is verified in Resend (SPF + DKIM), and real mail has left
   through it from staging to a recipient who is not the account owner.
-- `DEPLOY.md` documents the exact stand-up and the promotion
+- `docs/deploy/production.md` documents the exact stand-up and the promotion
   (staging-proven commit → `main` → tagged release → production pins the tag).
 - The box runs `qassist-proxy`, `qassist-staging`, `qassist-demo` and the
   preview stack. There is no `qassist` production project; standing it up

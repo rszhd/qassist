@@ -63,7 +63,8 @@ free to be the thing that replicates production.
 
   Repo half, for the record:
   `.env.preview.example` exists and says why it is looser rather than only what
-  differs; `DEPLOY.md` carries the [Preview](../../../../DEPLOY.md#preview) section
+  differs; the runbook carries the
+  [Preview](../../../../docs/deploy/preview.md) section
   with its three costs, the build-and-`up -d` loop, the running-commit check and
   the "what preview must not become" boundary; `CLAUDE.md`, `CONTRIBUTING.md`
   and `README.md` all describe preview as a spur rather than a stage. `ci.yml`

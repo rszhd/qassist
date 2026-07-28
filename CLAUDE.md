@@ -127,7 +127,8 @@ keep it that way when adding features.
   `ghcr.io/<owner>/qassist:staging` and that is what `staging.qassist.run` runs,
   so proving a change on a real box costs a merge, not a version tag. `main`
   only receives what staging survived, and releases are tagged from `main`.
-  Never push to `main` directly. Runbook: `DEPLOY.md`.
+  Never push to `main` directly. Runbook: `DEPLOY.md` indexes one file per
+  stack; the chain itself is `docs/deploy/staging.md`.
 - **`preview` is a spur off that chain, not a stage in it** (US-055).
   `git push -f origin HEAD:preview` from *any* branch, merged or not, and
   `preview.qassist.run` rebuilds on the box in seconds — no CI, no registry. Use
@@ -137,7 +138,7 @@ keep it that way when adding features.
   that put every billing change on the slow loop for no saving). What it still
   is not: seeded, CI-built, or promotable. A change that needs a *populated*
   database is what genuinely still goes to staging. Rationale and the webhook
-  caveat: `DEPLOY.md` → "What preview must not become".
+  caveat: `docs/deploy/preview.md` → "What preview must not become".
 - **CI does not run on a push to `dev`** (US-055) — only on a PR into `dev`, a
   push to `staging` or `main`, and inside the release workflow. So `npm test`
   locally after touching `server/src/` is load-bearing, not a courtesy: the next

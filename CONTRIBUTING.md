@@ -95,14 +95,15 @@ staging → main**. Merging into `staging` publishes an image that
 `staging.qassist.run` runs, so a change is exercised on a real deployment with a
 real database before `main` sees it; `main` then only ever receives what staging
 survived, and a version tag is cut from there. Nothing pushes to `main`
-directly. The mechanics are in [`DEPLOY.md`](DEPLOY.md#promoting-staging-to-production);
+directly. The mechanics are in
+[`docs/deploy/staging.md`](docs/deploy/staging.md#promoting-staging-to-production);
 as a contributor you only need `dev`.
 
 There is a fourth branch, `preview`, and it is **a spur off that chain rather
 than a stage in it**: force-pushing any branch to it rebuilds
 `preview.qassist.run` on the box for a quick live look, and nothing is ever
 merged back out of it. It is a maintainer's tool, not a step in the path a
-contribution takes — see [`DEPLOY.md`](DEPLOY.md#preview).
+contribution takes — see [`docs/deploy/preview.md`](docs/deploy/preview.md).
 
 Note that CI runs on your **pull request**, not on pushes to `dev`. Run the
 suites yourself before opening one — which ones, for what, is
