@@ -83,11 +83,11 @@ free to be the thing that replicates production.
   place immediately: it is what caught the rebuild landing, and what would have
   caught it not landing.
 - **Priority:** P2 (current sprint) — it is the friction
-  [US-052](../US-052-staging-branch-continuous-deploy.md) halved rather than
+  [US-052](US-052-staging-branch-continuous-deploy.md) halved rather than
   removed, and every story that wants a live look pays it again
 - **Estimate:** ~1 h repo-side, plus one stand-up on the box
 - **Depends on:** [US-038](US-038-staging-environment.md) (the fourth-stack
-  shape this reuses) and [US-052](../US-052-staging-branch-continuous-deploy.md)
+  shape this reuses) and [US-052](US-052-staging-branch-continuous-deploy.md)
   (the chain this deliberately does *not* join)
 
 ## The problem: staging is the only place to look at a change

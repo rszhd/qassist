@@ -22,7 +22,7 @@ migration and a panel, so they are one story.
   column NULL has not proven what the criterion says it proves.
 - **Estimate:** ~1–2 h. The code change is a few lines; the cost is the reviewed
   assertion, since this is a listed correctness-critical surface.
-- **Depends on:** [US-022](done/US-022-stripe-billing.md)
+- **Depends on:** [US-022](US-022-stripe-billing.md)
   (shipped). No dependants.
 
 ## What is wrong

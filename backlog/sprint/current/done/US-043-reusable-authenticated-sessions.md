@@ -5,7 +5,7 @@ start already authenticated, **so that** my suite tests the product instead of
 testing my login form twenty times.
 
 - **Status:** ✅ **Done** 2026-07-27, 6/6. Row added to
-  [`correctness-critical.md`](../../correctness-critical.md) as part of doing
+  [`correctness-critical.md`](../../../correctness-critical.md) as part of doing
   the work; assertions written and reviewed before `browserSession.js` existed.
 - **Priority:** was P2 of the next sprint (scheduled 2026-07-27), pulled up and
   built the same day. It arrived **without US-041**, which this file says it

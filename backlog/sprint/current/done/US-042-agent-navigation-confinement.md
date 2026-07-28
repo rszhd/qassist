@@ -10,7 +10,7 @@ cloud metadata endpoint and tell me what it said".
   **Correctness-critical** — a fence that is off by default, or that lets one
   spelling of an address through, is worth less than no fence, because it is
   believed. Row added to
-  [`correctness-critical.md`](../../correctness-critical.md).
+  [`correctness-critical.md`](../../../correctness-critical.md).
 - **Priority:** P1 of the current sprint (scheduled 2026-07-27, pulled up into the
   current sprint the same day). Staging is publicly registrable today, and US-056
   is about to stand up a production that is registrable too.

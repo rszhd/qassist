@@ -31,7 +31,7 @@
 - **Priority:** P1 (current sprint)
 - **Estimate:** ~half a day including docs, once US-009 is in
 - **Depends on:** US-007 (public HTTPS) + US-009 (saved tests) — both hard requirements
-- **Followed by:** [US-029](../../unscheduled/US-029-cicd-action-and-github-app.md)
+- **Followed by:** [US-029](../../../unscheduled/US-029-cicd-action-and-github-app.md)
   — the reusable Action and the GitHub App, split out 2026-07-23 so this story
   is exactly what the current sprint owes
 

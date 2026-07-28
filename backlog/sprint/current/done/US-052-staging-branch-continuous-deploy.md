@@ -20,7 +20,7 @@ survived rather than a branch releases are hoped at.
   with `.env.staging` byte-identical. All that remains is the first real
   promotion into `main`, which by design waits for a release-worthy staging
 
-  **Correction, 2026-07-26 (found while closing [US-055](done/US-055-preview-environment.md)):
+  **Correction, 2026-07-26 (found while closing [US-055](US-055-preview-environment.md)):
   the reconciliation did not take, and the `--ff-only` promotion fails today.**
   `git merge --ff-only staging` on `main` aborts with *Not possible to
   fast-forward*. `origin/main` carries two GitHub PR merge commits — `f8a2937`

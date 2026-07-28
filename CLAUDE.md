@@ -58,6 +58,9 @@ keep it that way when adding features.
   finished, `git mv` it into `done/` and update `backlog/README.md` in the same
   commit. **Results go in the story file**; its README row is a verdict and a
   date, and a lesson that outlives the story goes to the doc owning the subject.
+  The move re-bases links **both ways** — the ones inside the moved file and the
+  ones pointing at it — so run `node scripts/check-doc-links.mjs` after it. CI
+  runs it too, but on a PR into `dev`, which is late.
 - `docs/api.md` — the HTTP surface. A new endpoint is documented **here**, not
   in `README.md`; the README keeps only the four calls that get a first run out
   of the box and links here for the rest.

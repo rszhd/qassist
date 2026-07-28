@@ -144,6 +144,21 @@ jobs:
         # that only resolves in dev.
         run: npm run build
 
+  docs:
+    name: Docs — relative links resolve
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      # No install step: the script is dependency-free on purpose, because a
+      # check that costs an `npm ci` to run is one nobody runs locally.
+      - name: Link check
+        run: node scripts/check-doc-links.mjs
+
   agent:
     name: Agent — pure unit tests
     runs-on: ubuntu-latest

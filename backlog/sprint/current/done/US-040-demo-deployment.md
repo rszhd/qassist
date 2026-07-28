@@ -25,14 +25,14 @@ nor spend anything.
   drops the "free" in the repo, since registering leads to a subscription, not
   a free tier. The label is bundle content, so it reaches the box with the next
   tag; the link it wraps is already right.
-- **Priority:** P1 — [US-036](done/US-036-demo-sandbox.md) shipped the whole
+- **Priority:** P1 — [US-036](US-036-demo-sandbox.md) shipped the whole
   sandbox on 2026-07-24 and **nothing runs it**. `AUTH_MODE=demo` is set on no
   deployment, so the provisioner, the seeder, the interceptor and the reaper are
   dead code in production today. This story is the difference between built and
   live, and it is the cheapest conversion surface we own.
 - **Estimate:** ~2 h on the box, plus one small repo change (the image is
   missing the fixtures — see *What the repo still owes*)
-- **Depends on:** [US-036](done/US-036-demo-sandbox.md) (the sandbox itself),
+- **Depends on:** [US-036](US-036-demo-sandbox.md) (the sandbox itself),
   [US-007](US-007-https-reverse-proxy.md) (the proxy and the overlay this
   reuses), [US-038](US-038-staging-environment.md) (which proved a second stack
   from the same two files; this is the third),

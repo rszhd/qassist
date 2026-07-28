@@ -5,7 +5,7 @@
 - **Status:** 📋 Planned
 - **Priority:** P2
 - **Estimate:** tier 2 ~1–2 days, tier 3 ~1 week+
-- **Depends on:** [US-008](../sprint/current/US-008-cicd-integration.md) tier 1
+- **Depends on:** [US-008](../sprint/current/done/US-008-cicd-integration.md) tier 1
   (the documented `curl` snippet is what both tiers wrap)
 
 ## Why this is its own story

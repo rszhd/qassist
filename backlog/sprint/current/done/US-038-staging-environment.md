@@ -68,7 +68,7 @@ close, and all three of them currently point at production:
   round trip — a real card through Checkout and a real webhook back. Doing that
   on production means either charging a real card or flipping the live instance
   to Stripe **test** keys, which is a config change on the box people are using.
-- [US-008](../US-008-cicd-integration.md)'s documented pipeline
+- [US-008](US-008-cicd-integration.md)'s documented pipeline
   step is unverified, and verifying it means a CI job firing real runs against a
   real API — on prod that competes for `MAX_CONCURRENT_SESSIONS` with whoever
   else is there.

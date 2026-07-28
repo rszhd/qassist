@@ -10,7 +10,7 @@ right values per pipeline — instead of me cloning the test per environment.
 - **Priority:** P1 (current sprint)
 - **Estimate:** TBD
 - **Depends on:** US-009 (saved tests) — the variable defaults live on a test.
-  Pairs with [US-008](../US-008-cicd-integration.md), whose CI snippet is the
+  Pairs with [US-008](US-008-cicd-integration.md), whose CI snippet is the
   second consumer.
 
 ## Why

@@ -96,7 +96,7 @@ operator who wants to throttle one abusive account has to throttle everyone.
 ## Assertion-first
 
 Per-user concurrency already has a row in
-[`correctness-critical.md`](../../correctness-critical.md), and this story changes
+[`correctness-critical.md`](../../../correctness-critical.md), and this story changes
 three of the four surfaces that row names (`canStart`, `startNext`'s fair-share,
 `createRun` admission). So the assertions are written and reviewed **before** the
 implementation, and the existing row is updated rather than a second one added.

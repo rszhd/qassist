@@ -31,7 +31,7 @@
 - **Priority:** P1 (current sprint) — `docs/repo-model.md` rule 1 makes the
   published image *the* artifact the product ships
 - **Estimate:** ~half a day (the image build is slow to iterate on)
-- **Depends on:** [US-031](done/US-031-license-and-public-repo.md) — Actions and
+- **Depends on:** [US-031](US-031-license-and-public-repo.md) — Actions and
   ghcr are free on a public repo, and a private repo burns minutes
 
 ## Design decisions (2026-07-23)
