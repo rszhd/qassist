@@ -101,7 +101,7 @@ export default function Fixtures({ projectId, token, onChanged }) {
         <Button icon={Upload} onClick={() => fileInput.current?.click()} disabled={busy}>
           Upload a file
         </Button>
-        <span className="row-sub spacer">
+        <span className="row-sub quota">
           {formatBytes(quota.used)} of {formatBytes(quota.total)} used, up to{' '}
           {formatBytes(quota.max)} each
         </span>

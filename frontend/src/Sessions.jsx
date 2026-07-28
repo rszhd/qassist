@@ -98,11 +98,8 @@ export default function Sessions({ projectId, token, onChanged }) {
       {sessions.length === 0 ? (
         <EmptyState icon={KeyRound} title="No saved sessions">
           Save a signed-in browser session and this project's tests can start already logged in —
-          no login steps, no tokens spent on them. The usual way: write a test that logs in, add a
-          session here that points at it, and its next passing run fills the session (put that test
-          on a nightly schedule and it never goes stale). If you already have a Playwright{' '}
-          <code>storageState.json</code>, paste that instead. Either way it is stored encrypted and
-          can never be read back.
+          no login steps, no tokens spent on them. Add one, point it at a test that logs in, and
+          its next passing run fills the session. Stored encrypted; never read back.
         </EmptyState>
       ) : (
         <ul className="list">
@@ -199,22 +196,20 @@ function SessionEditor({ form, setForm, tests, busy, onSave, onClose }) {
         <input value={form.name} onChange={set('name')} placeholder="staging login" autoFocus />
       </Field>
 
-      <Field
-        label={form.id ? 'Replace the session (optional)' : 'Paste a storageState.json (optional)'}
-        hint={
-          form.id
-            ? 'Leave empty to keep the stored session. Pasting replaces it.'
-            : 'Only if you already have one from Playwright. Otherwise leave this empty and pick a login test below — that run will capture the session for you.'
-        }
-      >
-        <textarea
-          value={form.storage_state}
-          onChange={set('storage_state')}
-          rows={6}
-          spellCheck={false}
-          placeholder='{"cookies": [...], "origins": [...]}'
-        />
-      </Field>
+      {form.id && (
+        <Field
+          label="Replace the session (optional)"
+          hint="Leave empty to keep the stored session. Pasting replaces it."
+        >
+          <textarea
+            value={form.storage_state}
+            onChange={set('storage_state')}
+            rows={6}
+            spellCheck={false}
+            placeholder='{"cookies": [...], "origins": [...]}'
+          />
+        </Field>
+      )}
 
       <Field
         label="Refreshed by"
