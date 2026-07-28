@@ -54,6 +54,16 @@ import sys
 import time
 from pathlib import Path
 
+# Both default to ON in browser-use, and both spend network at interpreter exit
+# on the way to somebody else's servers: posthog registers an atexit that joins
+# its consumer thread, and that thread retries an upload three times, fifteen
+# seconds apiece plus backoff, before it gives up — so a run that is finished
+# keeps its slot while it happens (BUG-003). Off is also the right default for a
+# self-hosted product: a run is the operator's traffic, not ours to report.
+# Set before the import, so it cannot depend on when browser-use reads config.
+os.environ.setdefault("ANONYMIZED_TELEMETRY", "false")
+os.environ.setdefault("BROWSER_USE_CLOUD_SYNC", "false")
+
 from browser_use import Agent, ChatOpenAI, Tools
 from browser_use.browser.profile import BrowserProfile, ViewportSize
 from browser_use.browser.video_recorder import VideoRecorderService
@@ -62,6 +72,7 @@ from PIL import Image
 from email_codes import ImapMailbox
 from redact import scrub
 import diagnostics
+import exit_watchdog
 import fixtures
 import navigation_policy
 import secret_vars
@@ -92,9 +103,20 @@ NETWORK_BUFFER_BYTES = 1_000_000
 NETWORK_RESOURCE_BUFFER_BYTES = 100_000
 
 
+# The terminal events, and the exit code each one stands for. Every path out of
+# main() ends on one of these, and that line is the last thing anything
+# downstream reads from this process — see exit_watchdog.
+TERMINAL_EVENT_EXIT_CODES = {"done": 0, "error": 1}
+
+
 def emit(obj: dict) -> None:
     sys.stdout.write(json.dumps(obj, default=str) + "\n")
     sys.stdout.flush()
+    # Armed here rather than at the four return sites, so a terminal event added
+    # later cannot forget to bound its own teardown.
+    code = TERMINAL_EVENT_EXIT_CODES.get(obj.get("type"))
+    if code is not None:
+        exit_watchdog.arm(code)
 
 
 def safe(fn, default=None):
