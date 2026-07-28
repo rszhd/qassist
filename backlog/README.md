@@ -363,7 +363,7 @@ the work, and a table of speculative rows is what makes it stop being read.
 
 | ID | Defect | Status | Area |
 |---|---|---|---|
-| [BUG-004](bugs/BUG-004-literal-secret-placeholder-in-goal.md) | A literal `<secret>name</secret>` in a saved goal is accepted and silently does nothing — it is `resolveForRun`'s output, not its input, so the agent types the placeholder | 📋 Open (2026-07-27) | `server/src/variables.js` |
+| [BUG-004](sprint/current/done/BUG-004-literal-secret-placeholder-in-goal.md) | A literal `<secret>name</secret>` in a saved goal is accepted and silently does nothing — it is `resolveForRun`'s output, not its input, so the agent types the placeholder | ✅ Fixed 2026-07-28 | `server/src/variables.js` |
 | [BUG-003](sprint/current/done/BUG-003-agent-hangs-after-done.md) | An agent that hangs after `done` holds its slot until `RUN_TIMEOUT_SECONDS`, leaving `finished_at` null on a finished run | ✅ Fixed 2026-07-28 | `agent/exit_watchdog.py`, `agent/run_agent.py` |
 | [BUG-002](bugs/BUG-002-post-tests-drops-slug-grouping.md) | `POST /api/tests` silently drops `project` / `module` slug keys, filing the test ungrouped with a 201 | 🐛 Open (2026-07-26) | `server/src/routes/tests.js` |
 | [BUG-001](sprint/current/done/BUG-001-history-status-stuck-queued.md) | History shows a run as "Queued" while it is actually running | ✅ Fixed 2026-07-24 | `server/src/runs.js` |

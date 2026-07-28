@@ -21,6 +21,22 @@ const NAME_RE = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
 // name a declarable variable; whitespace inside the braces is tolerated.
 const PLACEHOLDER = /\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g;
 
+// The secrets the *agent* puts in browser-use's `sensitive` dict itself, mid-run:
+// the generated signup password when a mailbox is configured, and the code/link
+// get_email_code fetches (run_agent.py). They are never declared on a test, so
+// `{{name}}` cannot reach them — validateReferences would call them undeclared —
+// and US-034's task text teaches the `<secret>name</secret>` spelling to anyone
+// who reads a run's goal. So a hand-written literal is the only spelling they
+// have, and BUG-004's rejection has to let these three through.
+// Kept in step with the agent by variables.test.js, which reads run_agent.py.
+export const AGENT_PROVIDED_SECRETS = ['qa_password', 'email_code', 'email_link'];
+
+// The internal placeholder resolveForRun emits. Matching only well-formed tags
+// with a legal name is the point: anything else that mentions `secret` as a tag
+// is malformed, so it can't be exempt and can't be substituted either.
+const SECRET_TAG = /<secret>([a-zA-Z_][a-zA-Z0-9_]*)<\/secret>/g;
+const ANY_SECRET_TAG = /<\/?secret\b/i;
+
 /**
  * Validate and normalize a test's `variables` declaration array as it arrives
  * on create/update. Returns `{ error }` or `{ variables }` (the cleaned array,
@@ -85,6 +101,38 @@ export function validateReferences(variables, ...texts) {
   const declared = new Set(variables.map((v) => v.name));
   for (const name of referencedNames(...texts)) {
     if (!declared.has(name)) return `goal references undefined variable {{${name}}}`;
+  }
+  return null;
+}
+
+/**
+ * Write-time check: a hand-written `<secret>name</secret>` is refused (BUG-004).
+ * It is `resolveForRun`'s output, not its input — nothing declares it, so no
+ * value is routed on the `secrets` channel and the placeholder text travels
+ * into the task and gets typed into the page verbatim. Every layer behaves as
+ * designed, which is why this can only be caught at save.
+ *
+ * The exception is `AGENT_PROVIDED_SECRETS` in a goal: those work today,
+ * because the agent adds them to `sensitive` before the step that needs them.
+ * `start_url` gets no exception — it is fetched before any of the three exists,
+ * and "no secret placeholder in a URL" stays the absolute rule it is in
+ * `resolveForRun`.
+ * @param {{ goal?: string|null, start_url?: string|null }} texts
+ * @returns {string | null} error message, or null when nothing internal leaked in
+ */
+export function validateSecretTags({ goal, start_url }) {
+  if (typeof start_url === 'string' && ANY_SECRET_TAG.test(start_url)) {
+    return 'start_url cannot contain a <secret> placeholder — a secret in a URL is the leak the placeholder exists to avoid';
+  }
+  if (typeof goal !== 'string') return null;
+  const rest = goal.replace(SECRET_TAG, (whole, name) =>
+    AGENT_PROVIDED_SECRETS.includes(name) ? '' : whole
+  );
+  for (const m of rest.matchAll(SECRET_TAG)) {
+    return `goal uses <secret>${m[1]}</secret>, the internal form — it is sent to the browser literally. Write {{${m[1]}}} and declare ${m[1]} as a secret variable`;
+  }
+  if (ANY_SECRET_TAG.test(rest)) {
+    return 'goal contains a <secret> tag — it is sent to the browser literally. Reference a secret variable as {{name}} instead';
   }
   return null;
 }

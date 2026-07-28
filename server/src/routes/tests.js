@@ -10,7 +10,9 @@ import {
   h, requireDb, requireAgentKey, requireEntitled, withUserCap, respondOverCap, TRIGGERS,
   RUNNABLE_TEST_COLS, RUNNABLE_TEST_FROM,
 } from './helpers.js';
-import { normalizeDeclarations, validateReferences, resolveForRun } from '../variables.js';
+import {
+  normalizeDeclarations, validateReferences, validateSecretTags, resolveForRun,
+} from '../variables.js';
 import { sessionsForTests, preambleForRun } from '../browserSession.js';
 
 const COLS =
@@ -129,6 +131,8 @@ export function testsRouter({ checkToken }) {
       if ('error' in decl) return res.status(400).json({ error: decl.error });
       const refError = validateReferences(decl.variables, goal, start_url);
       if (refError) return res.status(400).json({ error: refError });
+      const tagError = validateSecretTags({ goal, start_url });
+      if (tagError) return res.status(400).json({ error: tagError });
       const group = await resolveGrouping(req.body || {}, currentUserId());
       if (group.error) return res.status(400).json({ error: group.error });
       const session = await resolveSession(req.body || {}, group.projectId);
@@ -204,6 +208,14 @@ export function testsRouter({ checkToken }) {
         start_url ?? current.rows[0].start_url
       );
       if (refError) return res.status(400).json({ error: refError });
+      // Merged, like the reference check above: a test saved before BUG-004 can
+      // carry a literal placeholder, and it stays broken until the goal is fixed
+      // — so an edit that leaves it in place is refused rather than blessed.
+      const tagError = validateSecretTags({
+        goal: goal ?? current.rows[0].goal,
+        start_url: start_url ?? current.rows[0].start_url,
+      });
+      if (tagError) return res.status(400).json({ error: tagError });
       // $7/$9/$11 carry "was this field present at all?" so a null can mean
       // "clear it" rather than "leave it alone" — coalesce can't express that.
       const { rows } = await db().query(

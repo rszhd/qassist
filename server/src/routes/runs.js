@@ -13,6 +13,7 @@ import { db, isUuid, currentUserId } from '../db.js';
 import { createRun, diagnosticsOf, getRun, stepsOf, stopRun, verdictOf } from '../runs.js';
 import { ARTIFACTS_DIR, HAR_FILENAME, RECORDING_FILENAME, REPORT_DATA_FILENAME } from '../config.js';
 import { h, requireDb, requireAgentKey, requireEntitled, withUserCap, respondOverCap, STORED_TRIGGERS } from './helpers.js';
+import { validateSecretTags } from '../variables.js';
 
 /** Mirrors the runs.status check constraint (001_init.sql, widened by 011). */
 const STATUSES = new Set([
@@ -194,6 +195,11 @@ export function runsRouter({ checkToken, checkTokenOrQuery }) {
     if (!goal || !start_url) {
       return res.status(400).json({ error: 'goal and start_url are required' });
     }
+    // An ad-hoc goal declares no variables at all, so a hand-written
+    // `<secret>name</secret>` here is the BUG-004 silent failure with nothing
+    // that could ever have filled it.
+    const tagError = validateSecretTags({ goal, start_url });
+    if (tagError) return res.status(400).json({ error: tagError });
     // user_id defaults to the gate-resolved caller (currentUserId) inside createRun.
     // openai_api_key is the key requireAgentKey resolved (request > stored > server).
     const run = createRun({

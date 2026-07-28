@@ -4,10 +4,13 @@
 // it produces are decided here.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
+  AGENT_PROVIDED_SECRETS,
   normalizeDeclarations,
   referencedNames,
   validateReferences,
+  validateSecretTags,
   resolveForRun,
 } from '../src/variables.js';
 
@@ -169,4 +172,61 @@ test('resolveForRun rejects a secret referenced in start_url', () => {
   const variables = [{ name: 'tok', value: 't', secret: true, optional: false }];
   const r = resolveForRun({ variables, goal: 'go', start_url: 'https://x?t={{tok}}' });
   assert.match(/** @type {any} */ (r).error, /secret .*tok.* cannot appear in start_url/i);
+});
+
+// --- BUG-004: the internal placeholder written by hand ---------------------
+// `<secret>name</secret>` is resolveForRun's output. Written into a saved goal
+// it declares nothing, routes nothing, and is typed into the page verbatim —
+// a silent false-red no layer can raise at run time, so it is refused at save.
+// The exception is the three the agent adds to `sensitive` itself mid-run.
+
+test('validateSecretTags rejects a hand-written <secret> in a goal', () => {
+  const err = validateSecretTags({ goal: 'log in with <secret>shop_pw</secret>' });
+  assert.match(/** @type {string} */ (err), /shop_pw/);
+  assert.match(/** @type {string} */ (err), /\{\{shop_pw\}\}/); // names the right spelling
+});
+
+test('validateSecretTags rejects malformed and unclosed secret tags', () => {
+  for (const goal of [
+    'enter <secret>a-b</secret>',
+    'enter <secret>shop_pw',
+    'enter shop_pw</secret>',
+    'enter <secret></secret>',
+    'enter <SECRET>shop_pw</SECRET>',
+  ]) {
+    assert.ok(validateSecretTags({ goal }), `should reject: ${goal}`);
+  }
+});
+
+test('validateSecretTags accepts the secrets the agent provides at run time', () => {
+  assert.equal(validateSecretTags({ goal: 'sign up with <secret>qa_password</secret>' }), null);
+  assert.equal(
+    validateSecretTags({
+      goal: 'type <secret>email_code</secret>, or open <secret>email_link</secret>',
+    }),
+    null
+  );
+});
+
+test('validateSecretTags refuses every <secret> in start_url, agent-provided included', () => {
+  assert.ok(validateSecretTags({ start_url: 'https://x/<secret>email_link</secret>' }));
+  assert.ok(validateSecretTags({ start_url: 'https://x?t=<secret>tok</secret>' }));
+});
+
+test('validateSecretTags accepts an ordinary goal and {{name}} references', () => {
+  assert.equal(validateSecretTags({ goal: 'log in as {{user}}', start_url: 'https://{{env}}.x' }), null);
+  assert.equal(validateSecretTags({}), null);
+});
+
+// The exemption list is only correct while it matches what the agent actually
+// puts in `sensitive`. Adding a fourth there without adding it here would have
+// the server reject a goal that works — so read the agent and compare.
+test('AGENT_PROVIDED_SECRETS matches the secrets run_agent.py adds to `sensitive`', () => {
+  const agent = readFileSync(
+    new URL('../../agent/run_agent.py', import.meta.url),
+    'utf8'
+  );
+  const found = [...agent.matchAll(/\bsensitive\[["'](\w+)["']\]\s*=/g)].map((m) => m[1]);
+  assert.ok(found.length, 'found no `sensitive[...] =` assignments — has run_agent.py moved?');
+  assert.deepEqual(new Set(found), new Set(AGENT_PROVIDED_SECRETS));
 });

@@ -144,6 +144,35 @@ test('variables: a required referenced variable with no value rejects the run', 
   assert.match(res.body.error, /coupon is required/);
 });
 
+test('variables: a hand-written <secret> is refused at save and stores nothing', async () => {
+  const before = (await request(app).get('/api/tests').set(auth).expect(200)).body.tests.length;
+  const bad = await makeTest({
+    name: 'literal placeholder',
+    goal: 'log in with <secret>shop_pw</secret>',
+    variables: [{ name: 'shop_pw', value: 'hunter2', secret: true }],
+  }).expect(400);
+  assert.match(bad.body.error, /\{\{shop_pw\}\}/);
+  const after = (await request(app).get('/api/tests').set(auth).expect(200)).body.tests;
+  assert.equal(after.length, before);
+  assert.ok(!after.some((t) => t.name === 'literal placeholder'));
+
+  const t = (await makeTest({ name: 'editable' }).expect(201)).body;
+  const rejected = await request(app)
+    .put(`/api/tests/${t.id}`)
+    .set(auth)
+    .send({ goal: 'log in with <secret>shop_pw</secret>' })
+    .expect(400);
+  assert.match(rejected.body.error, /shop_pw/);
+  const unchanged = (await request(app).get(`/api/tests/${t.id}`).set(auth).expect(200)).body;
+  assert.equal(unchanged.goal, t.goal);
+
+  // The three the agent supplies itself keep working (US-034's spelling).
+  await makeTest({
+    name: 'email confirmation',
+    goal: 'sign up, then enter <secret>email_code</secret>',
+  }).expect(201);
+});
+
 test('finished runs are readable from the DB after the relay forgets them', async () => {
   // Simulate the in-memory TTL eviction by asking for a run the Map never
   // had: insert a finished row directly, then GET it.

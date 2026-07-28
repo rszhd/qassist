@@ -1,6 +1,6 @@
 # BUG-004: a literal `<secret>` in a saved goal is accepted and silently does nothing
 
-**Status:** 📋 Open
+**Status:** ✅ Fixed 2026-07-28
 **Reported:** 2026-07-27
 **Area:** server (`server/src/variables.js`, `routes/tests.js` write path);
 the failure surfaces in the agent
@@ -80,3 +80,52 @@ implementer should make deliberately rather than inherit:
 that must still be accepted), plus one over HTTP proving the refused write
 stores nothing. The existing "a secret cannot appear in start_url" assertion is
 the neighbour to put it beside.
+
+## What was done
+
+**The exemption list was kept.** Pre-declaring the three is the tidier end
+state, but it means inventing declarations the user never wrote, deciding what
+`resolveForRun` does with a variable whose value only exists mid-run, and
+showing three phantom rows in the variables editor — a story, not a bug fix.
+
+The drift the ticket worries about is killed directly instead:
+`AGENT_PROVIDED_SECRETS` is exported from `variables.js`, and a test reads
+`agent/run_agent.py`, extracts every `sensitive["…"] =` assignment, and asserts
+the two sets are equal. A fourth agent-provided secret now turns `npm test` red
+in the commit that adds it, rather than being rejected at save months later.
+
+- **`validateSecretTags({ goal, start_url })`** in `server/src/variables.js`.
+  A well-formed `<secret>name</secret>` in a goal is refused unless `name` is
+  agent-provided; anything else mentioning a `secret` tag (unclosed, empty,
+  illegal name, wrong case) is refused outright, since a malformed tag can't be
+  exempt and can't be substituted either.
+- **`start_url` gets no exemption.** The three don't exist until mid-run, so
+  they can't be meaningful in a URL fetched before the first step, and "no
+  secret placeholder in a URL" stays as absolute as it is in `resolveForRun`.
+  It gets its own message rather than the goal's "write `{{name}}` instead",
+  which would be advice that also fails.
+- **Three call sites**: `POST` and `PUT /api/tests`, plus ad-hoc
+  `POST /api/runs` — an ad-hoc goal declares no variables at all, so the same
+  literal there is the same silent failure with nothing that could ever fill it.
+- **`PUT` validates the merged goal**, like the reference check beside it. A
+  test saved before this fix keeps its literal placeholder, and an edit that
+  leaves it in place is refused rather than blessed. The cost is that an
+  unrelated rename of such a test 400s until the goal is fixed — which is the
+  right trade, because the test is broken either way and nothing else tells
+  its owner so.
+
+No frontend change: `api.js` already unwraps `{ error }` into the message the
+save dialog shows, so the spelling advice arrives where the goal was typed.
+
+## Assertions
+
+Written and reviewed before the implementation — `variables.js` is on the
+[correctness-critical register](../../../correctness-critical.md) under *Secret
+variables (US-035)*, and that row's "guarded by" now names these too.
+
+`variables.test.js`: the observed goal is rejected and the error names
+`{{shop_pw}}`; the malformed table; the three agent-provided names still
+accepted in a goal and still refused in a `start_url`; an ordinary goal passes;
+and the drift guard against `run_agent.py`. `control-plane-tests.test.js`: over
+HTTP, a refused `POST` leaves the list unchanged, a refused `PUT` leaves the
+stored goal unchanged, and `<secret>email_code</secret>` still saves.
