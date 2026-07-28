@@ -12,6 +12,7 @@
 import { db, isUuid } from '../db.js';
 import { encryptSecret } from '../crypto.js';
 import { normalizeStorageState, sessionKey } from '../browserSession.js';
+import { isUniqueViolation } from './helpers.js';
 
 // Everything a session is allowed to say about itself. `storage_state_ciphertext`
 // is absent by construction: this fragment is the only column list any query in
@@ -230,8 +231,3 @@ function resolveVerify(body) {
   };
 }
 
-/** As routes/fixtures.js: pg-mem names the constraint instead of setting a code. */
-function isUniqueViolation(err) {
-  const e = /** @type {any} */ (err);
-  return e?.code === '23505' || /unique|duplicate/i.test(String(e?.message || ''));
-}

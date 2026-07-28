@@ -22,6 +22,7 @@ import {
   projectUsageBytes,
   withinQuota,
 } from '../fixtures.js';
+import { isUniqueViolation } from './helpers.js';
 
 const FIXTURE_COLS = 'id, filename, size_bytes, content_type, created_at';
 
@@ -134,13 +135,3 @@ export async function deleteFixture(req, res) {
   res.status(204).end();
 }
 
-/**
- * A unique-constraint violation, in both engines we run against. Postgres says
- * `23505`; pg-mem (the test harness) raises a plain Error whose message names
- * the constraint, so matching on the code alone would turn the duplicate case
- * into a 500 in exactly the place the tests run.
- */
-function isUniqueViolation(err) {
-  const e = /** @type {any} */ (err);
-  return e?.code === '23505' || /unique|duplicate/i.test(String(e?.message || ''));
-}

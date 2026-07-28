@@ -64,6 +64,21 @@ export function h(fn) {
   return (req, res, next) => fn(req, res).catch(next);
 }
 
+/**
+ * A unique-constraint violation, in both engines we run against — `23505`, and
+ * nothing else. It once also matched `/unique|duplicate/i` on the message,
+ * because pg-mem was believed to raise a plain Error naming the constraint;
+ * pg-mem sets the code itself, so that half only ever caught errors it was not
+ * written for. BUG-008: pg-mem's *parse* errors list the tokens they expected,
+ * one of which is `kw_unique`, so a query it could not parse came back to the
+ * user as "this project already has a session called …" for a name nothing had
+ * ever held. The message an engine writes is not an interface.
+ * @param {unknown} err
+ */
+export function isUniqueViolation(err) {
+  return /** @type {any} */ (err)?.code === '23505';
+}
+
 // Resolve which OpenAI key a run will use and refuse the run if there is none,
 // rather than letting the agent die on the first LLM call. Applies to every
 // route that starts a run. BYOK (US-005/US-039): a per-request `openai_api_key`
