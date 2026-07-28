@@ -28,8 +28,6 @@ import os
 import re
 import sys
 
-from playwright.sync_api import sync_playwright
-
 from report_format import (
     diagnostic_detail,
     diagnostic_label,
@@ -620,6 +618,13 @@ def main() -> int:
         data = json.load(f)
     base_dir = os.path.dirname(os.path.abspath(data_path))
     doc = build_html(data, base_dir)
+
+    # Imported here, not at module scope: everything above this line is stdlib
+    # plus report_format, and that is what lets agent/tests/ cover build_html in
+    # a CI job that installs pytest and nothing else. A module-level import
+    # would make `import make_report` need Chromium's Python package to assert
+    # on a string.
+    from playwright.sync_api import sync_playwright
 
     with sync_playwright() as p:
         browser = p.chromium.launch(args=["--no-sandbox", "--disable-dev-shm-usage"])
