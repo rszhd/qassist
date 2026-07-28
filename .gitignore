@@ -11,8 +11,10 @@ runs/
 /fixtures/
 # US-043: a run's decrypted session blob, for the length of one spawn.
 /sessions/
-# A second stack on the same box points RUNS_DIR at its own artifact directory.
+# A second stack on the same box points RUNS_DIR at its own artifact directory,
+# and FIXTURES_HOST_DIR at its own fixture directory.
 runs-*/
+fixtures-*/
 *.log
 # gitleaks --report-path output (US-031); the scan itself is configured by the
 # tracked .gitleaks.toml.

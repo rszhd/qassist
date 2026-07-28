@@ -405,7 +405,7 @@ snippet stayed unverified.
 ### Updating staging
 
 Merge into `staging` and the image builds itself. On the box, `.env.staging`
-already pins `:staging` and never changes, so a deploy is two words:
+already pins `:staging` and never changes, so a deploy is usually two words:
 
 ```sh
 export ENV_FILE=.env.staging          # exported, not a command prefix — see above
@@ -415,6 +415,30 @@ docker compose -p qassist-staging \
 docker compose -p qassist-staging \
   -f docker-compose.yml -f docker-compose.prod.yml --env-file "$ENV_FILE" up -d
 ```
+
+**The image is not the only thing the merge moved.** `~/qassist` is a checkout,
+and it is where Compose reads the two YAML files from — so a promotion that
+touched `docker-compose.yml` or `docker-compose.prod.yml` needs the checkout
+updated too, before the `up -d` above:
+
+```sh
+cd ~/qassist && git fetch origin && git checkout -B staging origin/staging
+git diff --stat <previous tip>..HEAD -- 'docker-compose*.yml' .env.example
+```
+
+Nothing pins the checkout to a branch — it holds every stack's compose files and
+env files, so moving it moves what `demo` and the proxy would get on *their*
+next `up -d`, which is why this is a step and not a `git pull` in a cron. The
+stacks already running are untouched until each is recreated.
+
+**This failure is silent, not loud** (seen promoting US-048): the new image
+wants a `${FIXTURES_HOST_DIR}:/app/fixtures` mount that the old compose file
+does not have, and `FIXTURES_DIR` defaults to that same path *inside* the
+container — so the app boots clean, accepts fixture uploads, and loses them the
+next time the container is recreated. A missing mount looks exactly like a
+working one until something restarts. So diff the compose files against what
+the box has, and read `.env.example` in the same pass for variables the merge
+added that `.env.staging` now needs.
 
 **`pull` is not optional here, and leaving it out looks like success.** With a
 version tag, `up -d` fetching nothing is correct — the tag is immutable. With a
