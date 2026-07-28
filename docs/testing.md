@@ -43,7 +43,20 @@ rule that decides which of the four test shapes a given check gets:
   hatch for tests whose subject is *not* key storage: a **registered function
   returns a Buffer that pg-mem stores intact**, so
   `test/helpers/stored-key.js` seeds a decryptable stored key by registering
-  `decode` and inlining the ciphertext as hex in the SQL text.
+  `decode` and inlining the ciphertext as hex in the SQL text. `byteaPool` in
+  the same file does that rewrite for the parameters *product* code passes,
+  which is what lets an encrypted-at-rest write path be exercised there at all.
+
+  BUG-007 added the sting in the tail: **that corruption is not always
+  silent.** The escaped string the adapter builds is sometimes SQL pg-mem's own
+  parser rejects — 1.6% of AES-GCM ciphertexts at 213 bytes — and whether it is
+  depends on nothing but the random IV. So the same write is fine ninety-eight
+  times and throws the ninety-ninth, which reads as a flaky suite rather than as
+  a fake being a fake. Worse, pg-mem's parse error enumerates the tokens it
+  expected, one of which is `kw_unique`, so a route with a
+  `/unique|duplicate/i` fallback on the message answers **409 Conflict** for a
+  name nothing has ever used. A fake's blind spot can present as any error the
+  product knows how to make.
 
   A third blind spot is not the database at all, found by BUG-006: **pg-mem
   never runs node-pg's type parsers.** `count(*)` is bigint, and node-pg hands
@@ -91,6 +104,24 @@ after every change and self-correct without a human in the loop. A slow or
 flaky suite breaks that loop — it gets skipped, or a green run gets trusted
 that shouldn't be. The stub-the-agent / pg-mem discipline pays for itself
 twice over here.
+
+**When the suite goes flaky, run the suspect file alone.** BUG-007 looked
+exactly like runner oversubscription — a different test each time, never two at
+once, no correlation with the change — and it was not. Holding four cores busy
+produced zero failures; running one file *by itself* produced four in forty. A
+fault that survives being run alone is not a scheduling fault, and that one
+measurement is what separated a plausible story from the two real causes. Reach
+for it before reaching for `--test-concurrency`.
+
+**A wait in milliseconds is a race, not an ordering.** The other half of
+BUG-007 was a fair-share test that proved "B's slot frees before A's" with a
+250ms hold against a 4000ms one, then drained inside an 8000ms budget it spent
+7.8s of — every run, not just bad ones. Where a test means an ordering, say the
+ordering: `fake_agent.js` takes `release=<name>` and holds its slot until the
+test drops that file, so the wait is over something that has definitely
+happened rather than something that has probably happened by now. Widening the
+deadline would have been the wrong repair twice over — it hides a genuinely
+wrong promotion inside the same timeout the busy box produces.
 
 ## What we don't test (and why that's a choice, not neglect)
 

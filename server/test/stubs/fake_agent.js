@@ -90,11 +90,28 @@ function emit() {
 // QA_STUB_HOLD_MS keeps a run in its slot long enough for the queue behind it
 // to be observed (queue.test.js); unset, the stub finishes at once. A per-run
 // `hold=<ms>` in the goal overrides it, so a test can free ONE specific slot
-// while others stay busy (concurrency-fairshare.test.js's dequeue case).
+// while others stay busy.
+//
+// `release=<name>` is the same idea said exactly: hold until the file
+// QA_STUB_RELEASE_DIR/<name> appears, however long that takes. A duration
+// answers "which slot frees first" with a race the test can only win while the
+// box is idle — that was BUG-007's fair-share failure, decided by 200ms in an
+// 8s budget. A run that has not spawned yet can still be named, which is why
+// this is a file and not a line on our stdin.
+//
+// The file named `all` frees every held run, so an afterEach can drain a test
+// that failed before it got to its own release calls rather than hanging on it.
+const releaseName = /\brelease=([\w.-]+)/.exec(process.env.QA_GOAL || '');
 const perRun = /\bhold=(\d+)/.exec(process.env.QA_GOAL || '');
-const holdMs = perRun ? Number(perRun[1]) : Number(process.env.QA_STUB_HOLD_MS || 0);
+const holdMs = releaseName
+  ? 0
+  : perRun
+    ? Number(perRun[1])
+    : Number(process.env.QA_STUB_HOLD_MS || 0);
+const RELEASE_POLL_MS = 10;
+const RELEASE_ALL = 'all';
 
-if (holdMs) {
+if (holdMs || releaseName) {
   // Express writes control lines to our stdin, one JSON object per line, as it
   // does to the real agent: {"cmd":"screencast"} (ignored here) and — US-047 —
   // {"cmd":"stop"}. `stop=ignore` in the goal is the *wedged* agent that never
@@ -124,7 +141,17 @@ if (holdMs) {
   // loaded box `node` can take longer to boot than a short stop grace window,
   // which silently turns a graceful-stop test into an escalation test.
   process.stdout.write(JSON.stringify({ type: 'log', message: 'stub ready' }) + '\n');
-  setTimeout(emit, holdMs);
+  if (releaseName) {
+    const dir = process.env.QA_STUB_RELEASE_DIR;
+    const freed = [path.join(dir, releaseName[1]), path.join(dir, RELEASE_ALL)];
+    const watch = setInterval(() => {
+      if (!freed.some((flag) => fs.existsSync(flag))) return;
+      clearInterval(watch);
+      emit();
+    }, RELEASE_POLL_MS);
+  } else {
+    setTimeout(emit, holdMs);
+  }
 } else {
   emit();
 }

@@ -22,12 +22,12 @@
 // of concurrency-cap.test.js):
 //
 //   D7  P-fair's dequeue half (the async test at the bottom) needs to free ONE
-//       specific slot while another user is still at cap. That needs a per-run
-//       hold, which the current stub doesn't have. The test assumes a SMALL
-//       stub extension: fake_agent.js reads `hold=<ms>` out of QA_GOAL and falls
-//       back to QA_STUB_HOLD_MS. If you'd rather not touch the stub, say so and
-//       I'll drop the async test — the submit-time half of P-fair still pins the
-//       user-visible property synchronously. [REVIEW: keep or drop.]
+//       specific slot while another user is still at cap. It does that with the
+//       stub's `release=<name>` — a run holds its slot until the test drops the
+//       named file. Originally a per-run `hold=<ms>`, which said the same thing
+//       as a race the test only won on an idle box: it finished 7.8s into an 8s
+//       drain budget every run, and lost the race often enough to be one of the
+//       five names in BUG-007.
 // ─────────────────────────────────────────────────────────────────────────────
 import { test, before, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -45,8 +45,16 @@ let engine;
 const A = 'user-a';
 const B = 'user-b';
 
+let releaseDir = '';
+
+/** Let the named stub runs finish — see `release=` in stubs/fake_agent.js. */
+const release = (...names) =>
+  names.forEach((name) => fs.writeFileSync(path.join(releaseDir, name), ''));
+
 before(async () => {
   const artifactsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'qassist-fairshare-'));
+  releaseDir = fs.mkdtempSync(path.join(os.tmpdir(), 'qassist-fairshare-release-'));
+  process.env.QA_STUB_RELEASE_DIR = releaseDir;
   process.env.MAX_CONCURRENT_SESSIONS = '3'; // ABOVE the per-user cap: spare global slots the cap must refuse
   process.env.MAX_CONCURRENT_PER_USER = '2';
   process.env.QA_STUB_HOLD_MS = '250';
@@ -79,12 +87,17 @@ async function pollUntil(fn, timeoutMs = 8000) {
   }
 }
 
-afterEach(() =>
-  pollUntil(() => {
+afterEach(async () => {
+  // Held runs are process-global state too: a test that failed before its own
+  // release calls would otherwise leave one holding a slot forever, and the
+  // names are reused, so a leftover flag frees the NEXT test's run on spawn.
+  release('all');
+  await pollUntil(() => {
     const { active, queued } = engine.counts();
     return active === 0 && queued === 0;
-  })
-);
+  });
+  for (const name of fs.readdirSync(releaseDir)) fs.rmSync(path.join(releaseDir, name));
+});
 
 test('P-bound: a scheduled burst is held to `cap` running even with a free global slot (D3)', () => {
   const results = engine.runTests([asTest('s1'), asTest('s2'), asTest('s3'), asTest('s4')], {
@@ -114,17 +127,20 @@ test('P-fair (submit): another user takes the free global slot ahead of A\'s ove
 
 // P-fair (dequeue): the eligibility scan itself. Requires the D7 stub extension.
 test('P-fair (dequeue): a freed slot is left idle rather than promoting an at-cap user', async () => {
-  // A: two long runs (fills cap), plus one queued.
+  // A: two runs held open (fills cap), plus one queued.
   engine.runTests(
-    [asTest('hold=4000 a1'), asTest('hold=4000 a2'), asTest('hold=4000 a3')],
+    [asTest('release=a1 a1'), asTest('release=a2 a2'), asTest('release=a3 a3')],
     { user_id: A, trigger: 'schedule' }
   );
   assert.deepEqual(engine.counts(), { active: 2, queued: 1 });
 
-  // B: one SHORT run in the 3rd slot, which will free first.
-  const b1 = start('hold=250 b1', B);
+  // B: one run in the 3rd slot, and the only one let go — so it is the only
+  // slot that CAN free, whatever else the box is doing. Said in milliseconds
+  // instead, this test spent 7.8s of an 8s drain budget every run (BUG-007).
+  const b1 = start('release=b1 b1', B);
   assert.equal(b1.status, 'running');
   assert.deepEqual(engine.counts(), { active: 3, queued: 1 });
+  release('b1');
 
   // When B's slot frees, the only queued run is A's — but A is still at cap
   // RUNNING (2), so it is NOT eligible. The slot is left idle: active falls to
@@ -132,6 +148,7 @@ test('P-fair (dequeue): a freed slot is left idle rather than promoting an at-ca
   await pollUntil(() => engine.counts().active === 2);
   assert.deepEqual(engine.counts(), { active: 2, queued: 1 }, 'a3 not promoted while A is at cap');
 
-  // (Once one of A's long runs finishes, a3 becomes eligible and drains — the
-  // afterEach hook waits that out.)
+  // Once one of A's runs finishes, a3 becomes eligible and drains — the
+  // afterEach hook waits that out.
+  release('a1', 'a2', 'a3');
 });

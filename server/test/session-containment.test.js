@@ -99,7 +99,7 @@ import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import request from 'supertest';
 import { newDb, DataType } from 'pg-mem';
-import { registerDecode, seedStoredKey } from './helpers/stored-key.js';
+import { byteaPool, registerDecode, seedStoredKey } from './helpers/stored-key.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TOKEN = 'test-token';
@@ -174,8 +174,10 @@ before(async () => {
     implementation: (a, b) => (a === b ? null : a),
   });
   registerDecode(mem);
-  const { Pool } = mem.adapters.createPg();
-  pool = new Pool();
+  // Every route under test here writes ciphertext as a `bytea` PARAMETER, which
+  // a plain pg-mem pool mangles and — depending on nothing but the random IV —
+  // sometimes refuses to parse at all (BUG-007).
+  pool = byteaPool(mem);
 
   const { runMigrations, initDb, getOperatorUserId } = await import('../src/db.js');
   await runMigrations(pool, { skipIndexes: true });
@@ -196,10 +198,11 @@ after(() => {
 });
 
 /**
- * pg-mem cannot round-trip a bytea PARAMETER (helpers/stored-key.js explains),
- * so a session whose ciphertext must later DECRYPT is seeded through the
- * registered `decode` builtin with the hex inline. The HTTP write path's own
- * storage is proven on a real server in session-postgres.test.js.
+ * A session whose ciphertext must later DECRYPT is seeded through the
+ * registered `decode` builtin with the hex inline — the same trick `byteaPool`
+ * plays on the parameters the product passes (helpers/stored-key.js explains
+ * both). The HTTP write path's own storage is proven on a real server in
+ * session-postgres.test.js.
  */
 async function seedSession(name = 'staging login', blob = BLOB, extra = {}) {
   const { encryptSecret } = await import('../src/crypto.js');
@@ -652,11 +655,10 @@ test('a session can be created empty and filled by its login test', async () => 
   assert.ok(filled.captured_at, 'captured_at must now be set');
 
   // The last leg — the member test now running WITH the captured blob — is
-  // deliberately not claimed here. pg-mem cannot round-trip a `bytea`
-  // PARAMETER (helpers/stored-key.js), and the capture writes one, so what
-  // comes back is UTF-8-mangled ciphertext that cannot decrypt for a reason
-  // that has nothing to do with this story. It is proven on a real server in
-  // session-postgres.test.js, which is the same split US-039 made.
+  // deliberately not claimed here. `byteaPool` gets the ciphertext back intact,
+  // but what makes that leg worth asserting is the browser starting signed in
+  // off bytes a real server stored, and a pg-mem row proves neither half. It is
+  // on a real server in session-postgres.test.js, the split US-039 made.
   void body;
 });
 

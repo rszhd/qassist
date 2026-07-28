@@ -111,8 +111,16 @@ const B = 'user-b'; // no override — the control, must stay on the env number
 const C = 'user-c'; // override 1 — lowered below the env default
 const D = 'user-d'; // no override, used to prove an at-cap user blocks nobody
 
+let releaseDir = '';
+
+/** Let the named stub runs finish — see `release=` in stubs/fake_agent.js. */
+const release = (...names) =>
+  names.forEach((name) => fs.writeFileSync(path.join(releaseDir, name), ''));
+
 before(async () => {
   const artifactsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'qassist-override-'));
+  releaseDir = fs.mkdtempSync(path.join(os.tmpdir(), 'qassist-override-release-'));
+  process.env.QA_STUB_RELEASE_DIR = releaseDir;
   // Config is read at import time, so env must be set before importing.
   process.env.MAX_CONCURRENT_SESSIONS = '5'; // room for A's raised 3 + B's default 2
   process.env.MAX_CONCURRENT_PER_USER = '2'; // the instance default an override moves off
@@ -156,10 +164,15 @@ const plant = () => {
 };
 
 afterEach(async () => {
+  // Held runs are process-global state too: a test that failed before its own
+  // release calls would otherwise leave one holding a slot forever, and the
+  // names are reused, so a leftover flag frees the NEXT test's run on spawn.
+  release('all');
   await pollUntil(() => {
     const { active, queued } = engine.counts();
     return active === 0 && queued === 0;
   });
+  for (const name of fs.readdirSync(releaseDir)) fs.rmSync(path.join(releaseDir, name));
   for (const uid of [A, B, C, D]) caps.setUserConcurrencyCap(uid, null);
 });
 
@@ -272,19 +285,21 @@ test('the START GATE holds an overridden user to their own cap with global slots
 
 test('the FAIR-SHARE DEQUEUE reads the override: a freed slot is left idle for an at-cap user', async () => {
   plant();
-  // C: one long run (at their override cap of 1) plus two queued behind it.
-  engine.runTests([asTest('hold=2500 c1'), asTest('hold=2500 c2'), asTest('hold=2500 c3')], {
+  // C: one run held open (at their override cap of 1) plus two queued behind it.
+  engine.runTests([asTest('release=c1 c1'), asTest('release=c2 c2'), asTest('release=c3 c3')], {
     user_id: C,
     trigger: 'schedule',
   });
   assert.deepEqual(engine.counts(), { active: 1, queued: 2 });
 
-  // A fills the rest of the box with long runs, so the only slot that will free
-  // is the short one below.
-  ['hold=2500 a1', 'hold=2500 a2', 'hold=2500 a3'].forEach((g) => start(g, A));
-  const b1 = start('hold=250 b1', B);
+  // A fills the rest of the box, so the only slot that CAN free is B's — which
+  // is the one this test lets go. Held open by name rather than by a duration,
+  // for BUG-007's reason: a wait in milliseconds is a race with the box.
+  ['release=a1 a1', 'release=a2 a2', 'release=a3 a3'].forEach((g) => start(g, A));
+  const b1 = start('release=b1 b1', B);
   assert.equal(b1.status, 'running');
   assert.deepEqual(engine.counts(), { active: 5, queued: 2 });
+  release('b1');
 
   // B's slot frees. The queue head is C's, and C is at their OVERRIDDEN cap of
   // 1 running — so nobody is eligible and the slot is left idle. Resolving the
@@ -297,26 +312,29 @@ test('the FAIR-SHARE DEQUEUE reads the override: a freed slot is left idle for a
     { active: 4, queued: 2 },
     'c2 must not be promoted while C is at their override'
   );
+  release('a1', 'a2', 'a3', 'c1', 'c2', 'c3');
 });
 
 test('a user at their OVERRIDDEN cap does not block another user\'s queued run', async () => {
   plant();
   // Same shape, with one difference: D is queued BEHIND C's surplus.
-  engine.runTests([asTest('hold=2500 c1'), asTest('hold=2500 c2'), asTest('hold=2500 c3')], {
+  engine.runTests([asTest('release=c1 c1'), asTest('release=c2 c2'), asTest('release=c3 c3')], {
     user_id: C,
     trigger: 'schedule',
   });
-  ['hold=2500 a1', 'hold=2500 a2', 'hold=2500 a3'].forEach((g) => start(g, A));
-  const b1 = start('hold=250 b1', B);
+  ['release=a1 a1', 'release=a2 a2', 'release=a3 a3'].forEach((g) => start(g, A));
+  const b1 = start('release=b1 b1', B);
   assert.equal(b1.status, 'running');
 
-  const d1 = start('hold=250 d1', D);
+  const d1 = start('release=d1 d1', D);
   assert.equal(d1.status, 'queued', 'global is full; D queues behind c2 and c3');
   assert.deepEqual(engine.counts(), { active: 5, queued: 3 });
+  release('b1');
 
   // When B's slot frees, the scan skips C's two (at cap) and promotes D's —
   // the slot is NOT left idle merely because the head is ineligible, and D is
   // not made to wait out a user who is already over their fair share.
   await pollUntil(() => d1.status === 'running');
   assert.deepEqual(engine.counts(), { active: 5, queued: 2 }, 'D took the slot, C still waits');
+  release('a1', 'a2', 'a3', 'c1', 'c2', 'c3', 'd1');
 });
