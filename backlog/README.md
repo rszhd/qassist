@@ -25,7 +25,12 @@ Workflow rule (`CLAUDE.md`) applies to.
   tiers stay planned in its file.
 - `unscheduled/` — stories with no sprint assigned yet.
 - `bugs/` — defects, `BUG-NNN-slug.md`, for a fault in shipped code that isn't
-  a story's worth of work. Same lifecycle, no sprint folder.
+  a story's worth of work. Same lifecycle as a story, and that includes the
+  move: a fixed bug is `git mv`d into the `sprint/<name>/done/` of the sprint
+  that fixed it, so **`ls bugs/` is exactly the open defects** the way
+  `ls sprint/current/` is exactly the open stories. Its row stays in the Bugs
+  table below — that table is the register, and a fixed defect is worth finding
+  from it — so only the row's link changes.
 - `released/<name>/` — shipped releases, moved here wholesale when the release
   goes out (e.g. `released/prototype/`), `done/` subfolder and all. Anything
   still sitting in the sprint folder root at that point never shipped: move
@@ -358,8 +363,10 @@ the work, and a table of speculative rows is what makes it stop being read.
 
 | ID | Defect | Status | Area |
 |---|---|---|---|
+| [BUG-004](bugs/BUG-004-literal-secret-placeholder-in-goal.md) | A literal `<secret>name</secret>` in a saved goal is accepted and silently does nothing — it is `resolveForRun`'s output, not its input, so the agent types the placeholder | 📋 Open (2026-07-27) | `server/src/variables.js` |
+| [BUG-003](bugs/BUG-003-agent-hangs-after-done.md) | An agent that hangs after `done` holds its slot until `RUN_TIMEOUT_SECONDS`, leaving `finished_at` null on a finished run | 📋 Open (2026-07-27) | `agent/run_agent.py` teardown |
 | [BUG-002](bugs/BUG-002-post-tests-drops-slug-grouping.md) | `POST /api/tests` silently drops `project` / `module` slug keys, filing the test ungrouped with a 201 | 🐛 Open (2026-07-26) | `server/src/routes/tests.js` |
-| [BUG-001](bugs/BUG-001-history-status-stuck-queued.md) | History shows a run as "Queued" while it is actually running | ✅ Fixed 2026-07-24 | `server/src/runs.js` |
+| [BUG-001](sprint/current/done/BUG-001-history-status-stuck-queued.md) | History shows a run as "Queued" while it is actually running | ✅ Fixed 2026-07-24 | `server/src/runs.js` |
 
 ## Released — `released/`
 
