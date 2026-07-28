@@ -98,6 +98,15 @@ export default function SchedulesView({ token }) {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
+  // A refusal the editor caused belongs to the editor: rendered on the page it
+  // sits behind the overlay, where the person who just pressed Create can't
+  // read it (the server refuses a schedule whose test has an unstored secret).
+  const [formError, setFormError] = useState(null);
+
+  const openEditor = (form) => {
+    setFormError(null);
+    setEditing(form);
+  };
 
   const load = useCallback(async () => {
     try {
@@ -122,15 +131,15 @@ export default function SchedulesView({ token }) {
     return () => clearInterval(timer);
   }, [load]);
 
-  async function mutate(label, fn) {
+  async function mutate(label, fn, report = setError) {
     setBusy(true);
-    setError(null);
+    report(null);
     try {
       await fn();
       setEditing(null);
       await load();
     } catch (err) {
-      setError(`${label}: ${err.message}`);
+      report(`${label}: ${err.message}`);
     } finally {
       setBusy(false);
     }
@@ -146,16 +155,21 @@ export default function SchedulesView({ token }) {
     if (form.kind === 'weekly') body.weekday = Number(form.weekday);
 
     if (form.id) {
-      mutate('Save schedule', () =>
-        api(`/api/schedules/${form.id}`, { token, method: 'PUT', body })
+      mutate(
+        'Save schedule',
+        () => api(`/api/schedules/${form.id}`, { token, method: 'PUT', body }),
+        setFormError
       );
     } else {
-      mutate('Create schedule', () =>
-        api('/api/schedules', {
-          token,
-          method: 'POST',
-          body: { ...body, [form.column]: form.target_id },
-        })
+      mutate(
+        'Create schedule',
+        () =>
+          api('/api/schedules', {
+            token,
+            method: 'POST',
+            body: { ...body, [form.column]: form.target_id },
+          }),
+        setFormError
       );
     }
   }
@@ -185,7 +199,7 @@ export default function SchedulesView({ token }) {
         title="Schedules"
         description="Tests, modules, suites and projects that run on their own — soonest first."
       >
-        <Button variant="primary" icon={Plus} onClick={() => setEditing(blankForm())}>
+        <Button variant="primary" icon={Plus} onClick={() => openEditor(blankForm())}>
           New schedule
         </Button>
       </PageHeader>
@@ -239,7 +253,7 @@ export default function SchedulesView({ token }) {
                   <IconButton
                     icon={Pencil}
                     label="Edit when this runs"
-                    onClick={() => setEditing(formFor(s))}
+                    onClick={() => openEditor(formFor(s))}
                   />
                   <IconButton
                     icon={Trash2}
@@ -261,9 +275,10 @@ export default function SchedulesView({ token }) {
           setForm={setEditing}
           token={token}
           busy={busy}
+          error={formError}
           onSubmit={save}
           onClose={() => setEditing(null)}
-          onError={setError}
+          onError={setFormError}
         />
       )}
     </>
@@ -279,7 +294,7 @@ export default function SchedulesView({ token }) {
  * The target is chosen only on create: an existing schedule keeps the thing it
  * was created for, so that `last_run_at` keeps meaning what it says.
  */
-function ScheduleEditor({ form, setForm, token, busy, onSubmit, onClose, onError }) {
+function ScheduleEditor({ form, setForm, token, busy, error, onSubmit, onClose, onError }) {
   const [targets, setTargets] = useState(null);
   const set = (patch) => setForm((cur) => ({ ...cur, ...patch }));
 
@@ -441,6 +456,13 @@ function ScheduleEditor({ form, setForm, token, busy, onSubmit, onClose, onError
         )}
 
         {form.kind && <p className="hint">{describeSchedule({ ...form, minute: Number(form.minute) })}</p>}
+
+        {error && (
+          <div className="error" role="alert">
+            <AlertTriangle size={14} aria-hidden="true" />
+            <span>{error}</span>
+          </div>
+        )}
 
         {/* Enter in a field submits the dialog. */}
         <button type="submit" hidden />
