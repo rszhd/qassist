@@ -51,7 +51,7 @@ Sprints aren't split along a self-host/hosted-tier line — `sprint/current/` an
 
 | ID | Story | Status | Depends on |
 |---|---|---|---|
-| [US-064](sprint/current/US-064-secret-variables-in-a-scheduled-run.md) | Secret variables in a scheduled run | 📋 Planned (filed and scheduled 2026-07-28) | US-035, US-010, US-043 |
+| [US-064](sprint/current/US-064-secret-variables-in-a-scheduled-run.md) | Secret variables in a scheduled run | 📋 Planned (filed and scheduled 2026-07-28; P1, approach settled the same day) | US-035, US-010, US-043 |
 | [US-063](sprint/current/US-063-capture-a-session-without-a-terminal.md) | Capture a session without a terminal (browser extension) | 📋 Planned (scheduled 2026-07-28) | US-043, US-021 |
 | [US-059](sprint/current/US-059-otp-and-social-login-in-tested-flows.md) | OTP and social login in a tested flow (was US-013 tiers 2–3) | 📋 Planned (tiered, scheduled 2026-07-28) | US-013 tier 1, US-043, US-035 |
 | [US-042](sprint/current/done/US-042-agent-navigation-confinement.md) | Confine where the agent may navigate | ✅ **Done** 2026-07-27, 5/6 — the fence is two settings, not one: `block_ip_addresses` does not stop `localhost` despite its docstring. The sixth (a live redirect) is wired, not provable in any test tier | US-021 |
@@ -222,13 +222,25 @@ story above it made the queue busier.
   optional secret types an empty string into the password field. It is in this
   sprint rather than behind its own priority because [BUG-005](bugs/BUG-005-scheduler-counts-unstarted-members-as-runs.md)
   makes both outcomes invisible — the tick counts the dropped member as a run —
-  and the two are cheapest read together. What it is *not* is the login case:
-  US-043 sessions already cover that on the scheduled path, which is why the
-  story's first task is establishing that a non-login secret typed mid-run is
-  real for someone. If it isn't, the answer is to refuse the schedule at save
-  and the story is a day. If it is, it puts a secret value at rest for the first
-  time and is correctness-critical, so the assertions get written and reviewed
-  first — this is an amendment to US-035's "never persisted", not a gap in it.
+  and the two are cheapest read together. Filed believing the login case was
+  already US-043's, which made the story's first task establishing that a
+  *non-login* secret typed mid-run is real for someone. **Reading the schema the
+  same day inverted that, and the story is now P1.** A session replays a
+  credential, so it covers every test *behind* a login — but the login test
+  itself cannot use one, because it is what produces one, and
+  [`015_browser_sessions.sql`](../db/migrations/015_browser_sessions.sql) already
+  promises that a passing run of `login_test_id` refreshes the row nightly "with
+  no new machinery". There is no channel for its password, so that refresh has
+  never run. The motivating case is not a coupon code; it is the credential
+  US-043 is built around, and "log in every morning to prove login works" is the
+  same run. Approach settled the same day: **B** — encrypt the value on the
+  test's own declaration, because the secret is a property of the test, not of
+  the firing. **A** — a copy per schedule row — was rejected for giving one
+  credential two sources of truth, fixing only the scheduled path, and being
+  unable to give two suite members different values for one variable name. It
+  puts a secret value at rest for the first time either way and is
+  correctness-critical, so the assertions get written and reviewed first — this
+  is an amendment to US-035's "never persisted", not a gap in it.
 - **US-059 + US-063** (2026-07-28, from `unscheduled/`) — scheduled the day
   after they were filed, and together, because they are one gap read from two
   ends: what a tested flow's login needs (US-059) and how a person who does not
