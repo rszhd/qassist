@@ -61,6 +61,13 @@ keep it that way when adding features.
   The move re-bases links **both ways** — the ones inside the moved file and the
   ones pointing at it — so run `node scripts/check-doc-links.mjs` after it. CI
   runs it too, but on a PR into `dev`, which is late.
+  **`backlog/README.md` gets the same treatment as the register** — re-read the
+  whole file before appending to it, and check the tables still render. It was
+  cut 7,400 → 3,285 words on 2026-07-27 and was back to 6,063 the next day,
+  because each append restated results and move-rationale the story file already
+  held, and one had merged two rows of a table into one line unnoticed. It is the
+  index: rows are verdict + date, and *why a story moved sprint* is that story's
+  Status, not a running commentary here.
 - `docs/api.md` — the HTTP surface. A new endpoint is documented **here**, not
   in `README.md`; the README keeps only the four calls that get a first run out
   of the box and links here for the rest.
