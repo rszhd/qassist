@@ -4,10 +4,9 @@
 start already authenticated, **so that** my suite tests the product instead of
 testing my login form twenty times.
 
-- **Status:** 🔨 **Built** 2026-07-27, 5/6. Row added to
+- **Status:** ✅ **Done** 2026-07-27, 6/6. Row added to
   [`correctness-critical.md`](../../correctness-critical.md) as part of doing
   the work; assertions written and reviewed before `browserSession.js` existed.
-  Open on AC #6 alone — see "Results".
 - **Priority:** was P2 of the next sprint (scheduled 2026-07-27), pulled up and
   built the same day. It arrived **without US-041**, which this file says it
   wants first; that is unchanged and unresolved — a reusable session makes
@@ -90,7 +89,7 @@ most common wasted steps from every run in the project.
 - [x] A project can define an `initial_actions` preamble that runs before the
       agent's first LLM step, and a run's step numbering makes clear the preamble
       was not charged as steps
-- [ ] Measured: steps and wall-clock for one representative test with and
+- [x] Measured: steps and wall-clock for one representative test with and
       without a session, recorded in this file (the README asks for numbers)
 
 ## Results
@@ -250,18 +249,44 @@ passing run, and then read back to start a later run authenticated. That is
 what surfaced the closed-browser export and the dropped localStorage — neither
 was visible from any test tier, and both are recorded above.
 
-### AC #6 is not met, and cannot be met from here
+### AC #6 — measured
 
-The measurement wants steps and wall-clock for a representative test with and
-without a session. That needs a real login-protected target and a real BYOK key
-spending real tokens; it is the same class of gap as US-048's "the end-to-end
-upload is hand-verified, not tested". Everything up to the browser is proven —
-the blob reaches a file the child opens, the preamble reaches the spawn, the
-steps a run is charged for start at 1 — but the number the README asks for is a
-live run's, and it is owed before this story is ✅.
+Against `https://demowebshop.tricentis.com/`, on the account the `Register` test
+created and the session that same run captured. One end state — the My account
+page with the Customer info form — reached two ways. Two runs each; the goals
+differ only in that **A has to sign in and B starts signed in**, which is the
+whole of what the feature changes.
 
-The prediction the number is meant to test, stated up front so it can be wrong:
-the story claims ~6 steps and ~40s per run. The preamble replaces the cookie
-banner steps at zero tokens and `storage_state` replaces the rest, so the
-expectation is the login steps disappearing entirely rather than getting
-cheaper.
+| variant | verdict | steps | wall-clock |
+|---|---|---|---|
+| **A** — login in the goal, no session (today) | passed, passed | 5, 5 | 63.1s, 56.1s |
+| **B** — same end state, session attached | passed, passed | 3, 3 | 36.1s, 35.1s |
+| **control** — B's goal, *no* session | failed | 3 | 44.1s |
+
+**2 steps and ~24 seconds per run, about 40% of both.** The control is the
+load-bearing row: B's goal without a session *fails*, so the saving is the
+session doing the work and not the goal being easier.
+
+Read it with three caveats. n=2 per variant and LLM runs are noisy. Wall-clock
+is measured submit→verdict rather than from `finished_at`, because an agent that
+hangs after `done` leaves that column null for up to `RUN_TIMEOUT_SECONDS`
+(BUG-003, found doing this) — and submit→verdict is the number a user waits
+anyway. And demowebshop's login is a plain two-field form with no cookie banner,
+no MFA and no SSO; a heavier flow is where the preamble and the session pay for
+themselves properly.
+
+**The prediction was optimistic.** This file claimed ~6 steps and ~40s. The real
+saving on this target is 2 steps and 24s. The shape of the claim held — the
+login steps disappear entirely rather than getting cheaper — but the size of it
+was guessed high, which is worth remembering the next time a story quotes a
+number before anyone has run it.
+
+One more thing the measurement itself taught, at the cost of one wasted run: the
+first attempt wrote `<secret>name</secret>` into the goal directly. That is
+`resolveForRun`'s *output*, not its input — `referencedNames` looks for
+`{{name}}`, found none, shipped an empty `QA_VARS`, and the agent typed the
+placeholder into the login form verbatim. The failure is legible after the fact
+and completely opaque before it. US-034 teaches the `<secret>` spelling for
+email codes, so a user meeting both features can reasonably write it by hand and
+get this. Not fixed here — it is a US-034/US-035 seam, not this story's — but
+worth a validation that rejects a literal `<secret>` in a saved goal.
