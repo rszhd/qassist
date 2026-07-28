@@ -110,6 +110,39 @@ curl http://<host>:8080/api/projects/checkout \
 Deleting a module or project never deletes tests — they fall back to
 Ungrouped. Deleting a project does take its suites with it.
 
+### Variables, and the secret ones
+
+A test declares `variables`; the goal and `start_url` reference them as
+`{{name}}`, and a run overrides any of them (`docs/ci.md` covers the CI body).
+
+```bash
+curl -X POST http://<host>:8080/api/tests \
+  -H "Authorization: Bearer $WORKER_API_TOKEN" -H "Content-Type: application/json" \
+  -d '{"name":"admin login","goal":"log in as {{user}} with {{pw}}",
+       "start_url":"https://example.com/login",
+       "variables":[{"name":"user","value":"admin"},
+                    {"name":"pw","value":"hunter2","secret":true}]}'
+# -> "variables":[{"name":"user","value":"admin","secret":false,"optional":false},
+#                 {"name":"pw","value":"","secret":true,"optional":false,"value_set":true}]
+```
+
+A `secret`'s value is stored **encrypted** and is never returned by any
+endpoint — reads carry `value_set` instead, and that is the only thing they say
+about it. It reaches the browser as `sensitive_data`, so it is never in the
+run's goal, its history row, or a report.
+
+On a write, the secret's box is therefore three-state: **blank (or absent)
+keeps** what is stored, a **non-empty value replaces** it, and
+`{"name":"pw","secret":true,"clear":true}` **removes** it. Blank has to mean
+keep, because a client that GETs a test and PUTs it back is sending back a
+value it was never allowed to read. Dropping the declaration, or unticking
+`secret`, removes the stored value too.
+
+At run time the order is **override > stored > declared default**, except that
+an empty override never displaces a stored secret — a blank password box means
+"I didn't type one", not "run without it". A required secret with none of the
+three rejects the run with a 400.
+
 ## Schedules
 
 `POST /api/schedules` runs any of those four things on a repeating slot. The
@@ -148,6 +181,12 @@ A slot fires once even if the server was down for several — missed slots are
 not replayed. A test with a run still `queued` or `running` is skipped for
 that slot while its siblings in the same suite go ahead. Deleting the target
 deletes its schedules.
+
+A schedule has nobody to ask for a secret, so it uses the value stored on the
+test, and a write is **refused** if any target test needs one it hasn't got —
+naming the test and the variable. Turning a schedule off is exempt: a disabled
+schedule fires into nothing, and refusing that edit would put the fix behind
+the refusal.
 
 `last_run_at` means a run actually started, not that the slot came round:
 taking the slot advances `next_run_at` alone, and a slot that started nothing —

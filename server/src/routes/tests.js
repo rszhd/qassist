@@ -11,10 +11,17 @@ import {
   RUNNABLE_TEST_COLS, RUNNABLE_TEST_FROM,
 } from './helpers.js';
 import {
-  normalizeDeclarations, validateReferences, validateSecretTags, resolveForRun,
+  normalizeDeclarations, validateReferences, validateSecretTags, resolveForRun, secretWrites,
 } from '../variables.js';
 import { sessionsForTests, preambleForRun } from '../browserSession.js';
+import { applySecretWrites, secretsForTests, withSecretState } from '../testSecrets.js';
 
+// A stored secret's ciphertext is deliberately NOT reachable from here: it
+// lives in `test_secrets` (US-064), which nothing that answers a request
+// selects, so "it never leaves in a response" is a property of the schema
+// rather than of remembering to mask at each of the four sites below. What each
+// of those does add is `withSecretState` — the set/not-set flag, which is the
+// only thing a secret ever tells a caller about its value.
 const COLS =
   'id, name, goal, start_url, max_steps, model, variables, project_id, module_id, ' +
   'browser_session_id, created_at, updated_at';
@@ -116,7 +123,7 @@ export function testsRouter({ checkToken }) {
         `select ${COLS} from tests where ${where.join(' and ')} order by created_at desc`,
         params
       );
-      res.json({ tests: rows });
+      res.json({ tests: await withSecretState(rows) });
     })
   );
 
@@ -129,6 +136,10 @@ export function testsRouter({ checkToken }) {
       }
       const decl = normalizeDeclarations(variables);
       if ('error' in decl) return res.status(400).json({ error: decl.error });
+      // What the same array asks to do to the encrypted column, which is where
+      // a secret's value goes — `decl.variables` has already had it blanked out
+      // (US-064).
+      const writes = secretWrites(variables);
       const refError = validateReferences(decl.variables, goal, start_url);
       if (refError) return res.status(400).json({ error: refError });
       const tagError = validateSecretTags({ goal, start_url });
@@ -154,7 +165,8 @@ export function testsRouter({ checkToken }) {
           session.sessionId ?? null,
         ]
       );
-      res.status(201).json(rows[0]);
+      await applySecretWrites(rows[0].id, writes, decl.variables);
+      res.status(201).json((await withSecretState(rows))[0]);
     })
   );
 
@@ -167,7 +179,7 @@ export function testsRouter({ checkToken }) {
         currentUserId(),
       ]);
       if (!rows.length) return res.status(404).json({ error: 'not found' });
-      res.json(rows[0]);
+      res.json((await withSecretState(rows))[0]);
     })
   );
 
@@ -250,7 +262,15 @@ export function testsRouter({ checkToken }) {
         ]
       );
       if (!rows.length) return res.status(404).json({ error: 'not found' });
-      res.json(rows[0]);
+      // The same seam the declaration itself uses: `variables === undefined`
+      // means "leave unchanged", and a stored secret has to obey that word for
+      // word. Within a write that DOES carry the array, blank means keep —
+      // TestDialog PUTs back the masked array it was given, so anything else
+      // wipes a credential during a rename (US-064).
+      if (variables !== undefined) {
+        await applySecretWrites(req.params.id, secretWrites(variables), decl.variables);
+      }
+      res.json((await withSecretState(rows))[0]);
     })
   );
 
@@ -290,9 +310,15 @@ export function testsRouter({ checkToken }) {
       if (!rows.length) return res.status(404).json({ error: 'not found' });
       const test = rows[0];
       const body = /** @type {any} */ (req.body || {});
+      // The stored secrets, decrypted before the synchronous run engine is
+      // entered (US-064) — the same pre-resolve the session blob and the BYOK
+      // key already get, and for the same reason.
+      const secrets = (await secretsForTests([test])).get(test.id) || {};
+      if (secrets.error) return res.status(400).json({ error: secrets.error });
       const resolved = resolveForRun({
         variables: test.variables,
         overrides: body.variables,
+        stored: secrets.values,
         goal: test.goal,
         start_url: body.start_url || test.start_url,
       });

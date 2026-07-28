@@ -8,6 +8,7 @@ import { billingEnabled } from '../billing.js';
 import { runGateFor, retryAfterSeconds } from '../activation.js';
 import { refreshUserConcurrencyCap } from '../concurrency.js';
 import { sessionsForTests } from '../browserSession.js';
+import { secretsForTests } from '../testSecrets.js';
 
 /**
  * The columns a run needs off a saved test, plus the owning project's
@@ -228,6 +229,7 @@ export async function runTestsFromRequest(tests, body = {}, openaiApiKey = null)
     trigger: TRIGGERS.has(body.trigger) ? body.trigger : 'api',
     openai_api_key: openaiApiKey,
     sessions: await sessionsForTests(tests),
+    storedSecrets: await secretsForTests(tests),
   });
 }
 

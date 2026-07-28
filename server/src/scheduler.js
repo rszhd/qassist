@@ -12,6 +12,7 @@ import { db } from './db.js';
 import { demoMode } from './auth.js';
 import { runTests } from './runs.js';
 import { sessionsForTests } from './browserSession.js';
+import { secretsForTests } from './testSecrets.js';
 import { refreshUserConcurrencyCap } from './concurrency.js';
 import { runGateFor } from './activation.js';
 import { getUserOpenaiKey } from './openaiKey.js';
@@ -27,16 +28,25 @@ const COLS =
 // The owning project's navigation allowlist rides along with every scheduled
 // target too (US-042) — a schedule fires with no human watching, so it is the
 // path where an unfenced run would go unnoticed longest.
-const TEST_COLS = 't.id, t.goal, t.start_url, t.max_steps, t.model, t.variables, p.allowed_domains';
+// `t.name` is here for the schedules route rather than for the tick: US-064's
+// save-time refusal names the member it is refusing for, and a schedule with
+// eight tests in it is unactionable otherwise.
+const TEST_COLS =
+  't.id, t.name, t.goal, t.start_url, t.max_steps, t.model, t.variables, p.allowed_domains';
 const TEST_FROM = 'tests t left join projects p on p.id = t.project_id';
 
 /**
  * Resolve a schedule's target to the tests it runs, in the order the matching
  * HTTP route would run them. Which foreign key is set *is* the target type —
  * the table's check constraint guarantees exactly one.
+ *
+ * Exported for `routes/schedules.js`, which asks the same question at SAVE time
+ * that this asks at fire time (US-064). Written twice they could disagree about
+ * what a schedule would do, which is the drift BUG-006 already cost us once in
+ * the target counts.
  * @param {any} schedule
  */
-async function testsOf(schedule) {
+export async function testsOf(schedule) {
   if (schedule.test_id) {
     const { rows } = await db().query(`select ${TEST_COLS} from ${TEST_FROM} where t.id = $1`, [
       schedule.test_id,
@@ -279,6 +289,11 @@ export async function tick(now = Date.now()) {
       // Nightly refresh is the whole refresh story, so this is the path that
       // matters most: a schedule is what re-runs the login test.
       sessions: await sessionsForTests(ready),
+      // And the credential that login test types (US-064). Until this existed
+      // the tick passed no variables at all, so the one test that must type a
+      // real password every night was the one test a schedule could not fire —
+      // and 015's nightly session refresh was a promise nothing kept.
+      storedSecrets: await secretsForTests(ready),
     });
     // A member can come back having started nothing, and more than one way:
     // the navigation fence refused it (US-042), or it could not resolve — a

@@ -4,10 +4,10 @@
 has to type, **I want** a schedule to supply its secret variables, **so that**
 the tests I can run by hand are the tests I can run at 02:00.
 
-- **Status:** 📋 Planned — filed 2026-07-28 out of the question "during a run
-  using the scheduler, what about the secret variables?", which has no answer:
-  there is no channel. Scheduled into `sprint/current/` the same day.
-  **Approach settled 2026-07-28: B, with C.** See "Approaches".
+- **Status:** ✅ Done 2026-07-28 — filed the same day out of the question
+  "during a run using the scheduler, what about the secret variables?", which
+  had no answer: there was no channel. **Approach B, with C**, as settled — with
+  one deviation in where the ciphertext lives, recorded under "What was built".
 - **Priority:** P1, raised from P2 the day it was filed. The demand question
   this story was going to open with is already answered, and by our own schema:
   migration 015 says a passing run of a session's `login_test_id` refreshes the
@@ -15,13 +15,13 @@ the tests I can run by hand are the tests I can run at 02:00.
   already fixes nightly, with no new machinery". That nightly refresh has never
   been able to run — see "What US-043 covers". A shipped feature whose stated
   maintenance path does not execute outranks a coupon code.
-- **Depends on:** [US-035](done/US-035-run-variables.md) (the contract this
-  amends), [US-010](done/US-010-scheduled-runs.md),
-  [US-021](done/US-021-signup-auth.md). It does not duplicate
-  [US-043](done/US-043-reusable-authenticated-sessions.md), it **completes** it —
+- **Depends on:** [US-035](US-035-run-variables.md) (the contract this
+  amends), [US-010](US-010-scheduled-runs.md),
+  [US-021](US-021-signup-auth.md). It does not duplicate
+  [US-043](US-043-reusable-authenticated-sessions.md), it **completes** it —
   the nightly session refresh that story designed cannot run without this
   channel. See "What US-043 covers, and the one thing it cannot".
-- **Not** [BUG-005](done/BUG-005-scheduler-counts-unstarted-members-as-runs.md),
+- **Not** [BUG-005](BUG-005-scheduler-counts-unstarted-members-as-runs.md),
   which is the reason this gap is currently invisible rather than the gap itself.
   That one is a defect and stands on its own; fix it whether or not this story
   is ever built.
@@ -84,7 +84,7 @@ work does not wait on this story.
 **But the login test itself cannot use a session, because it is what produces
 one.** It is the single test that must type a real credential on every run — and
 US-043 already assumed it would do that on a schedule.
-[`015_browser_sessions.sql`](../../../db/migrations/015_browser_sessions.sql),
+[`015_browser_sessions.sql`](../../../../db/migrations/015_browser_sessions.sql),
 on `login_test_id`:
 
 > The test whose job is to authenticate. A passing run of it refreshes this row,
@@ -186,7 +186,7 @@ the implementation:
   standing obligation survivable, and it is worth an assertion of its own: the
   column is never selected into anything that reaches a response.
 
-**Add a row to [`correctness-critical.md`](../../correctness-critical.md) as
+**Add a row to [`correctness-critical.md`](../../../correctness-critical.md) as
 part of doing this**, next to the existing "Secret variables (US-035)" row —
 the register's rule is that the row lands with the work, not before it.
 
@@ -225,3 +225,105 @@ sprays every member (US-035 group semantics).
 7. The US-043 path is otherwise untouched: a scheduled test *behind* a login,
    with a saved session, still needs no secret variable.
 8. `variables.test.js`'s existing secret block passes unchanged.
+
+## What was built
+
+All eight met. `017_test_secrets.sql`, `server/src/testSecrets.js`, the four
+`variables.js` functions below, the three run paths, option C on the schedule
+routes, and the editor.
+
+**The one deviation from B as written: the ciphertext is a table, not a field
+inside `tests.variables`.** B said "`tests.variables[].value` encrypted", and
+that collides with this story's own last assertion — *the column is never
+selected into anything that reaches a response*. `variables` is in the `COLS`
+constant all four test endpoints select, so ciphertext inside it ships in every
+response body and masking becomes a discipline repeated at four sites forever,
+which the fifth site added next year does not inherit. `test_secrets
+(test_id, name, value_ciphertext)` makes that property structural instead, keeps
+the `bytea` envelope US-005 and US-043 already use rather than base64 inside
+jsonb, and — because it is keyed by name — answers the editor's set/not-set
+state with `select name`, so **no read path decrypts anything at all**. That is
+what keeps "plaintext exists only between decrypt and `resolveForRun`" literally
+true rather than approximately. Everything else about B is unchanged: the secret
+is a property of the test, and manual, CI and scheduled runs were all fixed by
+the one change because all three already read the declaration.
+
+The register's standing obligation is correspondingly smaller than B was
+accepted with: a future endpoint that forgets to mask leaks nothing, because
+there is nothing in the columns it selects to leak.
+
+### The decisions, and what each one is protecting against
+
+Numbered as D1-D17 across the three spec files (`variables.test.js` D1-D6,
+`test-secrets.test.js` D7-D14, `test-secrets-postgres.test.js` D15-D17).
+
+- **Blank means keep, non-empty means replace, `clear: true` means clear.**
+  The read-modify-write hazard was the real risk and it landed exactly where
+  the story predicted: `TestDialog` GETs the array, holds it in editor state and
+  PUTs the whole thing back, so any other reading of blank wipes the credential
+  during a rename. `clear` is an explicit flag rather than `value: null` —
+  `null` was free (it is currently rejected) but a client that serializes an
+  untouched field as null would then silently erase a stored secret, and this is
+  the one edit whose damage is invisible for a fortnight.
+- **The merge seam is the update route's existing `variables === undefined` ⇒
+  leave unchanged.** The decision itself is pure (`secretWrites` in
+  `variables.js`); only the encrypt-and-write half needs the DB, which is why
+  `variables.js` could stay DB-free as designed.
+- **An empty override never displaces a stored secret.** Not in the story, and
+  it would have broken every manual run of a test with one: `RunVarsDialog`
+  prefills from `v.value` — masked, so empty — and PUTs every declared name, so
+  `''` arrives as a *present* key. `||` rather than `??` in `resolveForRun`, and
+  the frontend drops blank secret boxes before sending as well.
+- **An optional secret with nothing to resolve now behaves like an empty
+  optional plain variable** (AC #6): the reference substitutes empty, nothing is
+  routed on the `secrets` channel, and the run row records `''` rather than the
+  `'<secret>'` presence marker. Marking presence for a value nobody supplied is
+  the same lie one layer up, and history is where it would be believed longest.
+- **Option C skips the check when the result is disabled.** Refusing to let
+  someone turn OFF a schedule whose target is broken puts the fix behind the
+  refusal. A disabled schedule fires into nothing, so there is nothing to
+  protect it from.
+- **`testsOf` is now exported from `scheduler.js`** and is what the schedule
+  route validates against, so the save-time question and the 02:00 question
+  cannot disagree about what a schedule would do — the drift BUG-006 already
+  cost us once in the target counts.
+- **C stayed scoped to secrets, as AC #5 words it.** The identical failure
+  exists for a *required non-secret* variable with no default — same dropped
+  member, same silent 02:00, and `unresolvableSecrets` is two characters from
+  covering it. Left alone deliberately: widening it would start refusing PUTs on
+  schedules that exist today. Worth its own line if it ever bites.
+
+### What the tests hold up, and where
+
+- `variables.test.js` — the pure rules. Its existing US-035 secret block passes
+  unchanged (AC #8), which is the point: the amendment adds a source of a value
+  and changes nothing about where one may go.
+- `test-secrets.test.js` — storage, masking over the **response body** (so a
+  fifth column-list site fails rather than inherits), the three-state write, the
+  run paths, and C's refusals. The set-state assertion corrupts the ciphertext
+  first: if any read path ever decrypts, that test throws, which is the only
+  way to prove a negative like "reads don't decrypt".
+- `test-secrets-postgres.test.js` — the `bytea` round trip through the product's
+  own parameter binding, which pg-mem cannot hold up at all (`byteaPool` papers
+  over exactly the defect worth catching), plus the `on delete cascade` and a
+  rotated-key refusal.
+- `scheduler.test.js` — the same schedule over the same declaration that the
+  pre-existing "a member whose required variable cannot resolve is not counted as
+  a run" test proves starts *nothing*, now starts a run; the 015 nightly refresh
+  (AC #2); an undecryptable secret skipping the member; and no secret in any log
+  line.
+- `RunView.test.jsx` — "drops the stored default when a variable is marked
+  secret" was rewritten, not loosened. Ticking Secret used to clear the value
+  because nothing was allowed to persist one; it now masks the field and keeps
+  it. The comment above it says which behaviour changed and why, per the red-test
+  rule.
+
+### Left undone
+
+Nothing in scope. Two adjacent things, neither this story's:
+
+- The required *non-secret* variable case above.
+- Renaming a secret variable orphans its stored value — it reads as not-set
+  under the new name. Honest rather than fixable: the value cannot be read back
+  to carry across a rename, and the alternative is a stored secret silently
+  answering to a name nobody set it for.

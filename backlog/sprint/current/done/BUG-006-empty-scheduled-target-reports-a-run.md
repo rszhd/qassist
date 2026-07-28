@@ -165,5 +165,5 @@ claim itself, now asserting `last_run_at` stays null, and the `target_tests`
 type. The two BUG-005 tests gained a `last_run_at` assertion each, which is the
 same defect seen from the other side: a batch where every member was dropped
 started nothing, and must not claim it ran. That is the shape
-[US-064](../US-064-secret-variables-in-a-scheduled-run.md)'s
+[US-064](US-064-secret-variables-in-a-scheduled-run.md)'s
 undecryptable secret will arrive in.

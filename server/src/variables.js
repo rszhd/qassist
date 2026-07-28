@@ -15,6 +15,19 @@
 // agent as `QA_VARS` (browser-use `sensitive_data`). The goal keeps a
 // `<secret>name</secret>` placeholder — the same one US-034 already teaches the
 // agent — so the browser substitutes the value at type-time, not the server.
+//
+// US-035 said that value is never persisted, and it held because someone was
+// present to supply it. A schedule fires with nobody there, so US-064 amends
+// the sentence rather than dropping it:
+//
+//   a secret's value is never persisted UNENCRYPTED, never returned by any
+//   endpoint, and never denormalized onto a run.
+//
+// Everything given up is "never persisted at all"; the stored value lives
+// encrypted in `test_secrets` (017), reaches this module as `stored` on the
+// three paths that start a run, and never touches `tests.variables` — which is
+// why `normalizeDeclarations` blanks a secret's value out of the declaration and
+// `secretWrites` is the only thing that carries it anywhere.
 
 const NAME_RE = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
 // Deliberately the same identifier grammar as NAME_RE so a reference can only
@@ -68,12 +81,72 @@ export function normalizeDeclarations(raw) {
     }
     variables.push({
       name,
-      value: value ?? '',
+      // A secret's value never enters what is stored as jsonb (US-064). It
+      // arrives on this same array — one editor, one PUT — so the split happens
+      // here rather than being remembered at each write site, and a caller that
+      // only knows the US-035 API cannot write plaintext by accident.
+      // `secretWrites` is what carries it to the encrypted column.
+      value: secret ? '' : value ?? '',
       secret: secret ?? false,
       optional: optional ?? false,
     });
   }
   return { variables };
+}
+
+/**
+ * What a write asks to do to the *stored* values behind its secret
+ * declarations. Three-state, because the field is never readable: a blank box
+ * means keep what is stored, a non-empty one means replace it, and `clear`
+ * means remove it.
+ *
+ * The first state is the one that matters. `TestDialog` loads the array a GET
+ * returned — masked — and PUTs the whole thing back, so without "blank means
+ * keep" a rename of the test wipes the credential, silently, and it surfaces as
+ * a failed run at 02:00 a fortnight later.
+ *
+ * Pure and DB-free like the rest of this module: it says what should happen, and
+ * `routes/tests.js` is what encrypts and writes.
+ * @param {unknown} raw the incoming declaration array, before normalization
+ * @returns {{ set: Record<string, string>, clear: string[] }}
+ */
+export function secretWrites(raw) {
+  /** @type {Record<string, string>} */
+  const set = {};
+  /** @type {string[]} */
+  const clear = [];
+  if (!Array.isArray(raw)) return { set, clear };
+  for (const entry of raw) {
+    if (!entry || typeof entry !== 'object') continue;
+    const { name, value, secret } = /** @type {any} */ (entry);
+    if (secret !== true || typeof name !== 'string' || !NAME_RE.test(name)) continue;
+    // Both spellings at once is a client bug, and clear is the destructive
+    // reading of it — obey that rather than storing a value someone asked to
+    // remove.
+    if (/** @type {any} */ (entry).clear) clear.push(name);
+    else if (typeof value === 'string' && value) set[name] = value;
+  }
+  return { set, clear };
+}
+
+/**
+ * The referenced, required secrets a test has nothing to resolve from — what a
+ * schedule over it would fire into at 02:00 (US-064 option C).
+ *
+ * Answered from the *names* that have a stored value, so validating a schedule
+ * decrypts nothing. The same rule `resolveForRun` applies below; the pairing is
+ * asserted rather than assumed, because two spellings of "required and empty"
+ * that drift apart give you a save the tick then refuses.
+ * @param {{ variables?: Array<{name: string, value: string, secret: boolean, optional: boolean}>,
+ *          storedNames?: string[], goal?: string|null, start_url?: string|null }} input
+ * @returns {string[]}
+ */
+export function unresolvableSecrets({ variables = [], storedNames = [], goal, start_url }) {
+  const used = referencedNames(goal, start_url);
+  const have = new Set(storedNames);
+  return variables
+    .filter((v) => v.secret && !v.optional && used.has(v.name) && !v.value && !have.has(v.name))
+    .map((v) => v.name);
 }
 
 /**
@@ -150,11 +223,18 @@ export function validateSecretTags({ goal, start_url }) {
  * naming a variable this test doesn't declare are ignored — a group override
  * sprays every member test and each fills only the names it knows (US-035 group
  * semantics).
+ *
+ * `stored` is the decrypted `test_secrets` map for this test (US-064), resolved
+ * by the async caller before the synchronous run engine is entered — the same
+ * shape `sessionsForTests` and the BYOK key already arrive in. Precedence is
+ * override > stored > declaration, decided here because this is the one place
+ * the manual, CI and scheduled paths already share.
  * @param {{ variables?: Array<{name: string, value: string, secret: boolean, optional: boolean}>,
- *          overrides?: Record<string, string> | null, goal: string, start_url: string }} input
+ *          overrides?: Record<string, string> | null, stored?: Record<string, string> | null,
+ *          goal: string, start_url: string }} input
  * @returns {{ error: string } | { goal: string, start_url: string, variables: Record<string, string>, secrets: Record<string, string> }}
  */
-export function resolveForRun({ variables = [], overrides, goal, start_url }) {
+export function resolveForRun({ variables = [], overrides, stored, goal, start_url }) {
   const usedInUrl = referencedNames(start_url);
   const used = referencedNames(goal, start_url);
   const resolved = {};
@@ -164,19 +244,38 @@ export function resolveForRun({ variables = [], overrides, goal, start_url }) {
     const override = overrides && Object.prototype.hasOwnProperty.call(overrides, v.name)
       ? overrides[v.name]
       : undefined;
-    const value = override ?? v.value;
     if (v.secret) {
       if (usedInUrl.has(v.name)) {
         return { error: `secret variable ${v.name} cannot appear in start_url` };
       }
-      resolved[v.name] = '<secret>';
-      if (used.has(v.name)) {
-        if (!v.optional && !value) return { error: `variable ${v.name} is required` };
-        secrets[v.name] = value;
-        subMap[v.name] = `<secret>${v.name}</secret>`;
+      // `||`, not `??`: an EMPTY override must not defeat a stored secret. The
+      // override dialog prefills from the declaration — masked, so empty — and
+      // sends every declared name, which means `''` arrives as a present key on
+      // every manual run of a test that has one. Read as an override it would
+      // break all of them, and there is nothing else `''` from a never-readable
+      // box could usefully mean.
+      const value = override || (stored && stored[v.name]) || v.value;
+      if (!used.has(v.name)) {
+        resolved[v.name] = '<secret>';
+        continue;
       }
+      if (!value) {
+        if (!v.optional) return { error: `variable ${v.name} is required` };
+        // An optional secret with nothing to resolve behaves like an empty
+        // optional plain variable: no placeholder, nothing routed, and `''` in
+        // history rather than the presence marker. Emitting the placeholder
+        // with an empty value is what typed nothing into the password field and
+        // reported the app as broken.
+        resolved[v.name] = '';
+        subMap[v.name] = '';
+        continue;
+      }
+      resolved[v.name] = '<secret>';
+      secrets[v.name] = value;
+      subMap[v.name] = `<secret>${v.name}</secret>`;
       continue;
     }
+    const value = override ?? v.value;
     if (used.has(v.name) && !v.optional && !value) {
       return { error: `variable ${v.name} is required` };
     }

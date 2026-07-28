@@ -8,6 +8,9 @@
 import express from 'express';
 import { db, currentUserId, isUuid } from '../db.js';
 import { validateSchedule, nextSlot } from '../schedule.js';
+import { testsOf } from '../scheduler.js';
+import { unresolvableSecrets } from '../variables.js';
+import { storedSecretNames } from '../testSecrets.js';
 import { h, requireDb } from './helpers.js';
 
 const COLS =
@@ -90,6 +93,47 @@ async function resolveTarget(body) {
   return { column, id };
 }
 
+/**
+ * Refuse at save what the tick could not resolve at 02:00 (US-064 option C).
+ *
+ * A required secret with no stored value drops its member and writes no run row
+ * at all — nothing in history, nothing in Activity, nothing to attach a failure
+ * mail to. The tick still reports it (BUG-005 counts it under `unstarted` and
+ * logs the reason), but that is a line in a log read by nobody at 3am, whereas
+ * this is an error message in front of the person who can fix it.
+ *
+ * Asked against real state — "is there a value stored for this?" — which is
+ * only possible because US-064 stores it on the test. It decrypts nothing:
+ * presence is the whole question.
+ *
+ * Skipped when the result is DISABLED, and that exception is not politeness. A
+ * disabled schedule fires into nothing, so there is nothing to protect it from;
+ * refusing the edit would leave the operator's only way out of a broken
+ * schedule — turning it off — behind the refusal itself.
+ * @param {{ test_id?: string|null, module_id?: string|null, suite_id?: string|null, project_id?: string|null }} target
+ * @returns {Promise<string | null>} the reason to refuse, or null
+ */
+async function unresolvableTarget(target) {
+  const { tests } = await testsOf(target);
+  if (!tests.length) return null;
+  const stored = await storedSecretNames(tests.map((t) => t.id));
+  for (const t of tests) {
+    const missing = unresolvableSecrets({
+      variables: t.variables || [],
+      storedNames: [...(stored.get(t.id) || [])],
+      goal: t.goal,
+      start_url: t.start_url,
+    });
+    if (missing.length) {
+      return (
+        `"${t.name}" has no stored value for ${missing.length === 1 ? 'the secret variable' : 'the secret variables'} ` +
+        `${missing.join(', ')} — a scheduled run has nobody to ask for it, so set it on the test first`
+      );
+    }
+  }
+  return null;
+}
+
 /** @param {{ checkToken: import('express').RequestHandler }} deps */
 export function schedulesRouter({ checkToken }) {
   const r = express.Router();
@@ -128,6 +172,10 @@ export function schedulesRouter({ checkToken }) {
 
       const schedule = checked.schedule;
       const enabled = body.enabled === undefined ? true : !!body.enabled;
+      if (enabled) {
+        const refusal = await unresolvableTarget({ [target.column]: target.id });
+        if (refusal) return res.status(400).json({ error: refusal });
+      }
       const { rows } = await db().query(
         `insert into schedules (user_id, ${target.column}, kind, interval_hours, hour,
                                 minute, weekday, tz, enabled, next_run_at)
@@ -172,6 +220,10 @@ export function schedulesRouter({ checkToken }) {
 
       const schedule = checked.schedule;
       const enabled = body.enabled === undefined ? existing[0].enabled : !!body.enabled;
+      if (enabled) {
+        const refusal = await unresolvableTarget(existing[0]);
+        if (refusal) return res.status(400).json({ error: refusal });
+      }
       const { rows } = await db().query(
         `update schedules
             set kind = $2, interval_hours = $3, hour = $4, minute = $5, weekday = $6,

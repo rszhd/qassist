@@ -139,11 +139,18 @@ export function TestDialog({
  * case: with none declared it is a single quiet "Add variable" button, so a
  * test that needs no variables looks exactly like the pre-US-035 dialog. Each
  * variable is a name and a default value; the goal/URL reference it as
- * `{{name}}` and a run can override it. A **secret** carries no stored default
- * (its value arrives per run or from CI, never persisted); an **optional** one
- * may resolve empty.
+ * `{{name}}` and a run can override it. An **optional** one may resolve empty.
+ *
+ * A **secret**'s value is stored encrypted and never read back (US-064), which
+ * is what a schedule needs — it fires with nobody there to type one. So the box
+ * is always empty on open and blank means *keep what is stored*, which in turn
+ * is why the row has to say whether anything is stored and offer an explicit
+ * clear. Without that pair, "leave it alone" and "erase it" are the same
+ * gesture.
  */
 function VariablesEditor({ variables, setVariables }) {
+  const secretPlaceholder = (v) =>
+    v.clear ? 'will be cleared on save' : v.value_set ? 'leave blank to keep' : 'value';
   const set = (i, changes) =>
     setVariables((cur) => cur.map((v, j) => (j === i ? { ...v, ...changes } : v)));
   const add = () => setVariables((cur) => [...cur, { name: '', value: '', secret: false, optional: false }]);
@@ -156,8 +163,8 @@ function VariablesEditor({ variables, setVariables }) {
           <span className="field-label">Variables</span>
           <p className="field-hint">
             Reference them in the goal or Start URL as <code>{'{{name}}'}</code>. Each run can
-            override the default. A <b>secret</b> is never stored or shown — its value is set per
-            run or by CI; an <b>optional</b> one may resolve empty.
+            override the default. A <b>secret</b> is stored encrypted and never shown again — leave
+            it blank to keep the stored value; an <b>optional</b> one may resolve empty.
           </p>
           {variables.map((v, i) => (
             <div className="var-row" key={i}>
@@ -169,16 +176,14 @@ function VariablesEditor({ variables, setVariables }) {
                   aria-label={`Variable ${i + 1} name`}
                   onChange={(e) => set(i, { name: e.target.value })}
                 />
-                {v.secret ? (
-                  <span className="var-note">value set per run / CI</span>
-                ) : (
-                  <input
-                    value={v.value}
-                    placeholder="default value"
-                    aria-label={`Variable ${i + 1} default value`}
-                    onChange={(e) => set(i, { value: e.target.value })}
-                  />
-                )}
+                <input
+                  type={v.secret ? 'password' : 'text'}
+                  value={v.value}
+                  placeholder={v.secret ? secretPlaceholder(v) : 'default value'}
+                  aria-label={`Variable ${i + 1} ${v.secret ? 'secret value' : 'default value'}`}
+                  // Typing is the answer to "did you mean to clear this?" — no.
+                  onChange={(e) => set(i, { value: e.target.value, clear: false })}
+                />
                 <IconButton icon={Trash2} variant="danger" label="Remove variable" onClick={() => remove(i)} />
               </div>
               <div className="var-flags">
@@ -186,9 +191,7 @@ function VariablesEditor({ variables, setVariables }) {
                   <input
                     type="checkbox"
                     checked={v.secret}
-                    // A secret carries no stored default — clear it on toggle so no
-                    // plaintext secret lands in tests.variables (US-035 secret path).
-                    onChange={(e) => set(i, e.target.checked ? { secret: true, value: '' } : { secret: false })}
+                    onChange={(e) => set(i, { secret: e.target.checked, clear: false })}
                   />
                   Secret
                 </label>
@@ -200,6 +203,23 @@ function VariablesEditor({ variables, setVariables }) {
                   />
                   Optional
                 </label>
+                {/* The box is empty whether or not a value is stored, and blank
+                    means keep — so the row has to say which, and offer the only
+                    gesture that means erase (US-064). */}
+                {v.secret && (
+                  <span className="var-state">
+                    {v.clear ? 'will be cleared' : v.value_set ? 'stored' : 'not set'}
+                    {(v.value_set || v.clear) && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => set(i, { value: '', clear: !v.clear })}
+                      >
+                        {v.clear ? 'Keep' : 'Clear'}
+                      </Button>
+                    )}
+                  </span>
+                )}
               </div>
             </div>
           ))}
@@ -216,6 +236,11 @@ function VariablesEditor({ variables, setVariables }) {
  * Override a variable'd test's values for this one run (US-035), prefilled with
  * each default. Only opens for a test that declares variables — the one-click
  * run path is untouched for everything else.
+ *
+ * A secret's box is always empty, because its value is never read back — so for
+ * one with a stored value (US-064) it has to say that leaving it alone is not
+ * the same as running without one, or the operator retypes a password they did
+ * not need to.
  */
 export function RunVarsDialog({ test, values, setValues, onClose, onRun }) {
   const submit = (e) => {
@@ -239,7 +264,13 @@ export function RunVarsDialog({ test, values, setValues, onClose, onRun }) {
           <Field
             key={v.name}
             label={v.name}
-            hint={v.secret ? 'Secret — never stored or shown after this run.' : undefined}
+            hint={
+              v.secret
+                ? v.value_set
+                  ? 'Secret — leave blank to use the value stored on this test.'
+                  : 'Secret — used for this run only, never stored.'
+                : undefined
+            }
           >
             <input
               type={v.secret ? 'password' : 'text'}

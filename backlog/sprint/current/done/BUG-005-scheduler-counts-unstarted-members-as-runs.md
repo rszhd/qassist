@@ -2,7 +2,7 @@
 
 - **Status:** ✅ Fixed 2026-07-28 — found the same day while answering "during a
   run using the scheduler, what about the secret variables?". The secrets gap
-  itself is [US-064](../US-064-secret-variables-in-a-scheduled-run.md);
+  itself is [US-064](US-064-secret-variables-in-a-scheduled-run.md);
   this is the reason that gap, and three others, are silent. Fixed first because
   US-064's "starts no run **and says so**" assertion cannot be written until the
   tick can say it. See "Result".

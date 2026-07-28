@@ -582,7 +582,8 @@ select {
 .var-main input { flex: 1; min-width: 0; }
 .var-main .var-name { flex: 0 0 34%; }
 .var-note { flex: 1; min-width: 0; font-size: var(--t-sm); color: var(--faint); }
-.var-flags { display: flex; gap: var(--s3); padding-left: var(--s1); }
+.var-flags { display: flex; align-items: center; gap: var(--s3); padding-left: var(--s1); }
+.var-state { margin-left: auto; display: flex; align-items: center; gap: var(--s2); font-size: var(--t-sm); color: var(--faint); }
 .var-flag { display: flex; align-items: center; gap: var(--s1); font-size: var(--t-sm); color: var(--muted); cursor: pointer; }
 .var-flag input[type='checkbox'] { width: 14px; height: 14px; accent-color: var(--accent); }
 .var-add { align-self: flex-start; }

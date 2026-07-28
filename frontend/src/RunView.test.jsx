@@ -38,14 +38,14 @@ const WITH_VARS = {
 
 // Records every request so the test can assert whether — and with what body —
 // a run was posted. WebSocket is stubbed because a successful run opens one.
-function stubEnv() {
+function stubEnv(withVars = WITH_VARS) {
   const calls = [];
   vi.stubGlobal('fetch', (input, init = {}) => {
     const url = typeof input === 'string' ? input : input.url;
     calls.push({ url, method: init.method || 'GET', body: init.body ? JSON.parse(init.body) : undefined });
     let body = {};
     if (url.includes('/run')) body = { runId: 'r1', status: 'queued' };
-    else if (url.startsWith('/api/tests')) body = { tests: [PLAIN, WITH_VARS] };
+    else if (url.startsWith('/api/tests')) body = { tests: [PLAIN, withVars] };
     else if (url.startsWith('/api/projects')) body = { projects: [] };
     return Promise.resolve({ ok: true, status: 200, json: async () => body });
   });
@@ -326,10 +326,18 @@ describe('RunView stopping a run (US-047)', () => {
   });
 });
 
-// The secret flag has real editor logic worth pinning: marking a variable
-// secret drops its stored default (so no plaintext secret is persisted), and
-// saving a test that references a secret in the Start URL is blocked client-
-// side — the server only rejects that at run time (US-035 secret path).
+// The secret flag has real editor logic worth pinning: what a secret's value
+// box means, and that saving a test which references a secret in the Start URL
+// is blocked client-side — the server only rejects that at run time (US-035
+// secret path).
+//
+// US-064 deliberately changed the first half. Ticking Secret used to CLEAR the
+// value, because nothing was allowed to persist one; now the value is stored
+// encrypted (which is what lets a schedule type it at 02:00), so the tick masks
+// the field instead of emptying it. The behaviour below is the new contract,
+// not a loosened assertion: the box being empty on open now means "keep what is
+// stored", so what has to be pinned is that the row says which state it is in
+// and offers a way to erase.
 const writeCalls = (calls) =>
   calls.filter((c) => c.url.startsWith('/api/tests') && (c.method === 'POST' || c.method === 'PUT'));
 
@@ -340,19 +348,66 @@ async function openEnvTestEditor() {
   return screen.findByText('Edit test');
 }
 
-describe('VariablesEditor secret flag (US-035)', () => {
-  it('drops the stored default when a variable is marked secret', async () => {
+describe('VariablesEditor secret flag (US-035, amended by US-064)', () => {
+  it('masks the value when a variable is marked secret, and keeps it', async () => {
     stubEnv();
     renderRunView();
     await openEnvTestEditor();
 
-    expect(screen.getByDisplayValue('https://staging.example.com')).toBeTruthy();
+    const box = screen.getByLabelText('Variable 1 default value');
+    expect(box.type).toBe('text');
 
     fireEvent.click(screen.getByLabelText('Secret'));
 
-    // Default field is gone (nothing to persist) and the per-run note replaces it.
-    expect(screen.queryByDisplayValue('https://staging.example.com')).toBeNull();
-    expect(screen.getByText('value set per run / CI')).toBeTruthy();
+    // The value survives the tick — it is what gets encrypted on save — but it
+    // is never shown again, so the box that holds it is a password field.
+    const masked = screen.getByLabelText('Variable 1 secret value');
+    expect(masked.type).toBe('password');
+    expect(masked.value).toBe('https://staging.example.com');
+    // Nothing is stored for it yet, and the row has to say so: a blank box on
+    // the next open would otherwise be indistinguishable from a kept value.
+    expect(screen.getByText('not set')).toBeTruthy();
+  });
+
+  it('offers a set/not-set state and an explicit clear for a stored secret', async () => {
+    stubEnv({
+      ...WITH_VARS,
+      goal: 'Log in as admin with {{pw}}.',
+      start_url: 'https://example.com/login',
+      variables: [{ name: 'pw', value: '', secret: true, optional: false, value_set: true }],
+    });
+    renderRunView();
+    await openEnvTestEditor();
+
+    // Empty box + "stored" is the whole point: blank means keep.
+    expect(screen.getByLabelText('Variable 1 secret value').value).toBe('');
+    expect(screen.getByText('stored')).toBeTruthy();
+
+    fireEvent.click(screen.getByText('Clear'));
+    expect(screen.getByText('will be cleared')).toBeTruthy();
+
+    // ...and it is reversible before saving, because the alternative to an
+    // explicit clear is a gesture that also means "leave it alone".
+    fireEvent.click(screen.getByText('Keep'));
+    expect(screen.getByText('stored')).toBeTruthy();
+  });
+
+  it('does not send a blank secret box as an override of ""', async () => {
+    const calls = stubEnv({
+      ...WITH_VARS,
+      goal: 'Log in as admin with {{pw}}.',
+      start_url: 'https://example.com/login',
+      variables: [{ name: 'pw', value: '', secret: true, optional: false, value_set: true }],
+    });
+    renderRunView();
+
+    fireEvent.click(await screen.findByLabelText('Run "Env test"'));
+    fireEvent.click(await screen.findByText('Run test'));
+
+    await waitFor(() => expect(runCalls(calls)).toHaveLength(1));
+    // An untouched box means "use the stored value", so the request must not
+    // claim the operator supplied an empty one.
+    expect(runCalls(calls)[0].body.variables).toEqual({});
   });
 
   it('blocks saving a test that references a secret in the Start URL', async () => {

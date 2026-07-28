@@ -45,6 +45,7 @@ erDiagram
   projects ||--o{ fixtures : "files its tests may attach"
   projects ||--o{ browser_sessions : "signed-in state its tests may start from"
   browser_sessions ||--o{ tests : "started by (nullable)"
+  tests    ||--o{ test_secrets : "values behind its secret variables, encrypted"
 ```
 
 | Table | Owns | Story |
@@ -58,6 +59,7 @@ erDiagram
 | `runs` | durable run history — replaces the in-memory Map for finished runs | US-009/011 |
 | `fixtures` | metadata for the files a project's tests may attach — never the bytes | US-048 |
 | `browser_sessions` | a project's saved, signed-in browser state, encrypted; never read back | US-043 |
+| `test_secrets` | the value behind a test's `secret` variable, encrypted; never read back | US-064 |
 | `notifications` | per-recipient email delivery log (idempotent sends) | US-012 |
 | `email_suppressions` | addresses that unsubscribed, instance-wide | US-012 |
 | `subscriptions` | one row per paying user: Stripe ids, status, period end, scheduled cancellation | US-022/051 |
@@ -65,8 +67,9 @@ erDiagram
 
 The diagram above is the deployed schema through `002_projects_modules.sql`.
 
-`browser_sessions.storage_state_ciphertext` is the only credential in this
-schema besides `users.openai_key_ciphertext`, and it is held in the same
+`browser_sessions.storage_state_ciphertext` is one of three credentials in this
+schema, beside `users.openai_key_ciphertext` and
+`test_secrets.value_ciphertext`, and all three are held in the same
 envelope for the same reason — a value we must be able to hand to a spawn, so it
 cannot be a one-way hash. It differs from every other column here in one
 respect worth stating: **no read path selects it.** The counts and `captured_at`
@@ -75,6 +78,14 @@ is the only way a user can tell a live session from a stale one. Everything
 about how the decrypted blob reaches a browser, and what removes it afterwards,
 is `server/src/browserSession.js` and its row in
 `backlog/correctness-critical.md`.
+
+`test_secrets` is a table rather than a field inside the `tests.variables`
+jsonb for that same "no read path selects it" reason (US-064). `variables` is
+in the column list every test endpoint returns, so ciphertext living inside it
+would ship in every response body and masking would be a discipline repeated at
+four call sites — the fifth one added later inherits nothing. Keyed by
+`(test_id, name)`, so the set/not-set state a UI needs is `select name` and no
+read path decrypts anything.
 
 Both billing tables are inert unless the instance is configured for billing
 (`STRIPE_*`, which no self-host sets): nothing writes to them and nothing reads

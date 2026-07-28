@@ -80,6 +80,11 @@ defaults, so a name a given test doesn't declare is simply ignored. A variable
 the test marks required (referenced, no default) with no override rejects that
 run with a 400 rather than running with a hole in the goal.
 
+A **secret** variable can also carry a value stored (encrypted) on the test
+itself — which is what lets a schedule type one. An override still wins, so a
+pipeline that injects the credential from its own secret store behaves exactly
+as before; sending `""` for one does not, and falls back to the stored value.
+
 **`trigger: "ci"`** tags the runs, so History can filter to
 `?trigger=ci` and answer "what did the pipeline run" separately from what a
 human clicked.

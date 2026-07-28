@@ -421,13 +421,19 @@ export function createRun(fields) {
  * variable with no value) is skipped with an `error` marker rather than
  * starting a broken run — one misconfigured member never blocks the batch.
  * @param {{ id: string, goal: string, start_url: string, max_steps: number, model: string|null, variables?: any, project_id?: string|null, allowed_domains?: string[], browser_session_id?: string|null, captures_session_id?: string|null, initial_actions?: any }[]} tests
- * @param {{ start_url?: string|null, trigger?: string, variables?: Record<string, string>, user_id?: string|null, openai_api_key?: string|null, sessions?: Map<string, any> }} [opts]
+ * @param {{ start_url?: string|null, trigger?: string, variables?: Record<string, string>, user_id?: string|null, openai_api_key?: string|null, sessions?: Map<string, any>, storedSecrets?: Map<string, any> }} [opts]
  */
 export function runTests(tests, opts = {}) {
   return tests.map((t) => {
+    // The stored secrets the caller pre-resolved (US-064), beside the session
+    // below and refused the same way: a member whose credential will not
+    // decrypt must not start a run that types nothing into the password field.
+    const secrets = opts.storedSecrets?.get(t.id) || {};
+    if (secrets.error) return { testId: t.id, error: secrets.error };
     const resolved = resolveForRun({
       variables: t.variables || [],
       overrides: opts.variables,
+      stored: secrets.values,
       goal: t.goal,
       start_url: opts.start_url || t.start_url,
     });

@@ -425,6 +425,17 @@ export default function RunView({ token, health, keyStatus, visible, needsToken,
   // the form to show what's running. `overrides` is this run's variable values
   // from the override dialog; undefined ⇒ the test's own defaults.
   async function runSavedTest(test, overrides) {
+    // A secret's box opens empty whether or not a value is stored (US-064), so
+    // an untouched one must not travel as an override of "". The server reads it
+    // that way too, but sending the blank at all would mean the request says
+    // something the operator did not.
+    if (overrides) {
+      overrides = Object.fromEntries(
+        Object.entries(overrides).filter(
+          ([name, value]) => value !== '' || !test.variables?.find((v) => v.name === name)?.secret
+        )
+      );
+    }
     setDialog(null);
     resetRunState();
     setActiveTestId(test.id);

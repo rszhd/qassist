@@ -67,6 +67,8 @@ beforeEach(async () => {
   await pool.query('delete from schedules');
   await pool.query('delete from runs');
   await pool.query('delete from suite_tests');
+  await pool.query('delete from test_secrets');
+  await pool.query('delete from browser_sessions');
   await pool.query('delete from tests');
   await pool.query('delete from suites');
   await pool.query('delete from modules');
@@ -121,6 +123,36 @@ async function makeSchedule(target, fields = {}) {
 
 const runRows = async () =>
   (await pool.query('select id, test_id, trigger, status from runs order by created_at')).rows;
+
+/**
+ * Give a test's secret declaration a stored value (US-064). Seeded through the
+ * registered `decode` builtin with the hex inline, because pg-mem cannot
+ * round-trip a `bytea` PARAMETER (helpers/stored-key.js explains it); the
+ * product's own write path is proven in test-secrets.test.js.
+ */
+async function seedSecret(testId, name, value) {
+  const { encryptSecret } = await import('../src/crypto.js');
+  const hex = encryptSecret(value).toString('hex');
+  await pool.query(
+    `insert into test_secrets (test_id, name, value_ciphertext)
+     values ($1, $2, decode('${hex}', 'hex'))`,
+    [testId, name]
+  );
+}
+
+/** Everything the tick printed, so a secret can be hunted for in it. */
+async function tickLogging(now) {
+  const lines = [];
+  const real = { log: console.log, warn: console.warn, error: console.error };
+  for (const level of /** @type {const} */ (['log', 'warn', 'error'])) {
+    console[level] = (...args) => lines.push(args.join(' '));
+  }
+  try {
+    return { result: await tick(now), lines: lines.join('\n') };
+  } finally {
+    Object.assign(console, real);
+  }
+}
 
 const scheduleRow = async (id) =>
   (await pool.query('select * from schedules where id = $1', [id])).rows[0];
@@ -483,4 +515,115 @@ test('a target still running its previous slot does not restamp last_run_at', as
   assert.equal(result.runs, 0);
   assert.equal(result.skipped, 1);
   assert.equal((await scheduleRow(scheduleId)).last_run_at, null, 'no new run, no new stamp');
+});
+
+// --- US-064: the credential the tick had no channel for ---------------------
+//
+// Every test above this line that declares a secret is a test that CANNOT RUN:
+// `requiredSecret` resolves to nothing, the member is dropped, and no run row
+// is written. That was the whole gap — the scheduler passed no `variables` and
+// nothing else could, so the one test that must type a real credential on every
+// run was the one test a schedule could not fire.
+//
+// The pure precedence is variables.test.js and the storage is
+// test-secrets.test.js. What only the tick can show is that the value is
+// resolved on ITS path too: a schedule fires with nobody watching, which is
+// where an unfixed gap stays invisible longest.
+
+const CANARY = 'CANARY-SCHED-PW-2a71c3';
+
+test('a stored secret is what lets a scheduled login test run at all (AC #1)', async () => {
+  const testId = await makeTest('login', {
+    goal: 'log in with {{password}}',
+    variables: [requiredSecret('password')],
+  });
+  await seedSecret(testId, 'password', CANARY);
+  const scheduleId = await makeSchedule({ test_id: testId });
+
+  const result = await tick(at('2026-07-23T02:00:30'));
+  // The same schedule, over the same declaration, that the test above proves
+  // starts nothing — the only difference is the stored value.
+  assert.deepEqual(result, {
+    fired: 1,
+    runs: 1,
+    skipped: 0,
+    unstarted: 0,
+    empty: 0,
+    blocked: 0,
+    pending: 0,
+    keyless: 0,
+  });
+  assert.ok((await scheduleRow(scheduleId)).last_run_at, 'and the slot says it ran');
+
+  const row = (await pool.query('select goal, variables from runs')).rows[0];
+  assert.equal(row.goal, 'log in with <secret>password</secret>');
+  assert.deepEqual(row.variables, { password: '<secret>' });
+  assert.doesNotMatch(JSON.stringify(row), new RegExp(CANARY), 'never denormalized onto the run');
+});
+
+test('the nightly session refresh migration 015 promises can now run (AC #2)', async () => {
+  const { rows: p } = await pool.query(
+    `insert into projects (user_id, name, slug) values ($1, 'Shop', 'shop') returning id`,
+    [userId]
+  );
+  // The login test IS the one that cannot use a session, because it is what
+  // produces one — so it is the single test that must type a real credential
+  // every night. 015 says the existing scheduler already refreshes stale
+  // sessions "with no new machinery"; this is that sentence becoming true.
+  const loginTest = await makeTest('admin login', {
+    project_id: p[0].id,
+    goal: 'log in as admin with {{password}}',
+    variables: [requiredSecret('password')],
+  });
+  await seedSecret(loginTest, 'password', CANARY);
+  // A session created for its login run to fill: no blob yet (016 relaxed the
+  // column to nullable for exactly this state).
+  await pool.query(
+    `insert into browser_sessions (project_id, name, name_key, login_test_id)
+     values ($1, 'admin', 'admin', $2)`,
+    [p[0].id, loginTest]
+  );
+
+  await makeSchedule({ test_id: loginTest });
+  const result = await tick(at('2026-07-23T02:00:30'));
+  assert.equal(result.runs, 1, 'the refresh run started');
+  assert.equal(result.unstarted, 0);
+  assert.deepEqual((await runRows()).map((r) => r.test_id), [loginTest]);
+});
+
+test('a stored secret that will not decrypt skips the member, it does not run it empty', async () => {
+  const testId = await makeTest('login', {
+    goal: 'log in with {{password}}',
+    variables: [requiredSecret('password')],
+  });
+  await pool.query(
+    `insert into test_secrets (test_id, name, value_ciphertext)
+     values ($1, 'password', decode('00112233445566778899aabbccddeeff00', 'hex'))`,
+    [testId]
+  );
+  const scheduleId = await makeSchedule({ test_id: testId });
+
+  const { result, lines } = await tickLogging(at('2026-07-23T02:00:30'));
+  assert.equal(result.runs, 0);
+  assert.equal(result.unstarted, 1, 'reported, not absorbed');
+  assert.equal((await runRows()).length, 0, 'no run row was written');
+  assert.equal((await scheduleRow(scheduleId)).last_run_at, null, 'and nothing says it did');
+  // Named, with a reason — a member that quietly stopped starting is otherwise
+  // indistinguishable from a schedule that is working.
+  assert.match(lines, new RegExp(testId.slice(0, 8)));
+  assert.match(lines, /decrypt/i);
+});
+
+test('no scheduler log line carries a secret value', async () => {
+  const testId = await makeTest('login', {
+    goal: 'log in with {{password}}',
+    variables: [requiredSecret('password')],
+  });
+  await seedSecret(testId, 'password', CANARY);
+  await makeSchedule({ test_id: testId });
+
+  const { result, lines } = await tickLogging(at('2026-07-23T02:00:30'));
+  assert.equal(result.runs, 1);
+  assert.ok(lines.length, 'the tick logs what it fired');
+  assert.doesNotMatch(lines, new RegExp(CANARY));
 });
