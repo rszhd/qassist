@@ -80,6 +80,33 @@ async function testCounts(column) {
   return new Map(rows.map((r) => [r.key, r.n]));
 }
 
+// What a project holds, by table. The Projects view puts these on its tab
+// strip, so they travel with the project rather than with each section: what a
+// project holds is how you choose which section to open, and a count that only
+// arrives once you are already there is too late to be navigation.
+const PROJECT_COUNTS = [
+  ['test_count', 'tests'],
+  ['suite_count', 'suites'],
+  ['session_count', 'browser_sessions'],
+  ['fixture_count', 'fixtures'],
+];
+
+/**
+ * The four counts above for one project. One query per table rather than four
+ * scalar subqueries in a single select: pg-mem returns a scalar subquery as a
+ * one-element array, so the compact form would be right only in production.
+ * @param {string} projectId
+ */
+async function projectCounts(projectId) {
+  const rows = await Promise.all(
+    PROJECT_COUNTS.map(([, table]) =>
+      // The table name is from the fixed list above, never from a request.
+      db().query(`select count(*)::int as n from ${table} where project_id = $1`, [projectId])
+    )
+  );
+  return Object.fromEntries(PROJECT_COUNTS.map(([key], i) => [key, rows[i].rows[0].n]));
+}
+
 /**
  * Modules with their test counts — one project's, or every project's when
  * `projectId` is null (which is what the flat /api/modules list asks for).
@@ -293,11 +320,7 @@ export function projectsRouter({ checkToken }) {
       // @ts-expect-error — set by r.param
       const project = req.project;
       const modules = await listModules(project.id);
-      const { rows: counts } = await db().query(
-        'select count(*)::int as test_count from tests where project_id = $1',
-        [project.id]
-      );
-      res.json({ ...project, modules, test_count: counts[0].test_count });
+      res.json({ ...project, modules, ...(await projectCounts(project.id)) });
     })
   );
 

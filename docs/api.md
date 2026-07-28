@@ -95,6 +95,18 @@ curl -X POST http://<host>:8080/api/suites/<suiteId>/run \
   -H "Authorization: Bearer $WORKER_API_TOKEN"
 ```
 
+`GET /api/projects/:project` returns the project with its modules and a count
+of everything else it holds — `test_count`, `suite_count`, `session_count`,
+`fixture_count` — so a caller can tell what a project contains without four
+more requests.
+
+```bash
+curl http://<host>:8080/api/projects/checkout \
+  -H "Authorization: Bearer $WORKER_API_TOKEN"
+# -> {"id":"...","slug":"checkout","modules":[...],"test_count":12,
+#     "suite_count":2,"session_count":1,"fixture_count":0, ...}
+```
+
 Deleting a module or project never deletes tests — they fall back to
 Ungrouped. Deleting a project does take its suites with it.
 

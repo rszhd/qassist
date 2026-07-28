@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { AlertTriangle, Boxes, Pencil, Plus, Terminal, Trash2 } from 'lucide-react';
 import { api } from './api.js';
 import CiCommand from './CiCommand.jsx';
-import { Button, CardHead, EmptyState, IconButton } from './ui.jsx';
+import { Button, EmptyState, IconButton } from './ui.jsx';
 
 // Suites (US-009 UI, deferred until US-023). A suite is the many-to-many
 // alternative to a module: the same test can sit in several suites, but a
@@ -12,7 +12,7 @@ import { Button, CardHead, EmptyState, IconButton } from './ui.jsx';
 //
 // Editing happens here rather than in the Run view because the multi-select
 // needs the width. Running a suite lives in Run, next to the viewer.
-export default function Suites({ projectId, token }) {
+export default function Suites({ projectId, token, onChanged }) {
   const [suites, setSuites] = useState([]);
   const [tests, setTests] = useState([]);
   // { id: string|null, name, testIds } — id null while creating.
@@ -46,7 +46,9 @@ export default function Suites({ projectId, token }) {
     try {
       await fn();
       setEditing(null);
-      await load();
+      // `onChanged` as well as `load`: the count on the tab that leads here
+      // belongs to the project, and a stale one is a wrong signpost.
+      await Promise.all([load(), onChanged?.()]);
     } catch (err) {
       setError(`${label}: ${err.message}`);
     } finally {
@@ -82,20 +84,7 @@ export default function Suites({ projectId, token }) {
     }));
 
   return (
-    <div className="suites">
-      <CardHead title="Suites" count={suites.length}>
-        {!editing && (
-          <Button
-            size="sm"
-            icon={Plus}
-            className="spacer"
-            onClick={() => setEditing({ id: null, name: '', testIds: [] })}
-          >
-            New suite
-          </Button>
-        )}
-      </CardHead>
-
+    <>
       {error && (
         <div className="error">
           <AlertTriangle size={14} aria-hidden="true" />
@@ -164,8 +153,16 @@ export default function Suites({ projectId, token }) {
         )}
       </ul>
 
+      {!editing && (
+        <div className="add-form">
+          <Button icon={Plus} onClick={() => setEditing({ id: null, name: '', testIds: [] })}>
+            New suite
+          </Button>
+        </div>
+      )}
+
       {ciTarget && <CiCommand target={ciTarget} onClose={() => setCiTarget(null)} />}
-    </div>
+    </>
   );
 }
 

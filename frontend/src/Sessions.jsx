@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { AlertTriangle, KeyRound, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { api } from './api.js';
-import { Button, CardHead, EmptyState, Field, IconButton, Modal } from './ui.jsx';
+import { Button, EmptyState, Field, IconButton, Modal } from './ui.jsx';
 
 // Saved browser sessions (US-043): the signed-in state this project's tests
 // start from, so a suite tests the product instead of testing the login form
@@ -14,7 +14,7 @@ import { Button, CardHead, EmptyState, Field, IconButton, Modal } from './ui.jsx
 // viewing it. That is deliberate, not an oversight, and the empty state says
 // so, because a user who expects to see their cookies and cannot will
 // otherwise assume it did not save.
-export default function Sessions({ projectId, token }) {
+export default function Sessions({ projectId, token, onChanged }) {
   const [sessions, setSessions] = useState([]);
   const [tests, setTests] = useState([]);
   const [editing, setEditing] = useState(null);
@@ -56,7 +56,9 @@ export default function Sessions({ projectId, token }) {
         : `/api/projects/${projectId}/sessions`;
       await api(path, { token, method: form.id ? 'PUT' : 'POST', body });
       setEditing(null);
-      await load();
+      // `onChanged` as well as `load`: the count on the tab that leads here
+      // belongs to the project, and a stale one is a wrong signpost.
+      await Promise.all([load(), onChanged?.()]);
     } catch (err) {
       setError(`Save: ${err.message}`);
     } finally {
@@ -76,7 +78,7 @@ export default function Sessions({ projectId, token }) {
     setError(null);
     try {
       await api(`/api/projects/${projectId}/sessions/${session.id}`, { token, method: 'DELETE' });
-      await load();
+      await Promise.all([load(), onChanged?.()]);
     } catch (err) {
       setError(`Delete: ${err.message}`);
     } finally {
@@ -86,8 +88,6 @@ export default function Sessions({ projectId, token }) {
 
   return (
     <>
-      <CardHead title="Sessions" count={sessions.length} />
-
       {error && (
         <div className="error">
           <AlertTriangle size={14} aria-hidden="true" />

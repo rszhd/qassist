@@ -235,7 +235,13 @@ export default function App() {
         <Routes>
           <Route path="/history" element={<HistoryView token={token} />} />
           <Route path="/schedules" element={<SchedulesView token={token} />} />
-          <Route path="/projects" element={<ProjectsView token={token} health={health} />} />
+          {/* One route with both segments optional, not three routes sharing an
+              element: switching project or section then changes params on the
+              same match instead of remounting the view and refetching it. */}
+          <Route
+            path="/projects/:slug?/:tab?"
+            element={<ProjectsView token={token} health={health} />}
+          />
           <Route
             path="/runs/:id"
             element={

@@ -536,14 +536,14 @@ select {
 /* A card stacks its blocks with a gap, never with a margin on whichever child
    happens to be there — that is what keeps a head, a filter row, a list and a
    footer form evenly spaced in every view, and it is why nothing below sets
-   `margin-top` to separate itself from a sibling. `.suites` and `.run-detail`
-   are sections that stack the same way inside a card; `.group` is one level
-   down and stacks tighter.
+   `margin-top` to separate itself from a sibling. `.run-detail` is a section
+   that stacks the same way inside a card; `.group` is one level down and
+   stacks tighter.
    Three rhythms, and only three: `--s2` inside a group, `--s3` between the
    blocks of a card, `--s4` between cards (see the view grids) and between the
    fields of a form. */
-.card, .suites, .run-detail, .group { display: flex; flex-direction: column; }
-.card, .suites, .run-detail { gap: var(--s3); }
+.card, .run-detail, .group { display: flex; flex-direction: column; }
+.card, .run-detail { gap: var(--s3); }
 .group { gap: var(--s2); }
 .card {
   background: var(--card); border: 1px solid var(--border); border-radius: var(--r-lg);
@@ -645,6 +645,6 @@ select {
 
 /* A rule inside a card. The card's gap supplies the space above it and this
    supplies the space below, so every divider in the app — this, the run
-   detail's goal, the suites block — has the same air on both sides. */
-.card > .hint, .goal-block, .suites { padding-top: var(--s3); border-top: 1px solid var(--border); }
+   detail's goal — has the same air on both sides. */
+.card > .hint, .goal-block { padding-top: var(--s3); border-top: 1px solid var(--border); }
 

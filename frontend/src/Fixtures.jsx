@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AlertTriangle, Paperclip, Trash2, Upload } from 'lucide-react';
 import { api, uploadFixture } from './api.js';
-import { Button, CardHead, EmptyState, IconButton } from './ui.jsx';
+import { Button, EmptyState, IconButton } from './ui.jsx';
 
 // Project fixtures (US-048): the files this project's tests may attach. Set up
 // once by the team, like a variable — which is why they live here in Projects
@@ -11,7 +11,7 @@ import { Button, CardHead, EmptyState, IconButton } from './ui.jsx';
 // submit"), so the filename is the only identifier shown. There is deliberately
 // no rename: the goal text points at the name, and renaming underneath it would
 // break a saved test silently.
-export default function Fixtures({ projectId, token }) {
+export default function Fixtures({ projectId, token, onChanged }) {
   const [fixtures, setFixtures] = useState([]);
   const [quota, setQuota] = useState({ used: 0, total: 0, max: 0 });
   const [busy, setBusy] = useState(false);
@@ -37,7 +37,9 @@ export default function Fixtures({ projectId, token }) {
     setError(null);
     try {
       await fn();
-      await load();
+      // `onChanged` as well as `load`: the count on the tab that leads here
+      // belongs to the project, and a stale one is a wrong signpost.
+      await Promise.all([load(), onChanged?.()]);
     } catch (err) {
       setError(`${label}: ${err.message}`);
     } finally {
@@ -66,12 +68,6 @@ export default function Fixtures({ projectId, token }) {
 
   return (
     <>
-      <CardHead title="Files">
-        <span className="row-sub spacer">
-          {formatBytes(quota.used)} of {formatBytes(quota.total)} used
-        </span>
-      </CardHead>
-
       {error && (
         <div className="error">
           <AlertTriangle size={14} aria-hidden="true" />
@@ -105,7 +101,10 @@ export default function Fixtures({ projectId, token }) {
         <Button icon={Upload} onClick={() => fileInput.current?.click()} disabled={busy}>
           Upload a file
         </Button>
-        <span className="row-sub spacer">up to {formatBytes(quota.max)} each</span>
+        <span className="row-sub spacer">
+          {formatBytes(quota.used)} of {formatBytes(quota.total)} used, up to{' '}
+          {formatBytes(quota.max)} each
+        </span>
       </div>
     </>
   );

@@ -27,6 +27,15 @@ a `PageHeader` carrying its primary action; creating and editing happen in a
 `Modal`, and destructive/secondary row actions hide behind `.row-actions` until
 the row is hovered or focused.
 
+**Two kinds of tab, and they must not look alike.** The top bar's `.views` is a
+segmented control and switches *views*; `.tabs` is an underlined strip and
+switches sections *inside* one, as on Projects. Reading them as two levels is
+the whole reason the second exists, so a new strip takes the underlined form
+rather than a second segmented group. Both are links — a tab that changes what
+the URL says is navigation, and gets `aria-current="page"` rather than a
+`role="tab"` it doesn't behave like. What hides behind such a tab is unmounted,
+not hidden, so anything live has to sit outside the strip (`frontend/CLAUDE.md`).
+
 ## Type
 
 Five steps, and each is a role rather than a nudge: `--t-xs` (12px) uppercase
@@ -45,11 +54,16 @@ Every margin, padding and gap is a token — no raw pixels. The scale is `--s05`
 half-steps, which exist so component interiors stop inventing 5/7/9/11px. Three
 rhythms and only three: `--s2` inside a `.group`, `--s3` between the blocks of a
 card, `--s4` between cards and between form fields. A card sets that distance
-with `gap` — `.card`, `.suites`, `.run-detail` and `.group` are flex columns —
-so **nothing adds `margin-top` to separate itself from a sibling**; a new block
-dropped into a card is spaced correctly by existing there. Dividers inside a
-card (`.card > .hint`, `.detail-goal`, `.suites`) are a `border-top` plus
-`padding-top: var(--s3)`, the gap above supplying the matching half. Anything
+with `gap` — `.card`, `.run-detail` and `.group` are flex columns — so
+**nothing adds `margin-top` to separate itself from a sibling**; a new block
+dropped into a card is spaced correctly by existing there. A section that
+renders a fragment rather than a wrapper (the four inside Projects) inherits
+that spacing from the card, which is the reason to prefer one. Dividers inside
+a card (`.card > .hint`, `.goal-block`) are a `border-top` plus
+`padding-top: var(--s3)`, the gap above supplying the matching half — and a
+divider that belongs to the block above it instead, like the rule under
+`.tabs`, is the same thing read the other way up: `border-bottom`, with the
+card's gap supplying the space below. Anything
 one line tall — button, input, select — is `--ctl` (32px) or `--ctl-sm` (28px),
 set as a height rather than padded to it, which is what keeps an input level
 with the button beside it. Sticky columns use `--sticky-top`/`--sticky-h`, so

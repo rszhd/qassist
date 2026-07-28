@@ -249,6 +249,10 @@
 .list li.editing { display: block; background: var(--sunken); padding: var(--s3) var(--s4); }
 .row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--s05); text-align: left; }
 button.row-main { background: transparent; border: 0; padding: 0; color: inherit; font: inherit; cursor: pointer; }
+/* A row that selects something the URL names is a link, not a button — the
+   Projects rail. It keeps the row's own type and colour; only the underline
+   has to go. */
+a.row-main { color: inherit; text-decoration: none; }
 .row-name { font-size: var(--t-base); font-weight: 500; display: flex; align-items: center; gap: var(--s15); }
 .row-name em { color: var(--muted); font-weight: 400; font-style: normal; }
 .row-sub { font-size: var(--t-sm); color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -311,6 +315,42 @@ button.row-main { background: transparent; border: 0; padding: 0; color: inherit
   .history, .projects { grid-template-columns: 1fr; }
 }
 .hist-detail, .proj-list { position: sticky; top: var(--sticky-top); }
+
+/* The open project's identity, and the three things you can do to the project
+   itself. They live here rather than as hover icons on the rail row: the rail
+   is now navigation and nothing else, and an action you have to find by
+   hovering is one most people never find. */
+.proj-head { display: flex; align-items: flex-start; gap: var(--s3); }
+.proj-id { min-width: 0; display: flex; flex-direction: column; gap: var(--s05); }
+.proj-id h2 { font-size: var(--t-lg); font-weight: 600; letter-spacing: -.006em; }
+.proj-head-actions { margin-left: auto; flex: 0 0 auto; display: flex; gap: var(--s2); }
+
+/* The tab strip over a project's four sections. Underlined tabs rather than
+   the top bar's segmented control: that one switches views and this switches
+   what is inside one, and reading them as two levels is the whole point of
+   putting a strip here. Full-bleed like `.list`, so the rule under it spans
+   the card and reads as the card's own divider — which is why the panel below
+   adds no rule of its own. */
+.tabs {
+  display: flex; gap: var(--s1);
+  margin: 0 calc(var(--s4) * -1); padding: 0 var(--s4);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto; scrollbar-width: none;
+}
+.tabs a {
+  display: inline-flex; align-items: center; gap: var(--s15); white-space: nowrap;
+  height: var(--ctl); padding: 0 var(--s2);
+  /* Sits the tab's own underline on top of the strip's rule rather than under
+     it, so the active tab breaks the line instead of doubling it. */
+  margin-bottom: -1px; border-bottom: 2px solid transparent;
+  color: var(--faint); text-decoration: none;
+  font-size: var(--t-base); font-weight: 500;
+  transition: color var(--fast), border-color var(--fast);
+}
+.tabs a:hover { color: var(--text); }
+.tabs a[aria-current] { color: var(--text); border-bottom-color: var(--accent); }
+.tab-count { font-size: var(--t-sm); font-weight: 600; color: var(--faint); }
+.tabs a[aria-current] .tab-count { color: var(--muted); }
 
 /* The run permalink (US-030). No cap: it takes the page width like every other
    view, and the goal's own measure is held by `.detail-goal`'s `max-width`

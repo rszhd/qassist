@@ -48,6 +48,47 @@ test('projects and modules are addressable by slug as well as id', async () => {
   await request(app).get('/api/projects/nope').set(auth).expect(404);
 });
 
+test('project detail counts everything the project holds, not just its tests', async () => {
+  const p = await makeProject('Counted');
+  const empty = (await request(app).get(`/api/projects/${p.id}`).set(auth).expect(200)).body;
+  assert.deepEqual(
+    { ...empty, modules: undefined },
+    { ...empty, modules: undefined, test_count: 0, suite_count: 0, session_count: 0, fixture_count: 0 }
+  );
+
+  const t = (await makeTest({ project_id: p.id }).expect(201)).body;
+  await request(app)
+    .post('/api/suites')
+    .set(auth)
+    .send({ name: 'smoke', project_id: p.id, test_ids: [t.id] })
+    .expect(201);
+  await request(app)
+    .post(`/api/projects/${p.id}/sessions`)
+    .set(auth)
+    .send({ name: 'staging login', login_test_id: t.id })
+    .expect(201);
+  // Straight into the table: the count is a row fact, and going through the
+  // upload route would put bytes on the developer's disk to prove it.
+  await pool.query(
+    `insert into fixtures (project_id, filename, name_key, size_bytes) values ($1, $2, $3, $4)`,
+    [p.id, 'cv.pdf', 'cv.pdf', 1024]
+  );
+
+  const detail = (await request(app).get(`/api/projects/${p.id}`).set(auth).expect(200)).body;
+  assert.equal(detail.test_count, 1);
+  assert.equal(detail.suite_count, 1);
+  assert.equal(detail.session_count, 1);
+  assert.equal(detail.fixture_count, 1);
+
+  // Another project's belongings never leak into this one's tab strip.
+  const other = await makeProject('Uncounted');
+  const otherDetail = (await request(app).get(`/api/projects/${other.id}`).set(auth).expect(200)).body;
+  assert.deepEqual(
+    [otherDetail.test_count, otherDetail.suite_count, otherDetail.session_count, otherDetail.fixture_count],
+    [0, 0, 0, 0]
+  );
+});
+
 test('modules list flat, across projects or filtered to one', async () => {
   const a = await makeProject('Flat A');
   const b = await makeProject('Flat B');
