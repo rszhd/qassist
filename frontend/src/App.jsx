@@ -221,7 +221,7 @@ export default function App() {
             live WebSocket and the finished run's result. The routed views are
             cheap to remount, and remounting is what refreshes them — History
             in particular should show the run you just watched finish. */}
-        <div hidden={!atRun}>
+        <div className="run-shell" hidden={!atRun}>
           <RunView
             token={token}
             health={health}

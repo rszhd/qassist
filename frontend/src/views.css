@@ -9,11 +9,18 @@
 /* ==========================================================================
    6. Run view — tests rail beside the live stage
    ========================================================================== */
+/* Stood up to at least a viewport tall so the grid below has a height worth
+   stretching into — see the rail-col comment below for why that matters. Only
+   while Run is the visible route: `:not([hidden])` is load bearing, since a
+   bare `display: flex` would out-specificity the UA's `[hidden] { display:
+   none }` and Run would render on top of every other view. */
+.run-shell:not([hidden]) { display: flex; flex-direction: column; }
+.run-shell { min-height: calc(100dvh - var(--topbar-h) - var(--s10)); }
 /* The stage track is `minmax(0, 1fr)`, not `1fr`: the `--stage-min` floor
    inside `.stage-split` would otherwise become this track's min-content and
    push the rail off the page. Which layouts may claim that floor is decided by
    the two queries below, where there is room for it. */
-.run-grid { display: grid; grid-template-columns: var(--col-side) minmax(0, 1fr); gap: var(--s4); align-items: start; }
+.run-grid { display: grid; grid-template-columns: var(--col-side) minmax(0, 1fr); gap: var(--s4); align-items: start; flex: 1; }
 .run-grid.solo { grid-template-columns: minmax(0, 1fr); }
 /* Minimized: the rail keeps a strip so the way back is where it went. Not the
    default — it is what a screen too narrow for three columns falls back to, and
@@ -25,7 +32,37 @@
   .run-grid, .run-grid.rail-min { grid-template-columns: minmax(0, 1fr); }
 }
 
-.rail { position: sticky; top: var(--sticky-top); max-height: var(--sticky-h); overflow-y: auto; }
+/* The rail's ceiling is the bottom of the viewport, not the stage — a tall
+   screen and a short stage should still let the test list stretch down to the
+   page's own bottom gutter. `.run-shell` (the Run view's wrapper, hidden not
+   unmounted per frontend/CLAUDE.md) is stood up to at least a viewport tall,
+   and `.run-grid`'s `flex: 1` claims whatever of that the topbar didn't; grid's
+   default `align-content: stretch` then grows the single row — stage and rail
+   alike — to fill that height. `.rail-col`'s `height: 0; min-height: 100%`
+   keeps the wrapper out of the row's own intrinsic sizing (so a tall rail
+   can't inflate the row past what the stretch already gave it) and then
+   stretches it back to that stretched height. The rail measures itself
+   against that — grid-top to viewport-bottom — or against `--sticky-h` when
+   the stretch left the row shorter than the viewport, and scrolls itself the
+   rest of the way. A list short enough to fit still ends at its last row —
+   the cap is a ceiling, not a height. */
+.rail-col { height: 0; min-height: 100%; }
+.rail {
+  position: sticky; top: var(--sticky-top);
+  max-height: min(100%, var(--sticky-h));
+  overflow-y: auto;
+}
+/* Stacked, there is no stage beside the rail to measure against: `100%` has
+   nothing to resolve against, which drops the whole `min()` rather than just
+   that half of it, so the viewport cap is restated on its own. The shell's
+   own stretch is dropped too — a stacked page scrolls for its content like
+   any other view, so forcing it a viewport tall would strand empty space
+   below a short list. */
+@media (max-width: 900px) {
+  .run-shell { min-height: 0; }
+  .rail-col { height: auto; min-height: 0; }
+  .rail { max-height: var(--sticky-h); }
+}
 /* The project select and the filter box read as one control block, so they sit
    at the group rhythm between them and the card's own `--s3` above and below. */
 .rail-filters { display: flex; flex-direction: column; gap: var(--s2); }
@@ -46,8 +83,8 @@
    the spacing between groups is still the card's `--s3` and nothing else. */
 .rail .group-head {
   position: sticky; top: 0; z-index: 1;
-  margin: calc(var(--s2) * -1) calc(var(--s4) * -1) 0;
-  padding: var(--s2) var(--s4);
+  margin: calc(var(--s2) * -1) calc(var(--card-pad) * -1) 0;
+  padding: var(--s2) var(--card-pad);
   background: var(--card);
 }
 .rail-strip {
@@ -55,6 +92,7 @@
   display: flex; flex-direction: column; align-items: center; gap: var(--s3);
   padding: var(--s3) 0; width: var(--rail-strip);
   background: var(--card); border: 1px solid var(--border); border-radius: var(--r-lg);
+  box-shadow: var(--shadow-sm);
   color: var(--muted); font-size: var(--t-sm); cursor: pointer;
 }
 .rail-strip:hover { color: var(--text); border-color: var(--border-hi); }
@@ -115,6 +153,9 @@
 
 /* The live view sits in a browser chrome so it reads as a real session and
    the URL under test always has somewhere to live. */
+/* Card radius, not its own: the frame sits in the same row as the rail and the
+   activity panel, and a squarer corner beside two rounder ones reads as a
+   different kind of object rather than as the one being watched. */
 .browser { border: 1px solid var(--border); border-radius: var(--r-lg); overflow: hidden; background: var(--stage); }
 .browser-bar {
   display: flex; align-items: center; gap: var(--s3);
@@ -127,7 +168,7 @@
 .browser-dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--border-hi); }
 .browser-url {
   flex: 1; min-width: 0; font-family: var(--mono); font-size: var(--t-sm); color: var(--muted);
-  background: var(--sunken); border: 1px solid var(--border); border-radius: var(--r-sm); padding: var(--s05) var(--s2);
+  background: var(--sunken); border-radius: var(--r-sm); padding: var(--s05) var(--s2);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 /* The frame sizes the box, not the other way round: pages under test come in
@@ -163,13 +204,13 @@
 
 /* Bled to the card's side edges like `.list`, and like `.list` it keeps the
    card's bottom padding — the two lists in the app end the same way. */
-.log { display: flex; flex-direction: column; max-height: var(--scroll-cap); overflow-y: auto; margin: 0 calc(var(--s4) * -1); }
+.log { display: flex; flex-direction: column; max-height: var(--scroll-cap); overflow-y: auto; margin: 0 calc(var(--card-pad) * -1); }
 /* A narrow column, so a row stacks rather than competing for one line: the
    step number gutters the goal, and the host sits under it. Goals run long —
    two lines then ellipsis, with the full text on hover. */
 .log-item {
   display: flex; gap: var(--s2); align-items: flex-start;
-  padding: var(--s2) var(--s4); font-size: var(--t-base); color: var(--text);
+  padding: var(--s2) var(--card-pad); font-size: var(--t-base); color: var(--text);
 }
 .log-item + .log-item { border-top: 1px solid var(--border); }
 .step-n {
@@ -194,7 +235,7 @@
 .diag {
   display: flex; flex-direction: column; gap: var(--s3);
   max-height: var(--scroll-cap); overflow-y: auto;
-  margin: 0 calc(var(--s4) * -1);
+  margin: 0 calc(var(--card-pad) * -1);
 }
 .diag-group { display: flex; flex-direction: column; }
 /* The step a finding is attributed to. Sticky, because the cap means you can
@@ -202,14 +243,13 @@
    thing that makes them readable. */
 .diag-step {
   position: sticky; top: 0; z-index: 1;
-  padding: var(--s1) var(--s4); background: var(--card);
+  padding: var(--s1) var(--card-pad); background: var(--card);
   font-family: var(--mono); font-size: var(--t-xs); color: var(--faint);
-  text-transform: uppercase; letter-spacing: .08em;
   border-bottom: 1px solid var(--border);
 }
 .diag-row {
   display: flex; gap: var(--s2); align-items: flex-start;
-  padding: var(--s15) var(--s4); font-size: var(--t-sm);
+  padding: var(--s15) var(--card-pad); font-size: var(--t-sm);
 }
 .diag-row + .diag-row { border-top: 1px solid var(--border); }
 /* Fixed width so the details line up into a column regardless of whether the
@@ -252,7 +292,7 @@
    card, which is what makes a list read as a table rather than as a stack of
    floating chips.
    ========================================================================== */
-.list { list-style: none; margin: 0 calc(var(--s4) * -1); padding: 0; display: flex; flex-direction: column; }
+.list { list-style: none; margin: 0 calc(var(--card-pad) * -1); padding: 0; display: flex; flex-direction: column; }
 .list li {
   display: flex; align-items: center; gap: var(--s2);
   /* The leading rule is subtracted from the padding so row text still lines
@@ -261,7 +301,7 @@
   /* 36px = `--ctl` plus a hair: a row is a touch taller than the button that
      may sit in it, so the hover band has air above and below the control
      rather than ending flush against it. */
-  padding: var(--s15) var(--s4) var(--s15) calc(var(--s4) - var(--s05)); min-height: 36px;
+  padding: var(--s15) var(--card-pad) var(--s15) calc(var(--card-pad) - var(--s05)); min-height: 36px;
   border-left: var(--s05) solid transparent;
   transition: background var(--fast), border-color var(--fast);
 }
@@ -280,9 +320,12 @@ a.row-main { color: inherit; text-decoration: none; }
 .row-name { font-size: var(--t-base); font-weight: 500; display: flex; align-items: center; gap: var(--s15); }
 .row-name em { color: var(--muted); font-weight: 400; font-style: normal; }
 .row-sub { font-size: var(--t-sm); color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Uppercase survives here and on `.badge` and nowhere else: both are tokens
+   read off a run rather than labels written for the page, and the case is what
+   keeps a trigger name from reading as part of the test name beside it. */
 .row-tag {
   font-size: var(--t-xs); font-weight: 600; text-transform: uppercase; letter-spacing: .06em;
-  color: var(--faint); border: 1px solid var(--border-hi); border-radius: var(--r-sm); padding: 0 var(--s15);
+  color: var(--faint); background: var(--sunken); border-radius: var(--r-sm); padding: 0 var(--s15);
 }
 /* A paused schedule stays in the list — it is switched off, not deleted — but
    it should not read as loudly as the rows that are going to fire. */
@@ -316,7 +359,7 @@ a.row-main { color: inherit; text-decoration: none; }
 
 .member-list {
   list-style: none; margin: 0; padding: var(--s1); max-height: var(--scroll-cap); overflow-y: auto;
-  background: var(--sunken); border: 1px solid var(--border); border-radius: var(--r-md);
+  background: var(--sunken); border-radius: var(--r-md);
 }
 .member-list label {
   display: flex; align-items: center; gap: var(--s2);
@@ -367,7 +410,7 @@ a.row-main { color: inherit; text-decoration: none; }
    adds no rule of its own. */
 .tabs {
   display: flex; gap: var(--s1);
-  margin: 0 calc(var(--s4) * -1); padding: 0 var(--s4);
+  margin: 0 calc(var(--card-pad) * -1); padding: 0 var(--card-pad);
   border-bottom: 1px solid var(--border);
   overflow-x: auto; scrollbar-width: none;
 }
@@ -429,7 +472,7 @@ a.row-main { color: inherit; text-decoration: none; }
    rather than wrapping — a wrapped curl reads as two commands. */
 .ci-code {
   margin: 0; padding: var(--s3); overflow-x: auto;
-  background: var(--sunken); border: 1px solid var(--border); border-radius: var(--r-md);
+  background: var(--sunken); border-radius: var(--r-md);
   font-family: var(--mono); font-size: var(--t-sm); line-height: 1.7; color: var(--muted);
 }
 
@@ -459,7 +502,7 @@ a.row-main { color: inherit; text-decoration: none; }
 .detail-facts dd.detail-vars { overflow: visible; white-space: normal; display: flex; flex-wrap: wrap; gap: var(--s1); }
 .var-chip {
   font-size: var(--t-sm); padding: 0 var(--s15); border-radius: var(--r-sm);
-  background: var(--sunken); border: 1px solid var(--border); color: var(--muted);
+  background: var(--sunken); color: var(--muted);
 }
 .var-chip b { font-weight: 600; color: var(--text); }
 /* Each free-text block stacks its heading, its prose and (for the goal) its

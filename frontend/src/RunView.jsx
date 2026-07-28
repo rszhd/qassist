@@ -660,24 +660,28 @@ export default function RunView({ token, health, keyStatus, visible, needsToken,
         )}
 
         {health?.db && railOpen && (
-          <aside className="card rail">
-            <SavedTests
-              tests={tests}
-              projects={projects}
-              modules={listModules}
-              suites={suites}
-              filter={filter}
-              setFilter={setFilter}
-              activeTestId={activeTestId}
-              running={running}
-              onRun={onRunTest}
-              onEdit={editTest}
-              onNew={newTest}
-              onRunModule={(m, n) => runBatch('module', m, n)}
-              onRunSuite={(s) => runBatch('suite', s, s.test_ids.length)}
-              onCollapse={() => toggleRail(false)}
-            />
-          </aside>
+          // The wrapper is the rail's measuring stick, not decoration: it is
+          // what lets the stage decide how tall the rail is. See `.rail-col`.
+          <div className="rail-col">
+            <aside className="card rail">
+              <SavedTests
+                tests={tests}
+                projects={projects}
+                modules={listModules}
+                suites={suites}
+                filter={filter}
+                setFilter={setFilter}
+                activeTestId={activeTestId}
+                running={running}
+                onRun={onRunTest}
+                onEdit={editTest}
+                onNew={newTest}
+                onRunModule={(m, n) => runBatch('module', m, n)}
+                onRunSuite={(s) => runBatch('suite', s, s.test_ids.length)}
+                onCollapse={() => toggleRail(false)}
+              />
+            </aside>
+          </div>
         )}
 
         <section className="stage">

@@ -22,7 +22,7 @@ using explains most of what follows.
 - **Fetch a code** — complete the login. The agent drives the form, then reads
   the confirmation code out of a mailbox and types it. Shipped for email
   (US-013 tier 1); TOTP and SMS are planned in
-  [US-059](../backlog/unscheduled/US-059-otp-and-social-login-in-tested-flows.md).
+  [US-059](../backlog/sprint/current/US-059-otp-and-social-login-in-tested-flows.md).
 
 Reuse is the default and the cheaper of the two by a wide margin — no tokens
 spent on six steps of login, no flakiness in a form nobody is testing, no
@@ -139,7 +139,7 @@ at a terminal, while the audience most likely to want it is a manual QA or an
 app owner who is not.
 
 This is the sharpest limitation on this page.
-[US-063](../backlog/unscheduled/US-063-capture-a-session-without-a-terminal.md)
+[US-063](../backlog/sprint/current/US-063-capture-a-session-without-a-terminal.md)
 is the story for closing it, and the approach is decided: a browser extension
 that exports the jar from a browser the user is already signed in to. It is not
 built, so until it is, this page's answer for a non-developer is "not yet".
@@ -182,7 +182,7 @@ reach, and the fence is what keeps a run from going there.
 
 ## Planned
 
-All in [US-059](../backlog/unscheduled/US-059-otp-and-social-login-in-tested-flows.md)
+All in [US-059](../backlog/sprint/current/US-059-otp-and-social-login-in-tested-flows.md)
 — unscheduled, P3, nothing in the current sprint:
 
 - **TOTP** — a shared secret and stdlib HMAC. No vendor, no bill, and no
@@ -203,7 +203,7 @@ Two further gaps are known and in no story at all:
 - **A pool or reset hook** for one-shot registration identities.
 
 A third — capturing a session without a terminal — does have a story,
-[US-063](../backlog/unscheduled/US-063-capture-a-session-without-a-terminal.md),
+[US-063](../backlog/sprint/current/US-063-capture-a-session-without-a-terminal.md),
 and it is the one that decides whether social login is a feature for this
 product's users or only for developers. Note that US-062 is *not* it: that is a
 headless test tier for the maintainer, not an interactive browser for a user.

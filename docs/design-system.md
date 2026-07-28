@@ -41,14 +41,33 @@ not hidden, so anything live has to sit outside the strip (`frontend/CLAUDE.md`)
 
 ## Type
 
-Five steps, and each is a role rather than a nudge: `--t-xs` (12px) uppercase
-micro-labels, `--t-sm` (13px) anything secondary to the line above it,
+Five steps, and each is a role rather than a nudge: `--t-xs` (12px) the smallest
+readable line — status tokens, step numbers, mono asides, `--t-sm` (13px) a card
+title and anything else secondary to the line above it,
 `--t-base` (14px) every primary run of text and every control, `--t-lg` (16px)
-a heading or a number worth reading first, `--t-xl` (20px) the page title
+a heading or a number worth reading first, `--t-xl` (28px) the page title
 alone. A sixth step is almost always the wrong emphasis asked for the wrong
 way. The tokens are written in rem — the pixel values above assume the 16px
 browser default, and a user who raises their browser's font size scales the
 whole scale with it.
+
+**The top step carries the scale's whole contrast, so it steps hard.** The
+bottom three sit a pixel apart because weight, case and colour already separate
+them; `--t-xl` has none of that help, and at its old 20px the page title was
+four pixels off a row label and read as one. A scale that spans 12–20px cannot
+say *what you are looking at* before it says what is in it, which is most of
+what made the app read as a dense admin panel rather than as a product. 28px is
+twice `--t-xs`, and it is the one place tracking is tightened
+(`letter-spacing: -.022em`) — default letterfit is drawn for text and reads
+loose at that size.
+
+**Uppercase is for tokens, not for labels.** `.badge` and `.row-tag` keep it:
+both are a value read off a run, and the case is what stops a trigger name
+reading as part of the test name beside it. Everything that is merely a *label*
+— the card title, a stat's caption, the socket state, a diagnostics step head —
+is sentence case, because uppercase at 600 with letter-spacing carries far more
+texture than 12px suggests, and six of those on one screen is most of what made
+the app look busy. A new micro-label is sentence case at `--t-sm`.
 
 ## Spacing
 
@@ -72,6 +91,23 @@ set as a height rather than padded to it, which is what keeps an input level
 with the button beside it. Sticky columns use `--sticky-top`/`--sticky-h`, so
 they sit one gutter under the bar like any other card.
 
+**The three rhythms are gaps between things; the inset around them is a fourth
+number and is not one of them.** `--card-pad` (20px) is the margin a `.card`
+keeps inside its own border, and it is deliberately *not* `--s4`: at the same
+distance as the gap between two cards, a card read as a border drawn around
+content rather than as content set into a surface, which is the difference
+between a panel and a product. Modals take the same inset, so a dialog is not
+tighter than the page behind it. The page gutter is one step wider again
+(`--s6`), because at `--s5` the content ran almost to the edge of a wide screen.
+
+`--card-pad` is a token and not a literal because **six rules read it back**.
+Anything full-bleed inside a card — `.list`, `.log`, `.diag`, `.tabs`, the
+rail's pinned group head — cancels exactly this much with a negative margin and
+then pays it back as its own horizontal padding, which is what keeps a row's
+text aligned with the card head above it. Written out as `--s4` in seven
+places, it made the card's inset unmovable: the first attempt to change it left
+every list four pixels short of the edge it was supposed to reach.
+
 ## Sizes
 
 A number that appears in two rules is a measurement and gets a name; a number
@@ -80,7 +116,9 @@ are `--col-side` (every column flanking the main content — the Run rail and
 activity panel, History's detail, the Projects list) with `--col-side-min` (how
 far such a column may be squeezed before it is owed a row of its own),
 `--stage-min`, `--rail-strip`, `--scroll-cap` (how tall a list grows inside a
-card before it scrolls itself) and `--dot` (status dots). Media-query
+card before it scrolls itself), `--card-pad` (a card's own inset — see
+Spacing, and note it is read by every full-bleed rule inside a card) and
+`--dot` (status dots). Media-query
 breakpoints can't read tokens, so 900px, 1155px and 1440px each carry a comment
 with the arithmetic they protect.
 
@@ -94,13 +132,55 @@ once left the frame at 728px, which is not a size you can watch a 1920-wide page
 in; the fix was to stop treating the frame as the leftovers, not to drop a
 column. So a new element on Run comes out of the flanks, never out of the frame.
 
+The frame sets the view's **height** as well as its width: the tests rail ends
+where the stage ends, and scrolls itself past that. `--sticky-h` is only its
+second cap, for when the stage is the taller of the two — used alone it measures
+from the top of the viewport, which the rail does not start at, so a long list
+ran below the fold and grew the page for a column nothing else needed. That
+"the neighbour decides" is what `.rail-col` exists to express; a flanking column
+that can outgrow the frame should borrow the same trick rather than a number.
+
 ## Palette
 
 The palette is near-monochrome by design: one neutral ramp, a single accent
 spent only on the primary button, focus and the live pulse, and verdict colours
 held below full saturation. That holds in both themes — the ramp inverts, the
-constraints don't. Depth comes from hairline borders, not from gradients or
-shadows — cards carry neither. A run status renders as a tinted `.badge-<status>`
+constraints don't. Depth comes from hairline borders, not from gradients — no
+surface in the app is a ramp between two colours.
+
+**A card carries `--shadow-sm`, and it is mostly not the drop.** In dark the
+token is a 1px drop plus `inset 0 1px 0 rgba(255,255,255,.03)` — a lit top
+edge, which is the cue that separates a surface from the page when the two are
+neutrals four units apart with one hairline between them. The border still does
+the separating; this finishes it. In light there is no lit edge worth drawing
+(white on `#fffdfa` is nothing), so that half is dropped and a fainter drop
+carries the card alone — which is why `--shadow-sm` is one of the few tokens
+whose two themes differ in *shape*, not just in value. `--shadow-lg` stays what
+it was: for things that genuinely float, which means modals and nothing else.
+Anything card-shaped takes the card's treatment — `--r-lg`, a hairline and
+`--shadow-sm` — including `.rail-strip`, `.auth-card` and the `.browser` frame,
+whose corner has to match the cards it shares a row with.
+
+**The ramp is warm, the accent is not.** Every neutral carries a low-saturation
+~36° cast; the accent stays blue against it, and that is the one part of the
+warmth worth defending. `--warn` is amber and `--fill-queued` gold, so a warm
+accent would put the primary button and the *running* dot in the same hue
+family as two verdicts that have to be told apart at `--dot`. It also costs
+nothing: a cool accent on warm neutrals is what leaves it the only saturated
+thing on the page. Verdict hues keep their own temperatures for the same
+reason — they are signal, not surface.
+
+**One border deep.** A card draws a hairline; what sits inside it separates
+with the `--sunken` fill alone — `.stat`, `.card-count`, `.row-tag`,
+`.var-chip`, `.member-list`, `.api-key-fresh`, `.ci-code`, `.browser-url`,
+inline `code`. Three concentric hairlines around a single number was the
+densest the app ever got, and a nested border buys nothing the fill doesn't:
+`--sunken` sits below `--bg` in dark precisely so it can do this job without
+one. The exceptions are the boxes whose border *is* the signal — `.badge` and
+`.diag-tag` carry a verdict in `--ok-line`/`--bad-line`/`--warn-line`, and in
+the light theme that hairline is most of what makes a passed pill visible on a
+white card. So: a new box inside a card gets a fill, and gets a border only if
+the border is saying something the fill can't. A run status renders as a tinted `.badge-<status>`
 pill; `statusColor()` in `status.js` maps a status to a `--fill-*` token for the
 solid dots and timeline bars, so the two can't drift and a theme swap carries
 the dots with it.
@@ -109,7 +189,7 @@ the dots with it.
 
 Every token `App.css` declares, flat, with its value. The sections above are the
 *why*; this is the lookup, so a rule can be written without opening the
-stylesheet. **73 names — a value that isn't one of these is a rule reaching past
+stylesheet. **74 names — a value that isn't one of these is a rule reaching past
 the system.** Colours are declared twice, in `:root` (dark, the default) and in
 `:root[data-theme='light']`; everything from Spacing down is theme-invariant.
 
@@ -117,22 +197,22 @@ the system.** Colours are declared twice, in `:root` (dark, the default) and in
 
 | Token | Dark | Light | |
 | --- | --- | --- | --- |
-| `--bg` | `#131316` | `#f4f4f6` | the page |
-| `--sunken` | `#18181c` | `#ebebee` | inputs, wells |
-| `--card` | `#1c1c20` | `#ffffff` | |
-| `--raised` | `#212126` | `#ffffff` | modals |
-| `--hover` | `#26262b` | `#f1f1f4` | |
-| `--border` | `#2b2b31` | `#e3e3e8` | hairline, does the separating |
-| `--border-hi` | `#3a3a41` | `#cfcfd7` | emphasis / hover border |
-| `--stage` | `#0d0d0f` | `#e8e8ea` | letterbox around the live frame |
+| `--bg` | `#17130f` | `#f7f4ef` | the page |
+| `--sunken` | `#181410` | `#efebe4` | inputs, wells — *below* `--bg` in dark |
+| `--card` | `#201c17` | `#fffdfa` | |
+| `--raised` | `#26211b` | `#fffdfa` | modals |
+| `--hover` | `#2b2620` | `#f5f1ea` | |
+| `--border` | `#302b25` | `#e8e3da` | hairline, does the separating |
+| `--border-hi` | `#403a33` | `#d5cfc5` | emphasis / hover border |
+| `--stage` | `#100d0a` | `#ede8e0` | letterbox around the live frame |
 
 ### Text
 
 | Token | Dark | Light | |
 | --- | --- | --- | --- |
-| `--text` | `#edeef0` | `#1a1a1f` | |
-| `--muted` | `#9b9ba3` | `#5b5b66` | secondary |
-| `--faint` | `#83838d` | `#70707a` | tertiary |
+| `--text` | `#f1ede7` | `#1f1a14` | |
+| `--muted` | `#a29b92` | `#625b52` | secondary |
+| `--faint` | `#8a837a` | `#787067` | tertiary |
 
 ### Accent
 
@@ -170,17 +250,18 @@ one of these by name — the two tables cannot drift.
 | Token | Dark | Light | | Token | Dark | Light |
 | --- | --- | --- | --- | --- | --- | --- |
 | `--fill-queued` | `#9c8039` | `#9a7315` | | `--fill-error` | `#d0666c` | `#c0434b` |
-| `--fill-running` | `#4d7cf6` | `#3563d6` | | `--fill-completed` | `#45454c` | `#b4b4bd` |
+| `--fill-running` | `#4d7cf6` | `#3563d6` | | `--fill-completed` | `#4b453e` | `#bcb4ab` |
 | `--fill-passed` | `#4cb98a` | `#1d8a5f` | | `--fill-cancelled` | `#7d93b5` | `#5c7699` |
-| `--fill-failed` | `#d0666c` | `#c0434b` | | `--fill-idle` | `#4f4f57` | `#c2c2ca` |
+| `--fill-failed` | `#d0666c` | `#c0434b` | | `--fill-idle` | `#564f47` | `#cac2b9` |
 
 ### Overlays and shadow
 
 | Token | Dark | Light | |
 | --- | --- | --- | --- |
-| `--bar` | `rgba(19,19,22,.85)` | `rgba(244,244,246,.85)` | top bar |
-| `--scrim` | `rgba(7,7,9,.66)` | `rgba(26,26,32,.32)` | behind a modal |
-| `--shadow-lg` | `0 24px 64px rgba(0,0,0,.55), 0 2px 6px rgba(0,0,0,.4)` | `0 24px 64px rgba(24,24,30,.14), 0 2px 6px rgba(24,24,30,.08)` | modals only; cards get none |
+| `--bar` | `rgba(23,19,15,.85)` | `rgba(247,244,239,.85)` | top bar |
+| `--scrim` | `rgba(10,8,6,.66)` | `rgba(32,26,20,.32)` | behind a modal |
+| `--shadow-sm` | `0 1px 2px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.03)` | `0 1px 2px rgba(30,24,19,.06)` | cards — the inset lit edge is the point, and light has none |
+| `--shadow-lg` | `0 24px 64px rgba(0,0,0,.55), 0 2px 6px rgba(0,0,0,.4)` | `0 24px 64px rgba(30,24,19,.14), 0 2px 6px rgba(30,24,19,.08)` | modals only |
 
 ### Spacing and controls
 
@@ -191,17 +272,18 @@ one of these by name — the two tables cannot drift.
 
 ### Sizes
 
-`--col-side` 300px · `--col-side-min` 250px · `--stage-min` 800px ·
-`--rail-strip` 34px · `--scroll-cap` 240px · `--dot` 6px · `--page-w` 1480px ·
+`--card-pad` `var(--s5)`/20px · `--col-side` 300px · `--col-side-min` 250px ·
+`--stage-min` 800px · `--rail-strip` 34px · `--scroll-cap` 240px · `--dot` 6px ·
+`--page-w` 1480px ·
 `--topbar-h` 52px · `--sticky-top` `calc(var(--topbar-h) + var(--s4))` ·
 `--sticky-h` `calc(100vh - var(--sticky-top) - var(--s4))`
 
 ### Type and radii
 
 `--t-xs` .75rem/12px · `--t-sm` .8125rem/13px · `--t-base` .875rem/14px ·
-`--t-lg` 1rem/16px · `--t-xl` 1.25rem/20px  (px at the 16px browser default)
+`--t-lg` 1rem/16px · `--t-xl` 1.75rem/28px  (px at the 16px browser default)
 
-`--r-sm` 4px · `--r-md` 6px · `--r-lg` 8px · `--r-xl` 10px
+`--r-sm` 4px · `--r-md` 6px · `--r-lg` 10px — three, and each is in use
 
 ### Motion and family
 

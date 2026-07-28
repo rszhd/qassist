@@ -7,31 +7,42 @@
    which is white against the accent in either theme and so is a property of
    the pairing rather than of the palette.
 
-   The palette is deliberately near-monochrome: a single neutral grey ramp,
-   one accent spent only on the primary action and focus, and verdict colours
-   held well below full saturation. Depth comes from hairline borders, not
-   from stacking ever-lighter surfaces.
+   The palette is deliberately near-monochrome: a single neutral ramp, one
+   accent spent only on the primary action and focus, and verdict colours held
+   well below full saturation. Depth comes from hairline borders, not from
+   stacking ever-lighter surfaces.
+
+   The ramp is warm — every neutral carries a low-saturation ~36° cast rather
+   than sitting on true grey. The accent stays blue against it on purpose: warn
+   is amber and queued is gold, so a warm accent would put the primary button
+   and the running dot in the same hue family as two verdicts that have to be
+   told apart at `--dot`. Cool accent on warm neutrals is also what leaves the
+   accent the one saturated thing on the page.
    ========================================================================== */
 :root {
   color-scheme: dark;
 
-  /* Surfaces, darkest to lightest: page → sunken (inputs, wells) → card →
-     raised (modals) → hover. The ramp sits at graphite rather than at black —
-     dark enough to be a dark theme, light enough that the surfaces read as
-     paper. They stay within ~20 units of each other; the borders do the
-     separating. */
-  --bg: #131316;
-  --sunken: #18181c;
-  --card: #1c1c20;
-  --raised: #212126;
-  --hover: #26262b;
-  --border: #2b2b31;
-  --border-hi: #3a3a41;
-  --stage: #0d0d0f;
+  /* Surfaces, darkest to lightest: sunken (inputs, wells) → page → card →
+     raised (modals) → hover. The ramp sits at warm graphite rather than at
+     black — dark enough to be a dark theme, light enough that the surfaces
+     read as paper.
+     `--sunken` is the one that sits *below* the page rather than above it: a
+     well inside a card is the only surface pairing asked to separate without a
+     border (see "the fill does the separating" on `.stat` and friends), and at
+     4 units under the card it could not. Below `--bg` it clears the card by 8,
+     which is what a recess needs to read as one. */
+  --bg: #17130f;
+  --sunken: #181410;
+  --card: #201c17;
+  --raised: #26211b;
+  --hover: #2b2620;
+  --border: #302b25;
+  --border-hi: #403a33;
+  --stage: #100d0a;
 
-  --text: #edeef0;
-  --muted: #9b9ba3;
-  --faint: #83838d;
+  --text: #f1ede7;
+  --muted: #a29b92;
+  --faint: #8a837a;
 
   --accent: #4d7cf6;
   --accent-hi: #6a92f8;
@@ -66,14 +77,14 @@
   --fill-passed: #4cb98a;
   --fill-failed: #d0666c;
   --fill-error: #d0666c;
-  --fill-completed: #45454c;
+  --fill-completed: #4b453e;
   --fill-cancelled: #7d93b5;
-  --fill-idle: #4f4f57;
+  --fill-idle: #564f47;
 
   /* The two translucent layers. They have to be tokens like everything else,
      or a theme swap leaves a dark bar and a dark scrim over a light page. */
-  --bar: rgba(19, 19, 22, .85);
-  --scrim: rgba(7, 7, 9, .66);
+  --bar: rgba(23, 19, 15, .85);
+  --scrim: rgba(10, 8, 6, .66);
 
   /* Spacing. Every value is N × 4px, including the two half-steps: component
      interiors kept inventing 5/6/7/9/10/11px because the scale started at 4,
@@ -116,7 +127,16 @@
      picker, which sit at the same height on purpose.
      `--dot` is a status dot: WS state, the live pulse, a history row's
      verdict. (The browser chrome's dots are decoration, not status, and keep
-     their own size.) */
+     their own size.)
+     `--card-pad` is the inset a `.card` keeps around its contents, and it is a
+     token rather than a value in one rule because six others read it: every
+     full-bleed thing inside a card (`.list`, `.log`, `.diag`, `.tabs`, the
+     rail's pinned group head) cancels exactly this much with a negative margin
+     and then pays it back as its own padding, so a row's text still lines up
+     with the card head above it. Written as a literal in seven places, moving
+     the card's inset left every list 4px short of the edge it is supposed to
+     reach — which is how this became a measurement. */
+  --card-pad: var(--s5);
   --col-side: 300px;
   --col-side-min: 250px;
   --stage-min: 800px;
@@ -126,10 +146,13 @@
 
   /* Page width — header and content share it so they stay flush. Sized so the
      Run view holds `--stage-min` with the rail *expanded* and the activity
-     panel still beside it: 300 + 16 + 800 + 16 + 300, plus the `--s5` gutters.
-     That is the widest the view ever needs; its default shape (rail as a strip)
-     spends the difference on the frame. The other views follow the same width
-     so switching tabs never shifts the frame. */
+     panel still beside it: 300 + 16 + 800 + 16 + 300 = 1432, plus the two
+     `--s6` gutters = 1480 exactly. That is the widest the view ever needs; its
+     default shape (rail as a strip) spends the difference on the frame. The
+     other views follow the same width so switching tabs never shifts the
+     frame. The gutter is `--s6` rather than `--s5` because at 20px the content
+     ran nearly to the edge of a wide screen; the 4px it costs each side is
+     what the 8px of slack in this number used to be. */
   --page-w: 1480px;
 
   /* A sticky column stops one gutter below the bar, and leaves the same
@@ -146,16 +169,32 @@
      buttons), `--t-base` is every primary run of text and every control,
      `--t-lg` is a heading or a number worth reading first, `--t-xl` is the
      page title alone. The bottom three sit 1px apart because they are already
-     separated by weight, case and colour; the top two step by ~1.25 because
-     nothing else marks them. Rem, not px, so the browser's font-size setting
-     scales the app: at the 16px default these are 12/13/14/16/20 — whole
-     pixels at that default only, since the old half-pixel steps were close
-     enough to get picked interchangeably. */
-  --t-xs: .75rem; --t-sm: .8125rem; --t-base: .875rem; --t-lg: 1rem; --t-xl: 1.25rem;
+     separated by weight, case and colour; the top two carry the whole scale's
+     contrast, so they step hard rather than politely — `--t-xl` at 28px is
+     twice `--t-xs`. It was 20px, four steps up from a 14px body, and the
+     result was a page whose title read as another row label: a scale that
+     spans 12–20px has no room to say what you are looking at before it says
+     what is in it. Rem, not px, so the browser's font-size setting scales the
+     app: at the 16px default these are 12/13/14/16/28. */
+  --t-xs: .75rem; --t-sm: .8125rem; --t-base: .875rem; --t-lg: 1rem; --t-xl: 1.75rem;
 
-  --r-sm: 4px; --r-md: 6px; --r-lg: 8px; --r-xl: 10px;
+  /* Three radii, each in use. `--r-lg` is the card corner and everything
+     card-shaped takes it — modal, sign-in card, the minimized rail strip,
+     the browser frame. It was 8px with a fourth step at 10px above it that
+     only the modal used; a dialog rounder than the cards behind it is a
+     distinction nobody was reading, so the two collapsed into one. */
+  --r-sm: 4px; --r-md: 6px; --r-lg: 10px;
 
-  /* Shadows are for things that genuinely float. Cards get none. */
+  /* Two shadows, and they say different things. `--shadow-lg` is for what
+     genuinely floats — modals, and nothing else.
+     `--shadow-sm` is what a card gets, and it is mostly not the drop: the
+     inset top hairline is a lit edge, the one cue that separates a surface
+     from the page when both are neutrals four units apart and the border
+     between them is a single hairline. Depth still comes from the border —
+     this finishes it rather than replacing it. In light there is no lit edge
+     to draw (white on near-white is nothing), so that half goes and a fainter
+     drop carries it alone. */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, .3), inset 0 1px 0 rgba(255, 255, 255, .03);
   --shadow-lg: 0 24px 64px rgba(0, 0, 0, .55), 0 2px 6px rgba(0, 0, 0, .4);
 
   --fast: 110ms ease;
@@ -190,18 +229,18 @@
 :root[data-theme='light'] {
   color-scheme: light;
 
-  --bg: #f4f4f6;
-  --sunken: #ebebee;
-  --card: #ffffff;
-  --raised: #ffffff;
-  --hover: #f1f1f4;
-  --border: #e3e3e8;
-  --border-hi: #cfcfd7;
-  --stage: #e8e8ea;
+  --bg: #f7f4ef;
+  --sunken: #efebe4;
+  --card: #fffdfa;
+  --raised: #fffdfa;
+  --hover: #f5f1ea;
+  --border: #e8e3da;
+  --border-hi: #d5cfc5;
+  --stage: #ede8e0;
 
-  --text: #1a1a1f;
-  --muted: #5b5b66;
-  --faint: #70707a;
+  --text: #1f1a14;
+  --muted: #625b52;
+  --faint: #787067;
 
   --accent: #3563d6;
   --accent-hi: #2a4fb3;
@@ -230,17 +269,20 @@
   --fill-passed: #1d8a5f;
   --fill-failed: #c0434b;
   --fill-error: #c0434b;
-  --fill-completed: #b4b4bd;
+  --fill-completed: #bcb4ab;
   --fill-cancelled: #5c7699;
-  --fill-idle: #c2c2ca;
+  --fill-idle: #cac2b9;
 
-  --bar: rgba(244, 244, 246, .85);
-  --scrim: rgba(26, 26, 32, .32);
+  --bar: rgba(247, 244, 239, .85);
+  --scrim: rgba(32, 26, 20, .32);
 
   /* Shadow is the one thing that does not invert — it stays black, just
      far lighter, because a shadow on paper is an absence of light either
-     way. */
-  --shadow-lg: 0 24px 64px rgba(24, 24, 30, .14), 0 2px 6px rgba(24, 24, 30, .08);
+     way. `--shadow-sm` drops its lit edge here: a white inset on a card that
+     is already `#fffdfa` draws nothing, so the faint drop carries the card on
+     its own. */
+  --shadow-sm: 0 1px 2px rgba(30, 24, 19, .06);
+  --shadow-lg: 0 24px 64px rgba(30, 24, 19, .14), 0 2px 6px rgba(30, 24, 19, .08);
 }
 
 /* ==========================================================================
@@ -284,7 +326,7 @@ code { font-family: var(--mono); font-size: .92em; }
   background: var(--bar); backdrop-filter: blur(12px);
 }
 .topbar-inner {
-  max-width: var(--page-w); height: 100%; margin: 0 auto; padding: 0 var(--s5);
+  max-width: var(--page-w); height: 100%; margin: 0 auto; padding: 0 var(--s6);
   display: flex; align-items: center; gap: var(--s4);
 }
 .brand { font-size: var(--t-lg); font-weight: 600; letter-spacing: -.006em; }
@@ -309,10 +351,12 @@ code { font-family: var(--mono); font-size: .92em; }
 .views a.active { color: var(--text); background: var(--hover); }
 
 .top-right { margin-left: auto; display: flex; align-items: center; gap: var(--s3); }
+/* `capitalize` rather than a label map: the state names arrive lowercase from
+   the socket and this is the only place they are shown. */
 .ws {
   display: inline-flex; align-items: center; gap: var(--s15);
-  font-size: var(--t-xs); font-weight: 600; letter-spacing: .07em;
-  text-transform: uppercase; color: var(--faint);
+  font-size: var(--t-sm); font-weight: 500;
+  text-transform: capitalize; color: var(--faint);
 }
 .ws::before { content: ''; width: var(--dot); height: var(--dot); border-radius: 50%; background: currentColor; }
 .ws-live { color: var(--ok); }
@@ -345,7 +389,7 @@ code { font-family: var(--mono); font-size: .92em; }
   border-bottom: 1px solid var(--warn-line); background: var(--warn-bg);
 }
 .demo-bar-inner {
-  max-width: var(--page-w); margin: 0 auto; padding: var(--s15) var(--s5);
+  max-width: var(--page-w); margin: 0 auto; padding: var(--s15) var(--s6);
   display: flex; align-items: center; gap: var(--s2);
 }
 .demo-bar-inner > svg { flex: 0 0 auto; color: var(--warn); }
@@ -353,7 +397,7 @@ code { font-family: var(--mono); font-size: .92em; }
 .demo-bar-msg strong { color: var(--warn); font-weight: 600; }
 .demo-bar-cta { flex: 0 0 auto; }
 
-.app { max-width: var(--page-w); margin: 0 auto; padding: 0 var(--s5) var(--s10); }
+.app { max-width: var(--page-w); margin: 0 auto; padding: 0 var(--s6) var(--s10); }
 
 /* Sign-in screen (US-021): the whole app is behind it in multi-user mode, so it
    owns the viewport and centres one narrow card. */
@@ -361,7 +405,7 @@ code { font-family: var(--mono); font-size: .92em; }
 .auth-card {
   width: 100%; max-width: 340px;
   background: var(--card); border: 1px solid var(--border); border-radius: var(--r-lg);
-  padding: var(--s6);
+  padding: var(--s6); box-shadow: var(--shadow-sm);
 }
 .auth-brand {
   font-size: var(--t-lg); font-weight: 600; letter-spacing: -.006em;
@@ -409,7 +453,7 @@ code { font-family: var(--mono); font-size: .92em; }
 .api-keys-head { display: flex; align-items: center; gap: var(--s3); }
 .api-keys-head .field-label { flex: 1; }
 .api-key-fresh { display: flex; flex-direction: column; gap: var(--s2); padding: var(--s3);
-  background: var(--sunken); border: 1px solid var(--border); border-radius: var(--r-md); }
+  background: var(--sunken); border-radius: var(--r-md); }
 .api-key-reveal { display: flex; align-items: center; gap: var(--s2); }
 .api-key-reveal code { flex: 1; min-width: 0; overflow-x: auto; white-space: nowrap; }
 .api-key-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
@@ -433,10 +477,15 @@ code { font-family: var(--mono); font-size: .92em; }
 .billing-state > span { flex: 1; min-width: 0; font-size: var(--t-sm); color: var(--faint); }
 .billing-actions { display: flex; gap: var(--s2); flex-shrink: 0; }
 
-/* The header sits one gutter above the content, so the gap under the title
-   matches the gap between the cards below it. */
-.page-head { display: flex; align-items: flex-start; gap: var(--s4); padding: var(--s6) 0 var(--s4); }
-.page-head h1 { font-size: var(--t-xl); font-weight: 600; letter-spacing: -.018em; }
+/* The band above the content is deliberately taller than the gap below it —
+   the title needs somewhere to sit, and an inset equal to the card gap made it
+   look dropped in rather than placed. `align-items: center` so the actions
+   ride the title's optical centre now that the title is 28px; flex-start hung
+   them off its cap height. */
+.page-head { display: flex; align-items: center; gap: var(--s4); padding: var(--s8) 0 var(--s5); }
+/* Tracking tightens as the size goes up — the default letterfit is drawn for
+   text, and at 28px it reads loose. */
+.page-head h1 { font-size: var(--t-xl); font-weight: 600; letter-spacing: -.022em; line-height: 1.2; }
 .page-head p { margin-top: var(--s1); font-size: var(--t-base); color: var(--muted); max-width: 68ch; }
 .page-head-actions { margin-left: auto; display: flex; align-items: center; gap: var(--s2); flex-shrink: 0; }
 
@@ -489,9 +538,14 @@ li:focus-within > .row-actions,
 .field-label { font-size: var(--t-base); font-weight: 500; color: var(--text); }
 .field-hint { font-size: var(--t-sm); line-height: 1.5; color: var(--faint); }
 
+/* Idle at `--border`, the hairline every other surface separates with, rather
+   than at the emphasis weight: a row of five filters is the densest thing on
+   History, and at `--border-hi` it read as five hard boxes before you had asked
+   it anything. The emphasis weight is where hover goes instead, so the ramp
+   runs border → border-hi → accent as you approach the field. */
 input, textarea, select {
   width: 100%; background: var(--sunken); color: var(--text);
-  border: 1px solid var(--border-hi); border-radius: var(--r-md);
+  border: 1px solid var(--border); border-radius: var(--r-md);
   padding: var(--s2) var(--s3); font: inherit; font-size: var(--t-base); resize: vertical;
   transition: border-color var(--fast), box-shadow var(--fast), background var(--fast);
 }
@@ -501,7 +555,7 @@ input, textarea, select {
    apart. Text keeps the button's own `--s3` side inset, so labels down a
    column of mixed controls line up too. */
 input:not([type='checkbox']), select { height: var(--ctl); padding-block: 0; }
-input:hover, textarea:hover, select:hover { border-color: var(--faint); }
+input:hover, textarea:hover, select:hover { border-color: var(--border-hi); }
 input::placeholder, textarea::placeholder { color: var(--faint); }
 input:focus, textarea:focus, select:focus {
   outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--ring);
@@ -545,18 +599,22 @@ select {
 .card, .run-detail, .group { display: flex; flex-direction: column; }
 .card, .run-detail { gap: var(--s3); }
 .group { gap: var(--s2); }
+/* The inset of a card is not one of the three rhythms — those are gaps between
+   things, and this is the margin the card keeps around all of them. At `--s4`
+   it was the same distance as the gap between two cards, so a card read as a
+   border drawn around content rather than as content set into a surface. */
 .card {
   background: var(--card); border: 1px solid var(--border); border-radius: var(--r-lg);
-  padding: var(--s4);
+  padding: var(--card-pad); box-shadow: var(--shadow-sm);
 }
 .card-head {
   display: flex; align-items: center; gap: var(--s2);
   min-height: var(--ctl-sm);
 }
-.card-title { font-size: var(--t-xs); font-weight: 600; text-transform: uppercase; letter-spacing: .09em; color: var(--faint); }
+.card-title { font-size: var(--t-sm); font-weight: 500; color: var(--muted); }
 .card-count {
   font-size: var(--t-xs); font-weight: 600; color: var(--muted);
-  background: var(--sunken); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 0 var(--s15);
+  background: var(--sunken); border-radius: var(--r-sm); padding: 0 var(--s15);
 }
 .spacer { margin-left: auto; }
 .modal-form { display: flex; flex-direction: column; gap: var(--s4); }
@@ -570,15 +628,18 @@ select {
 .empty-body { font-size: var(--t-base); line-height: 1.6; max-width: 46ch; color: var(--text); }
 
 /* 84px is the narrowest a stat can be and still fit its widest label
-   ("DURATION") on one line at `--t-xs`; below that the grid drops a column
-   instead of wrapping the caps. */
+   ("Duration") on one line at `--t-sm`; below that the grid drops a column
+   instead of wrapping it. */
 .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(84px, 1fr)); gap: var(--s2); }
+/* No border: a stat is a well on a card that already has one, and three
+   concentric hairlines around one number was the densest corner of the app.
+   The `--sunken` fill separates it on its own. */
 .stat {
-  background: var(--sunken); border: 1px solid var(--border); border-radius: var(--r-md);
+  background: var(--sunken); border-radius: var(--r-md);
   padding: var(--s2) var(--s3); display: flex; flex-direction: column; gap: var(--s05);
 }
 .stat-value { font-size: var(--t-lg); font-weight: 550; letter-spacing: -.015em; }
-.stat-label { font-size: var(--t-xs); font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--faint); }
+.stat-label { font-size: var(--t-sm); color: var(--faint); }
 .stat.ok .stat-value { color: var(--ok); }
 .stat.bad .stat-value { color: var(--bad); }
 
@@ -591,7 +652,7 @@ select {
 .modal {
   width: 100%; max-width: 500px; max-height: calc(100vh - var(--s10));
   display: flex; flex-direction: column;
-  background: var(--raised); border: 1px solid var(--border-hi); border-radius: var(--r-xl);
+  background: var(--raised); border: 1px solid var(--border-hi); border-radius: var(--r-lg);
   box-shadow: var(--shadow-lg); animation: rise 130ms ease;
 }
 .modal-wide { max-width: 660px; }
@@ -599,16 +660,16 @@ select {
    the same distance below the description as the fields sit from each other. */
 .modal-head {
   display: flex; align-items: flex-start; gap: var(--s3);
-  padding: var(--s4);
+  padding: var(--card-pad);
 }
 .modal-head h2 { font-size: var(--t-lg); font-weight: 600; letter-spacing: -.008em; }
 .modal-head p { margin-top: var(--s1); font-size: var(--t-base); line-height: 1.5; color: var(--muted); }
 .modal-head .icon-btn { margin-left: auto; }
-.modal-body { padding: 0 var(--s4) var(--s4); overflow-y: auto; display: flex; flex-direction: column; gap: var(--s4); }
+.modal-body { padding: 0 var(--card-pad) var(--card-pad); overflow-y: auto; display: flex; flex-direction: column; gap: var(--s4); }
 .modal-foot {
   display: flex; justify-content: flex-end; gap: var(--s2);
-  padding: var(--s3) var(--s4); border-top: 1px solid var(--border); background: var(--sunken);
-  border-radius: 0 0 var(--r-xl) var(--r-xl);
+  padding: var(--s3) var(--card-pad); border-top: 1px solid var(--border); background: var(--sunken);
+  border-radius: 0 0 var(--r-lg) var(--r-lg);
 }
 /* A destructive action in a footer is not part of the cancel/confirm pair and
    is never the button you reach for by muscle memory, so it sits at the far
@@ -633,7 +694,7 @@ select {
 .banner strong { display: block; font-size: var(--t-base); font-weight: 600; }
 .banner span { color: var(--warn-soft); }
 .banner code, .hint code, .row-sub code, .empty-body code {
-  background: var(--sunken); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 0 var(--s1);
+  background: var(--sunken); border-radius: var(--r-sm); padding: 0 var(--s1);
 }
 .error { background: var(--bad-bg); border-color: var(--bad-line); color: var(--bad); }
 .batch-note { background: var(--info-bg); border-color: var(--info-line); color: var(--info); }

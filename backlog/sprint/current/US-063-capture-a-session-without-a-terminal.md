@@ -6,20 +6,21 @@ myself, **so that** the flows only a human can authenticate are testable by the
 people this product is for.
 
 - **Status:** 📋 Planned — filed 2026-07-28 out of writing
-  [`docs/auth-in-tested-flows.md`](../../docs/auth-in-tested-flows.md), which
+  [`docs/auth-in-tested-flows.md`](../../../docs/auth-in-tested-flows.md), which
   could not describe how a non-developer sets up social login because there is
-  no way. **Approach decided the same day: option B, a browser extension.** The
+  no way, and scheduled into `sprint/current/` the same day, alongside US-059.
+  **Approach decided the same day: option B, a browser extension.** The
   rejected alternative and the reasoning are kept below.
 - **Priority:** P2 — see "Why P2 when it serves a P3 story", which is the part
   worth arguing with.
 - **Estimate:** ~1–2 days for the extension and the endpoint it posts to, plus
   store submission and an indefinite maintenance tail that the day count does
   not capture and should not be allowed to hide.
-- **Depends on:** [US-043](../sprint/current/done/US-043-reusable-authenticated-sessions.md)
+- **Depends on:** [US-043](done/US-043-reusable-authenticated-sessions.md)
   (the session it fills, and the encrypt/store/teardown path it reuses wholesale),
   US-021. Unblocks [US-059](US-059-otp-and-social-login-in-tested-flows.md) tier 3
   for anyone who is not a developer.
-- **Not** [US-062](US-062-live-browser-test-tier.md). That is a headless test
+- **Not** [US-062](../../unscheduled/US-062-live-browser-test-tier.md). That is a headless test
   tier for the maintainer, proving US-042's redirect and US-043's round-trip.
   The names are close enough to be mixed up and the two share no code.
 
@@ -86,7 +87,7 @@ are what the acceptance criteria below are mostly about.
   is `docker compose up` and it is theirs. An extension lives in our store
   account, signed by us, and must be told which instance to post to — an
   arbitrary origin, possibly a LAN address, which widens host permissions
-  further. This is a real crack in [`docs/repo-model.md`](../../docs/repo-model.md)'s
+  further. This is a real crack in [`docs/repo-model.md`](../../../docs/repo-model.md)'s
   posture. It does not sink the decision, but the source belongs in this repo
   and an unpacked/self-built install path must stay documented and supported.
 - **It reads the user's daily browser, and that is the sharp edge.** The
@@ -192,7 +193,7 @@ is the one most likely to be quietly dropped.
 
 **Yes, and by extension rather than by a new row.** This adds a *new writer* to
 the surface already registered as **Saved browser sessions (US-043)** in
-[`correctness-critical.md`](../correctness-critical.md) — a row whose failure
+[`correctness-critical.md`](../../correctness-critical.md) — a row whose failure
 description already runs to six distinct ways the credential path breaks,
 including "the failed refresh that clobbers" and "the empty session that runs
 anyway", both of which this story can reintroduce through a door US-043 never

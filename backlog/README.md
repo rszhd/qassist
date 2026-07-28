@@ -51,6 +51,8 @@ Sprints aren't split along a self-host/hosted-tier line — `sprint/current/` an
 
 | ID | Story | Status | Depends on |
 |---|---|---|---|
+| [US-063](sprint/current/US-063-capture-a-session-without-a-terminal.md) | Capture a session without a terminal (browser extension) | 📋 Planned (scheduled 2026-07-28) | US-043, US-021 |
+| [US-059](sprint/current/US-059-otp-and-social-login-in-tested-flows.md) | OTP and social login in a tested flow (was US-013 tiers 2–3) | 📋 Planned (tiered, scheduled 2026-07-28) | US-013 tier 1, US-043, US-035 |
 | [US-042](sprint/current/done/US-042-agent-navigation-confinement.md) | Confine where the agent may navigate | ✅ **Done** 2026-07-27, 5/6 — the fence is two settings, not one: `block_ip_addresses` does not stop `localhost` despite its docstring. The sixth (a live redirect) is wired, not provable in any test tier | US-021 |
 | [US-056](sprint/current/US-056-production-deployment.md) | Production deployment: `app.qassist.run` goes live | 📋 Planned (created 2026-07-26) — the production stand-up itself | US-007, US-038, US-052 |
 | [US-058](sprint/current/done/US-058-per-user-concurrency-override.md) | Raise one user's concurrency cap without raising everyone's | ✅ **Done** 2026-07-27, 9/9 — the cap the operator can move for one account, and it lands without a restart | US-028, US-021 |
@@ -210,6 +212,43 @@ story above it made the queue busier.
   filesystem boundary wearing a feature's clothes. Correctness-critical, assertions
   written and reviewed first, row added to
   [`correctness-critical.md`](correctness-critical.md).
+- **US-059 + US-063** (2026-07-28, from `unscheduled/`) — scheduled the day
+  after they were filed, and together, because they are one gap read from two
+  ends: what a tested flow's login needs (US-059) and how a person who does not
+  use a terminal supplies it (US-063). Both were filed behind US-043, which has
+  since shipped, so what each has left is smaller than its priority suggested.
+  US-063 is P2 and US-059 P3, and US-063 unblocks US-059's tier 3 — a dependency
+  outranking its dependent, which is why they move as a pair rather than in
+  priority order.
+  - **US-059** is US-013's leftover tiers, spun out per the folder rule rather
+    than left in a closed story whose results section is about IMAP. Two things
+    changed while they sat there. **US-043 did most of tier 3's work**: its
+    stated mechanism — reuse a pre-authenticated session rather than automate a
+    fresh OAuth login — is now shipped, so what's left is the fence, not the
+    plumbing. And **US-042 gave it a new way to fail**: `allowed_domains` is
+    opt-in and project-scoped, so a project that set one blocks its own hop to
+    `accounts.google.com`, and the run dies at the redirect saying nothing about
+    social login. The story also adds a tier US-013 never had — **TOTP**, which
+    is stdlib HMAC with no vendor, no bill and no polling loop, and is therefore
+    cheaper than the SMS tier it was filed behind.
+  - **US-063** came out of writing
+    [`docs/auth-in-tested-flows.md`](../docs/auth-in-tested-flows.md) and
+    finding the doc could not answer a question it had to raise: how does
+    someone who does not use a terminal set up social login? US-043 fills a
+    session two ways, and neither reaches that user — a login test cannot type a
+    Google password (the one form Google refuses an automated browser), and the
+    paste route needs Playwright. So the only flow where the escape hatch is the
+    *sole* option is the flow whose users are least equipped to take it.
+    `Sessions.jsx` already declines to require a paste for this reason; the
+    story is that refusal finished. **Decided the same day: a browser
+    extension**, over an interactive browser we host — no server-side Chromium,
+    no input relay, and no password near us. What that buys is paid for in three
+    constraints the story turns into acceptance criteria: the trust ask is the
+    permission prompt rather than the install, it is the first component a
+    self-hoster cannot own, and it reads the user's *daily* browser, which makes
+    capturing a personal Google account the path of least resistance. The
+    rejected alternative is kept in the file with its reasoning. Not to be
+    confused with US-062, which shares a vocabulary and no code.
 
 ## Next sprint — `sprint/next/`
 
@@ -266,9 +305,7 @@ everything free); the full repo/boundary rules live in
 | [US-037](unscheduled/US-037-enterprise-stack-and-readiness.md) | Enterprise stack & readiness: what to adopt, what to refuse | 📋 Planned (tiered) | P2 | US-021, US-007 |
 | [US-045](unscheduled/US-045-model-provider-choice.md) | Bring your own key, to your own provider (incl. local) | 📋 Planned | P2 | US-005, US-039 |
 | [US-062](unscheduled/US-062-live-browser-test-tier.md) | A test tier that drives a real browser | 📋 Planned | P2 | US-034, US-042, US-043, US-048 |
-| [US-063](unscheduled/US-063-capture-a-session-without-a-terminal.md) | Capture a session without a terminal (browser extension) | 📋 Planned | P2 | US-043, US-021 |
 | [US-015](unscheduled/US-015-horizontal-scaling-100-concurrent.md) | Horizontal scaling to ~100 concurrent | 📋 Planned | P3 | US-005, US-009 |
-| [US-059](unscheduled/US-059-otp-and-social-login-in-tested-flows.md) | OTP and social login in a tested flow (was US-013 tiers 2–3) | 📋 Planned (tiered) | P3 | US-013 tier 1, US-043, US-035 |
 | [US-014](unscheduled/US-014-block-heavy-resources.md) | Block heavy page resources | 📋 Planned | P3 | — |
 | [US-046](unscheduled/US-046-token-usage-and-cost.md) | What did that run cost? (token usage + cost) | 📋 Planned | P3 | US-039 |
 | [US-049](unscheduled/US-049-typed-assertions.md) | Assert on a value, not on a paragraph | 📋 Planned | P3 | US-041 |
@@ -297,17 +334,8 @@ the floor. The product's leading claim ("judges pass/fail") is currently the
 agent grading its own homework. Two other stories want it first: US-049 builds on
 it, and US-043 is in the next sprint without it.
 
-**US-059 (added 2026-07-28)** is US-013's leftover tiers, spun out per the
-folder rule rather than left in a closed story whose results section is about
-IMAP. Two things changed while they sat there. **US-043 did most of tier 3's
-work**: its stated mechanism — reuse a pre-authenticated session rather than
-automate a fresh OAuth login — is now shipped, so what's left is the fence,
-not the plumbing. And **US-042 gave it a new way to fail**: `allowed_domains`
-is opt-in and project-scoped, so a project that set one blocks its own hop to
-`accounts.google.com`, and the run dies at the redirect saying nothing about
-social login. The story also adds a tier US-013 never had — **TOTP**, which is
-stdlib HMAC with no vendor, no bill and no polling loop, and is therefore
-cheaper than the SMS tier it was filed behind.
+**US-059 and US-063 (added 2026-07-28)** left the same day they arrived —
+both are in `sprint/current/` now, and why is recorded there.
 
 **US-060, US-061, US-062 (added 2026-07-28)** came out of the same sweep that
 produced US-059: reading every story in `done/` for tiered scope that closed at
@@ -340,24 +368,6 @@ which is exactly the kind of deferral a closed file cannot notice expiring.
 Nothing else in `done/` is carrying unowned tiered scope. The other "tier" hits
 are the paid tier, US-058's plan-driven caps (a US-022 consumer, already noted
 in that story's Later), and US-005's scheduler guard, which US-039 removed.
-
-**US-063 (added 2026-07-28)** came out of writing
-[`docs/auth-in-tested-flows.md`](../docs/auth-in-tested-flows.md) and finding
-the doc could not answer a question it had to raise: how does someone who does
-not use a terminal set up social login? US-043 fills a session two ways, and
-neither reaches that user — a login test cannot type a Google password (the one
-form Google refuses an automated browser), and the paste route needs Playwright.
-So the only flow where the escape hatch is the *sole* option is the flow whose
-users are least equipped to take it. `Sessions.jsx` already declines to require
-a paste for this reason; the story is that refusal finished. **Decided the same
-day: a browser extension**, over an interactive browser we host — no server-side
-Chromium, no input relay, and no password near us. What that buys is paid for in
-three constraints the story turns into acceptance criteria: the trust ask is the
-permission prompt rather than the install, it is the first component a
-self-hoster cannot own, and it reads the user's *daily* browser, which makes
-capturing a personal Google account the path of least resistance. The rejected
-alternative is kept in the file with its reasoning. Not to be confused with
-US-062, which shares a vocabulary and no code.
 
 **US-037 (added 2026-07-25)** is a decision as much as a story: which
 "enterprise standard" stack pieces we adopt and — more usefully — which we

@@ -6,8 +6,9 @@ get past that wall, **so that** the funnel I most need tested is not the one
 QAssist can't reach.
 
 - **Status:** 📋 Planned — spun out of
-  [US-013](../sprint/current/done/US-013-registration-flow-verification.md)
-  on 2026-07-28. US-013's tier 1 (email codes) shipped 2026-07-21 and that
+  [US-013](done/US-013-registration-flow-verification.md)
+  on 2026-07-28 and scheduled into `sprint/current/` the same day, alongside
+  US-063. US-013's tier 1 (email codes) shipped 2026-07-21 and that
   story is closed; tiers 2 and 3 never started, and they no longer belong in a
   file whose results section is about IMAP.
 - **Priority:** P3 (inherited from US-013)
@@ -128,7 +129,7 @@ limitation rather than chasing it.
 ## Correctness-critical
 
 Tiers 1 and 2 add **new secret sources** to a surface already in
-[`correctness-critical.md`](../correctness-critical.md) — the Redaction row
+[`correctness-critical.md`](../../correctness-critical.md) — the Redaction row
 (`agent/redact.py`) and the Secret variables row (US-035). The TOTP shared
 secret is a **non-expiring** credential, which neither existing row's failure
 description covers. Add a row and get the assertion reviewed before the

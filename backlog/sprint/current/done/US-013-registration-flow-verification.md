@@ -4,7 +4,7 @@
 
 - **Status:** ✅ Tier 1 (email) done — validated e2e 2026-07-21. **Tiers 2 (SMS)
   and 3 (social) moved out on 2026-07-28** to
-  [US-059](../../../unscheduled/US-059-otp-and-social-login-in-tested-flows.md),
+  [US-059](../US-059-otp-and-social-login-in-tested-flows.md),
   which also adds a TOTP tier and picks up what US-042 and US-043 changed about
   both. This story is closed at tier 1.
 - **Priority:** P3

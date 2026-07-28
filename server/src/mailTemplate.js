@@ -19,13 +19,13 @@
 // Every caller-supplied value goes through `esc()` — goals, URLs and the
 // judge's own prose all arrive here from outside.
 
-const PAGE = '#131316';
-const CARD = '#1c1c20';
-const SUNKEN = '#18181c';
-const BORDER = '#2b2b31';
-const TEXT = '#edeef0';
-const MUTED = '#9b9ba3';
-const FAINT = '#83838d';
+const PAGE = '#17130f';
+const CARD = '#201c17';
+const SUNKEN = '#1c1813';
+const BORDER = '#302b25';
+const TEXT = '#f1ede7';
+const MUTED = '#a29b92';
+const FAINT = '#8a837a';
 const ACCENT = '#4d7cf6';
 // White on the accent in either theme — a property of the accent, not of the
 // theme (App.css says the same thing above its own palette).

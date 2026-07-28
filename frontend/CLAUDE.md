@@ -22,4 +22,8 @@ apart.
 palette. Load-bearing: tokens over raw pixels, `ui.jsx` primitives over raw
 elements, dark as the default identity, a near-monochrome palette.
 
+**A CSS-only change stays a CSS-only change** — no comment essay, no `npm test`.
+jsdom does no layout, so the suite cannot see a stylesheet; running it proves
+nothing. Change it, look at it, done.
+
 New views land beside the existing ones in `frontend/src/`.
