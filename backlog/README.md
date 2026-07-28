@@ -260,12 +260,15 @@ everything free); the full repo/boundary rules live in
 | [US-024](unscheduled/US-024-memory-watchdog-pss-metric.md) | Memory watchdog: measure PSS, not summed RSS | 📋 Planned | P2 | — |
 | [US-037](unscheduled/US-037-enterprise-stack-and-readiness.md) | Enterprise stack & readiness: what to adopt, what to refuse | 📋 Planned (tiered) | P2 | US-021, US-007 |
 | [US-045](unscheduled/US-045-model-provider-choice.md) | Bring your own key, to your own provider (incl. local) | 📋 Planned | P2 | US-005, US-039 |
+| [US-062](unscheduled/US-062-live-browser-test-tier.md) | A test tier that drives a real browser | 📋 Planned | P2 | US-034, US-042, US-043, US-048 |
 | [US-015](unscheduled/US-015-horizontal-scaling-100-concurrent.md) | Horizontal scaling to ~100 concurrent | 📋 Planned | P3 | US-005, US-009 |
-| [US-013](sprint/current/done/US-013-registration-flow-verification.md) | Registration-flow tiers 2 (SMS) + 3 (social) | 📋 Planned | P3 | — |
+| [US-059](unscheduled/US-059-otp-and-social-login-in-tested-flows.md) | OTP and social login in a tested flow (was US-013 tiers 2–3) | 📋 Planned (tiered) | P3 | US-013 tier 1, US-043, US-035 |
 | [US-014](unscheduled/US-014-block-heavy-resources.md) | Block heavy page resources | 📋 Planned | P3 | — |
 | [US-046](unscheduled/US-046-token-usage-and-cost.md) | What did that run cost? (token usage + cost) | 📋 Planned | P3 | US-039 |
 | [US-049](unscheduled/US-049-typed-assertions.md) | Assert on a value, not on a paragraph | 📋 Planned | P3 | US-041 |
 | [US-050](unscheduled/US-050-fast-run-mode.md) | A fast, cheap mode for tests that already pass | 📋 Planned | P3 | US-046 |
+| [US-060](unscheduled/US-060-account-level-notification-prefs.md) | Notification settings a person owns, not just a project (was US-012 tiers 2–3) | 📋 Planned | P3 | US-012, US-021 |
+| [US-061](unscheduled/US-061-evidence-in-the-judges-context.md) | The judge sees the 500 (was US-044's deferred tier 2) | 📋 Planned | P3 | US-041, US-044, US-046 |
 | [US-016](unscheduled/US-016-desktop-shell.md) | Desktop shell (Electron) | 📋 Planned | TBD | — |
 | [US-017](unscheduled/US-017-frozen-python-agent.md) | Frozen Python agent (no system Python) | 📋 Planned | TBD | US-016 |
 | [US-018](unscheduled/US-018-first-run-setup.md) | First-run setup: Chromium download + BYOK settings | 📋 Planned | TBD | US-016 |
@@ -287,6 +290,50 @@ never override it, so every run already buys a judge call and then reports
 the floor. The product's leading claim ("judges pass/fail") is currently the
 agent grading its own homework. Two other stories want it first: US-049 builds on
 it, and US-043 is in the next sprint without it.
+
+**US-059 (added 2026-07-28)** is US-013's leftover tiers, spun out per the
+folder rule rather than left in a closed story whose results section is about
+IMAP. Two things changed while they sat there. **US-043 did most of tier 3's
+work**: its stated mechanism — reuse a pre-authenticated session rather than
+automate a fresh OAuth login — is now shipped, so what's left is the fence,
+not the plumbing. And **US-042 gave it a new way to fail**: `allowed_domains`
+is opt-in and project-scoped, so a project that set one blocks its own hop to
+`accounts.google.com`, and the run dies at the redirect saying nothing about
+social login. The story also adds a tier US-013 never had — **TOTP**, which is
+stdlib HMAC with no vendor, no bill and no polling loop, and is therefore
+cheaper than the SMS tier it was filed behind.
+
+**US-060, US-061, US-062 (added 2026-07-28)** came out of the same sweep that
+produced US-059: reading every story in `done/` for tiered scope that closed at
+tier 1 and left the rest with no owner. Three survived the read, and the pattern
+is that **each was deferred against a condition that has since been met** —
+which is exactly the kind of deferral a closed file cannot notice expiring.
+
+- **US-060** is US-012's account tier. Its decision 10 deferred the UI because
+  *"account does not mean anything yet: there is one seeded user and no login"*.
+  US-021 shipped two days later. The `OPERATOR_EMAIL` default it flagged —
+  `operator@qassist.local`, an address that cannot receive — is still the last
+  fallback in `notify.js`'s chain on a self-host that sets nothing.
+- **US-061** is US-044's second step, gated on *"once US-041's judge is the
+  verdict"* — still true, so this one is genuinely still waiting, and it is
+  filed behind US-041 rather than pulled forward. Writing it up found one thing
+  worth having on paper early: `include_recent_events` is **not** the lever. It
+  interpolates browser-use's raw event summary into the prompt, unscrubbed and
+  uncapped, which is the exact pair of bugs US-044's four-subtleties section is
+  the record of avoiding.
+- **US-062** is the odd one — not a story's leftover tier but a *missing* one.
+  US-042, US-043 and US-048 each closed with a claim resting on someone watching
+  it work, and each said so in the same words: no tier of ours can reach a live
+  browser. US-042 even assigned the work ("belongs to whoever next touches this
+  surface") and two stories touched it since. US-043 is the argument for paying:
+  its dropped-localStorage bug was found by hand and was invisible to every
+  existing tier. The cheap half is cheaper than it looks — `SecurityWatchdog`
+  attaches to `BrowserSession`, not `Agent`, so two of the three claims need a
+  Chromium but no model call.
+
+Nothing else in `done/` is carrying unowned tiered scope. The other "tier" hits
+are the paid tier, US-058's plan-driven caps (a US-022 consumer, already noted
+in that story's Later), and US-005's scheduler guard, which US-039 removed.
 
 **US-037 (added 2026-07-25)** is a decision as much as a story: which
 "enterprise standard" stack pieces we adopt and — more usefully — which we

@@ -104,7 +104,10 @@ reaches the child as `QA_FIXTURES`, and names each file in the task — but the
 hop itself is browser-use driving a live `<input type=file>`, which needs a
 Chromium and a funded key and so belongs to the same tier as US-042's redirect
 criterion. Worth being precise about which claims rest on a test and which rest
-on someone watching it work.
+on someone watching it work. **That tier is now
+[US-062](../../../unscheduled/US-062-live-browser-test-tier.md)** (2026-07-28);
+this criterion is its funded, agent-driven case, which is deliberately not a
+merge gate there.
 
 **What the assertion caught that nothing else would have.** `POST
 /api/tests/:id/run` builds its own column list instead of sharing

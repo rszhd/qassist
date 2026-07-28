@@ -247,7 +247,9 @@ The login-run route was driven end to end against demowebshop on 2026-07-27:
 a session created empty, pointed at the `Register` test, filled by that test's
 passing run, and then read back to start a later run authenticated. That is
 what surfaced the closed-browser export and the dropped localStorage — neither
-was visible from any test tier, and both are recorded above.
+was visible from any test tier, and both are recorded above. **The tier that
+would have caught them is [US-062](../../../unscheduled/US-062-live-browser-test-tier.md)**
+(2026-07-28), where the `storageState` round-trip is an acceptance criterion.
 
 ### AC #6 — measured
 

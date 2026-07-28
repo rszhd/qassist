@@ -64,7 +64,12 @@ variables must not leak them into an artifact that is emailed as a PDF.
 `include_recent_events` for exactly this, and a judge that can see the 500 will
 write a much better `failure_reason` — but it also puts arbitrary page-authored
 text into the model's context, so it is a deliberate second step, not a freebie.
-Leave it out of tier 1 and revisit once US-041's judge is the verdict.
+Leave it out of tier 1 and revisit once US-041's judge is the verdict. **That
+second step is now
+[US-061](../../../unscheduled/US-061-evidence-in-the-judges-context.md)**
+(2026-07-28), which also records why `include_recent_events` is the wrong lever:
+it interpolates browser-use's own raw summary, unscrubbed and uncapped — the two
+properties `diagnostics.py` exists to have.
 
 ## Acceptance criteria
 

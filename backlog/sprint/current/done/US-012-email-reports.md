@@ -107,6 +107,11 @@ prefs are cheap to include; digest mode stays out of current sprint.
     the BYOK key and will receive magic-links, before the story that gives it
     an owner. Tiers 2 and 3 stay env-only, which was decision 1's intent.
 
+    **Picked up 2026-07-28 as
+    [US-060](../../../unscheduled/US-060-account-level-notification-prefs.md)** —
+    US-021 shipped, so "account" means something now and the deferral's premise
+    is gone. The `OPERATOR_EMAIL` note below goes with it.
+
     Left behind for whoever picks this up: `OPERATOR_EMAIL` defaults to
     `operator@qassist.local` (`config.js:68`), so on an instance with no
     project recipients and no `NOTIFY_EMAILS` the send resolves to an address

@@ -156,6 +156,10 @@ What `navigation-fence.test.js` asserts instead is that the three env vars which
 them runs an unfenced browser while every other assertion in the story stays
 green. Proving the redirect itself is a preview-environment check with a real
 302 and belongs to whoever next touches this surface; it is not claimed here.
+**Given an owner 2026-07-28:
+[US-062](../../../unscheduled/US-062-live-browser-test-tier.md)**, which builds
+the tier this criterion needs — and notes that `SecurityWatchdog` hangs off
+`BrowserSession`, not `Agent`, so the redirect is provable without a model call.
 
 Worth recording that the enforcement we are leaning on is upstream and not a
 local patch: `security_watchdog.py`'s sha256 matches its `dist-info` RECORD in

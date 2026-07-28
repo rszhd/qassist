@@ -2,12 +2,19 @@
 
 **As a** user, **I want** the agent to complete signups that require confirmation codes, **so that** I can test my registration funnel end-to-end, not just up to the "check your email" wall.
 
-- **Status:** ✅ Tier 1 (email) done — validated e2e 2026-07-21; tiers 2 (SMS) and 3 (social) not started
+- **Status:** ✅ Tier 1 (email) done — validated e2e 2026-07-21. **Tiers 2 (SMS)
+  and 3 (social) moved out on 2026-07-28** to
+  [US-059](../../../unscheduled/US-059-otp-and-social-login-in-tested-flows.md),
+  which also adds a TOTP tier and picks up what US-042 and US-043 changed about
+  both. This story is closed at tier 1.
 - **Priority:** P3
 - **Estimate:** email tier ~2–3 days; SMS and social each ~1–2 days more
 - **Depends on:** — (secrets handling via browser-use `sensitive_data`)
 
 ## Tiers (build in this order)
+
+*Tiers 2 and 3 below are kept as written for the record; they are superseded by
+US-059, which reorders them and adds TOTP ahead of both.*
 
 1. **Email confirmation** (most tractable — do first): a `get_email_code` tool
    backed by a QA mailbox (Mailosaur / Mailslurp / IMAP catch-all). Agent
