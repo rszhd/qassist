@@ -54,6 +54,27 @@ rule that decides which of the four test shapes a given check gets:
   Anything whose correctness depends on the *type* a column arrives as — bigint
   counts, numerics, dates as strings — is in this class.
 
+  Four more, each found the same way — by writing the assertion first and
+  watching it pass against code that could not possibly be right:
+
+  - **An uncast `text[]` default comes back as the *string* `"{}"`** (US-042).
+    An allowlist that arrives as a string matches nothing, which is precisely
+    the failure the feature exists to prevent: a fence that is believed and
+    absent. Same class as the bigint above — the column's *type* on arrival.
+  - **`on conflict do nothing` reports `rowCount: 1` for a conflicting insert**
+    (US-022). That is the whole of a webhook ledger's idempotency claim, so
+    pg-mem passes an implementation with no idempotency in it at all; the
+    duplicate charge is what would have found it otherwise.
+  - **An inline `check` in `alter table add column` does not parse, and the
+    named form parses without being enforced** (US-058). A `> 0` constraint is
+    only ever provable against a real server — pg-mem cannot hold it up in
+    either direction.
+  - **The two engines auto-name an inline column check differently** —
+    `runs_status_check` versus `runs_constraint_2` (US-047). A migration that
+    drops one name no-ops on the other engine, leaving the old constraint
+    standing and rejecting every new value on exactly one of them. Drop both,
+    as `004` and `011` do.
+
   It also can't run every query shape: a correlated subquery cannot see the
   outer alias, so `LIST_QUERY` in `routes/schedules.js` uses grouped derived
   tables. That one is loud, which makes it the harmless kind.

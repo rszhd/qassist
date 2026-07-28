@@ -112,6 +112,16 @@ keep it that way when adding features.
   wait for the reviewed assertion; don't assume a piece is ordinary. CRUD/wiring
   stay test-alongside. Known surfaces: `backlog/correctness-critical.md` (add a
   row when new work joins); reasoning: `docs/testing.md`.
+- **A row in `correctness-critical.md` is an index line, not the account.** One
+  or two sentences on the *shape* of the failure, links to the story, names the
+  test files — the spellings, enumerations and dependency-source traps go in the
+  US-xxx file, and any lesson outliving it in `docs/testing.md`. The register is
+  read before starting work, so it has to fit on a screen. It did not: 29
+  append-only commits took it to 5,479 words. **Re-read the whole file before
+  appending to it, and check the result still renders** — every one of those
+  edits was locally correct and none could see the file it was in, so a blank
+  line one of them left behind ended the table and the eight rows appended after
+  it stopped being rows at all.
 - Don't commit or push unless asked. `dev` is the working branch; PRs → `dev`.
   Promotion is **dev → staging → main** (US-052): a push to `staging` builds
   `ghcr.io/<owner>/qassist:staging` and that is what `staging.qassist.run` runs,

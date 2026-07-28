@@ -83,7 +83,16 @@ underscore, space, dash; first character alphanumeric; NFC-normalized; ≤255
 `.env` is unnameable rather than merely un-traversable. Unicode letters are in
 (`Résumé.pdf`, `简历.pdf` are files real customers upload); NFC because macOS
 uploads decomposed and Linux composed, and without normalizing at the door one
-project holds two fixtures that are identical on screen.
+project holds two fixtures that are identical on screen. The reject table is
+asserted on the RAW spellings — `../../.env`, `....//`, `..\`, a null byte, an
+RTL override, and the percent-encoded forms the query parser decodes on the way
+in — rather than on what a normalizer left behind.
+
+**The trap inside that trap is `path.join` versus `path.resolve`.**
+`join(dir, '/etc/passwd')` yields `dir/etc/passwd`, contained and harmless, so a
+containment test written against `join` *passes* for an absolute-path input
+while a caller that resolves is wide open. Containment is therefore re-asserted
+with `resolve`, and the character class is what actually does the work.
 
 **Two things found by reading browser-use rather than by reasoning about it.**
 `available_file_paths` gates `read_file`'s external reads on the same exact

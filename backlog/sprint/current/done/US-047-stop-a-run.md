@@ -117,6 +117,13 @@ a still-running run has `runs/<id>/` swept out from under it and every viewer
 told it finished. So `stopRun` sets `run.cancelling` and nothing else; the
 stdout handler and `close` both read that flag when the run actually ends.
 
+**The slot arithmetic is asymmetric, and both errors stay invisible until the
+box is full.** A queued run never took a concurrency slot, so a stop that
+decrements one leaves `active` negative and the per-user cap quietly stops
+holding; a running run's slot has to come back exactly once, from its own
+`close`, or every later run queues forever. `stop-run.test.js` counts across
+both directions — dequeue, release — and back to zero.
+
 **The hard kill stays, and the graceful path is preferred rather than trusted.**
 `STOP_GRACE_SECONDS` (default 10) then `killRunTree`, and `close` reads the
 intent rather than the exit code — otherwise the honest backstop reports
