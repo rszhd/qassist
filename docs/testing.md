@@ -97,6 +97,27 @@ tests, because the shortcut one layer takes lies about the thing the other
 must verify.** Use the fake by default; drop to reality only for the specific
 property the fake gets wrong.
 
+**For the database, that default has been withdrawn** (2026-07-28, after
+BUG-007). Eight known lies is enough, and the eighth cost a day precisely
+because it was *documented* — the note said the bytea corruption was silent, it
+is intermittently fatal instead, and the fake's parse error then impersonated a
+business-logic conflict. The tax is not the eight; it is the ninth, which by
+definition is not on the list yet. So:
+
+- **A new test file uses real Postgres.** `session-postgres.test.js` is the
+  pattern — a uniquely-named database, migrations, dropped after. It costs
+  ~450ms per file against a ~140ms node-startup floor, and CI already runs the
+  service.
+- **Convert an existing pg-mem file the next time it lies to you**, not on a
+  sweep. Then it is one file, reviewed against a failure already understood.
+- **When a file converts, its `*-postgres.test.js` counterpart folds back in** —
+  that split exists only because the fake could not hold the claim up.
+
+Retiring pg-mem outright is [US-065](../backlog/unscheduled/US-065-retire-pg-mem.md),
+deliberately unscheduled: the risk is a 28-file sweep through assertion-first
+specs, whose failure mode is a file that quietly stops asserting what its name
+says. If the incremental route works, that story closes without being scheduled.
+
 **Speed and hermeticity are features, not niceties.** The suites are fast and
 need no network, browser, or live services on purpose. Partly for CI, but
 mostly because a fast hermetic suite is what lets the AI run the whole thing
