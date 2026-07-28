@@ -51,6 +51,7 @@ Sprints aren't split along a self-host/hosted-tier line — `sprint/current/` an
 
 | ID | Story | Status | Depends on |
 |---|---|---|---|
+| [US-064](sprint/current/US-064-secret-variables-in-a-scheduled-run.md) | Secret variables in a scheduled run | 📋 Planned (filed and scheduled 2026-07-28) | US-035, US-010, US-043 |
 | [US-063](sprint/current/US-063-capture-a-session-without-a-terminal.md) | Capture a session without a terminal (browser extension) | 📋 Planned (scheduled 2026-07-28) | US-043, US-021 |
 | [US-059](sprint/current/US-059-otp-and-social-login-in-tested-flows.md) | OTP and social login in a tested flow (was US-013 tiers 2–3) | 📋 Planned (tiered, scheduled 2026-07-28) | US-013 tier 1, US-043, US-035 |
 | [US-042](sprint/current/done/US-042-agent-navigation-confinement.md) | Confine where the agent may navigate | ✅ **Done** 2026-07-27, 5/6 — the fence is two settings, not one: `block_ip_addresses` does not stop `localhost` despite its docstring. The sixth (a live redirect) is wired, not provable in any test tier | US-021 |
@@ -212,6 +213,22 @@ story above it made the queue busier.
   filesystem boundary wearing a feature's clothes. Correctness-critical, assertions
   written and reviewed first, row added to
   [`correctness-critical.md`](correctness-critical.md).
+- **US-064** (2026-07-28, filed and scheduled the same day) — the third face of
+  the same gap US-059 and US-063 read from two ends, found by asking what a
+  *schedule* does about a secret variable. Nothing: a secret deliberately stores
+  no default, the only two channels that carry its value are a run dialog and a
+  CI body, and the scheduler is neither. So a schedule over a test with a
+  required secret drops the member and writes no run at all, and one with an
+  optional secret types an empty string into the password field. It is in this
+  sprint rather than behind its own priority because [BUG-005](bugs/BUG-005-scheduler-counts-unstarted-members-as-runs.md)
+  makes both outcomes invisible — the tick counts the dropped member as a run —
+  and the two are cheapest read together. What it is *not* is the login case:
+  US-043 sessions already cover that on the scheduled path, which is why the
+  story's first task is establishing that a non-login secret typed mid-run is
+  real for someone. If it isn't, the answer is to refuse the schedule at save
+  and the story is a day. If it is, it puts a secret value at rest for the first
+  time and is correctness-critical, so the assertions get written and reviewed
+  first — this is an amendment to US-035's "never persisted", not a gap in it.
 - **US-059 + US-063** (2026-07-28, from `unscheduled/`) — scheduled the day
   after they were filed, and together, because they are one gap read from two
   ends: what a tested flow's login needs (US-059) and how a person who does not
@@ -311,8 +328,7 @@ everything free); the full repo/boundary rules live in
 | [US-049](unscheduled/US-049-typed-assertions.md) | Assert on a value, not on a paragraph | 📋 Planned | P3 | US-041 |
 | [US-050](unscheduled/US-050-fast-run-mode.md) | A fast, cheap mode for tests that already pass | 📋 Planned | P3 | US-046 |
 | [US-060](unscheduled/US-060-account-level-notification-prefs.md) | Notification settings a person owns, not just a project (was US-012 tiers 2–3) | 📋 Planned | P3 | US-012, US-021 |
-| [US-061](unscheduled/US-061-evidence-in-the-judges-context.md) | The judge sees the 500 (was US-044's deferred tier 2) | 📋 Planned | P3 | US-041, US-044, US-046 |
-| [US-016](unscheduled/US-016-desktop-shell.md) | Desktop shell (Electron) | 📋 Planned | TBD | — |
+| [US-061](unscheduled/US-061-evidence-in-the-judges-context.md) | The judge sees the 500 (was US-044's deferred tier 2) | 📋 Planned | P3 | US-041, US-044, US-046 || [US-016](unscheduled/US-016-desktop-shell.md) | Desktop shell (Electron) | 📋 Planned | TBD | — |
 | [US-017](unscheduled/US-017-frozen-python-agent.md) | Frozen Python agent (no system Python) | 📋 Planned | TBD | US-016 |
 | [US-018](unscheduled/US-018-first-run-setup.md) | First-run setup: Chromium download + BYOK settings | 📋 Planned | TBD | US-016 |
 | [US-019](unscheduled/US-019-installers-signing-autoupdate.md) | Installers, code signing, auto-update | 📋 Planned | TBD | US-016..018 |
@@ -394,6 +410,7 @@ the work, and a table of speculative rows is what makes it stop being read.
 |---|---|---|---|
 | [BUG-004](sprint/current/done/BUG-004-literal-secret-placeholder-in-goal.md) | A literal `<secret>name</secret>` in a saved goal is accepted and silently does nothing — it is `resolveForRun`'s output, not its input, so the agent types the placeholder | ✅ Fixed 2026-07-28 | `server/src/variables.js` |
 | [BUG-003](sprint/current/done/BUG-003-agent-hangs-after-done.md) | An agent that hangs after `done` holds its slot until `RUN_TIMEOUT_SECONDS`, leaving `finished_at` null on a finished run | ✅ Fixed 2026-07-28 | `agent/exit_watchdog.py`, `agent/run_agent.py` |
+| [BUG-005](bugs/BUG-005-scheduler-counts-unstarted-members-as-runs.md) | A scheduled member that never started — an unresolvable variable, a cap refusal — is counted as a run and logged as nothing | 🐛 Open (2026-07-28) | `server/src/scheduler.js` |
 | [BUG-002](bugs/BUG-002-post-tests-drops-slug-grouping.md) | `POST /api/tests` silently drops `project` / `module` slug keys, filing the test ungrouped with a 201 | 🐛 Open (2026-07-26) | `server/src/routes/tests.js` |
 | [BUG-001](sprint/current/done/BUG-001-history-status-stuck-queued.md) | History shows a run as "Queued" while it is actually running | ✅ Fixed 2026-07-24 | `server/src/runs.js` |
 
