@@ -145,7 +145,7 @@ jobs:
         run: npm run build
 
   docs:
-    name: Docs — relative links resolve
+    name: Docs — links resolve, token index matches
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -154,10 +154,13 @@ jobs:
         with:
           node-version: 22
 
-      # No install step: the script is dependency-free on purpose, because a
+      # No install step: the scripts are dependency-free on purpose, because a
       # check that costs an `npm ci` to run is one nobody runs locally.
       - name: Link check
         run: node scripts/check-doc-links.mjs
+
+      - name: Token index check
+        run: node scripts/check-design-tokens.mjs
 
   agent:
     name: Agent — pure unit tests

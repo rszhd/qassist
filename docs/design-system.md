@@ -3,7 +3,10 @@
 The visual vocabulary of the frontend — the shared components, the type scale,
 the spacing rhythms, the named sizes, and the palette. **Read this before
 changing `frontend/src/App.css`, `frontend/src/views.css` or
-`frontend/src/ui.jsx`, or adding any view.**
+`frontend/src/ui.jsx`, or adding any view.** Every token name and value is listed
+flat under [Token index](#token-index) — reach for that rather than reading the
+`:root` block, and keep it in step when a token is added, renamed or retuned
+(`node scripts/check-design-tokens.mjs`, which CI runs too).
 Structural/routing rules and the general architecture stay in `CLAUDE.md`.
 
 ## UI conventions
@@ -101,6 +104,109 @@ shadows — cards carry neither. A run status renders as a tinted `.badge-<statu
 pill; `statusColor()` in `status.js` maps a status to a `--fill-*` token for the
 solid dots and timeline bars, so the two can't drift and a theme swap carries
 the dots with it.
+
+## Token index
+
+Every token `App.css` declares, flat, with its value. The sections above are the
+*why*; this is the lookup, so a rule can be written without opening the
+stylesheet. **73 names — a value that isn't one of these is a rule reaching past
+the system.** Colours are declared twice, in `:root` (dark, the default) and in
+`:root[data-theme='light']`; everything from Spacing down is theme-invariant.
+
+### Surfaces
+
+| Token | Dark | Light | |
+| --- | --- | --- | --- |
+| `--bg` | `#131316` | `#f4f4f6` | the page |
+| `--sunken` | `#18181c` | `#ebebee` | inputs, wells |
+| `--card` | `#1c1c20` | `#ffffff` | |
+| `--raised` | `#212126` | `#ffffff` | modals |
+| `--hover` | `#26262b` | `#f1f1f4` | |
+| `--border` | `#2b2b31` | `#e3e3e8` | hairline, does the separating |
+| `--border-hi` | `#3a3a41` | `#cfcfd7` | emphasis / hover border |
+| `--stage` | `#0d0d0f` | `#e8e8ea` | letterbox around the live frame |
+
+### Text
+
+| Token | Dark | Light | |
+| --- | --- | --- | --- |
+| `--text` | `#edeef0` | `#1a1a1f` | |
+| `--muted` | `#9b9ba3` | `#5b5b66` | secondary |
+| `--faint` | `#83838d` | `#70707a` | tertiary |
+
+### Accent
+
+Spent only on the primary button, focus and the live pulse. `#fff` on the
+primary button is deliberately not a token — it is a property of the pairing.
+
+| Token | Dark | Light | |
+| --- | --- | --- | --- |
+| `--accent` | `#4d7cf6` | `#3563d6` | |
+| `--accent-hi` | `#6a92f8` | `#2a4fb3` | hover — lightens dark, darkens light |
+| `--accent-line` | `#2f3d6b` | `#c2d0f1` | |
+| `--accent-bg` | `#1a2033` | `#eef2fd` | |
+| `--ring` | `rgba(77,124,246,.3)` | `rgba(53,99,214,.22)` | focus ring |
+
+### Verdicts
+
+Three weights per verdict: the plain name is text, `-line` is border, `-bg` is
+surface.
+
+| Token | Dark | Light | | Token | Dark | Light |
+| --- | --- | --- | --- | --- | --- | --- |
+| `--ok` | `#4cb98a` | `#1d7a55` | | `--bad` | `#e5787e` | `#b0303a` |
+| `--ok-line` | `#2a5843` | `#b6dfcc` | | `--bad-line` | `#68373a` | `#f0c3c6` |
+| `--ok-bg` | `#17281f` | `#eef8f3` | | `--bad-bg` | `#2b1a1c` | `#fdf1f2` |
+| `--warn` | `#d9ad55` | `#8a6512` | | `--info` | `#9db2d2` | `#3d5a80` |
+| `--warn-line` | `#554423` | `#ebd8a9` | | `--info-line` | `#34404f` | `#cad7e8` |
+| `--warn-bg` | `#282116` | `#fbf6e8` | | `--info-bg` | `#1b2029` | `#f0f4fa` |
+| `--warn-soft` | `#c7b795` | `#6d5a33` | | | | |
+
+### Status fills
+
+Solid dots and timeline bars. `statusColor()` in `status.js` maps a status to
+one of these by name — the two tables cannot drift.
+
+| Token | Dark | Light | | Token | Dark | Light |
+| --- | --- | --- | --- | --- | --- | --- |
+| `--fill-queued` | `#9c8039` | `#9a7315` | | `--fill-error` | `#d0666c` | `#c0434b` |
+| `--fill-running` | `#4d7cf6` | `#3563d6` | | `--fill-completed` | `#45454c` | `#b4b4bd` |
+| `--fill-passed` | `#4cb98a` | `#1d8a5f` | | `--fill-cancelled` | `#7d93b5` | `#5c7699` |
+| `--fill-failed` | `#d0666c` | `#c0434b` | | `--fill-idle` | `#4f4f57` | `#c2c2ca` |
+
+### Overlays and shadow
+
+| Token | Dark | Light | |
+| --- | --- | --- | --- |
+| `--bar` | `rgba(19,19,22,.85)` | `rgba(244,244,246,.85)` | top bar |
+| `--scrim` | `rgba(7,7,9,.66)` | `rgba(26,26,32,.32)` | behind a modal |
+| `--shadow-lg` | `0 24px 64px rgba(0,0,0,.55), 0 2px 6px rgba(0,0,0,.4)` | `0 24px 64px rgba(24,24,30,.14), 0 2px 6px rgba(24,24,30,.08)` | modals only; cards get none |
+
+### Spacing and controls
+
+`--s05` 2px · `--s1` 4px · `--s15` 6px · `--s2` 8px · `--s3` 12px · `--s4` 16px ·
+`--s5` 20px · `--s6` 24px · `--s8` 32px · `--s10` 40px
+
+`--ctl` 32px · `--ctl-sm` 28px — set as a height, never padded to one.
+
+### Sizes
+
+`--col-side` 300px · `--col-side-min` 250px · `--stage-min` 800px ·
+`--rail-strip` 34px · `--scroll-cap` 240px · `--dot` 6px · `--page-w` 1480px ·
+`--topbar-h` 52px · `--sticky-top` `calc(var(--topbar-h) + var(--s4))` ·
+`--sticky-h` `calc(100vh - var(--sticky-top) - var(--s4))`
+
+### Type and radii
+
+`--t-xs` .75rem/12px · `--t-sm` .8125rem/13px · `--t-base` .875rem/14px ·
+`--t-lg` 1rem/16px · `--t-xl` 1.25rem/20px  (px at the 16px browser default)
+
+`--r-sm` 4px · `--r-md` 6px · `--r-lg` 8px · `--r-xl` 10px
+
+### Motion and family
+
+`--fast` `110ms ease` · `--mono` `ui-monospace, SFMono-Regular, "SF Mono", Menlo,
+Consolas, monospace`
 
 ## Email
 
