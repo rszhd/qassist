@@ -220,7 +220,7 @@ story above it made the queue busier.
   CI body, and the scheduler is neither. So a schedule over a test with a
   required secret drops the member and writes no run at all, and one with an
   optional secret types an empty string into the password field. It is in this
-  sprint rather than behind its own priority because [BUG-005](bugs/BUG-005-scheduler-counts-unstarted-members-as-runs.md)
+  sprint rather than behind its own priority because [BUG-005](sprint/current/done/BUG-005-scheduler-counts-unstarted-members-as-runs.md)
   makes both outcomes invisible — the tick counts the dropped member as a run —
   and the two are cheapest read together. Filed believing the login case was
   already US-043's, which made the story's first task establishing that a
@@ -423,7 +423,7 @@ the work, and a table of speculative rows is what makes it stop being read.
 | [BUG-004](sprint/current/done/BUG-004-literal-secret-placeholder-in-goal.md) | A literal `<secret>name</secret>` in a saved goal is accepted and silently does nothing — it is `resolveForRun`'s output, not its input, so the agent types the placeholder | ✅ Fixed 2026-07-28 | `server/src/variables.js` |
 | [BUG-003](sprint/current/done/BUG-003-agent-hangs-after-done.md) | An agent that hangs after `done` holds its slot until `RUN_TIMEOUT_SECONDS`, leaving `finished_at` null on a finished run | ✅ Fixed 2026-07-28 | `agent/exit_watchdog.py`, `agent/run_agent.py` |
 | [BUG-006](bugs/BUG-006-empty-scheduled-target-reports-a-run.md) | A schedule whose target has no tests stamps `last_run_at` anyway, so a schedule that tests nothing reads as one that just passed | 🐛 Open (2026-07-28) | `server/src/scheduler.js`, `frontend/src/SchedulesView.jsx` |
-| [BUG-005](bugs/BUG-005-scheduler-counts-unstarted-members-as-runs.md) | A scheduled member that never started — an unresolvable variable, a cap refusal — is counted as a run and logged as nothing | 🐛 Open (2026-07-28) | `server/src/scheduler.js` |
+| [BUG-005](sprint/current/done/BUG-005-scheduler-counts-unstarted-members-as-runs.md) | A scheduled member that never started — an unresolvable variable, a confined target — is counted as a run and logged as nothing | ✅ Fixed 2026-07-28 — the tick partitions on what a run *is*, not on the markers it knows; non-starts get their own `unstarted` counter and a log line each. A cap refusal turned out to be unreachable: a schedule bypasses admission | `server/src/scheduler.js` |
 | [BUG-002](bugs/BUG-002-post-tests-drops-slug-grouping.md) | `POST /api/tests` silently drops `project` / `module` slug keys, filing the test ungrouped with a 201 | 🐛 Open (2026-07-26) | `server/src/routes/tests.js` |
 | [BUG-001](sprint/current/done/BUG-001-history-status-stuck-queued.md) | History shows a run as "Queued" while it is actually running | ✅ Fixed 2026-07-24 | `server/src/runs.js` |
 

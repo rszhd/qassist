@@ -21,7 +21,7 @@ the tests I can run by hand are the tests I can run at 02:00.
   [US-043](done/US-043-reusable-authenticated-sessions.md), it **completes** it —
   the nightly session refresh that story designed cannot run without this
   channel. See "What US-043 covers, and the one thing it cannot".
-- **Not** [BUG-005](../../bugs/BUG-005-scheduler-counts-unstarted-members-as-runs.md),
+- **Not** [BUG-005](done/BUG-005-scheduler-counts-unstarted-members-as-runs.md),
   which is the reason this gap is currently invisible rather than the gap itself.
   That one is a defect and stands on its own; fix it whether or not this story
   is ever built.
@@ -176,7 +176,8 @@ the implementation:
 - `resolveForRun` still routes the value on the `secrets` channel only — the
   existing US-035 assertions must pass unchanged with a stored value
 - a schedule whose secret cannot resolve starts no run **and says so** (the
-  BUG-005 behaviour, which this depends on being fixed first)
+  BUG-005 behaviour, fixed 2026-07-28: the tick counts only `{runId}` members as
+  runs, reports the rest under `unstarted`, and logs each by test id and reason)
 - decrypt failure skips the member with an error marker, like a session that
   cannot be decrypted (`runs.js:441`), rather than starting a run with an empty
   secret

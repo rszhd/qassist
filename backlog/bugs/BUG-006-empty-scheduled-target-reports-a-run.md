@@ -10,7 +10,7 @@
 - **Severity:** a schedule that has silently stopped testing anything is
   indistinguishable, on the only screen that shows schedules, from one that ran
   minutes ago and passed. Sibling of
-  [BUG-005](BUG-005-scheduler-counts-unstarted-members-as-runs.md): that one
+  [BUG-005](../sprint/current/done/BUG-005-scheduler-counts-unstarted-members-as-runs.md): that one
   overstates a batch that partly started, this one reports a batch that never
   existed.
 
@@ -93,7 +93,9 @@ Two parts, and the first is most of the value:
    rather than an error.
 
 An `empty` counter in the tick's returned shape is worth adding alongside
-BUG-005's `error`/`rejected` counters, for whoever is watching the logs. Do
+BUG-005's `unstarted` counter (fixed 2026-07-28 — it landed as one counter, not
+the `error`/`rejected` pair this proposal assumed, because a cap refusal cannot
+reach a schedule), for whoever is watching the logs. Do
 **not** self-disable the schedule: the target is usually empty by accident and
 for a few minutes, and a schedule that switched itself off would be a second
 silent failure on top of the first.

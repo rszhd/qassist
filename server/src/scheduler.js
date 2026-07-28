@@ -119,11 +119,12 @@ async function claim(schedule, now) {
 /**
  * One pass: fire every schedule whose slot has arrived.
  * @param {number} [now] injectable clock, for tests
- * @returns {Promise<{ fired: number, runs: number, skipped: number, blocked: number,
- *                     pending: number, keyless: number }>}
+ * @returns {Promise<{ fired: number, runs: number, skipped: number, unstarted: number,
+ *                     blocked: number, pending: number, keyless: number }>}
  */
 export async function tick(now = Date.now()) {
-  if (!db()) return { fired: 0, runs: 0, skipped: 0, blocked: 0, pending: 0, keyless: 0 };
+  if (!db())
+    return { fired: 0, runs: 0, skipped: 0, unstarted: 0, blocked: 0, pending: 0, keyless: 0 };
 
   const { rows: due } = await db().query(
     `select ${COLS} from schedules
@@ -135,6 +136,11 @@ export async function tick(now = Date.now()) {
   let fired = 0;
   let runs = 0;
   let skipped = 0;
+  // BUG-005: members of a fired schedule that started nothing. Counted apart
+  // from `skipped` (a sibling still running from the last slot, which will run
+  // again) and from `blocked` (a whole schedule the billing gate declined):
+  // this one is a target that is misconfigured today and will not fix itself.
+  let unstarted = 0;
   let blocked = 0;
   // US-054: claimed but not fired because the owner is still in the activation
   // window. Counted apart from `blocked` — they have paid, and conflating the
@@ -237,25 +243,33 @@ export async function tick(now = Date.now()) {
       // matters most: a schedule is what re-runs the login test.
       sessions: await sessionsForTests(ready),
     });
-    // A member the navigation fence refused (US-042) started nothing, so it
-    // must not be counted as a run — and it is logged by name, because a
-    // schedule fires with nobody watching and a silently-confined target would
-    // otherwise look like a schedule that simply stopped working.
-    const confined = started.filter((m) => 'blocked' in m);
-    runs += started.length - confined.length;
-    for (const member of confined) {
+    // A member can come back having started nothing, and more than one way:
+    // the navigation fence refused it (US-042), or it could not resolve — a
+    // required variable with no value (US-035), a session that would not
+    // decrypt (US-043). Only a `{ runId }` member is a run, and every other one
+    // is named in the log, because a schedule fires with nobody watching: a
+    // member that quietly stopped starting is otherwise indistinguishable from
+    // a schedule that is working. Partitioned on what a run IS rather than on
+    // the marker kinds known today, so the next marker is loud by default.
+    const launched = started.filter((m) => 'runId' in m);
+    const missing = started.length - launched.length;
+    runs += launched.length;
+    unstarted += missing;
+    for (const member of started) {
+      if ('runId' in member) continue;
       console.warn(
-        `schedule ${schedule.id.slice(0, 8)}: test ${member.testId.slice(0, 8)} not started — ${member.error}`
+        `schedule ${schedule.id.slice(0, 8)}: test ${member.testId.slice(0, 8)} not started — ` +
+          (member.error ?? 'refused with no reason given')
       );
     }
     console.log(
-      `schedule ${schedule.id.slice(0, 8)}: ${label} → ${started.length - confined.length} run(s)` +
+      `schedule ${schedule.id.slice(0, 8)}: ${label} → ${launched.length} run(s)` +
         (busy.size ? `, ${busy.size} skipped as still running` : '') +
-        (confined.length ? `, ${confined.length} blocked by the navigation fence` : '')
+        (missing ? `, ${missing} not started` : '')
     );
   }
 
-  return { fired, runs, skipped, blocked, pending, keyless };
+  return { fired, runs, skipped, unstarted, blocked, pending, keyless };
 }
 
 /** Tick every TICK_MS, starting now. Unref'd so it never holds the process open. */

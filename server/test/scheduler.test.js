@@ -17,7 +17,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /** @type {any} */
 let pool;
-/** @type {(now?: number) => Promise<{ fired: number, runs: number, skipped: number }>} */
+/** @type {(now?: number) => Promise<{ fired: number, runs: number, skipped: number, unstarted: number }>} */
 let tick;
 /** @type {() => { active: number, queued: number }} */
 let counts;
@@ -75,12 +75,23 @@ beforeEach(async () => {
 
 async function makeTest(name, extra = {}) {
   const { rows } = await pool.query(
-    `insert into tests (user_id, name, goal, start_url, max_steps, project_id, module_id)
-     values ($1, $2, 'check it', 'https://example.com', 5, $3, $4) returning id`,
-    [userId, name, extra.project_id ?? null, extra.module_id ?? null]
+    `insert into tests (user_id, name, goal, start_url, max_steps, project_id, module_id, variables)
+     values ($1, $2, $3, $4, 5, $5, $6, $7) returning id`,
+    [
+      userId,
+      name,
+      extra.goal ?? 'check it',
+      extra.start_url ?? 'https://example.com',
+      extra.project_id ?? null,
+      extra.module_id ?? null,
+      JSON.stringify(extra.variables ?? []),
+    ]
   );
   return rows[0].id;
 }
+
+/** A declaration whose value only ever arrives per run — the US-064 shape. */
+const requiredSecret = (name) => ({ name, value: '', secret: true, optional: false });
 
 /** @param {{ test_id?, suite_id?, module_id?, project_id? }} target */
 async function makeSchedule(target, fields = {}) {
@@ -119,7 +130,7 @@ test('a due schedule fires its test and advances to the next slot', async () => 
   const scheduleId = await makeSchedule({ test_id: testId });
 
   const result = await tick(at('2026-07-23T02:00:30'));
-  assert.deepEqual(result, { fired: 1, runs: 1, skipped: 0, blocked: 0, pending: 0, keyless: 0 });
+  assert.deepEqual(result, { fired: 1, runs: 1, skipped: 0, unstarted: 0, blocked: 0, pending: 0, keyless: 0 });
 
   const runs = await runRows();
   assert.equal(runs.length, 1);
@@ -136,7 +147,7 @@ test('a schedule whose slot has not arrived is left alone', async () => {
   await makeSchedule({ test_id: testId });
 
   const result = await tick(at('2026-07-23T01:59'));
-  assert.deepEqual(result, { fired: 0, runs: 0, skipped: 0, blocked: 0, pending: 0, keyless: 0 });
+  assert.deepEqual(result, { fired: 0, runs: 0, skipped: 0, unstarted: 0, blocked: 0, pending: 0, keyless: 0 });
   assert.equal((await runRows()).length, 0);
 });
 
@@ -146,7 +157,7 @@ test('the claim means a second tick in the same minute does not re-fire', async 
 
   await tick(at('2026-07-23T02:00:30'));
   const again = await tick(at('2026-07-23T02:00:31'));
-  assert.deepEqual(again, { fired: 0, runs: 0, skipped: 0, blocked: 0, pending: 0, keyless: 0 });
+  assert.deepEqual(again, { fired: 0, runs: 0, skipped: 0, unstarted: 0, blocked: 0, pending: 0, keyless: 0 });
   assert.equal((await runRows()).length, 1);
 });
 
@@ -155,7 +166,7 @@ test('a disabled schedule never fires', async () => {
   await makeSchedule({ test_id: testId }, { enabled: false });
 
   const result = await tick(at('2026-07-23T09:00'));
-  assert.deepEqual(result, { fired: 0, runs: 0, skipped: 0, blocked: 0, pending: 0, keyless: 0 });
+  assert.deepEqual(result, { fired: 0, runs: 0, skipped: 0, unstarted: 0, blocked: 0, pending: 0, keyless: 0 });
 });
 
 test('an undated schedule is dated rather than fired', async () => {
@@ -163,7 +174,7 @@ test('an undated schedule is dated rather than fired', async () => {
   const scheduleId = await makeSchedule({ test_id: testId }, { next_run_at: null });
 
   const result = await tick(at('2026-07-23T09:00'));
-  assert.deepEqual(result, { fired: 0, runs: 0, skipped: 0, blocked: 0, pending: 0, keyless: 0 });
+  assert.deepEqual(result, { fired: 0, runs: 0, skipped: 0, unstarted: 0, blocked: 0, pending: 0, keyless: 0 });
   assert.equal((await runRows()).length, 0);
 
   const row = await scheduleRow(scheduleId);
@@ -192,7 +203,7 @@ test('a scheduled suite fires one run per member, in suite order', async () => {
   await makeSchedule({ suite_id: s[0].id });
 
   const result = await tick(at('2026-07-23T02:00:30'));
-  assert.deepEqual(result, { fired: 1, runs: 2, skipped: 0, blocked: 0, pending: 0, keyless: 0 });
+  assert.deepEqual(result, { fired: 1, runs: 2, skipped: 0, unstarted: 0, blocked: 0, pending: 0, keyless: 0 });
   assert.deepEqual(
     (await runRows()).map((r) => r.test_id),
     [b, a]
@@ -214,7 +225,7 @@ test('a scheduled module fires its tests', async () => {
   await makeSchedule({ module_id: m[0].id });
 
   const result = await tick(at('2026-07-23T02:00:30'));
-  assert.deepEqual(result, { fired: 1, runs: 2, skipped: 0, blocked: 0, pending: 0, keyless: 0 });
+  assert.deepEqual(result, { fired: 1, runs: 2, skipped: 0, unstarted: 0, blocked: 0, pending: 0, keyless: 0 });
 });
 
 test('a test already in flight is skipped while its siblings still run', async () => {
@@ -235,7 +246,7 @@ test('a test already in flight is skipped while its siblings still run', async (
   );
 
   const result = await tick(at('2026-07-23T02:00:30'));
-  assert.deepEqual(result, { fired: 1, runs: 1, skipped: 1, blocked: 0, pending: 0, keyless: 0 });
+  assert.deepEqual(result, { fired: 1, runs: 1, skipped: 1, unstarted: 0, blocked: 0, pending: 0, keyless: 0 });
 
   // Status can't tell the new run from the stuck one — both read 'running' —
   // so count rows per test instead.
@@ -257,7 +268,7 @@ test('an empty target fires nothing but still advances', async () => {
   const scheduleId = await makeSchedule({ project_id: p[0].id });
 
   const result = await tick(at('2026-07-23T02:00:30'));
-  assert.deepEqual(result, { fired: 0, runs: 0, skipped: 0, blocked: 0, pending: 0, keyless: 0 });
+  assert.deepEqual(result, { fired: 0, runs: 0, skipped: 0, unstarted: 0, blocked: 0, pending: 0, keyless: 0 });
   const row = await scheduleRow(scheduleId);
   assert.equal(new Date(row.next_run_at).getTime(), at('2026-07-24T02:00'));
 });
@@ -282,11 +293,11 @@ test('a schedule left behind by downtime fires once, then moves to the future', 
   );
 
   const result = await tick(at('2026-07-23T09:00'));
-  assert.deepEqual(result, { fired: 1, runs: 1, skipped: 0, blocked: 0, pending: 0, keyless: 0 }, 'fires once, not once per missed day');
+  assert.deepEqual(result, { fired: 1, runs: 1, skipped: 0, unstarted: 0, blocked: 0, pending: 0, keyless: 0 }, 'fires once, not once per missed day');
 
   const row = await scheduleRow(scheduleId);
   assert.equal(new Date(row.next_run_at).getTime(), at('2026-07-24T02:00'));
-  assert.deepEqual(await tick(at('2026-07-23T09:01')), { fired: 0, runs: 0, skipped: 0, blocked: 0, pending: 0, keyless: 0 });
+  assert.deepEqual(await tick(at('2026-07-23T09:01')), { fired: 0, runs: 0, skipped: 0, unstarted: 0, blocked: 0, pending: 0, keyless: 0 });
 });
 
 test('a burst of scheduled tests queues instead of exceeding the concurrency cap', async () => {
@@ -307,10 +318,82 @@ test('a burst of scheduled tests queues instead of exceeding the concurrency cap
     for (const name of ['a', 'b', 'c', 'd', 'e']) await makeTest(name, { project_id: p[0].id });
     await makeSchedule({ project_id: p[0].id });
 
-    assert.deepEqual(await tick(at('2026-07-23T02:00:30')), { fired: 1, runs: 5, skipped: 0, blocked: 0, pending: 0, keyless: 0 });
+    assert.deepEqual(await tick(at('2026-07-23T02:00:30')), { fired: 1, runs: 5, skipped: 0, unstarted: 0, blocked: 0, pending: 0, keyless: 0 });
     assert.deepEqual(counts(), { active: 2, queued: 3 }, 'five at once, two slots');
     assert.equal((await runRows()).length, 5, 'the queued three are persisted too');
   } finally {
     delete process.env.QA_STUB_HOLD_MS;
   }
+});
+
+// --- BUG-005: a member that started nothing is not a run ---------------------
+//
+// `runTests` hands back one marker per member and only `{ runId }` means a run
+// began. The tick used to subtract the fence's `{ blocked }` and count every
+// other marker as a run, so a member that could not resolve was reported as a
+// run that does not exist — in the tally, and in the log line an operator
+// reads. A schedule that has stopped producing runs looked like one that works.
+
+test('a member whose required variable cannot resolve is not counted as a run', async () => {
+  await makeTest('login', {
+    goal: 'log in with {{password}}',
+    variables: [requiredSecret('password')],
+  });
+  const testId = (await pool.query('select id from tests')).rows[0].id;
+  await makeSchedule({ test_id: testId });
+
+  const result = await tick(at('2026-07-23T02:00:30'));
+  assert.deepEqual(result, {
+    fired: 1,
+    runs: 0,
+    skipped: 0,
+    unstarted: 1,
+    blocked: 0,
+    pending: 0,
+    keyless: 0,
+  });
+  assert.equal((await runRows()).length, 0, 'no run row was written');
+});
+
+test('a member the navigation fence refuses is not counted as a run', async () => {
+  const testId = await makeTest('confined', { start_url: 'http://localhost:9/' });
+  await makeSchedule({ test_id: testId });
+
+  const result = await tick(at('2026-07-23T02:00:30'));
+  assert.deepEqual(result, {
+    fired: 1,
+    runs: 0,
+    skipped: 0,
+    unstarted: 1,
+    blocked: 0,
+    pending: 0,
+    keyless: 0,
+  });
+  assert.equal((await runRows()).length, 0, 'no run row was written');
+});
+
+test('in a mixed batch the tally equals the run rows actually written', async () => {
+  const { rows: p } = await pool.query(
+    `insert into projects (user_id, name, slug) values ($1, 'Mixed', 'mixed') returning id`,
+    [userId]
+  );
+  const ok = await makeTest('checkout', { project_id: p[0].id });
+  await makeTest('login', {
+    project_id: p[0].id,
+    goal: 'log in with {{password}}',
+    variables: [requiredSecret('password')],
+  });
+  await makeTest('confined', { project_id: p[0].id, start_url: 'http://localhost:9/' });
+  await makeSchedule({ project_id: p[0].id });
+
+  const result = await tick(at('2026-07-23T02:00:30'));
+  const rows = await runRows();
+  assert.equal(result.runs, rows.length, 'the tally is the number of runs that exist');
+  assert.equal(result.runs, 1);
+  assert.equal(result.unstarted, 2, 'both non-starters are reported, not absorbed');
+  assert.deepEqual(
+    rows.map((r) => r.test_id),
+    [ok],
+    'the resolvable member ran; one bad sibling costs it nothing'
+  );
 });
