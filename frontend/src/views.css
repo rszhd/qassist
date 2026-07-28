@@ -327,6 +327,10 @@ a.row-main { color: inherit; text-decoration: none; }
   font-size: var(--t-xs); font-weight: 600; text-transform: uppercase; letter-spacing: .06em;
   color: var(--faint); background: var(--sunken); border-radius: var(--r-sm); padding: 0 var(--s15);
 }
+/* A target that holds nothing is a misconfiguration, not a failure — amber
+   rather than red, and still a tag rather than a banner, because the row is
+   otherwise working exactly as configured. */
+.row-tag.warn { color: var(--warn); background: var(--warn-bg); }
 /* A paused schedule stays in the list — it is switched off, not deleted — but
    it should not read as loudly as the rows that are going to fire. */
 .list li.paused .row-name, .list li.paused .run-when { color: var(--faint); }

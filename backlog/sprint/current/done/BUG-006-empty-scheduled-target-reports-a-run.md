@@ -1,16 +1,17 @@
 # BUG-006 — A schedule whose target has no tests reports that it ran
 
-- **Status:** 🐛 Open — found 2026-07-28 while answering "what happens to a
-  schedule if we edit the test it runs?". The answer there is reassuring — a
-  schedule stores a foreign key, never a copy, so every fire re-reads the live
-  row (`scheduler.js:30`) and an edit lands on the next slot. This is the case
-  where that same indirection goes quiet instead.
+- **Status:** ✅ Fixed 2026-07-28 — found the same day while answering "what
+  happens to a schedule if we edit the test it runs?". The answer there is
+  reassuring — a schedule stores a foreign key, never a copy, so every fire
+  re-reads the live row (`scheduler.js:30`) and an edit lands on the next slot.
+  This is the case where that same indirection goes quiet instead. Both parts
+  landed; see "Result".
 - **Lives in:** `server/src/scheduler.js` (`claim`, and the empty-target
   `continue` at `:210`) + `frontend/src/SchedulesView.jsx:225`
 - **Severity:** a schedule that has silently stopped testing anything is
   indistinguishable, on the only screen that shows schedules, from one that ran
   minutes ago and passed. Sibling of
-  [BUG-005](../sprint/current/done/BUG-005-scheduler-counts-unstarted-members-as-runs.md): that one
+  [BUG-005](BUG-005-scheduler-counts-unstarted-members-as-runs.md): that one
   overstates a batch that partly started, this one reports a batch that never
   existed.
 
@@ -116,7 +117,53 @@ target.
 
 ⚠️ **Assertion-first** (`CLAUDE.md`): part 1 edits `claim`, which is the
 "Scheduler claim" row in
-[`correctness-critical.md`](../correctness-critical.md). Splitting a
+[`correctness-critical.md`](../../../correctness-critical.md). Splitting a
 single-statement claim is precisely the shape of change that register exists
 for — the assertion gets written and reviewed before the implementation.
 Part 2 is ordinary view work and goes test-alongside.
+
+## Result
+
+Both parts landed as proposed. `claim` writes `next_run_at` alone; `stampRun`
+writes `last_run_at` after `runTests` hands back at least one `{runId}`,
+partitioned on the same predicate BUG-005 introduced for the tally. The tick
+gained an `empty` counter beside `unstarted`. `LIST_QUERY` returns
+`target_tests`, and a row whose target holds none carries an amber `no tests`
+tag and reads `Daily at 2:00 AM · nothing to run`.
+
+Three things the work turned up that the proposal did not have:
+
+- **Silencing the empty case silences four more.** There are five `continue`s
+  between the claim and `runTests`, and all five left a stamped `last_run_at`:
+  not-claimable, the billing/activation gate, keyless, empty target, and a
+  target whose every member is still running. Stamping on a started run rather
+  than on each skip fixes them together, which is why the fix is one write
+  moved rather than five branches patched. The fully-busy case was the one
+  judgement call — the schedule is working, and its stamp now freezes while a
+  test hangs. Kept, because a frozen stamp there is a hung test, and that is
+  worth being able to see.
+
+- **The count could not be written the obvious way.** Correlated subqueries
+  reading the outer alias are what this query wants; pg-mem cannot see `s.` from
+  inside one and 500s, so `LIST_QUERY` uses grouped derived tables instead. Each
+  branch mirrors `testsOf` rather than counting the target's own rows — the
+  suite branch joins through `tests` for the same reason `testsOf` does.
+
+- **`count(*)` is bigint, and node-pg returns bigint as a *string*.** pg-mem
+  never goes through those type parsers, so an uncast count is `0` there and
+  `"0"` in production: `target_tests === 0` would silently never match and the
+  notice would be missing on exactly the screen this bug is about. Verified by
+  removing the `::int` and watching the real-Postgres assertion fail on `'0'`
+  vs `0`. A second row on the pg-mem-is-not-Postgres list in `docs/testing.md`
+  that is about the *driver* rather than the database.
+
+Guarded where the proposal said, with one placement change: the positive stamp
+and the emptied-between-ticks case sit in `scheduler.test.js`, since both are
+ordinary sequencing and pg-mem runs them without spawning against a real
+server. `scheduler-postgres.test.js` keeps what genuinely needs Postgres — the
+claim itself, now asserting `last_run_at` stays null, and the `target_tests`
+type. The two BUG-005 tests gained a `last_run_at` assertion each, which is the
+same defect seen from the other side: a batch where every member was dropped
+started nothing, and must not claim it ran. That is the shape
+[US-064](../US-064-secret-variables-in-a-scheduled-run.md)'s
+undecryptable secret will arrive in.

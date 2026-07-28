@@ -27,6 +27,17 @@ const TARGETS = [
 // to fetch all four collections and join them client-side to print one row.
 // Which id column is set is already the target type (see decision 8), so the
 // type is derived rather than stored.
+//
+// `target_tests` counts what the *scheduler* would find, which is why each
+// branch mirrors the matching one in `scheduler.js`'s `testsOf` rather than
+// counting the target's own rows — including the suite branch's join through
+// `tests`, so the two can never disagree about whether a slot has work to do
+// (BUG-006). A zero here is a schedule that fires into nothing.
+//
+// Grouped derived tables rather than the correlated subqueries this wants to
+// be: pg-mem cannot see the outer alias from inside a subquery, and the route
+// tests run on it. `count(*)` is bigint, which node-pg hands back as a string,
+// hence the casts.
 const LIST_QUERY = `
   select ${COLS.split(', ')
     .map((c) => `s.${c}`)
@@ -35,12 +46,23 @@ const LIST_QUERY = `
               when s.module_id is not null then 'module'
               when s.suite_id is not null then 'suite'
               else 'project' end as target_type,
-         coalesce(t.name, m.name, u.name, p.name) as target_name
+         coalesce(t.name, m.name, u.name, p.name) as target_name,
+         case when s.test_id is not null then (case when t.id is null then 0 else 1 end)
+              when s.module_id is not null then coalesce(mc.n, 0)
+              when s.suite_id is not null then coalesce(uc.n, 0)
+              else coalesce(pc.n, 0) end as target_tests
     from schedules s
     left join tests t on t.id = s.test_id
     left join modules m on m.id = s.module_id
     left join suites u on u.id = s.suite_id
-    left join projects p on p.id = s.project_id`;
+    left join projects p on p.id = s.project_id
+    left join (select module_id, count(*)::int as n from tests
+                where module_id is not null group by module_id) mc on mc.module_id = s.module_id
+    left join (select project_id, count(*)::int as n from tests
+                where project_id is not null group by project_id) pc on pc.project_id = s.project_id
+    left join (select st.suite_id, count(*)::int as n from suite_tests st
+                 join tests t2 on t2.id = st.test_id
+                group by st.suite_id) uc on uc.suite_id = s.suite_id`;
 
 /**
  * Pick the one target a write names and check it exists. The column is the

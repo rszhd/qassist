@@ -149,6 +149,16 @@ not replayed. A test with a run still `queued` or `running` is skipped for
 that slot while its siblings in the same suite go ahead. Deleting the target
 deletes its schedules.
 
+`last_run_at` means a run actually started, not that the slot came round:
+taking the slot advances `next_run_at` alone, and a slot that started nothing —
+an empty target, every member already running, none able to resolve — leaves
+`last_run_at` where it was. A schedule whose `next_run_at` keeps moving while
+`last_run_at` stands still has stopped testing anything. The list says why:
+each row carries `target_tests`, the number of tests the target holds *now*,
+resolved the same way the scheduler resolves it. A target can be emptied
+without the schedule being touched, and `0` there is a schedule firing into
+nothing.
+
 ## From CI/CD
 
 A pipeline triggers a **module or a suite** — the set of tests that covers a

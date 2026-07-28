@@ -1,5 +1,7 @@
 // @ts-check
-// The scheduler's claim, against real Postgres (US-010).
+// The scheduling surfaces that only a real Postgres can hold up: the claim
+// (US-010) and, below it, the empty-target count the schedules list returns
+// (BUG-006).
 //
 // Every other test here runs on pg-mem, which stores timestamps at
 // millisecond precision — the precision a JS Date already has. A claim that
@@ -21,6 +23,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import request from 'supertest';
 import pg from 'pg';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -51,9 +54,12 @@ try {
   console.log(`scheduler-postgres: skipped — ${skip}`);
 }
 
-/** @type {(now?: number) => Promise<{ fired: number, runs: number, skipped: number, unstarted: number, blocked: number, pending: number, keyless: number }>} */
+/** @type {(now?: number) => Promise<{ fired: number, runs: number, skipped: number, unstarted: number, empty: number, blocked: number, pending: number, keyless: number }>} */
 let tick;
+/** @type {import('express').Express} */
+let app;
 let userId;
+const auth = { Authorization: 'Bearer test-token' };
 
 before(async () => {
   if (skip || !pool) return;
@@ -66,6 +72,9 @@ before(async () => {
   const { initDb } = await import('../src/db.js');
   await initDb(pool);
   ({ tick } = await import('../src/scheduler.js'));
+  // Safe to import: startScheduler() is inside the serve-only block, so nothing
+  // ticks on a timer behind the claim test below.
+  ({ app } = await import('../src/server.js'));
 
   const { rows } = await pool.query('select id from users limit 1');
   userId = rows[0].id;
@@ -89,8 +98,10 @@ test('a next_run_at written by Postgres is still claimable', { skip }, async () 
   const { rows: where } = await pool.query('select current_database() as db');
   assert.equal(where[0].db, DB_NAME, 'these writes must land in the throwaway database');
 
-  // Empty on purpose: the claim is what is under test, and a target with tests
-  // in it would spend the slot spawning agents to prove nothing extra.
+  // Empty on purpose, and now doubly so: the claim is what is under test, and a
+  // target with tests in it would spend the slot spawning agents to prove
+  // nothing extra — while an empty one is also the slot that must come back
+  // having stamped no `last_run_at` (BUG-006).
   const { rows: p } = await pool.query(
     `insert into projects (user_id, name, slug) values ($1, 'Claim', 'claim-check') returning id`,
     [userId]
@@ -122,7 +133,7 @@ test('a next_run_at written by Postgres is still claimable', { skip }, async () 
   const firedAfter = Date.now();
   assert.deepEqual(
     await tick(),
-    { fired: 0, runs: 0, skipped: 0, unstarted: 0, blocked: 0, pending: 0, keyless: 0 },
+    { fired: 0, runs: 0, skipped: 0, unstarted: 0, empty: 1, blocked: 0, pending: 0, keyless: 0 },
     'claimed, ran nothing'
   );
 
@@ -130,9 +141,44 @@ test('a next_run_at written by Postgres is still claimable', { skip }, async () 
     'select next_run_at, last_run_at from schedules where id = $1',
     [s[0].id]
   );
-  assert.ok(claimed[0].last_run_at, 'the claim stamped last_run_at');
+  // The two halves of the split (BUG-006). The claim carries only the field the
+  // re-fire guard reads, so the slot is consumed and no backlog accrues; the
+  // field that describes an outcome is left for an outcome to write. Before the
+  // split this row said it had just run, on a target holding nothing to run.
   assert.ok(
     claimed[0].next_run_at.getTime() > firedAfter,
     'the claim advanced the schedule to a future slot'
   );
+  assert.equal(claimed[0].last_run_at, null, 'a slot that started nothing is not a run');
+});
+
+// The other half of BUG-006 needs a real server for a reason pg-mem structurally
+// cannot show: `count(*)` is bigint, and it is **node-pg** — not the database —
+// that hands a bigint back as a *string*. pg-mem never goes through those type
+// parsers, so an uncast count is a number there and "0" here, and the view's
+// zero check would quietly never match. The empty-target notice would then be
+// missing on exactly the screen this bug is about.
+test('the list reports an empty target as a number the view can test', { skip }, async () => {
+  const { rows: p } = await pool.query(
+    `insert into projects (user_id, name, slug) values ($1, 'Counted', 'counted') returning id`,
+    [userId]
+  );
+  await pool.query(
+    `insert into schedules (user_id, project_id, kind, hour, minute, tz, enabled, next_run_at)
+     values ($1, $2, 'daily', 4, 0, 'UTC', true, now() + interval '1 day')`,
+    [userId, p[0].id]
+  );
+
+  const counted = async () =>
+    (await request(app).get(`/api/schedules?project_id=${p[0].id}`).set(auth).expect(200)).body
+      .schedules[0].target_tests;
+
+  assert.strictEqual(await counted(), 0, 'an empty target counts zero, as a number');
+
+  await pool.query(
+    `insert into tests (user_id, name, goal, start_url, max_steps, project_id)
+     values ($1, 'pay', 'pay', 'https://example.com', 5, $2)`,
+    [userId, p[0].id]
+  );
+  assert.strictEqual(await counted(), 1, 'and follows the target it points at');
 });

@@ -45,6 +45,19 @@ rule that decides which of the four test shapes a given check gets:
   `test/helpers/stored-key.js` seeds a decryptable stored key by registering
   `decode` and inlining the ciphertext as hex in the SQL text.
 
+  A third blind spot is not the database at all, found by BUG-006: **pg-mem
+  never runs node-pg's type parsers.** `count(*)` is bigint, and node-pg hands
+  bigint back as a *string* — so an uncast count is `0` under pg-mem and `"0"`
+  in production, and a `=== 0` check downstream silently never matches. The fix
+  is `::int` in the SQL; the point is that no pg-mem test can ever fail on it,
+  because the value never passes through the driver that makes it a string.
+  Anything whose correctness depends on the *type* a column arrives as — bigint
+  counts, numerics, dates as strings — is in this class.
+
+  It also can't run every query shape: a correlated subquery cannot see the
+  outer alias, so `LIST_QUERY` in `routes/schedules.js` uses grouped derived
+  tables. That one is loud, which makes it the harmless kind.
+
 That last pair is the whole philosophy in miniature: **same feature, two
 tests, because the shortcut one layer takes lies about the thing the other
 must verify.** Use the fake by default; drop to reality only for the specific

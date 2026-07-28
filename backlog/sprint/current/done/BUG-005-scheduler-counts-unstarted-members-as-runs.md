@@ -82,9 +82,11 @@ operator — a target that is misconfigured today and will not fix itself — so
 they share `unstarted` in the returned `{fired, runs, skipped, unstarted,
 blocked, pending, keyless}`. Distinct from `skipped` (a sibling still running,
 which runs next slot) and from `blocked` (a whole schedule the billing gate
-declined). ⚠️ [BUG-006](../../../bugs/BUG-006-empty-scheduled-target-reports-a-run.md) proposes
+declined). ⚠️ [BUG-006](BUG-006-empty-scheduled-target-reports-a-run.md) proposed
 an `empty` counter "alongside BUG-005's `error`/`rejected` counters" — those two
-are this one, so `empty` joins a shape with `unstarted` in it.
+are this one, so `empty` joined a shape with `unstarted` already in it (fixed
+2026-07-28; the shape now carries both). It counts a target with no members at
+all, where `unstarted` counts a member that was there and would not start.
 
 The partition is on what a run **is** (`'runId' in m`), not on the marker kinds
 known today, and every non-start is now logged by test id with its reason —

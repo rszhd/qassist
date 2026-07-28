@@ -143,6 +143,71 @@ test('every target type is accepted', async () => {
   );
 });
 
+// BUG-006: a target can be emptied without the schedule being touched, and the
+// tick then consumes the slot in silence. The list is the only place a
+// schedule is shown, so it has to be able to say the target holds nothing.
+test('the list reports how many tests each target actually holds', async () => {
+  const project = (
+    await request(app).post('/api/projects').set(auth).send({ name: 'Empties' }).expect(201)
+  ).body;
+  const mod = (
+    await request(app)
+      .post(`/api/projects/${project.id}/modules`)
+      .set(auth)
+      .send({ name: 'checkout' })
+      .expect(201)
+  ).body;
+  const suite = (
+    await request(app)
+      .post('/api/suites')
+      .set(auth)
+      .send({ name: 'nightly', project_id: project.id })
+      .expect(201)
+  ).body;
+
+  const counts = async () => {
+    const { body } = await request(app).get('/api/schedules').set(auth).expect(200);
+    return Object.fromEntries(body.schedules.map((s) => [s.target_type, s.target_tests]));
+  };
+
+  for (const target of [{ module_id: mod.id }, { suite_id: suite.id }, { project_id: project.id }]) {
+    await post({ ...target, kind: 'daily', hour: 3 }).expect(201);
+  }
+  assert.deepEqual(
+    await counts(),
+    { module: 0, suite: 0, project: 0 },
+    'three schedules, all firing into nothing'
+  );
+
+  // Filling the module fills the project too — one test, counted by every
+  // target that contains it, exactly as the scheduler would resolve them.
+  const testId = (
+    await request(app)
+      .post('/api/tests')
+      .set(auth)
+      .send({
+        name: 'pay',
+        goal: 'pay',
+        start_url: 'https://example.com',
+        project_id: project.id,
+        module_id: mod.id,
+      })
+      .expect(201)
+  ).body.id;
+  assert.deepEqual(await counts(), { module: 1, suite: 0, project: 1 });
+
+  await request(app)
+    .put(`/api/suites/${suite.id}`)
+    .set(auth)
+    .send({ test_ids: [testId] })
+    .expect(200);
+  assert.deepEqual(await counts(), { module: 1, suite: 1, project: 1 });
+
+  // And emptying it again is what the scheduler will meet at 02:00.
+  await request(app).delete(`/api/tests/${testId}`).set(auth).expect(204);
+  assert.deepEqual(await counts(), { module: 0, suite: 0, project: 0 }, 'the target drained');
+});
+
 test('a write must name exactly one target that exists', async () => {
   const testId = await makeTest();
   const project = (

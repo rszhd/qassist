@@ -215,8 +215,12 @@ export default function SchedulesView({ token }) {
                   <span className="row-name">
                     {s.target_name}
                     <span className="row-tag">{s.target_type}</span>
+                    {s.target_tests === 0 && <span className="row-tag warn">no tests</span>}
                   </span>
-                  <span className="row-sub">{describeSchedule(s)}</span>
+                  <span className="row-sub">
+                    {describeSchedule(s)}
+                    {s.target_tests === 0 && ' · nothing to run'}
+                  </span>
                 </span>
                 <span className="run-when">
                   {s.enabled ? formatWhen(s.next_run_at) : 'Paused'}

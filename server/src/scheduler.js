@@ -96,6 +96,12 @@ async function activeTestIds(testIds) {
  * the other order would re-fire the same slot on every boot — and a run costs
  * real LLM tokens.
  *
+ * It writes `next_run_at` alone. Taking the slot is knowable here; having run
+ * is not, since the target is resolved afterwards and can hold nothing — so
+ * `last_run_at` is `stampRun`'s to write, once something has actually started
+ * (BUG-006). Only `next_run_at` guards the re-fire, so the claim stays one
+ * atomic statement and the crash-skip property above is unchanged.
+ *
  * The guard is "still due", not "unchanged since the select": `nextSlot` is
  * always strictly in the future, so a competing tick that already claimed the
  * row leaves it failing `next_run_at <= now` just as surely. Comparing the
@@ -109,7 +115,7 @@ async function claim(schedule, now) {
   const next = nextSlot(schedule, now);
   const { rowCount } = await db().query(
     `update schedules
-        set next_run_at = $2, last_run_at = $3, updated_at = now()
+        set next_run_at = $2, updated_at = now()
       where id = $1 and enabled and next_run_at <= $3`,
     [schedule.id, next, new Date(now)]
   );
@@ -117,14 +123,38 @@ async function claim(schedule, now) {
 }
 
 /**
+ * Record that this slot actually started something. Unguarded on purpose: the
+ * claim already decided this tick owns the slot, and the only field a
+ * competing tick could disagree about is `next_run_at`, which this leaves
+ * alone.
+ * @param {string} id
+ * @param {number} now
+ */
+async function stampRun(id, now) {
+  await db().query('update schedules set last_run_at = $2, updated_at = now() where id = $1', [
+    id,
+    new Date(now),
+  ]);
+}
+
+/**
  * One pass: fire every schedule whose slot has arrived.
  * @param {number} [now] injectable clock, for tests
  * @returns {Promise<{ fired: number, runs: number, skipped: number, unstarted: number,
- *                     blocked: number, pending: number, keyless: number }>}
+ *                     empty: number, blocked: number, pending: number, keyless: number }>}
  */
 export async function tick(now = Date.now()) {
   if (!db())
-    return { fired: 0, runs: 0, skipped: 0, unstarted: 0, blocked: 0, pending: 0, keyless: 0 };
+    return {
+      fired: 0,
+      runs: 0,
+      skipped: 0,
+      unstarted: 0,
+      empty: 0,
+      blocked: 0,
+      pending: 0,
+      keyless: 0,
+    };
 
   const { rows: due } = await db().query(
     `select ${COLS} from schedules
@@ -141,6 +171,12 @@ export async function tick(now = Date.now()) {
   // again) and from `blocked` (a whole schedule the billing gate declined):
   // this one is a target that is misconfigured today and will not fix itself.
   let unstarted = 0;
+  // BUG-006: a target that resolved to no tests at all. Its sibling `unstarted`
+  // is a member that was there and would not start; this is a target with no
+  // members, which is a misconfiguration rather than a failure — and the only
+  // one of these counters whose case leaves no run row for anything else to
+  // report.
+  let empty = 0;
   let blocked = 0;
   // US-054: claimed but not fired because the owner is still in the activation
   // window. Counted apart from `blocked` — they have paid, and conflating the
@@ -214,6 +250,7 @@ export async function tick(now = Date.now()) {
 
     const { label, tests } = await testsOf(schedule);
     if (!tests.length) {
+      empty++;
       console.log(`schedule ${schedule.id.slice(0, 8)}: ${label} has no tests — nothing to run`);
       continue;
     }
@@ -255,6 +292,10 @@ export async function tick(now = Date.now()) {
     const missing = started.length - launched.length;
     runs += launched.length;
     unstarted += missing;
+    // The one thing that makes `last_run_at` true (BUG-006). Same partition the
+    // tally uses: a batch where every member was refused started nothing, and a
+    // row that says otherwise is the failure nobody can see.
+    if (launched.length) await stampRun(schedule.id, now);
     for (const member of started) {
       if ('runId' in member) continue;
       console.warn(
@@ -269,7 +310,7 @@ export async function tick(now = Date.now()) {
     );
   }
 
-  return { fired, runs, skipped, unstarted, blocked, pending, keyless };
+  return { fired, runs, skipped, unstarted, empty, blocked, pending, keyless };
 }
 
 /** Tick every TICK_MS, starting now. Unref'd so it never holds the process open. */
