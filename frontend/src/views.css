@@ -26,6 +26,30 @@
 }
 
 .rail { position: sticky; top: var(--sticky-top); max-height: var(--sticky-h); overflow-y: auto; }
+/* The project select and the filter box read as one control block, so they sit
+   at the group rhythm between them and the card's own `--s3` above and below. */
+.rail-filters { display: flex; flex-direction: column; gap: var(--s2); }
+/* The magnifier goes inside the field rather than beside it: a rail this narrow
+   has no width to spend on a column of icon. 14px is the lucide size set in the
+   markup — the inset clears the glyph and then keeps the text's usual `--s2`. */
+.rail-search { position: relative; display: flex; align-items: center; }
+.rail-search > svg { position: absolute; left: var(--s3); color: var(--faint); pointer-events: none; }
+.rail-search input { padding-left: calc(var(--s3) + 14px + var(--s2)); }
+/* WebKit's own clear button is a dark glyph it will not let us re-colour, so it
+   is hidden and Escape clears the box instead. */
+.rail-search input::-webkit-search-cancel-button { display: none; }
+/* The rail is the one place a group head scrolls out of sight, and a list of
+   test names with no module over it is unreadable — so the head pins to the top
+   of the rail's own scrollport. Full-bleed with a card-coloured background,
+   like `.tabs`, or the rows passing beneath show through at the card's edges.
+   The negative margin pays back the padding that gives the pinned head air, so
+   the spacing between groups is still the card's `--s3` and nothing else. */
+.rail .group-head {
+  position: sticky; top: 0; z-index: 1;
+  margin: calc(var(--s2) * -1) calc(var(--s4) * -1) 0;
+  padding: var(--s2) var(--s4);
+  background: var(--card);
+}
 .rail-strip {
   position: sticky; top: var(--sticky-top);
   display: flex; flex-direction: column; align-items: center; gap: var(--s3);
@@ -273,6 +297,16 @@ a.row-main { color: inherit; text-decoration: none; }
 .group-name { font-size: var(--t-base); font-weight: 600; }
 .group-name.muted { color: var(--faint); }
 .group-head .card-count { margin-right: auto; }
+/* A foldable head's label is the control — the whole name and count, so the
+   target is the width of the head rather than the chevron alone. It carries the
+   head's own layout because it replaces it as the flex parent of the label. */
+.group-toggle {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: var(--s2);
+  background: transparent; border: 0; padding: 0; color: inherit; font: inherit; cursor: pointer;
+}
+.group-toggle > svg { flex: 0 0 auto; color: var(--faint); }
+.group-toggle:hover > svg { color: var(--text); }
+.group-toggle .group-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Capped rather than full-width: a name field stretched across the whole
    pane invites a sentence, and 440px is about as wide as a project or

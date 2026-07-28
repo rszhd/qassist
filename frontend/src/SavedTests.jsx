@@ -1,4 +1,7 @@
-import { FileText, PanelLeftClose, Pencil, Play, Plus } from 'lucide-react';
+import { useState } from 'react';
+import {
+  ChevronDown, ChevronRight, FileText, PanelLeftClose, Pencil, Play, Plus, Search,
+} from 'lucide-react';
 import { CardHead, EmptyState, IconButton } from './ui.jsx';
 
 // Saved-test rail (US-009, grouped in US-023). Presentational — RunView owns
@@ -7,6 +10,28 @@ import { CardHead, EmptyState, IconButton } from './ui.jsx';
 // Everything about grouping is conditional: with no projects this renders
 // exactly the flat list it always did, and module headers only appear once the
 // filtered project actually has modules.
+
+// Which groups the viewer has folded shut, by module id (plus the two fixed
+// keys below). Only *collapses* are stored, never opens: open is the default,
+// so a rail nobody has touched can't be left folded by a state written on
+// mount — the same rule `qassist_rail_state` follows in RunView.
+const COLLAPSED_KEY = 'qassist_rail_collapsed';
+const UNGROUPED = 'no-module';
+const SUITES = 'suites';
+
+// Below this the whole rail fits on one screen, and a filter box is chrome in
+// front of a list you can already read. Measured on the fetched list rather
+// than on what the box itself leaves, so it can't vanish mid-search.
+const SEARCH_FROM = 8;
+
+function readCollapsed() {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(COLLAPSED_KEY) || '[]'));
+  } catch {
+    return new Set();
+  }
+}
+
 export default function SavedTests({
   tests,
   projects,
@@ -23,8 +48,34 @@ export default function SavedTests({
   onRunSuite,
   onCollapse,
 }) {
+  const [collapsed, setCollapsed] = useState(readCollapsed);
+  const [query, setQuery] = useState('');
+
+  const needle = query.trim().toLowerCase();
+  const hits = (text) => String(text ?? '').toLowerCase().includes(needle);
+  // Name and start URL only — both are on the row, so every match is a match
+  // you can see. Matching the goal would hide the reason a row survived.
+  const shown = needle ? tests.filter((t) => hits(t.name) || hits(t.start_url)) : tests;
+  const shownSuites = needle ? suites.filter((s) => hits(s.name)) : suites;
+
   const grouped = modules.length > 0;
-  const ungrouped = grouped ? tests.filter((t) => !t.module_id) : tests;
+  const ungrouped = grouped ? shown.filter((t) => !t.module_id) : shown;
+
+  // A search is a result view, not a tree: a group is open because it holds a
+  // hit, and the remembered folds come back when the box is cleared. That is
+  // also why the chevron goes away while searching — a toggle whose clicks the
+  // search overrules is a broken control.
+  const isOpen = (key, count) => (needle ? count > 0 : !collapsed.has(key));
+  const toggler = (key) =>
+    needle
+      ? undefined
+      : () =>
+          setCollapsed((cur) => {
+            const next = new Set(cur);
+            if (!next.delete(key)) next.add(key);
+            localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...next]));
+            return next;
+          });
 
   const row = (t) => (
     <TestRow
@@ -39,22 +90,43 @@ export default function SavedTests({
 
   return (
     <>
-      <CardHead title="Tests" count={tests.length}>
+      <CardHead title="Tests" count={needle ? shown.length : tests.length}>
         <IconButton icon={Plus} label="New test" onClick={onNew} className="spacer" />
         <IconButton icon={PanelLeftClose} label="Minimize tests" onClick={onCollapse} />
       </CardHead>
 
-      {projects.length > 0 && (
-        <select value={filter} onChange={(e) => setFilter(e.target.value)}>
-          <option value="all">All tests</option>
-          <option value="none">Ungrouped</option>
-          {projects.map((p) => (
-            <option key={p.id} value={p.id}>{p.name}</option>
-          ))}
-        </select>
+      {(projects.length > 0 || tests.length >= SEARCH_FROM) && (
+        <div className="rail-filters">
+          {projects.length > 0 && (
+            <select value={filter} onChange={(e) => setFilter(e.target.value)}>
+              <option value="all">All tests</option>
+              <option value="none">Ungrouped</option>
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          )}
+          {tests.length >= SEARCH_FROM && (
+            <div className="rail-search">
+              <Search size={14} aria-hidden="true" />
+              <input
+                type="search"
+                value={query}
+                aria-label="Filter tests"
+                placeholder="Filter by name or URL"
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => e.key === 'Escape' && setQuery('')}
+              />
+            </div>
+          )}
+        </div>
       )}
 
-      {tests.length === 0 && !grouped ? (
+      {needle && shown.length === 0 && shownSuites.length === 0 ? (
+        <EmptyState icon={Search} title="No matches">
+          Nothing in this list matches “{query.trim()}”. Try part of a test name or its URL.
+        </EmptyState>
+      ) : tests.length === 0 && !grouped ? (
         <EmptyState icon={FileText} title="No saved tests">
           {filter === 'all'
             ? 'Save a run as a test and it re-runs with one click, keeping its own history.'
@@ -63,12 +135,17 @@ export default function SavedTests({
       ) : (
         <>
           {modules.map((m) => {
-            const members = tests.filter((t) => t.module_id === m.id);
+            const members = shown.filter((t) => t.module_id === m.id);
+            // A module the search left empty is not a fold, it is a miss.
+            if (needle && members.length === 0) return null;
             return (
-              <div className="group" key={m.id}>
-                <div className="group-head">
-                  <span className="group-name">{m.name}</span>
-                  <span className="card-count">{members.length}</span>
+              <Group
+                key={m.id}
+                name={m.name}
+                count={members.length}
+                open={isOpen(m.id, members.length)}
+                onToggle={toggler(m.id)}
+                action={
                   <IconButton
                     icon={Play}
                     variant="accent"
@@ -76,34 +153,42 @@ export default function SavedTests({
                     onClick={() => onRunModule(m, members.length)}
                     disabled={running || !members.length}
                   />
-                </div>
+                }
+              >
                 {members.length > 0 && <ul className="list">{members.map(row)}</ul>}
-              </div>
+              </Group>
             );
           })}
 
-          {(ungrouped.length > 0 || !grouped) && (
-            <div className="group">
-              {grouped && (
-                <div className="group-head">
-                  <span className="group-name muted">No module</span>
-                  <span className="card-count">{ungrouped.length}</span>
-                </div>
-              )}
-              <ul className="list">{ungrouped.map(row)}</ul>
-            </div>
-          )}
+          {(ungrouped.length > 0 || !grouped) &&
+            (grouped ? (
+              <Group
+                name="No module"
+                muted
+                count={ungrouped.length}
+                open={isOpen(UNGROUPED, ungrouped.length)}
+                onToggle={toggler(UNGROUPED)}
+              >
+                <ul className="list">{ungrouped.map(row)}</ul>
+              </Group>
+            ) : (
+              <div className="group">
+                <ul className="list">{ungrouped.map(row)}</ul>
+              </div>
+            ))}
         </>
       )}
 
-      {suites.length > 0 && (
-        <div className="group">
-          <div className="group-head">
-            <span className="group-name muted">Suites</span>
-            <span className="card-count">{suites.length}</span>
-          </div>
+      {shownSuites.length > 0 && (
+        <Group
+          name="Suites"
+          muted
+          count={shownSuites.length}
+          open={isOpen(SUITES, shownSuites.length)}
+          onToggle={toggler(SUITES)}
+        >
           <ul className="list">
-            {suites.map((s) => (
+            {shownSuites.map((s) => (
               <li key={s.id}>
                 <span className="row-main">
                   <span className="row-name">{s.name}</span>
@@ -122,9 +207,36 @@ export default function SavedTests({
             ))}
           </ul>
           <p className="hint">Edit suites in Projects.</p>
-        </div>
+        </Group>
       )}
     </>
+  );
+}
+
+// A named section of the rail. `onToggle` is what makes it foldable — omitted,
+// the head is the plain label it has always been.
+function Group({ name, muted, count, open, onToggle, action, children }) {
+  const label = (
+    <>
+      <span className={`group-name${muted ? ' muted' : ''}`}>{name}</span>
+      <span className="card-count">{count}</span>
+    </>
+  );
+  return (
+    <div className="group">
+      <div className="group-head">
+        {onToggle ? (
+          <button type="button" className="group-toggle" aria-expanded={open} onClick={onToggle}>
+            {open ? <ChevronDown size={14} aria-hidden="true" /> : <ChevronRight size={14} aria-hidden="true" />}
+            {label}
+          </button>
+        ) : (
+          label
+        )}
+        {action}
+      </div>
+      {open && children}
+    </div>
   );
 }
 
