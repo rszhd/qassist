@@ -66,7 +66,7 @@ Sprints aren't split along a self-host/hosted-tier line — `sprint/current/` an
 |---|---|---|---|
 | [US-063](sprint/current/US-063-capture-a-session-without-a-terminal.md) | Capture a session without a terminal (browser extension) | 📋 Planned — P2, scheduled 2026-07-28 | US-043, US-021 |
 | [US-059](sprint/current/US-059-otp-and-social-login-in-tested-flows.md) | OTP and social login in a tested flow (was US-013 tiers 2–3) | 📋 Planned — P3, tiered, scheduled 2026-07-28 | US-013 tier 1, US-043, US-035 |
-| [US-056](sprint/current/US-056-production-deployment.md) | Production deployment: `app.qassist.run` goes live | 📋 Planned — created 2026-07-26 | US-007, US-038, US-052 |
+| [US-056](sprint/current/US-056-production-deployment.md) | Production deployment: `app.qassist.run` goes live | 🔨 **Live** 2026-07-29 on `v0.3.0`, 4/10 — the rest need a sign-in, live Stripe keys, or a decision | US-007, US-038, US-052 |
 | [US-057](sprint/current/US-057-html-email-template.md) | An HTML template for outgoing email | 🔨 **Built** 2026-07-27, 4/5 — open on the one criterion a test can't answer | — |
 | [US-020](sprint/current/US-020-report-v2-screenshots-recording.md) | Report v2: step screenshots + recording | 📋 Planned — P2 | US-006 |
 
@@ -81,7 +81,7 @@ Sprints aren't split along a self-host/hosted-tier line — `sprint/current/` an
 | [US-043](sprint/current/done/US-043-reusable-authenticated-sessions.md) | Test what is behind the login (reusable sessions) | ✅ **Done** 2026-07-27, 6/6 | US-035, US-021 (**not** US-041, which it wanted) |
 | [US-044](sprint/current/done/US-044-network-and-console-evidence.md) | Say *why* it failed: network and console evidence | ✅ **Done** 2026-07-27, 6/6 | US-026 (US-020 not needed) |
 | [US-047](sprint/current/done/US-047-stop-a-run.md) | Stop a run | ✅ **Done** 2026-07-27, 6/6 | — |
-| [US-040](sprint/current/done/US-040-demo-deployment.md) | Deploy the demo sandbox at `demo.qassist.run` | ✅ **Done** 2026-07-26, 11/11 — live on `0.2.3` | US-036, US-007, US-038 |
+| [US-040](sprint/current/done/US-040-demo-deployment.md) | Deploy the demo sandbox at `demo.qassist.run` | ✅ **Done** 2026-07-26, 11/11 — live on `0.3.0` | US-036, US-007, US-038 |
 | [US-007](sprint/current/done/US-007-https-reverse-proxy.md) | Public HTTPS via reverse proxy (and the Resend sender domain) | ✅ **Closed** 2026-07-26 — five production-only criteria moved to US-056 | domain (owned) |
 | [US-038](sprint/current/done/US-038-staging-environment.md) | Staging environment (`staging.qassist.run`) | ✅ **Closed** 2026-07-26, 6/8 — the rest moved to US-056 | US-007 |
 | [US-051](sprint/current/done/US-051-subscription-dates-from-stripe.md) | The subscription dates Stripe sends and we don't read | ✅ **Done** 2026-07-26, 9/9, shipped in `v0.2.3` | US-022 |

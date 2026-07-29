@@ -97,7 +97,7 @@ pinned Docker API 1.24 and Engine 29 requires ≥1.40, which is why
 ```sh
 curl -sS https://app.qassist.run/api/health                     # {"ok":true,...}
 curl -sSo /dev/null -w '%{http_code}\n' https://app.qassist.run/api/runs   # 401
-curl -sSI http://app.qassist.run | head -1                      # 301 → https
+curl -sSI http://app.qassist.run | head -1                      # 308 → https
 docker compose -p qassist ps                                    # app healthy
 ```
 
