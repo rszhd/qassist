@@ -5,12 +5,24 @@ authenticator app, or a "Continue with Google" button, **I want** the agent to
 get past that wall, **so that** the funnel I most need tested is not the one
 QAssist can't reach.
 
-- **Status:** 📋 Planned — spun out of
+- **Status:** 🔄 In progress — spun out of
   [US-013](done/US-013-registration-flow-verification.md)
   on 2026-07-28 and scheduled into `sprint/current/` the same day, alongside
   US-063. US-013's tier 1 (email codes) shipped 2026-07-21 and that
   story is closed; tiers 2 and 3 never started, and they no longer belong in a
-  file whose results section is about IMAP.
+  file whose results section is about IMAP. **This story's own tier 1 (TOTP)
+  and tier 2 (SMS) landed 2026-07-31**, both wired and unit-tested but not yet
+  proven against a live authenticator-gated or SMS-gated site (no such site
+  available in this environment) — that end-to-end pass is still owed before
+  either tier's first acceptance box can be checked. Tier 1:
+  `agent/totp_codes.py` (`TotpSecret.from_env` / `.code`), a `get_totp_code`
+  tool alongside the email-confirmation block, secrets routed through
+  `sensitive_data` the same way. Tier 2: `agent/sms_codes.py`
+  (`TwilioSmsInbox.from_env` / `.wait_for_code`), a `get_sms_code` tool of the
+  same shape, polling Twilio's Messages API rather than IMAP. Unlike the
+  disposable per-run email address, the provisioned test number is routed as
+  a secret too (`<secret>sms_number</secret>`) since it is a single real,
+  billed number reused across every run. Tier 3 (social) has not started.
 - **Priority:** P3 (inherited from US-013)
 - **Estimate:** ~1 day for TOTP, ~1–2 days for SMS, ~0.5–1 day for social —
   see "What US-043 already paid for", which is why social is now the cheapest
@@ -102,18 +114,20 @@ limitation rather than chasing it.
 **Tier 1 — TOTP**
 
 - [ ] With a shared secret configured, the agent completes a login whose second
-      factor is an authenticator code, end-to-end
-- [ ] Codes match RFC 6238 test vectors, including across a time-step boundary
-- [ ] The shared secret appears in no step, event, log, or report — asserted
+      factor is an authenticator code, end-to-end — wired and unit-tested, not
+      yet run live against a real authenticator-gated site
+- [x] Codes match RFC 6238 test vectors, including across a time-step boundary
+- [x] The shared secret appears in no step, event, log, or report — asserted
       over the whole emitted payload, not field by field
 
 **Tier 2 — SMS**
 
 - [ ] With a number configured, the agent completes a signup requiring an SMS
-      code, end-to-end
-- [ ] Unconfigured, runs are byte-for-byte unchanged and the tool is absent
-- [ ] The code and the phone number are absent from every emitted artifact
-- [ ] The VoIP-rejection and per-message-cost limitations are documented
+      code, end-to-end — wired and unit-tested, not yet run live against a
+      real Twilio number and site
+- [x] Unconfigured, runs are byte-for-byte unchanged and the tool is absent
+- [x] The code and the phone number are absent from every emitted artifact
+- [x] The VoIP-rejection and per-message-cost limitations are documented
 
 **Tier 3 — social**
 

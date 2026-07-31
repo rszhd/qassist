@@ -41,6 +41,8 @@ Inputs come from environment variables:
   browser_session.py)
   QA_IMAP_* / QA_MAILBOX_DOMAIN (optional — enables email confirmation, see
   email_codes.py)
+  QA_TOTP_SECRET (optional — enables authenticator-app codes, see totp_codes.py)
+  QA_TWILIO_* (optional — enables SMS codes, see sms_codes.py)
 """
 from __future__ import annotations
 
@@ -70,6 +72,8 @@ from browser_use.browser.video_recorder import VideoRecorderService
 from PIL import Image
 
 from email_codes import ImapMailbox
+from totp_codes import TotpSecret
+from sms_codes import TwilioSmsInbox
 from redact import scrub
 import diagnostics
 import exit_watchdog
@@ -532,6 +536,85 @@ async def main() -> int:
             "<secret>qa_password</secret>. After submitting a step that sends a confirmation "
             "email, use the get_email_code action, then enter <secret>email_code</secret> or "
             "open <secret>email_link</secret> as instructed by its result. Never guess codes."
+        )
+
+    # --- authenticator (TOTP) codes (US-059 tier 1), enabled when a shared
+    # secret is configured. Computed, not awaited — no polling loop, no vendor.
+    # The shared secret itself never joins `sensitive` or the task text; only
+    # the derived code does, and it does the same <secret>name</secret> +
+    # scrub round-trip as everything else here. Unlike an emailed code the
+    # secret behind it never expires, so it must never leak even once.
+    totp_secret = TotpSecret.from_env(os.environ)
+    if totp_secret:
+        if tools is None:
+            tools = Tools()
+        if sensitive is None:
+            sensitive = {}
+
+        @tools.action(
+            "Compute the current authenticator (TOTP) code for this login's second "
+            "factor. Call this right after the flow asks for the 6-digit code from an "
+            "authenticator app; the code is valid for roughly 30 seconds."
+        )
+        async def get_totp_code() -> str:
+            sensitive["totp_code"] = totp_secret.code()
+            return "Authenticator code ready — type <secret>totp_code</secret> into the code field."
+
+        task += (
+            "\n\nAuthenticator app support: if the flow asks for a 6-digit code from an "
+            "authenticator app, use the get_totp_code action, then enter "
+            "<secret>totp_code</secret>. Never guess or invent a code."
+        )
+
+    # --- SMS codes (US-059 tier 2), enabled when a Twilio test number is
+    # configured. Unlike the email address above, the test number is routed as
+    # a secret too, not left plain in the task — it is a real, deployment-wide
+    # phone number tied to a billed account, not a disposable per-run address.
+    sms_inbox = TwilioSmsInbox.from_env(os.environ)
+    if sms_inbox:
+        if tools is None:
+            tools = Tools()
+        if sensitive is None:
+            sensitive = {}
+        sensitive["sms_number"] = sms_inbox.test_number
+        sms_since = time.time() - 60  # small clock-skew allowance
+
+        @tools.action(
+            "Fetch the SMS code sent to the run's test phone number and extract its "
+            "verification code. Call this right after submitting a form that triggers an "
+            "SMS code; it waits up to timeout_seconds for the message to arrive."
+        )
+        async def get_sms_code(timeout_seconds: int = 90) -> str:
+            timeout = max(10, min(int(timeout_seconds), 180))
+            emit({"type": "progress", "message": f"Waiting for SMS code (up to {timeout}s)…"})
+            code = None
+            waited = 0
+            try:
+                while waited < timeout:
+                    chunk = min(15, timeout - waited)
+                    code = await asyncio.to_thread(sms_inbox.wait_for_code, sms_since, chunk)
+                    waited += chunk
+                    if code is not None:
+                        break
+                    emit({"type": "progress", "message": f"Still waiting for SMS code… ({waited}s)"})
+            except Exception as e:
+                emit({"type": "progress", "message": f"SMS error: {type(e).__name__}"})
+                return f"SMS error ({type(e).__name__}) — cannot fetch the code. Report the goal as blocked."
+            if code is None:
+                emit({"type": "progress", "message": f"No SMS code after {timeout}s"})
+                return (
+                    f"No SMS code arrived within {timeout}s. Check the number was submitted "
+                    "correctly, or try once more."
+                )
+            sensitive["sms_code"] = code
+            emit({"type": "progress", "message": "SMS code received."})
+            return "SMS code received — type <secret>sms_code</secret> into the code field."
+
+        task += (
+            "\n\nSMS confirmation support: if the flow asks for a phone number, use exactly "
+            "<secret>sms_number</secret> — do not invent another. After submitting a step that "
+            "sends an SMS code, use the get_sms_code action, then enter <secret>sms_code</secret>. "
+            "Never guess codes."
         )
 
     # Network/console evidence (US-044). Created here, after the mailbox block
