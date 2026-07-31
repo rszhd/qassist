@@ -221,6 +221,19 @@ reach, and the fence is what keeps a run from going there.
   *more* likely, not less: an automated browser on a Google login form is
   exactly what that detection is built for, which is again why the answer is to
   reuse a session instead of typing anything.
+- **A Google session, even a complete and valid one, replayed from an
+  automated browser.** Confirmed 2026-08-01 (US-063): a captured session with
+  every cookie a real login sets — `SAPISID`, `__Secure-1PSID`/`3PSID`, `SSID`,
+  `NID`, the full `SIDCC`/`SIDTS` set — still rendered a cold, unauthenticated
+  sign-in form when replayed through browser-use. Google's own detection of
+  the automated browser (and likely the network context differing from where
+  the session was captured) refuses to honor it, independent of the cookies
+  being genuinely valid. Not unique to us: PhantomBuster, whose product is
+  session-cookie automation, supports LinkedIn, Instagram, Facebook, X and
+  Slack this way and does not offer Google at all. Reuse still works for
+  *your app's* session (the button never gets clicked); it's specifically the
+  provider-only variant — testing the OAuth handshake itself — that this
+  blocks for Google.
 
 ## Planned
 

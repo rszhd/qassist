@@ -322,3 +322,21 @@ this repo (no puppeteer-loads-unpacked-extension setup exists, and building
 one was out of scope). Only `lib/storageState.js`'s pure mapping functions are
 unit-tested; the rest is the same hand-verified-on-a-real-site category
 US-043's results called out for browser-use itself — and now it has been.
+
+### The spot-check above happened, and found a second real bug
+
+Attached a `myaccount.google.com` capture to a real x.com "Continue with
+Google" test. First capture: 3 cookies, none of them the ones that matter — a
+granted host permission for the exact typed host doesn't cover a cookie
+scoped to the parent domain (`Domain=.google.com`, how Google's own session
+cookies work), and `chrome.cookies.getAll` silently drops anything outside
+granted permissions. Fixed with `lib/siteScope.js` (unit-tested): request the
+registrable domain and a subdomain wildcard alongside the exact host, not
+just the one origin typed. Recapture: 15 cookies, a complete and genuinely
+valid set (`SAPISID`, `__Secure-1PSID`/`3PSID`, `SSID`, `NID`, the full
+`SIDCC`/`SIDTS` rotation set).
+
+Even so, the OAuth run still rendered a cold, unauthenticated Google sign-in
+form. That's not a QAssist bug — Google's own automation detection refuses to
+honor a session replayed through a CDP-controlled browser, valid or not.
+Written up in `docs/auth-in-tested-flows.md`'s "Not possible" section.

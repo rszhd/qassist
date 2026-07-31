@@ -20,6 +20,7 @@
 //                 is a property of what this file does NOT do; verify by
 //                 reading doCapture() below rather than by running anything.
 import { buildStorageState } from './lib/storageState.js';
+import { permissionPatterns, registrableDomain } from './lib/siteScope.js';
 
 const APP = document.getElementById('app');
 
@@ -147,6 +148,7 @@ function renderOrigin() {
 }
 
 function renderExplain() {
+  const root = registrableDomain(new URL(state.origin).hostname);
   setApp(`
     ${header('Before you continue')}
     <div class="box">
@@ -155,7 +157,7 @@ function renderExplain() {
       <p>and send it to</p>
       <p class="mono">${escapeHtml(state.instanceUrl)}</p>
     </div>
-    <p class="muted">Chrome will ask you to approve access to this one site next. QAssist never sees a password — only the cookies and local data this browser already holds for it.</p>
+    <p class="muted">Chrome will ask you to approve access to <strong>${escapeHtml(root)}</strong> and its subdomains next — not just this one page. Sites like Google split a login across several subdomains and share cookies between them, so a narrower grant would miss the session. QAssist never sees a password — only the cookies and local data this browser already holds.</p>
     <div class="row">
       <button id="back">Back</button>
       <button class="primary" id="grant">Continue</button>
@@ -169,10 +171,14 @@ function renderExplain() {
 }
 
 async function requestPermission() {
-  const pattern = `${state.origin}/*`;
+  // Not just the exact host: a cookie scoped to the parent domain
+  // (Domain=.google.com, how most SSO providers actually hold a session) is
+  // invisible to chrome.cookies.getAll unless a granted host permission
+  // covers it too — see lib/siteScope.js's header for how this was found.
+  const patterns = permissionPatterns(state.origin);
   let granted = false;
   try {
-    granted = await chrome.permissions.request({ origins: [pattern] });
+    granted = await chrome.permissions.request({ origins: patterns });
   } catch {
     granted = false;
   }
@@ -286,13 +292,21 @@ function renderCapturing() {
  */
 async function doCapture() {
   try {
-    const cookies = await chrome.cookies.getAll({ url: state.origin });
     const tabs = await chrome.tabs.query({ url: `${state.origin}/*` });
     if (!tabs.length) {
       state.screen = 'needTab';
       render();
       return;
     }
+    // The tab's actual URL, not the bare origin. chrome.cookies.getAll only
+    // returns a cookie when its Path is a prefix of the queried URL's path
+    // (RFC 6265 path-matching) — an origin has no path, which Chrome treats
+    // as "/", so querying by origin alone silently drops every cookie the
+    // site scoped to something narrower (Google does this heavily). Devtools'
+    // cookie panel ignores path entirely, which is why the two counts can
+    // disagree. The open tab's real URL is the closest thing to "every
+    // cookie this signed-in page actually depends on."
+    const cookies = await chrome.cookies.getAll({ url: tabs[0].url });
     let entries = [];
     try {
       const [injected] = await chrome.scripting.executeScript({

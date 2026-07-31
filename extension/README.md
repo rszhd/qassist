@@ -42,12 +42,20 @@ build steps (see the root `CLAUDE.md`).
   install, and that's all that prompts then. `identity.email` reads the
   signed-in Chrome profile's email with no OAuth consent screen; it's how the
   extension names the account it's about to capture.
-- **A host permission for one origin, asked at the moment you name it** — not
+- **A host permission for one site, asked at the moment you name it** — not
   `<all_urls>` up front. The manifest declares `<all_urls>` as an *optional*
   permission ceiling (Chrome's API requires that to let
   `chrome.permissions.request()` name an arbitrary origin later), but that
   ceiling is never itself shown to you. The only prompt you ever see is
-  Chrome's own per-origin one, for the exact site you typed, right after the
+  Chrome's own, for the site you typed — its registrable domain and
+  subdomains (`lib/siteScope.js`), not just the exact host. That's
+  deliberately wider than one exact hostname: a cookie scoped to a parent
+  domain (`Domain=.google.com`, how Google's own session cookies work, shared
+  across `accounts.`, `myaccount.` and every other subdomain) is invisible to
+  `chrome.cookies.getAll` unless a granted host permission covers it too —
+  found live against a real Google account, where the first cut of this
+  extension captured 3 cookies out of a real session's 10+, none of them the
+  ones that mattered. Still one site, never `<all_urls>`, right after the
   popup explains what it's about to do and where it's going.
 - **The capture token** — pasted in as part of the setup code, valid once, for
   15 minutes, and only for the one session it was minted for. It authenticates
