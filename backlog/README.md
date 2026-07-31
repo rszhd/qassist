@@ -64,7 +64,6 @@ Sprints aren't split along a self-host/hosted-tier line — `sprint/current/` an
 
 | ID | Story | Status | Depends on |
 |---|---|---|---|
-| [US-063](sprint/current/US-063-capture-a-session-without-a-terminal.md) | Capture a session without a terminal (browser extension) | 📋 Planned — P2, scheduled 2026-07-28 | US-043, US-021 |
 | [US-059](sprint/current/US-059-otp-and-social-login-in-tested-flows.md) | OTP and social login in a tested flow (was US-013 tiers 2–3) | 📋 Planned — P3, tiered, scheduled 2026-07-28 | US-013 tier 1, US-043, US-035 |
 | [US-056](sprint/current/US-056-production-deployment.md) | Production deployment: `app.qassist.run` goes live | 🔨 **Live** 2026-07-29 on `v0.3.0`, 4/10 — the rest need a sign-in, live Stripe keys, or a decision | US-007, US-038, US-052 |
 | [US-057](sprint/current/US-057-html-email-template.md) | An HTML template for outgoing email | 🔨 **Built** 2026-07-27, 4/5 — open on the one criterion a test can't answer | — |
@@ -74,6 +73,7 @@ Sprints aren't split along a self-host/hosted-tier line — `sprint/current/` an
 
 | ID | Story | Status | Depends on |
 |---|---|---|---|
+| [US-063](sprint/current/done/US-063-capture-a-session-without-a-terminal.md) | Capture a session without a terminal (browser extension) | ✅ **Shipped and hand-verified** 2026-07-31 — store listing out of scope | US-043, US-021 |
 | [US-064](sprint/current/done/US-064-secret-variables-in-a-scheduled-run.md) | Secret variables in a scheduled run | ✅ **Done** 2026-07-28, 8/8 | US-035, US-010, US-043 |
 | [US-042](sprint/current/done/US-042-agent-navigation-confinement.md) | Confine where the agent may navigate | ✅ **Done** 2026-07-27, 5/6 | US-021 |
 | [US-058](sprint/current/done/US-058-per-user-concurrency-override.md) | Raise one user's concurrency cap without raising everyone's | ✅ **Done** 2026-07-27, 9/9 | US-028, US-021 |

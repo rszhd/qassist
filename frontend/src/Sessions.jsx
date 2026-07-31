@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { AlertTriangle, KeyRound, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import { AlertTriangle, Check, Copy, KeyRound, Plus, Puzzle, RefreshCw, Trash2 } from 'lucide-react';
 import { api } from './api.js';
 import { Button, EmptyState, Field, IconButton, Modal } from './ui.jsx';
 
@@ -18,6 +18,7 @@ export default function Sessions({ projectId, token, onChanged }) {
   const [sessions, setSessions] = useState([]);
   const [tests, setTests] = useState([]);
   const [editing, setEditing] = useState(null);
+  const [captureSetup, setCaptureSetup] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
 
@@ -51,6 +52,7 @@ export default function Sessions({ projectId, token, onChanged }) {
       // Omitted on an edit that did not re-paste, so "leave the blob alone" is
       // expressible — the one thing a user must be able to do while renaming.
       if (form.storage_state.trim()) body.storage_state = form.storage_state.trim();
+      if (!form.id && form.captureMethod === 'extension') body.capture_method = 'extension';
       const path = form.id
         ? `/api/projects/${projectId}/sessions/${form.id}`
         : `/api/projects/${projectId}/sessions`;
@@ -63,6 +65,22 @@ export default function Sessions({ projectId, token, onChanged }) {
       setError(`Save: ${err.message}`);
     } finally {
       setBusy(false);
+    }
+  }
+
+  // Mints a one-time capture token (US-063) and hands the setup code to the
+  // modal below. Any session can be (re-)captured this way regardless of
+  // `source` — the same "replace it" freedom the paste route already has.
+  async function startExtensionCapture(session) {
+    setError(null);
+    try {
+      const setup = await api(`/api/projects/${projectId}/sessions/${session.id}/capture-token`, {
+        token,
+        method: 'POST',
+      });
+      setCaptureSetup({ ...setup, sessionName: session.name });
+    } catch (err) {
+      setError(`Capture token: ${err.message}`);
     }
   }
 
@@ -114,7 +132,11 @@ export default function Sessions({ projectId, token, onChanged }) {
                       {s.origin_count > 0 &&
                         `, ${s.origin_count} origin${s.origin_count === 1 ? '' : 's'}`}
                       {' · '}
-                      {s.source === 'login_run' ? 'from a login run' : 'pasted'}{' '}
+                      {s.source === 'login_run'
+                        ? 'from a login run'
+                        : s.source === 'extension'
+                          ? 'captured via extension'
+                          : 'pasted'}{' '}
                       {capturedAgo(s.captured_at)}
                     </>
                   ) : (
@@ -130,6 +152,12 @@ export default function Sessions({ projectId, token, onChanged }) {
                   icon={RefreshCw}
                   label="Replace or edit"
                   onClick={() => setEditing(toForm(s))}
+                />
+                <IconButton
+                  icon={Puzzle}
+                  label="Capture with browser extension"
+                  onClick={() => startExtensionCapture(s)}
+                  disabled={busy}
                 />
                 <IconButton icon={Trash2} label="Delete" onClick={() => remove(s)} disabled={busy} />
               </span>
@@ -154,8 +182,53 @@ export default function Sessions({ projectId, token, onChanged }) {
           onClose={() => setEditing(null)}
         />
       )}
+
+      {captureSetup && (
+        <CaptureSetupModal setup={captureSetup} onClose={() => setCaptureSetup(null)} />
+      )}
     </>
   );
+}
+
+// Shows the one-time setup code a browser extension trades for permission to
+// fill this session (US-063). The token lives only in `captureSetup` state —
+// closing the modal drops it from memory the same way ApiKeys.jsx's `fresh`
+// key is never persisted, and a re-open mints a new one rather than
+// resurfacing the old.
+function CaptureSetupModal({ setup, onClose }) {
+  const [copied, setCopied] = useState(false);
+  const code = toSetupCode(setup);
+
+  async function copy() {
+    await navigator.clipboard.writeText(code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }
+
+  return (
+    <Modal
+      title={`Capture "${setup.sessionName}" with the extension`}
+      description="Open the QAssist browser extension, paste this setup code, name the site to capture, and confirm."
+      onClose={onClose}
+      footer={<Button onClick={onClose}>Done</Button>}
+    >
+      <div className="api-key-fresh">
+        <p className="hint">One-time code — copy it now. It expires in 15 minutes or on first use.</p>
+        <div className="api-key-reveal">
+          <code>{code}</code>
+          <IconButton icon={copied ? Check : Copy} label={copied ? 'Copied' : 'Copy code'} onClick={copy} />
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// `{token, instance_url}` as one pasteable string, so a user hands the
+// extension a single blob instead of typing a LAN address by hand.
+function toSetupCode({ token, instance_url }) {
+  const json = JSON.stringify({ token, instance_url });
+  const b64 = btoa(unescape(encodeURIComponent(json)));
+  return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
 function toForm(session) {
@@ -166,16 +239,21 @@ function toForm(session) {
     login_test_id: session?.login_test_id || '',
     verify_url_contains: session?.verify_url_contains || '',
     verify_text: session?.verify_text || '',
+    // Create-only (US-063): "the extension will fill this later" satisfies
+    // the same "some way to be filled" guard a login test or a paste does.
+    captureMethod: '',
   };
 }
 
 function SessionEditor({ form, setForm, tests, busy, onSave, onClose }) {
   const set = (field) => (e) => setForm({ ...form, [field]: e.target.value });
-  // A new session needs SOME way to be filled — a pasted blob, or the login
-  // test that will capture one. Requiring the paste would make Playwright a
+  // A new session needs SOME way to be filled — a pasted blob, the login test
+  // that will capture one, or the browser extension for the logins a test can
+  // never drive (social login). Requiring the paste would make Playwright a
   // prerequisite for the path that exists so you never need it.
   const canSave =
-    form.name.trim() && (form.id || form.storage_state.trim() || form.login_test_id);
+    form.name.trim() &&
+    (form.id || form.storage_state.trim() || form.login_test_id || form.captureMethod === 'extension');
 
   return (
     <Modal
@@ -224,6 +302,24 @@ function SessionEditor({ form, setForm, tests, busy, onSave, onClose }) {
           ))}
         </select>
       </Field>
+
+      {!form.id && (
+        <Field
+          label="Or capture with the browser extension"
+          hint="For logins a test can never drive — Google, Microsoft, any social login. Create the session empty, then use the extension in your own browser to fill it."
+        >
+          <label className="var-flag">
+            <input
+              type="checkbox"
+              checked={form.captureMethod === 'extension'}
+              onChange={(e) =>
+                setForm({ ...form, captureMethod: e.target.checked ? 'extension' : '' })
+              }
+            />
+            Capture later using the browser extension
+          </label>
+        </Field>
+      )}
 
       <Field
         label="Signed-in check (optional)"

@@ -5,22 +5,25 @@ never will — **I want** to hand QAssist a signed-in browser state by logging i
 myself, **so that** the flows only a human can authenticate are testable by the
 people this product is for.
 
-- **Status:** 📋 Planned — filed 2026-07-28 out of writing
-  [`docs/auth-in-tested-flows.md`](../../../docs/auth-in-tested-flows.md), which
+- **Status:** ✅ **Shipped and hand-verified 2026-07-31.** Filed 2026-07-28 out
+  of writing
+  [`docs/auth-in-tested-flows.md`](../../../../docs/auth-in-tested-flows.md), which
   could not describe how a non-developer sets up social login because there is
   no way, and scheduled into `sprint/current/` the same day, alongside US-059.
   **Approach decided the same day: option B, a browser extension.** The
-  rejected alternative and the reasoning are kept below.
+  rejected alternative and the reasoning are kept below. Every AC is met except
+  the store listing, which the story's own Notes puts out of scope. See
+  Results, including the CORS bug the live pass caught.
 - **Priority:** P2 — see "Why P2 when it serves a P3 story", which is the part
   worth arguing with.
 - **Estimate:** ~1–2 days for the extension and the endpoint it posts to, plus
   store submission and an indefinite maintenance tail that the day count does
   not capture and should not be allowed to hide.
-- **Depends on:** [US-043](done/US-043-reusable-authenticated-sessions.md)
+- **Depends on:** [US-043](US-043-reusable-authenticated-sessions.md)
   (the session it fills, and the encrypt/store/teardown path it reuses wholesale),
-  US-021. Unblocks [US-059](US-059-otp-and-social-login-in-tested-flows.md) tier 3
+  US-021. Unblocks [US-059](../US-059-otp-and-social-login-in-tested-flows.md) tier 3
   for anyone who is not a developer.
-- **Not** [US-062](../../unscheduled/US-062-live-browser-test-tier.md). That is a headless test
+- **Not** [US-062](../../../unscheduled/US-062-live-browser-test-tier.md). That is a headless test
   tier for the maintainer, proving US-042's redirect and US-043's round-trip.
   The names are close enough to be mixed up and the two share no code.
 
@@ -87,7 +90,7 @@ are what the acceptance criteria below are mostly about.
   is `docker compose up` and it is theirs. An extension lives in our store
   account, signed by us, and must be told which instance to post to — an
   arbitrary origin, possibly a LAN address, which widens host permissions
-  further. This is a real crack in [`docs/repo-model.md`](../../../docs/repo-model.md)'s
+  further. This is a real crack in [`docs/repo-model.md`](../../../../docs/repo-model.md)'s
   posture. It does not sink the decision, but the source belongs in this repo
   and an unpacked/self-built install path must stay documented and supported.
 - **It reads the user's daily browser, and that is the sharp edge.** The
@@ -145,55 +148,55 @@ has no such moment, which is why it has to manufacture one.
 
 **The capture works.**
 
-- [ ] A user with no terminal, no Node and no Playwright installs the extension
+- [x] A user with no terminal, no Node and no Playwright installs the extension
       and creates a session holding a signed-in state, using only their browser
       and the QAssist UI
-- [ ] The captured blob reaches the same encrypted column by the same path a
+- [x] The captured blob reaches the same encrypted column by the same path a
       `login_run` capture uses — no second writer, no second encryption
-- [ ] A capture that is abandoned or rejected leaves **no** blob, no partial row
+- [x] A capture that is abandoned or rejected leaves **no** blob, no partial row
       and nothing on disk
-- [ ] A failed capture leaves an existing session's stored bytes byte-identical
+- [x] A failed capture leaves an existing session's stored bytes byte-identical
       (US-043's rule, which this adds a second way to violate)
-- [ ] The blob appears in no response body, event, log or artifact — asserted
+- [x] The blob appears in no response body, event, log or artifact — asserted
       over whole payloads, as `session-containment.test.js` does
-- [ ] The docs stop describing the terminal as the only route to social login
+- [x] The docs stop describing the terminal as the only route to social login
 
-- [ ] An extension capture is distinguishable in the UI from a pasted or
+- [x] An extension capture is distinguishable in the UI from a pasted or
       login-run one — `source` is a check constraint in `015` and gains a third
       value by new migration; `015` is never edited
 
 **The permission scope is defensible.** The extension has to survive both a
 store reviewer and a suspicious user.
 
-- [ ] Host permissions are requested per origin the user names, not `<all_urls>`
-- [ ] The extension states what it will read and where it will send it *before*
+- [x] Host permissions are requested per origin the user names, not `<all_urls>`
+- [x] The extension states what it will read and where it will send it *before*
       the browser's permission prompt, not after
-- [ ] It holds a token that can post a session and do nothing else — not a
+- [x] It holds a token that can post a session and do nothing else — not a
       full-privilege API key
-- [ ] The instance URL is user-configured and works against a self-hosted
+- [x] The instance URL is user-configured and works against a self-hosted
       origin, including a LAN address
 
 **The personal account is the awkward path.** The guard is in the product, not
 in the docs — this is the constraint the approach was chosen in spite of, so it
 is the one most likely to be quietly dropped.
 
-- [ ] Before capturing, the extension names the account it is about to capture
+- [x] Before capturing, the extension names the account it is about to capture
       and requires an explicit confirmation
-- [ ] Capturing from a browser profile the user has not marked as a test profile
+- [x] Capturing from a browser profile the user has not marked as a test profile
       is refused, or takes a deliberate override that says what is being accepted
-- [ ] The throwaway-account guidance appears at the moment of capture, not only
+- [x] The throwaway-account guidance appears at the moment of capture, not only
       in `auth-in-tested-flows.md`
 
 **The self-hoster is not locked out.**
 
-- [ ] The extension source lives in this repo, and building and side-loading it
+- [x] The extension source lives in this repo, and building and side-loading it
       unpacked is documented and works without our store listing
 
 ## Correctness-critical
 
 **Yes, and by extension rather than by a new row.** This adds a *new writer* to
 the surface already registered as **Saved browser sessions (US-043)** in
-[`correctness-critical.md`](../../correctness-critical.md) — a row whose failure
+[`correctness-critical.md`](../../../correctness-critical.md) — a row whose failure
 description already runs to six distinct ways the credential path breaks,
 including "the failed refresh that clobbers" and "the empty session that runs
 anyway", both of which this story can reintroduce through a door US-043 never
@@ -219,3 +222,103 @@ credential after a failed post.
 - The store listing is on the critical path and is not a code task. Submission,
   review turnaround and a privacy-policy URL are all real, and the ~1–2 day
   estimate covers none of them.
+
+## Results
+
+**Built 2026-07-31.** Server layer landed first (`018_extension_session_capture.sql`,
+`sessionCapture.js`, `browserSession.js`'s `captureFromExtension`,
+`routes/capture.js`, the `capture-token` mint route, `createSession`'s
+`capture_method: 'extension'` relaxation), spec'd assertion-first in
+`session-capture-token.test.js` per the Correctness-critical section above —
+E1 (not a full-privilege key), E2 (single-use), E3 (a malformed post doesn't
+burn the token), E4 (a failure after the token is spent leaves stored bytes
+byte-identical), E5 (nothing echoes the blob), plus the dead-end-guard and
+mint-scoping cases. Then the extension (`extension/`: MV3 manifest, a
+no-framework `popup.js` state machine for the paste → name-the-site →
+explain-before-prompt → account-guard → capture flow, and
+`lib/storageState.js`'s pure chrome-cookie → Playwright-cookie /
+localStorage → `origins[]` mappings, unit-tested in
+`lib/storageState.test.mjs`), then `Sessions.jsx` (a third create-time option,
+the `source === 'extension'` label, and a "Capture with browser extension"
+action that mints a token and shows it once as a copy-once setup code, same
+pattern as `ApiKeys.jsx`'s fresh key), then docs
+(`auth-in-tested-flows.md`'s Social login section, `api.md`'s new capture
+endpoints section, `extension/README.md`).
+
+Green: `server && npm test` (678 tests; the one failure,
+`AGENT_PROVIDED_SECRETS matches...`, predates this story — it's US-059's
+`run_agent.py` sensitive-keys list drifting from `variables.js`'s exemption
+list, unrelated to session capture) and `npm run check`; `frontend && npm
+test` (86) and `npm run build`; `node extension/lib/storageState.test.mjs`
+(10); `node scripts/check-doc-links.mjs`.
+
+**Acceptance criteria met by code and tests**, on inspection: the encrypted
+column is shared with `refreshCapturedSession` rather than duplicated; an
+abandoned or rejected capture writes nothing (the server never sees a request
+until the final POST, and the popup never persists the assembled blob — see
+`popup.js`'s own header comment on `doCapture()`); a failed capture leaves
+existing bytes byte-identical (E4); the blob is echoed nowhere (E5, and the
+popup never `console.log`s it); `source` distinguishes an extension capture in
+the UI; host permissions are requested per-origin via
+`chrome.permissions.request()`, never `<all_urls>` as an actual prompt; the
+explain screen renders before that request; the capture token is scoped to
+one route and one use; the instance URL comes entirely from the setup code
+(works against a LAN address with zero extension-side configuration); the
+account-name-and-confirm screen and the per-profile `isTestProfile` refusal
+gate every single capture, not just the first; the extension's source and
+side-load instructions live in this repo and need no store listing.
+
+### Hand-verified live, 2026-07-31 — and a real bug it caught
+
+Nothing in the sandbox this was built in can drive a real browser, so the
+maintainer ran the actual pass: `cd server && npm run dev` +
+`cd frontend && npm run dev` against a fresh `.env`, `extension/` side-loaded
+unpacked at `chrome://extensions`, a setup code minted from the real Sessions
+UI, and a real capture against `https://x.com` in a real signed-in tab.
+
+**First attempt failed: `Failed to fetch` on the POST.** The design in this
+plan (see "Extension" above, point 8) asserted the popup's `fetch()` to
+`/api/capture` needed no host permission and no CORS handling because it runs
+in the extension's own background context rather than a content script. That
+conflated two different browser mechanisms: extension pages *do* skip a
+page's CSP, but a cross-origin `fetch()` from an extension page is still
+ordinary CORS unless the extension holds a host permission for the target —
+and this extension deliberately does not request one for the QAssist origin,
+by design (only the captured site gets a permission prompt). The server sent
+no `Access-Control-Allow-Origin` at all, so the browser's own preflight
+rejected the call before it ever reached `routes/capture.js`.
+
+Fixed in `routes/capture.js`: the router now answers its own CORS preflight
+and stamps `Access-Control-Allow-Origin: *` on every response, including
+errors. `*` is deliberate, not a shortcut — the capture token, not the origin
+header, is what actually gates this route, and the caller's origin
+(`chrome-extension://<id>`) is a different, unpredictable string on every
+install (unpacked, store, or moved-on-disk) this server could never
+enumerate. Two new assertions (E6 in `session-capture-token.test.js`) pin
+both the preflight and the real response so this can't silently regress —
+had they existed before the extension was written, the plan's mistaken
+assumption would have been caught by `npm test` instead of by a live click.
+
+**Second attempt, after the fix: real capture, real result.** `source ext`
+project's session now reads `"source":"extension"`, `"cookie_count":15`,
+`"origin_count":1`, `"captured_at"` set — landed through the exact same
+`captureFromExtension` → `encryptSecret` → `storage_state_ciphertext` path a
+`login_run` capture uses, with real cookies from a real site the maintainer
+was already signed in to. That closes the "capture works" AC and the
+no-terminal AC by demonstration rather than by inspection.
+
+**Still not separately re-verified**: attaching that captured session to a
+test and confirming a run starts authenticated. That's not new machinery —
+`captureFromExtension` writes through the identical encrypted column
+`refreshCapturedSession` does, and *that* load path is US-043's own
+already-tested territory — but it wasn't exercised again here as a full run.
+Worth a spot-check next time a session captured this way is actually attached
+to something, rather than a blocker on its own.
+
+Also flagged rather than skipped silently, per the story's own framing: the
+chrome.* glue itself — permission prompts, `chrome.identity`,
+`chrome.scripting`, the popup's own screens — has no automated test harness in
+this repo (no puppeteer-loads-unpacked-extension setup exists, and building
+one was out of scope). Only `lib/storageState.js`'s pure mapping functions are
+unit-tested; the rest is the same hand-verified-on-a-real-site category
+US-043's results called out for browser-use itself — and now it has been.

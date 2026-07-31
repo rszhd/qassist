@@ -406,19 +406,56 @@ only to write one spawn's temp file, and that file's directory is removed when
 the run ends. The counts and `captured_at` are there so you can tell a live
 session from a stale one without being able to read it back.
 
-**Two ways to produce one, and you need no Playwright for either.** Set
+**Three ways to produce one, and you need no Playwright for any of them.** Set
 `login_test_id` to a test whose job is to log in and leave `storage_state` out:
 the session is created empty and the next *passing* run of that test saves the
 browser's session into it, so a nightly schedule (US-010) keeps it fresh. Or
-paste a `storageState.json` if you already have one — the escape hatch, and the
-only thing that covers SSO flows an agent will never survive. A failing login
-run never touches the stored session.
+create it with `{"capture_method":"extension"}` and fill it with the browser
+extension (below) — the route for logins a test can never drive, chiefly social
+login. Or paste a `storageState.json` if you already have one — the developer
+shortcut. A failing login run never touches the stored session.
 
 Until it has been captured, a session reads `"captured_at": null`, and a test
 that opts into it is **refused at run start** (400, nothing enqueued) rather
 than run signed out — a test that quietly runs signed out passes nothing and
-fails everything. A session with neither a blob nor a login test is refused at
-creation, since nothing could ever fill it.
+fails everything. A session with none of a blob, a login test or
+`capture_method: "extension"` is refused at creation, since nothing could ever
+fill it.
+
+### Capturing with the browser extension (US-063)
+
+The extension (`extension/`, side-loaded — see `extension/README.md`) has no
+QAssist login of its own. It trades a short-lived, single-use **capture
+token** for permission to fill exactly one session, once:
+
+```bash
+# create an empty session that declares it'll be filled by the extension
+curl -X POST http://<host>:8080/api/projects/shop/sessions \
+  -H "Authorization: Bearer $WORKER_API_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"name":"google sso","capture_method":"extension"}'
+
+# mint a capture token for it — shown to a human, pasted into the extension
+# popup as part of a "setup code", never typed by hand
+curl -X POST http://<host>:8080/api/projects/shop/sessions/<id>/capture-token \
+  -H "Authorization: Bearer $WORKER_API_TOKEN"
+# { "token": "qsc_...", "instance_url": "http://<host>:8080", "expires_at": "..." }
+```
+
+The extension itself calls `POST /api/capture` — deliberately **not** behind
+`WORKER_API_TOKEN` or any other login, since it has none; the capture token in
+its `Authorization` header is its entire credential:
+
+```bash
+curl -X POST http://<host>:8080/api/capture \
+  -H "Authorization: Bearer qsc_..." -H 'Content-Type: application/json' \
+  -d '{"storage_state": {"cookies":[...],"origins":[...]}}'
+# 204 No Content on success — the response never echoes the blob back
+```
+
+A capture token authenticates nothing else: it is a `session_capture_tokens`
+row, not an `api_keys` one, checked by this one route and consumed atomically
+on first use. It expires 15 minutes after minting, matching the login-link TTL
+in `auth.js`.
 
 **An expired session is a verdict, not a mystery.** Set `verify_url_contains`
 and/or `verify_text` and the run checks them *before* its first LLM step; if the

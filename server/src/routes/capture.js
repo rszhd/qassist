@@ -21,6 +21,23 @@ const BEARER = /^Bearer (.+)$/;
 
 export function captureRouter() {
   const r = express.Router();
+
+  // Cross-origin by construction: the caller is a browser extension popup, an
+  // origin (`chrome-extension://<id>`) this server can never know in advance —
+  // a self-hoster's unpacked copy and a store copy each get their own id, and
+  // the id even changes if an unpacked copy moves. Extension pages do NOT get
+  // a CORS exemption for `fetch()` just by being an extension — only by
+  // holding a host permission for the target, which the extension deliberately
+  // does not request for the QAssist origin (see extension/popup.js). So this
+  // server has to be the one that answers the preflight; `*` is fine because
+  // the capture token is the actual security boundary, not the origin header.
+  r.use((req, res, next) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'POST');
+    res.set('Access-Control-Allow-Headers', 'Authorization, Content-Type');
+    if (req.method === 'OPTIONS') return res.status(204).end();
+    next();
+  });
   r.use(requireDb);
 
   r.post(

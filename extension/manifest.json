@@ -1,0 +1,12 @@
+{
+  "manifest_version": 3,
+  "name": "QAssist Session Capture",
+  "version": "0.1.0",
+  "description": "Reads a signed-in browser session for one site you name and sends it to your QAssist instance — for logins a test can never drive, like social login.",
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "QAssist session capture"
+  },
+  "permissions": ["cookies", "scripting", "storage", "identity.email"],
+  "optional_host_permissions": ["<all_urls>"]
+}

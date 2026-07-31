@@ -36,7 +36,7 @@ A project holds named sessions; a test opts into one via
 cookies plus localStorage — written to a temp file at spawn and loaded as
 `BrowserProfile(storage_state=<path>)`.
 
-Two ways to fill one:
+Three ways to fill one:
 
 **Nominate a login test** — the route for everyone. Point the session at a
 saved test whose job is to log in, and put the credentials in as `secret`
@@ -50,21 +50,26 @@ run must never destroy the working credential it was meant to renew.
 For an ordinary username-and-password login this is the whole answer, and the
 rest of this section is not something you need.
 
-**Paste one** — the developer escape hatch. Produce a `storageState.json`
-yourself and post it:
+**Capture with the browser extension** (US-063) — for the logins a test
+structurally cannot drive, chiefly social login (see below), and for anyone
+without a terminal. Side-load `extension/` (`extension/README.md` has the
+steps), sign in to the site by hand in a tab you already have open, and the
+extension reads its cookies and localStorage and posts them straight to your
+instance — no Node, no terminal, no Playwright. It works for any session the
+paste route below can fill, not only social login.
+
+**Paste one** — the developer shortcut. Produce a `storageState.json` yourself
+and post it:
 
 ```bash
 npx playwright open --save-storage=storageState.json https://your-app.example
 # log in by hand in the window that opens, then close it
 ```
 
-Be clear about who this route is for: it needs Node, a terminal and Playwright,
-which a manual QA or an app owner is not assumed to have. The session form
-deliberately does not require it (`frontend/src/Sessions.jsx`) precisely so that
-Playwright never becomes a prerequisite for the product.
-
-That is fine everywhere the login test can do the job — and it is a real gap for
-the one place it cannot. See [Social login](#social-login).
+Useful if you already have Playwright open for something else and would rather
+save straight to a file. The session form never requires it
+(`frontend/src/Sessions.jsx`) — a login test or the extension are always
+enough on their own.
 
 **Telling a live session from a dead one.** Set `verify_url_contains` and/or
 `verify_text`. They are checked *before the first LLM step*, so an expired
@@ -169,19 +174,17 @@ what the run can test, and the two are worth keeping straight:
 
 Four things to know before you rely on either.
 
-**Setting it up currently requires Playwright, and that is a known gap.** Both
-variants above begin "log in by hand, then save", and the only way to save today
-is the developer escape hatch. The login-test route cannot substitute here — a
-login test would have to type a Google password, which is the thing that does
-not work. So social login is, right now, reachable only by someone comfortable
-at a terminal, while the audience most likely to want it is a manual QA or an
-app owner who is not.
-
-This is the sharpest limitation on this page.
-[US-063](../backlog/sprint/current/US-063-capture-a-session-without-a-terminal.md)
-is the story for closing it, and the approach is decided: a browser extension
-that exports the jar from a browser the user is already signed in to. It is not
-built, so until it is, this page's answer for a non-developer is "not yet".
+**Setting it up no longer requires a terminal.** Both variants above begin "log
+in by hand, then save" — the browser extension
+([US-063](../backlog/sprint/current/done/US-063-capture-a-session-without-a-terminal.md))
+is exactly that: sign in to the provider or your app in a tab you already have
+open, and it reads the resulting jar and posts it to your instance. The
+login-test route still cannot substitute here — a login test would have to
+type a Google password, which is the thing that does not work — but a manual
+QA or an app owner no longer needs Node, Playwright, or a terminal to do what
+the developer escape hatch used to be the only way to do. See
+[Capture with the browser extension](#reuse-a-session) above and
+`extension/README.md` for install and permission details.
 
 **The navigation fence blocks the provider.** US-042's `allowed_domains` is
 project-scoped and opt-in — empty means no fence. If you *have* set one to your
@@ -236,7 +239,7 @@ Two further gaps are known and in no story at all:
 - **A pool or reset hook** for one-shot registration identities.
 
 A third — capturing a session without a terminal — does have a story,
-[US-063](../backlog/sprint/current/US-063-capture-a-session-without-a-terminal.md),
+[US-063](../backlog/sprint/current/done/US-063-capture-a-session-without-a-terminal.md),
 and it is the one that decides whether social login is a feature for this
 product's users or only for developers. Note that US-062 is *not* it: that is a
 headless test tier for the maintainer, not an interactive browser for a user.

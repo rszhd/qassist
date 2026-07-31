@@ -37,6 +37,17 @@
 //   E5  THE RESPONSE NEVER ECHOES THE BODY. Success is 204 with nothing in it;
 //       failure is a plain error string. Canary-over-the-whole-body, as
 //       session-containment.test.js's D9 tests already do for the read routes.
+//
+//   E6  THE ROUTE ANSWERS CORS, because its only caller never has a choice
+//       about being cross-origin. The extension's popup is `chrome-extension://
+//       <id>`, an origin this server can never enumerate in advance, and it
+//       calls this route with a plain `fetch()` — not a content script, so it
+//       gets no CSP exemption, and it deliberately holds no host permission for
+//       the QAssist origin (see extension/popup.js), so it gets no CORS
+//       exemption either. Missing this shipped once as a live "Failed to
+//       fetch" against a real dev server before this test existed; `*` is the
+//       right answer because the capture token is the actual security
+//       boundary, not the origin header.
 // ─────────────────────────────────────────────────────────────────────────────
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -267,6 +278,32 @@ test('a successful capture answers 204 with an empty body, and the session becom
   assert.equal(row.origin_count, 1);
   assert.ok(row.captured_at);
   assert.equal(JSON.stringify(body).includes(CANARY), false);
+});
+
+// ── E6: the extension's fetch() is cross-origin and needs CORS answered ────
+
+test('a preflight for /api/capture is answered with CORS headers, not Express\'s bare default', async () => {
+  const res = await request(app)
+    .options('/api/capture')
+    .set('Origin', 'chrome-extension://abcdefghijklmnopabcdefghijklmnop')
+    .set('Access-Control-Request-Method', 'POST')
+    .set('Access-Control-Request-Headers', 'authorization,content-type')
+    .expect(204);
+  assert.equal(res.headers['access-control-allow-origin'], '*');
+  assert.match(res.headers['access-control-allow-methods'], /POST/);
+  assert.match(res.headers['access-control-allow-headers'], /Authorization/i);
+});
+
+test('the real POST also carries Access-Control-Allow-Origin, not just the preflight', async () => {
+  const session = await seedEmptySession('cors on the real response');
+  const { token } = await mintToken(session.id);
+  const res = await request(app)
+    .post('/api/capture')
+    .set('Origin', 'chrome-extension://abcdefghijklmnopabcdefghijklmnop')
+    .set('Authorization', `Bearer ${token}`)
+    .send({ storage_state: BLOB })
+    .expect(204);
+  assert.equal(res.headers['access-control-allow-origin'], '*');
 });
 
 test('the capture-token mint route never touches storage_state_ciphertext, and 404s on someone else\'s project', async () => {
