@@ -388,6 +388,36 @@ export async function refreshCapturedSession(sessionId, exported) {
   return true;
 }
 
+/**
+ * Store what a browser extension captured, encrypted, against the session its
+ * one-time token named (US-063).
+ *
+ * Kept beside `refreshCapturedSession` rather than folded into it: that
+ * function's contract is specifically "called only on a passing login run"
+ * and it hardcodes `source = 'login_run'` on that understanding. Threading a
+ * `source` parameter through it would blur which caller is asserting what.
+ * The shared rule both must keep is the same one, though: validate BEFORE
+ * writing, so a bad capture — an expired confirm, a malformed post — leaves
+ * an existing session's stored bytes byte-identical rather than clobbering a
+ * working credential with an empty jar.
+ * @param {string} sessionId
+ * @param {unknown} raw the JSON body the extension posted
+ * @returns {Promise<{ error: string } | { cookies: number, origins: number }>}
+ */
+export async function captureFromExtension(sessionId, raw) {
+  const normalized = normalizeStorageState(raw);
+  if ('error' in normalized) return normalized;
+  const { encryptSecret } = await import('./crypto.js');
+  await db().query(
+    `update browser_sessions
+        set storage_state_ciphertext = $2, cookie_count = $3, origin_count = $4,
+            source = 'extension', captured_at = now(), updated_at = now()
+      where id = $1`,
+    [sessionId, encryptSecret(normalized.storageState), normalized.cookies, normalized.origins]
+  );
+  return { cookies: normalized.cookies, origins: normalized.origins };
+}
+
 // --- the preamble (AC #5) ---------------------------------------------------
 
 /**

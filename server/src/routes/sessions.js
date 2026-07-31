@@ -9,9 +9,11 @@
 // of the things that let a user tell a live session from a stale one — a name,
 // the counts, when it was captured — and nothing that lets them read it back.
 // `SESSION_COLS` is the whole of it, and there is no route that selects more.
-import { db, isUuid } from '../db.js';
+import { db, isUuid, currentUserId } from '../db.js';
 import { encryptSecret } from '../crypto.js';
 import { normalizeStorageState, sessionKey } from '../browserSession.js';
+import { mintCaptureToken } from '../sessionCapture.js';
+import { PUBLIC_BASE_URL } from '../config.js';
 import { isUniqueViolation } from './helpers.js';
 
 // Everything a session is allowed to say about itself. `storage_state_ciphertext`
@@ -63,11 +65,19 @@ export async function createSession(req, res) {
 
   const login = await resolveLoginTest(body.login_test_id, project.id);
   if ('error' in login) return res.status(400).json({ error: login.error });
-  if (!pasted && !login.testId) {
+  // A third declared way to fill the dead-end guard below (US-063): social
+  // login has no login test that could ever pass (an agent cannot type a
+  // Google password) and often nothing to paste either, so the only honest
+  // answer at creation time is "the browser extension will fill this later".
+  // Nothing is persisted for the flag itself — once captured, `source`
+  // already says how, the same way `login_test_id` needs no sibling column.
+  const viaExtension = body.capture_method === 'extension';
+  if (!pasted && !login.testId && !viaExtension) {
     return res.status(400).json({
       error:
-        'a session needs either a pasted storage state or a login test to capture one — ' +
-        'pick the test that logs in, and its next passing run will fill this session',
+        'a session needs a pasted storage state, a login test, or the browser extension to ' +
+        'capture one — pick a login test and its next passing run fills this session, or ' +
+        'create it empty and capture it with the extension',
     });
   }
   const verify = resolveVerify(body);
@@ -179,6 +189,31 @@ export async function updateSession(req, res) {
     }
     throw err;
   }
+}
+
+/**
+ * POST /api/projects/:project/sessions/:id/capture-token — mint a one-time
+ * token the browser extension trades for permission to fill this one session
+ * (US-063). Never returns anything about the blob — there isn't one yet, and
+ * this route doesn't touch `storage_state_ciphertext` at all.
+ *
+ * `instance_url` uses the same fallback `routes/demoSession.js` does, which
+ * is what makes this work against a LAN address with zero configuration: an
+ * operator who never set PUBLIC_BASE_URL still gets a correct URL to hand the
+ * extension, because it is read off the request that's asking.
+ */
+export async function mintSessionCaptureToken(req, res) {
+  const project = /** @type {any} */ (req).project;
+  const id = req.params.id;
+  if (!isUuid(id)) return res.status(404).json({ error: 'not found' });
+  const { rowCount } = await db().query(
+    'select 1 from browser_sessions where id = $1 and project_id = $2',
+    [id, project.id]
+  );
+  if (!rowCount) return res.status(404).json({ error: 'not found' });
+  const { token, expiresAt } = await mintCaptureToken(id, currentUserId());
+  const instanceUrl = PUBLIC_BASE_URL || `${req.protocol}://${req.get('host')}`;
+  res.status(201).json({ token, instance_url: instanceUrl, expires_at: expiresAt });
 }
 
 /** DELETE /api/projects/:project/sessions/:id */

@@ -35,6 +35,7 @@ import { authRouter } from './routes/auth.js';
 import { keysRouter } from './routes/keys.js';
 import { accountRouter } from './routes/account.js';
 import { billingRouter, billingWebhookHandler } from './routes/billing.js';
+import { captureRouter } from './routes/capture.js';
 import { billingEnabled } from './billing.js';
 import { loadUserConcurrencyCaps } from './concurrency.js';
 
@@ -142,6 +143,11 @@ app.get('/api/health', (_req, res) => {
 app.use('/api/auth', authRouter({ checkToken }));
 app.use('/api/keys', keysRouter({ checkToken }));
 app.use('/api/account', accountRouter({ checkToken }));
+// US-063: the browser extension's only endpoint. Deliberately not gated by
+// checkToken — the extension has no QAssist login, and the capture token in
+// its Authorization header (checked inside the router) is its entire
+// credential, scoped to exactly one session, exactly once.
+app.use('/api/capture', captureRouter());
 // Empty router (so every path under it 404s) unless billingEnabled().
 app.use('/api/billing', billingRouter({ checkToken }));
 

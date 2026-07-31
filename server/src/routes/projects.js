@@ -15,7 +15,9 @@ import {
   RUNNABLE_TEST_COLS, RUNNABLE_TEST_FROM,
 } from './helpers.js';
 import { fixtureBody, listFixtures, uploadFixture, deleteFixture } from './fixtures.js';
-import { listSessions, createSession, updateSession, deleteSession } from './sessions.js';
+import {
+  listSessions, createSession, updateSession, deleteSession, mintSessionCaptureToken,
+} from './sessions.js';
 import { normalizePreamble } from '../browserSession.js';
 import { removeProjectFixtures } from '../fixtures.js';
 import { NOTIFY_MODES, cleanEmails } from '../notify.js';
@@ -391,6 +393,11 @@ export function projectsRouter({ checkToken }) {
   r.post('/:project/sessions', h(createSession));
   r.put('/:project/sessions/:id', h(updateSession));
   r.delete('/:project/sessions/:id', h(deleteSession));
+  // US-063: mints the token a browser extension trades at the *unauthenticated*
+  // POST /api/capture (routes/capture.js) — that route is deliberately outside
+  // this tenant-scoped router, since the extension holds no QAssist login of
+  // its own and the capture token is its only credential.
+  r.post('/:project/sessions/:id/capture-token', h(mintSessionCaptureToken));
 
   r.post(
     '/:project/run',
