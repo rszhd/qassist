@@ -329,7 +329,9 @@ code { font-family: var(--mono); font-size: .92em; }
   max-width: var(--page-w); height: 100%; margin: 0 auto; padding: 0 var(--s6);
   display: flex; align-items: center; gap: var(--s4);
 }
-.brand { font-size: var(--t-lg); font-weight: 600; letter-spacing: -.006em; }
+/* The mark replaced a wordmark; 22px is the cap height that word had, so the
+   bar's optical weight on the left is unchanged. */
+.brand { display: block; height: 22px; width: auto; }
 
 /* Segmented control rather than loose tabs: the group reads as one object,
    which is what keeps a three-view app from looking like a toolbar. */

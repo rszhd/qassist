@@ -54,7 +54,7 @@ describe('App shell', () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByText('QAssist')).toBeTruthy();
+    expect(screen.getByLabelText('QAssist')).toBeTruthy();
     // The nav only appears once /api/health reports a DB, so finding it proves
     // the health fetch resolved and TopBar re-rendered on it.
     expect(await screen.findByText('History')).toBeTruthy();
@@ -106,7 +106,7 @@ describe('App shell', () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByText('QAssist')).toBeTruthy();
+    expect(await screen.findByLabelText('QAssist')).toBeTruthy();
     expect(screen.queryByText('History')).toBeNull();
   });
 });
