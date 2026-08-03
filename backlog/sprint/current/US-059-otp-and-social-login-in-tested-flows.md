@@ -19,7 +19,10 @@ QAssist can't reach.
   tool alongside the email-confirmation block, secrets routed through
   `sensitive_data` the same way. Tier 2: `agent/sms_codes.py`
   (`TwilioSmsInbox.from_env` / `.wait_for_code`), a `get_sms_code` tool of the
-  same shape, polling Twilio's Messages API rather than IMAP. Unlike the
+  same shape, polling Twilio's Messages API rather than IMAP. **Tier 1 also
+  owes a move**: the shared secret is per-account, not per-machine, and the env
+  slot it currently lives in cannot serve two tenants — see "Tier 1 follow-up"
+  (2026-08-03). Unlike the
   disposable per-run email address, the provisioned test number is routed as
   a secret too (`<secret>sms_number</secret>`) since it is a single real,
   billed number reused across every run. Tier 3 (social) has not started.
@@ -109,6 +112,53 @@ this ships as BYO-Twilio-credentials (consistent with BYOK everywhere else and
 free to us) — almost certainly yes — and document the VoIP rejection as a known
 limitation rather than chasing it.
 
+## Tier 1 follow-up — the secret is in the wrong place (2026-08-03)
+
+Tier 1 shipped reading `QA_TOTP_SECRET` from the process environment, inherited
+by every run on the instance (`agent/run_agent.py` `TotpSecret.from_env`, fed by
+the `...process.env` spread in `server/src/runs.js`). That is one enrolment per
+*machine*, and it does not survive the hosted tier.
+
+The reason is what a TOTP secret is. An emailed code and an SMS code arrive at a
+**receiving endpoint** — one catch-all domain or one number serves any number of
+sites and accounts, because the per-run address (or the message body) says which
+run it belongs to. A TOTP secret carries no such discriminator: it is minted by
+one site for one account, and it *is* that account's second factor. There is
+nothing to multiplex. So the mailbox's single slot is a convenience limit, while
+TOTP's is a hard one — the second account that needs 2FA cannot have it. Worse,
+while the variable is set the `get_totp_code` tool and its task paragraph attach
+to every run on the box, including other tenants' runs against sites with no 2FA
+at all.
+
+Stated plainly: this is a per-account credential living in the server's
+environment. Nobody would put a customer's password there.
+
+**Shape to build.** The destination already exists twice over.
+[`browser_sessions`](../../../db/migrations/015_browser_sessions.sql) is the
+closest sibling — also a per-account credential, also project-scoped, and
+crucially **named**, `unique (project_id, name_key)`, with a test pointing at
+one via `tests.browser_session_id`. Copy that, not a single slot per project:
+one project is one site, but an admin account and a standard-user account are
+two enrolments on it. The secret then reaches the agent on US-035's existing
+`QA_VARS` channel (`agent/secret_vars.py`) — the same route the derived code
+already leaves by — and `get_totp_code` registers only for runs that carry one,
+which is what removes the cross-tenant tool leak.
+
+**Open decision:** own table, or a column beside the saved session. They pair —
+the login run that *produces* a session is exactly the run that needs a TOTP
+code to get through the login, same account, same project — but a project may
+want TOTP with no saved session at all. Decide before building.
+
+**The env slot stays for self-host.** One team, one instance, one enrolment is
+defensible and costs nothing to keep as a fallback when no per-project secret is
+declared. It is only the hosted tier that cannot live with it.
+
+`QA_TOTP_SECRET` is also absent from `.env.example`, `.env.preview.example` and
+`.env.staging.example` (as are `QA_IMAP_*` and `QA_TWILIO_*`) — documented only
+in [`docs/auth-in-tested-flows.md`](../../../docs/auth-in-tested-flows.md) and
+the module docstrings. Worth fixing while the deployment-wide caveat is being
+written next to it.
+
 ## Acceptance criteria
 
 **Tier 1 — TOTP**
@@ -119,6 +169,11 @@ limitation rather than chasing it.
 - [x] Codes match RFC 6238 test vectors, including across a time-step boundary
 - [x] The shared secret appears in no step, event, log, or report — asserted
       over the whole emitted payload, not field by field
+- [ ] A project stores named TOTP secrets, encrypted, selected per test — two
+      accounts on one site can each have their own, and neither is readable
+      back out of any endpoint
+- [ ] `get_totp_code` is absent from a run whose test declares no secret, with
+      another project's secret configured on the same instance
 
 **Tier 2 — SMS**
 
