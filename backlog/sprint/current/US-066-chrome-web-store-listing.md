@@ -75,7 +75,7 @@ never itself shown to a user. Expect back-and-forth, not a rubber stamp.
 
 - [x] `extension/` has 16/48/128 icons, referenced from `manifest.json`
 - [x] A privacy policy is live at a stable URL and linked from the store
-      listing — page written and shipping with the frontend; the *linked from
+      listing — live on production since `v0.5.0`, 2026-08-03; the *linked from
       the listing* half is part of submitting
 - [x] Store listing assets (description, screenshots, category) are prepared —
       copy, category and five 1280×800 screenshots, all in the repo
@@ -109,6 +109,13 @@ description, in both places, which is also one fewer string to let drift.
 route — the SPA is behind a login and the reviewer following that URL has no
 account, so it carries its own copy of the handful of tokens it uses. It has
 to be live *before* submitting; the dashboard fetches the URL.
+
+Written 2026-08-03 and **live the same day, but only with `v0.5.0`** — until
+that release the URL returned the SPA shell, because production tracks a
+version tag and the file had only reached `dev`. A 200 from that URL is not
+evidence the page is there: `index.html` is the fallback for every unmatched
+path, so the check is the title, not the status code. The dashboard fetches
+the URL at submission, so this had to lead.
 
 The app host, not the apex, and deliberately: `qassist.run` is the landing
 page and is hosted elsewhere, so a copy there would be a second file on a
