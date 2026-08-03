@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>Privacy policy — QAssist Session Capture</title>
+    <!-- Standalone: the React app never mounts here, so this page carries its
+         own copy of the tokens it uses. It is the URL the Chrome Web Store
+         listing points at, so it must render for a visitor who has no QAssist
+         account and no theme preference stored. -->
+    <style>
+      :root {
+        --bg: #17130f;
+        --card: #201c17;
+        --border: #302b25;
+        --text: #f1ede7;
+        --muted: #a29b92;
+        --accent: #4d7cf6;
+      }
+      @media (prefers-color-scheme: light) {
+        :root {
+          --bg: #f7f4ef;
+          --card: #fffdfa;
+          --border: #e8e3da;
+          --text: #1f1a14;
+          --muted: #625b52;
+          --accent: #3563d6;
+        }
+      }
+      body {
+        margin: 0;
+        padding: 40px 20px 64px;
+        background: var(--bg);
+        color: var(--text);
+        font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+        font-size: 15px;
+        line-height: 1.6;
+      }
+      main {
+        max-width: 680px;
+        margin: 0 auto;
+      }
+      h1 {
+        font-size: 24px;
+        margin: 0 0 4px;
+      }
+      h2 {
+        font-size: 17px;
+        margin: 32px 0 8px;
+      }
+      .updated {
+        color: var(--muted);
+        font-size: 13px;
+        margin: 0 0 24px;
+      }
+      ul {
+        padding-left: 20px;
+      }
+      li {
+        margin-bottom: 8px;
+      }
+      .lead {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 16px 20px;
+      }
+      a {
+        color: var(--accent);
+      }
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 0.92em;
+      }
+      footer {
+        margin-top: 40px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Privacy policy — QAssist Session Capture</h1>
+      <p class="updated">Chrome extension. Last updated 3 August 2026.</p>
+
+      <p class="lead">
+        This extension sends the browser session of one site you name to one server you name — the QAssist
+        instance whose address you type into it. Nothing is sent anywhere else. The extension has no server
+        of its own, no analytics, and no third-party services.
+      </p>
+
+      <h2>What it reads</h2>
+      <ul>
+        <li>
+          <strong>Cookies and localStorage for one site, on the capture you asked for.</strong> You type the
+          site; the browser then shows you its own permission prompt for that site's registrable domain and
+          subdomains, and nothing is read until you accept it. localStorage is read from a tab you already
+          have open and are already signed in to — the extension never opens a tab of its own.
+        </li>
+        <li>
+          <strong>The email address of the signed-in Chrome profile.</strong> This is displayed in the popup
+          so you can confirm which account you are about to capture, and you must confirm it every time. It is
+          never transmitted anywhere.
+        </li>
+        <li>
+          <strong>No passwords.</strong> The extension never sees or asks for one. It reads the session a tab
+          already holds.
+        </li>
+      </ul>
+
+      <h2>Where it goes</h2>
+      <p>
+        The cookies and localStorage are posted, once, to the QAssist instance address you entered — a server
+        you or your organisation runs, or the hosted service at <code>app.qassist.run</code> if that is the
+        one you chose. The post carries a one-time setup code, valid for 15 minutes and for exactly one saved
+        session. There is no other destination and no intermediary.
+      </p>
+      <p>
+        On that instance the session is encrypted at rest (AES-256-GCM) and used for one purpose: to start
+        automated test runs already signed in to the site you captured. You can delete it at any time from the
+        project's Sessions tab, which deletes the stored data.
+      </p>
+
+      <h2>What the extension stores in your browser</h2>
+      <ul>
+        <li>The QAssist instance address you entered, and a flag marking this Chrome profile as a
+          test/disposable one — both in <code>chrome.storage.local</code>, which does not sync to other
+          devices.</li>
+        <li>
+          <strong>Not</strong> the captured session. It is assembled in memory, posted, and dropped. It is
+          never written to <code>chrome.storage</code>, IndexedDB, or any other browser storage, and a failed
+          post is never queued or retried — a failure means starting again with a fresh setup code.
+        </li>
+      </ul>
+
+      <h2>Permissions, and why each exists</h2>
+      <ul>
+        <li><code>cookies</code> — reading the session cookies of the one site you named.</li>
+        <li><code>scripting</code> — reading <code>window.localStorage</code> from the open tab for that same
+          site.</li>
+        <li><code>storage</code> — remembering the instance address and the test-profile flag above.</li>
+        <li><code>identity.email</code> — showing you which Chrome account you are about to capture, in the
+          popup only.</li>
+        <li>
+          <code>&lt;all_urls&gt;</code> as an <em>optional</em> host permission — the extension cannot know in
+          advance which site you will name, and Chrome's API requires this declared ceiling before it can ask
+          you for one arbitrary site at run time. It is never granted as a whole and never prompts on its own.
+          The only host prompt you ever see names the single site you typed.
+        </li>
+      </ul>
+
+      <h2>Sale and transfer of data</h2>
+      <p>
+        None. The developer of this extension receives no data from it. Nothing is sold, transferred to third
+        parties, or used for advertising, credit scoring, or any purpose unrelated to the single feature it
+        performs.
+      </p>
+
+      <h2>Children</h2>
+      <p>This is a developer tool and is not directed at children.</p>
+
+      <h2>Changes and contact</h2>
+      <p>
+        Material changes to this policy will be published on this page with a new date. Questions, or a report
+        of behaviour that contradicts anything above, go to the project's issue tracker:
+        <a href="https://github.com/rszhd/qassist/issues">github.com/rszhd/qassist/issues</a>. The extension's
+        full source is in that repository, under <code>extension/</code>.
+      </p>
+
+      <footer>QAssist — goal-based AI browser testing.</footer>
+    </main>
+  </body>
+</html>

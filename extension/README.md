@@ -21,7 +21,20 @@ This is the only install path today; see "What's not done" below.
    Session Capture") so it's easy to reopen.
 
 No build step: this is plain JS + a manifest, matching this repo's stance on
-build steps (see the root `CLAUDE.md`).
+build steps (see the root `CLAUDE.md`). The toolbar icons in `icons/` are
+rasterized from `frontend/public/favicon.svg` — the same mark the app uses, so
+a change there is what should regenerate them.
+
+## Package it for the store
+
+```sh
+./scripts/package-extension.sh      # → dist/qassist-session-capture-<version>.zip
+```
+
+The zip carries `manifest.json`, `popup.html`, `popup.js`, `lib/` and `icons/`
+— not this README and not the unit tests. Everything the Chrome Web Store
+listing asks for is written down in
+[`docs/chrome-web-store-listing.md`](../docs/chrome-web-store-listing.md).
 
 ## Use it
 
@@ -91,9 +104,11 @@ to — the guard is a deliberate stop, not a lock.
 
 ## What's not done
 
-- **No store listing.** This ships side-loaded only, for now. A store review
-  is a separate, non-code effort (see the story file, US-063) and is out of
-  scope here.
+- **No store listing yet.** This ships side-loaded only. The package, icons,
+  privacy policy and every listing field are prepared (US-066); what is left
+  is a developer account, screenshots and Google's review. Side-loading stays
+  documented above whatever the review decides — a self-hoster building their
+  own copy still needs it.
 - **No automated test of the chrome.* glue** — permission prompts,
   `chrome.identity`, `chrome.scripting`, the popup's screens. There's no
   puppeteer-loads-unpacked-extension harness in this repo, and building one

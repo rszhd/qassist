@@ -6,7 +6,12 @@ QAssist Session Capture extension the normal way, **so that** "capture a
 session without a terminal" doesn't still require `chrome://extensions` and
 Developer mode, which is its own small terminal.
 
-- **Status:** 📋 Planned
+- **Status:** 🔨 **Prepared** 2026-08-03, 3/6 — everything that does not need a
+  Google account is built and tracked: icons, the privacy policy page, the
+  package script, and every listing field written out in
+  [`docs/chrome-web-store-listing.md`](../../../docs/chrome-web-store-listing.md).
+  The three open criteria all wait on a person at the dashboard — see Results.
+  Created 2026-07-31 as 📋 Planned.
 - **Priority:** P2 — same footing as [US-063](done/US-063-capture-a-session-without-a-terminal.md)
   itself: a P3-adjacent feature a developer can already use in full (side-load
   works today) is not finished for the audience it was built for until this
@@ -65,15 +70,75 @@ never itself shown to a user. Expect back-and-forth, not a rubber stamp.
 
 ## Acceptance criteria
 
-- [ ] `extension/` has 16/48/128 icons, referenced from `manifest.json`
-- [ ] A privacy policy is live at a stable URL and linked from the store
-      listing
-- [ ] Store listing assets (description, screenshots, category) are prepared
+- [x] `extension/` has 16/48/128 icons, referenced from `manifest.json`
+- [x] A privacy policy is live at a stable URL and linked from the store
+      listing — page written and shipping with the frontend; the *linked from
+      the listing* half is part of submitting
+- [x] Store listing assets (description, screenshots, category) are prepared —
+      copy and category written; screenshots still to take (see Results)
 - [ ] Permission justification and the data-collection disclosure are
-      submitted
-- [ ] The extension is packaged and submitted for review
+      submitted — both written; submitting needs the dashboard
+- [ ] The extension is packaged and submitted for review — packaging done
+      (`scripts/package-extension.sh`); submitting needs the account
 - [ ] The listing is live — or, if the first pass is rejected, the rejection
       reasons are recorded here rather than silently retried
+
+## Results (2026-08-03)
+
+**Icons.** `extension/icons/icon{16,48,128}.png`, rasterized from
+`frontend/public/favicon.svg` so the extension carries the same mark as the
+app rather than a second one that drifts. Wired into `manifest.json` twice, on
+purpose — `icons` (extensions page, store) and `action.default_icon`
+(toolbar). Chrome will fall back from the second to the first, but the toolbar
+is where a user actually looks for this extension, so it is stated rather than
+inherited.
+
+**A blocker the story did not know about.** `manifest.json`'s `description`
+was 149 characters. The store's 132-character limit applies to that field too,
+not only to the listing's short description, and it is enforced at upload — so
+the first submission would have been rejected before a reviewer read a word of
+it. It is now the same 122-character sentence as the listing's short
+description, in both places, which is also one fewer string to let drift.
+
+**Privacy policy.** `frontend/public/extension-privacy.html`, served at
+`https://app.qassist.run/extension-privacy.html`. A standalone page, not a
+route — the SPA is behind a login and the reviewer following that URL has no
+account, so it carries its own copy of the handful of tokens it uses. It has
+to be live *before* submitting; the dashboard fetches the URL.
+
+**Package.** `scripts/package-extension.sh` zips from inside `extension/`
+(the store needs `manifest.json` at the zip root) and excludes the unit tests
+and the side-load README. The exclusions are a blocklist on purpose: this
+story's own description of the bundle listed `lib/storageState.js` and not
+`lib/siteScope.js`, which `popup.js` also imports — an allowlist written from
+that sentence would have shipped an extension that throws on load. The
+current bundle is 10 entries, 35 kB.
+
+**Listing copy.** [`docs/chrome-web-store-listing.md`](../../../docs/chrome-web-store-listing.md)
+— name, short description (122 of 132 chars), detailed description, category
+(Developer Tools), single-purpose statement, a justification per permission,
+the data-collection table, and the screenshot plan. It lives in the repo
+rather than in the dashboard alone so a rejection is answered by editing a
+tracked file, and so the permission justifications stay honest to the code
+they describe.
+
+The disclosure's one non-obvious answer: **personally identifiable
+information is "No"** even though the extension reads the Chrome profile
+email. Google's "collect" means transmit off the device; the email is rendered
+in the popup for the confirmation guard and never posted anywhere, including
+to the user's own instance (`popup.js` puts `state.email` in markup and in no
+request body). Authentication information and website content are "Yes" —
+that is the cookies and the localStorage blob.
+
+### What is left, and why it is not code
+
+- **Developer registration** ($5, one-time) on the Google account that should
+  still own the listing in two years.
+- **Screenshots** — five, 1280×800, listed in the doc. The popup is 320px
+  wide, so each one is the popup composited on a background; taking them needs
+  the extension side-loaded against a real capture.
+- **Submit**, then wait. The `<all_urls>` optional ceiling is still the part
+  most likely to draw a question (see above), and the fallback is unchanged.
 
 ## Notes
 
