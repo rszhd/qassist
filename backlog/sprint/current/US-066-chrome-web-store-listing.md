@@ -6,13 +6,13 @@ QAssist Session Capture extension the normal way, **so that** "capture a
 session without a terminal" doesn't still require `chrome://extensions` and
 Developer mode, which is its own small terminal.
 
-- **Status:** 🔨 **Prepared** 2026-08-03, 3/6 — icons, the privacy policy page,
-  the package script and every listing field are built and tracked in
-  [`docs/chrome-web-store-listing.md`](../../../docs/chrome-web-store-listing.md),
-  the developer account exists and the five screenshots render from a command
-  (`scripts/make-store-screenshots.mjs`), all as of 2026-08-03. What is left
-  is the upload itself and Google's review. Packaging the build for this
-  story is also what surfaced
+- **Status:** ⏳ **Submitted** 2026-08-03, 5/6 — `0.1.1` uploaded with every
+  listing field, permission justification and disclosure answer from
+  [`docs/chrome-web-store-listing.md`](../../../docs/chrome-web-store-listing.md).
+  Only Google's review is left, and its outcome is the last criterion. Icons,
+  the privacy policy page, the package script, the developer account and the
+  five rendered screenshots all landed the same day. Packaging the build for
+  this story is also what surfaced
   [BUG-009](done/BUG-009-permission-prompt-closes-the-capture-popup.md) —
   submit `0.1.1` or later, never `0.1.0`. Created 2026-07-31 as 📋 Planned.
 - **Priority:** P2 — same footing as [US-063](done/US-063-capture-a-session-without-a-terminal.md)
@@ -79,11 +79,11 @@ never itself shown to a user. Expect back-and-forth, not a rubber stamp.
       the listing* half is part of submitting
 - [x] Store listing assets (description, screenshots, category) are prepared —
       copy, category and five 1280×800 screenshots, all in the repo
-- [ ] Permission justification and the data-collection disclosure are
-      submitted — both written; submitting needs a dashboard session
-- [ ] The extension is packaged and submitted for review — packaging done
-      (`scripts/package-extension.sh`), developer account registered
-      2026-08-03; what remains is the upload itself
+- [x] Permission justification and the data-collection disclosure are
+      submitted — 2026-08-03, all five justifications, the single-purpose
+      statement, the three certifications and remote code answered No
+- [x] The extension is packaged and submitted for review — `0.1.1` uploaded
+      2026-08-03
 - [ ] The listing is live — or, if the first pass is rejected, the rejection
       reasons are recorded here rather than silently retried
 
@@ -183,14 +183,31 @@ to the user's own instance (`popup.js` puts `state.email` in markup and in no
 request body). Authentication information and website content are "Yes" —
 that is the cookies and the localStorage blob.
 
+**Submitted 2026-08-03.** `0.1.1`, with the listing doc pasted field by field.
+
+Two things the form asked for that nothing here had anticipated. The
+**trader/non-trader declaration** is a publisher-level answer, not an item one,
+and QAssist is a trader — the extension is free but it feeds a product with
+Stripe billing, and the test is whether you act for purposes relating to a
+business. Declaring it puts a legal name, address and SMS-verified phone
+publicly at the foot of the listing. The first attempt failed with "your
+personal information could not be verified", which is the Google payments
+profile behind the form rather than anything in the submission; the reset that
+worked is in the listing doc's prerequisites. Second, the **contact email is
+verified separately on the Settings page**, and publishing is blocked until it
+is — worth knowing before an upload day, because it is where every review
+message then arrives.
+
 ### What is left, and why it is not code
 
 - ~~**Developer registration**~~ — done 2026-08-03.
 - ~~**Screenshots**~~ — done 2026-08-03, `node scripts/make-store-screenshots.mjs`.
-- **Upload `0.1.1` or later and submit**, then wait. Never `0.1.0` — the
-  `storage.session` fix is what makes a first capture work at all. The
-  `<all_urls>` optional ceiling is still the part most likely to draw a
-  question (see above), and the fallback is unchanged.
+- ~~**Upload and submit**~~ — done 2026-08-03, version `0.1.1`.
+- **Google's review.** No committed turnaround: most items clear in under a
+  day, but `cookies` plus the `<all_urls>` ceiling is the class a human reads,
+  and this is a first submission from a new publisher. Expect days, and a
+  fortnight is not abnormal. A rejection is recorded here, with its text; the
+  fallback for the ceiling is unchanged.
 
 ## Notes
 

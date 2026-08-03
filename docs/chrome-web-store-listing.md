@@ -7,11 +7,28 @@ a tracked file. The extension itself is `extension/`; the story is
 
 ## Prerequisites
 
+The dashboard is <https://chrome.google.com/webstore/devconsole>.
+
 - A Google account with **Chrome Web Store developer registration** ($5,
   one-time) — **done 2026-08-03**. Not tied to any account this repo knows
   about; it is whichever one should still own the listing in two years.
 - A **contact email**, verified in the dashboard. It is not shown on the
-  listing page, but Google's review correspondence goes there.
+  listing page, but Google's review correspondence goes there. Entering it is
+  not enough — the Settings page verifies it separately, and publishing is
+  blocked until that completes.
+- A **trader declaration**, on the account rather than the item. QAssist is a
+  trader: the test is whether you act for purposes relating to a trade or
+  business, and this extension feeds a product with paid subscriptions, so
+  free-to-install does not make it a hobby. Expect the legal name, address and
+  an SMS-capable mobile to appear publicly at the foot of the listing — use an
+  address you are content to publish. Verification runs through a Google
+  payments profile, so a failure there reads as "your personal information
+  could not be verified" while naming nothing about the submission. Check the
+  profile's type first (Individual asks for a personal ID and address
+  document, Organization for incorporation or tax papers — a company name
+  against an Individual profile can never match), then dismiss the dialog,
+  switch to non-trader and back to trader, which restarts the flow instead of
+  retrying the half-filled state it left behind.
 - The privacy policy live at
   **`https://app.qassist.run/extension-privacy.html`**
   (`frontend/public/extension-privacy.html`, shipped with the frontend build).
