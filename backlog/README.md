@@ -69,6 +69,7 @@ Sprints aren't split along a self-host/hosted-tier line — `sprint/current/` an
 | [US-057](sprint/current/US-057-html-email-template.md) | An HTML template for outgoing email | 🔨 **Built** 2026-07-27, 4/5 — open on the one criterion a test can't answer | — |
 | [US-020](sprint/current/US-020-report-v2-screenshots-recording.md) | Report v2: step screenshots + recording | 📋 Planned — P2 | US-006 |
 | [US-066](sprint/current/US-066-chrome-web-store-listing.md) | List the session-capture extension on the Chrome Web Store | 📋 Planned — P2, scheduled 2026-07-31 | US-063 |
+| [US-067](sprint/current/US-067-mobile-app-view.md) | The app on a phone | 📋 Planned — P2, scheduled 2026-08-03 | US-025, US-030 |
 
 ### Done
 
