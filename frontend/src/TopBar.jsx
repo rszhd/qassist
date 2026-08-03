@@ -60,9 +60,13 @@ export default function TopBar({ showNav, runState, onOpenSettings }) {
                 // read as active while History is open.
                 end={to === '/'}
                 className={({ isActive }) => (isActive ? 'active' : '')}
+                // The label is hidden below the phone breakpoint, where four
+                // labelled tabs no longer fit the row, so the accessible name
+                // has to come from somewhere the stylesheet can't take away.
+                aria-label={label}
               >
                 <Icon size={13} strokeWidth={2} aria-hidden="true" />
-                {label}
+                <span>{label}</span>
               </NavLink>
             ))}
           </nav>

@@ -211,7 +211,10 @@ export default function SchedulesView({ token }) {
         </div>
       )}
 
-      <section className="card">
+      {/* `sched-list` so the phone layout can reach these rows: they are the one
+          list in the app carrying a name, a next-run time and three actions at
+          once, which is more than a phone row holds side by side. */}
+      <section className="card sched-list">
         <CardHead title="Schedules" count={schedules.length} />
 
         {loading ? (

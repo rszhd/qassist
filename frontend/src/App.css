@@ -144,6 +144,13 @@
   --scroll-cap: 240px;
   --dot: 6px;
 
+  /* The page's side inset. A measurement, not a literal: the bar, the demo
+     strip and the content well all read it, and they have to step down
+     together or the header stops being flush with what is under it. `--s6` is
+     13% of a 360px screen spent before any content is drawn, which is what the
+     phone breakpoint takes it back to `--s4` for. */
+  --gutter: var(--s6);
+
   /* Page width — header and content share it so they stay flush. Sized so the
      Run view holds `--stage-min` with the rail *expanded* and the activity
      panel still beside it: 300 + 16 + 800 + 16 + 300 = 1432, plus the two
@@ -160,7 +167,10 @@
      happens not to scroll. */
   --topbar-h: 52px;
   --sticky-top: calc(var(--topbar-h) + var(--s4));
-  --sticky-h: calc(100vh - var(--sticky-top) - var(--s4));
+  /* `dvh`, not `vh`: on a phone `vh` is the height with the browser toolbar
+     retracted, so a column measured in it runs under the chrome that is
+     actually on screen and its last rows can never be scrolled to. */
+  --sticky-h: calc(100dvh - var(--sticky-top) - var(--s4));
 
   /* Type scale. Five sizes for the whole app — anything that wants a sixth is
      usually asking for the wrong emphasis. Each step is a role, not a nudge:
@@ -326,12 +336,15 @@ code { font-family: var(--mono); font-size: .92em; }
   background: var(--bar); backdrop-filter: blur(12px);
 }
 .topbar-inner {
-  max-width: var(--page-w); height: 100%; margin: 0 auto; padding: 0 var(--s6);
+  max-width: var(--page-w); height: 100%; margin: 0 auto; padding: 0 var(--gutter);
   display: flex; align-items: center; gap: var(--s4);
 }
 /* The mark replaced a wordmark; 22px is the cap height that word had, so the
-   bar's optical weight on the left is unchanged. */
-.brand { display: block; height: 22px; width: auto; }
+   bar's optical weight on the left is unchanged. `flex: 0 0 auto` because an
+   auto-width SVG is a flex item with no intrinsic width to defend: in a row
+   too narrow for its contents it was the first thing squeezed, and it went to
+   zero — the app lost its mark before the nav gave up a single pixel. */
+.brand { flex: 0 0 auto; display: block; height: 22px; width: auto; }
 
 /* Segmented control rather than loose tabs: the group reads as one object,
    which is what keeps a three-view app from looking like a toolbar. */
@@ -391,7 +404,7 @@ code { font-family: var(--mono); font-size: .92em; }
   border-bottom: 1px solid var(--warn-line); background: var(--warn-bg);
 }
 .demo-bar-inner {
-  max-width: var(--page-w); margin: 0 auto; padding: var(--s15) var(--s6);
+  max-width: var(--page-w); margin: 0 auto; padding: var(--s15) var(--gutter);
   display: flex; align-items: center; gap: var(--s2);
 }
 .demo-bar-inner > svg { flex: 0 0 auto; color: var(--warn); }
@@ -399,11 +412,14 @@ code { font-family: var(--mono); font-size: .92em; }
 .demo-bar-msg strong { color: var(--warn); font-weight: 600; }
 .demo-bar-cta { flex: 0 0 auto; }
 
-.app { max-width: var(--page-w); margin: 0 auto; padding: 0 var(--s6) var(--s10); }
+.app { max-width: var(--page-w); margin: 0 auto; padding: 0 var(--gutter) var(--s10); }
 
 /* Sign-in screen (US-021): the whole app is behind it in multi-user mode, so it
    owns the viewport and centres one narrow card. */
-.auth { min-height: 100vh; display: grid; place-items: center; padding: var(--s5); }
+.auth {
+  min-height: 100vh; min-height: 100dvh;
+  display: grid; place-items: center; padding: var(--s5);
+}
 .auth-card {
   width: 100%; max-width: 340px;
   background: var(--card); border: 1px solid var(--border); border-radius: var(--r-lg);
@@ -653,7 +669,12 @@ select {
   animation: fade 110ms ease;
 }
 .modal {
-  width: 100%; max-width: 500px; max-height: calc(100vh - var(--s10));
+  /* `vh` first as the fallback, `dvh` as the answer: `vh` on a phone is the
+     height with the browser toolbar retracted, so a tall dialog's footer —
+     which is where Save is — sits under chrome that is actually on screen. */
+  width: 100%; max-width: 500px;
+  max-height: calc(100vh - var(--s10));
+  max-height: calc(100dvh - var(--s10));
   display: flex; flex-direction: column;
   background: var(--raised); border: 1px solid var(--border-hi); border-radius: var(--r-lg);
   box-shadow: var(--shadow-lg); animation: rise 130ms ease;
@@ -711,4 +732,86 @@ select {
    supplies the space below, so every divider in the app — this, the run
    detail's goal — has the same air on both sides. */
 .card > .hint, .goal-block { padding-top: var(--s3); border-top: 1px solid var(--border); }
+
+/* ==========================================================================
+   6. Narrow — the stacked bar (900px) and the phone (600px)
+
+   Two widths, and they answer different questions. 900px is where the views
+   give up their side column and the app becomes one stack; the bar joins them
+   there because it is the same question — a row of four labelled tabs plus a
+   run's indicators is a side-by-side layout too. 600px is the phone, and it is
+   the width at which the app stops being driven and is only read (US-067).
+   ========================================================================== */
+
+/* 900px: the bar's row measures 657px with a run live — 24 gutter ×2, the mark
+   at 26, the nav at 363, the WS state at 75, the widest badge ("Cancelled") at
+   87, the settings button at 28, and three `--s4` gaps. That is more than a
+   phone has and more than the 601–657 band of a small tablet has, so rather
+   than shrink any of it the nav takes a line of its own and the row keeps only
+   what a run is doing. Everything downstream reads `--topbar-h`, so it is
+   restated for the taller bar: 32 (row one, held at `--ctl` so the mark and the
+   settings button share a height) + 8 row gap + 32 (the segmented control) + 8
+   of block padding = 80. */
+@media (max-width: 900px) {
+  :root { --topbar-h: 80px; }
+  .topbar-inner {
+    flex-wrap: wrap; align-content: center;
+    row-gap: var(--s2); padding-block: var(--s1);
+  }
+  /* Last, whatever its DOM position — the bar is read left to right before it
+     is read top to bottom. */
+  .views { order: 3; flex-basis: 100%; }
+  /* Row one is as tall as the settings button, and the mark rides its centre.
+     The height belongs to the row, not to the mark — put on `.brand` it
+     stretches an `height: 22px; width: auto` SVG to fill it, and the mark comes
+     out double size. */
+  .top-right { min-height: var(--ctl); }
+}
+
+/* 600px: the phone. Same construction as above, one size up — 44 (row one, now
+   a touch target) + 8 + 50 (the control: a 44px tab, its 2px padding and its
+   border) + 8 = 110. */
+@media (max-width: 600px) {
+  :root {
+    --topbar-h: 110px;
+    --gutter: var(--s4);
+    /* Every control becomes a touch target. `--ctl-sm` stops being the compact
+       pair and meets `--ctl`: 44px is a finger either way, and a 28px icon
+       button next to a 44px one only reads as a mistake. */
+    --ctl: 44px; --ctl-sm: 44px;
+  }
+
+  /* The tabs fill the row and drop to their icons — four labels do not fit
+     288px, and a segmented control that scrolls sideways is not one object any
+     more. The label stays in the DOM for `aria-label` to have shadowed; see
+     TopBar.jsx. */
+  .views a { flex: 1; height: var(--ctl); padding: 0; justify-content: center; }
+  .views a span { display: none; }
+
+  /* iOS Safari zooms the viewport on focus for any control under 16px and
+     never zooms back out. This is that workaround and nothing else — it is not
+     a type decision, and `--t-base` is unchanged everywhere else on the page. */
+  input, textarea, select { font-size: 16px; }
+
+  /* A title and its actions stop competing for one line: `margin-left: auto`
+     needs room to the right and there is none. */
+  .page-head { flex-wrap: wrap; gap: var(--s3); padding-top: var(--s6); }
+  .page-head-actions { margin-left: 0; flex-basis: 100%; }
+  /* The description is orientation for someone meeting the view for the first
+     time, and it costs 42px of a 780px screen on every one of them. A phone
+     arrives at a view knowing why — usually from a link in a mail about a run
+     that failed — so the title carries it alone. */
+  .page-head p { display: none; }
+  .modal-foot { flex-wrap: wrap; }
+
+  /* A row is a target now, not just a band — and the target is `.row-main`,
+     which is a flex child sized by its text. Stretched, it claims the row's
+     full height instead of leaving a dead strip above and below itself. */
+  .list li { min-height: var(--ctl); }
+  .list li > .row-main { align-self: stretch; justify-content: center; min-height: var(--ctl); }
+
+  /* The scrim's inset is the modal's only side margin on a phone, and at
+     `--s5` it cost 40px of a 320px screen. */
+  .overlay { padding: var(--s3); }
+}
 

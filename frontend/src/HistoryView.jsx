@@ -237,7 +237,10 @@ export default function HistoryView({ token }) {
           )}
         </section>
 
-        <section className="card hist-detail">
+        {/* `is-empty` so the phone layout can drop the panel entirely: stacked
+            it sits above the list, and a placeholder there is a screen of
+            nothing between you and the runs you came to read. */}
+        <section className={`card hist-detail${selected ? '' : ' is-empty'}`}>
           {selected ? (
             // Keyed by run: picking another run starts its panel clean rather
             // than painting the previous run's steps under the new verdict.

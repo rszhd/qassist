@@ -61,7 +61,23 @@
 @media (max-width: 900px) {
   .run-shell { min-height: 0; }
   .rail-col { height: auto; min-height: 0; }
-  .rail { max-height: var(--sticky-h); }
+  /* Static, like the other two flanking columns: stacked, the rail sits *above*
+     the stage, so pinning it parks the test list over the thing it starts. The
+     height cap stays and does the work it was always for — the rail scrolls
+     itself rather than pushing the stage off the first screen. */
+  .rail { position: static; max-height: var(--sticky-h); }
+}
+/* On a phone the stage goes first. Stacked, DOM order puts the rail on top, and
+   at 390px that is 589px of test list before the frame starts — measured, the
+   stage began 1000px down a 780px screen, so the one thing the view exists to
+   show was the one thing you never landed on. The rail keeps its place as the
+   way you pick what to run, just underneath, and drops to `--scroll-cap` so a
+   long list scrolls itself instead of the page. This is the reading/driving
+   split of US-067 applied within Run: the frame is still too small to work in,
+   but "what happened" should not be below the fold. */
+@media (max-width: 600px) {
+  .stage { order: -1; }
+  .rail { max-height: var(--scroll-cap); }
 }
 /* The project select and the filter box read as one control block, so they sit
    at the group rhythm between them and the card's own `--s3` above and below. */
@@ -178,8 +194,15 @@
    starting-up states, which have no frame to measure. (The old height cap
    existed to keep the activity log above the fold; it sits beside the frame
    now, so nothing is pushed down.) */
+/* `width: 100%` is load-bearing below 533px. `--stage-min` keeps the frame far
+   wider than that everywhere the Run view claims a column, but a phone has no
+   such floor: at 358px the 16/9 ratio wants 201px of height, `min-height`
+   raises it to 300, and with the width still `auto` the ratio then resolves
+   *width* from that height instead — 533px inside a 358px frame, the whole
+   right third of the live view clipped away. Pinning the width makes the ratio
+   resolve the height, which is the direction it was written for. */
 .screen {
-  background: var(--stage); min-height: 300px;
+  background: var(--stage); min-height: 300px; width: 100%;
   display: flex; align-items: center; justify-content: center;
 }
 /* No frame yet: hold the shape the agent actually captures (1920×1080), so the
@@ -393,10 +416,24 @@ a.row-main { color: inherit; text-decoration: none; }
    ellipsising. The 0 lets the track shrink so the ellipsis can do its job. */
 .history { display: grid; grid-template-columns: minmax(0, 1fr) 440px; gap: var(--s4); align-items: start; }
 .projects { display: grid; grid-template-columns: var(--col-side) minmax(0, 1fr); gap: var(--s4); align-items: start; }
-@media (max-width: 900px) {
-  .history, .projects { grid-template-columns: 1fr; }
-}
 .hist-detail, .proj-list { position: sticky; top: var(--sticky-top); }
+/* Stacked, a flanking column has nothing beside it to stay level with, so
+   pinning it only parks it over the pane that now follows it. `.detail-side`
+   below has carried this fix since US-030; these two never got it.
+   History's panel also moves ahead of its list, for the same reason the run
+   page's rail does: once the grid is a stack, the run you just picked should
+   not sit below the fifty rows you picked it from. Projects' list is already
+   the first of the two, so it only has to stop sticking. */
+/* `minmax(0, 1fr)` for the same reason the two-column rules above use it, and
+   it matters more here, not less: a bare `1fr` floors at the track's
+   min-content, `.row-sub` is `white-space: nowrap`, so one long goal makes the
+   stacked column as wide as the whole string — 1502px inside a 320px phone,
+   with the page scrolling sideways to reach it. */
+@media (max-width: 900px) {
+  .history, .projects { grid-template-columns: minmax(0, 1fr); }
+  .hist-detail { position: static; order: -1; }
+  .proj-list { position: static; }
+}
 
 /* The open project's identity, and the three things you can do to the project
    itself. They live here rather than as hover icons on the rail row: the rail
@@ -406,6 +443,17 @@ a.row-main { color: inherit; text-decoration: none; }
 .proj-id { min-width: 0; display: flex; flex-direction: column; gap: var(--s05); }
 .proj-id h2 { font-size: var(--t-lg); font-weight: 600; letter-spacing: -.006em; }
 .proj-head-actions { margin-left: auto; flex: 0 0 auto; display: flex; gap: var(--s2); }
+/* Three unshrinkable buttons and a name on one row: the name is the only thing
+   that can yield, so it yielded all of it — `.proj-id` measured 0px wide at
+   320px and the buttons still hung 16px off the page. Same answer as
+   `.page-head`, which is the same row one level up. */
+@media (max-width: 600px) {
+  .proj-head { flex-wrap: wrap; }
+  /* `flex: 1 1 100%` and not just a basis: the base rule is `flex: 0 0 auto`,
+     and a row that may not shrink holds its three buttons' full width whatever
+     line it is on — 287px of them inside a 246px card. */
+  .proj-head-actions { margin-left: 0; flex: 1 1 100%; flex-wrap: wrap; }
+}
 
 /* The tab strip over a project's four sections. Underlined tabs rather than
    the top bar's segmented control: that one switches views and this switches
@@ -431,6 +479,16 @@ a.row-main { color: inherit; text-decoration: none; }
 }
 .tabs a:hover { color: var(--text); }
 .tabs a[aria-current] { color: var(--text); border-bottom-color: var(--accent); }
+/* Four sections need 383px and a 320px phone gives the strip 286. It already
+   scrolls sideways, but a strip that scrolls with no affordance just reads as a
+   tab cut in half at the edge — at 390px "Files" lost everything after the F.
+   So the icons go and the side inset halves: 263px of labels plus their gaps is
+   275, which fits 286 with room, and the label was always the part carrying the
+   meaning. */
+@media (max-width: 600px) {
+  .tabs a { padding: 0 var(--s1); }
+  .tabs a > svg { display: none; }
+}
 .tab-count { font-size: var(--t-sm); font-weight: 600; color: var(--faint); }
 .tabs a[aria-current] .tab-count { color: var(--muted); }
 
@@ -464,6 +522,16 @@ a.row-main { color: inherit; text-decoration: none; }
    it. It still truncates to one line, and the `title` carries the whole thing. */
 .detail-side .detail-facts { grid-template-columns: 1fr; gap: var(--s05); }
 .detail-side .detail-facts dt { font-size: var(--t-sm); }
+/* One scroll, not two. `--scroll-cap` keeps a long list tidy where it shares a
+   column with other cards; on a phone the page is already a single column, so
+   the cap buys nothing and costs the thing the page exists for — a 240px window
+   onto a seven-step log, its own scrollbar inside the page's, and the last row
+   sliced through the middle. This is the page a failure notification links to,
+   so the step log and the diagnostics read to the end. */
+@media (max-width: 600px) {
+  .run-detail-page .log,
+  .run-detail-page .diag { max-height: none; }
+}
 @media (max-width: 900px) {
   .run-detail-page { grid-template-columns: 1fr; }
   /* Stacked, the rail goes above the reading column rather than after it: the
@@ -481,11 +549,48 @@ a.row-main { color: inherit; text-decoration: none; }
   font-family: var(--mono); font-size: var(--t-sm); line-height: 1.7; color: var(--muted);
 }
 
+/* A history row on a phone. The row is dot + name/goal + when, and at 390px the
+   `when` column held 107px of a 356px row, leaving the test name 187 — enough
+   to wrap "Returning customer pays with a saved card" onto three lines while a
+   date sat beside it. So `when` stops being a column and becomes a line: the
+   row wraps, the name gets the full width, and the timestamp and the
+   steps/duration read left to right underneath it, indented past the dot to
+   line up with the name above. */
+@media (max-width: 600px) {
+  .hist-list .list li { flex-wrap: wrap; }
+  /* The trigger tag follows the name instead of floating to the right of it: a
+     name long enough to wrap left the tag centred against two lines at the far
+     edge, where it read as a column of its own rather than as part of the row. */
+  .hist-list .row-name { flex-wrap: wrap; }
+  .hist-list .run-when {
+    flex-basis: 100%; flex-direction: row; align-items: baseline;
+    justify-content: flex-start; gap: var(--s2);
+    padding-left: calc(var(--dot) + var(--s2));
+  }
+  /* Nothing to pick yet is not worth a screen of its own above the list. */
+  .hist-detail.is-empty { display: none; }
+}
+
 .hist-filters { display: flex; flex-wrap: wrap; gap: var(--s2); }
 /* 140px holds the longest option text ("All projects", a test name truncated)
    without the chevron overlapping it; narrower and the four filters start
    eliding at full page width. */
 .hist-filters select { flex: 1; min-width: 140px; }
+/* A schedule row carries more than any other row in the app: a target name, a
+   type tag, a plain-English recurrence, the next fire time and three actions.
+   At 390px that left the name 67px — one word per line — and `.row-tag` does
+   not shrink, so it overflowed its own column and painted over the timestamp
+   beside it. The name and its recurrence take the full line; the next-run time
+   and the actions share the one under it, which is where the 136px of touch
+   targets stop competing with the thing they act on. */
+@media (max-width: 600px) {
+  .sched-list .list li { flex-wrap: wrap; }
+  .sched-list .row-main { flex-basis: 100%; }
+  .sched-list .row-name { flex-wrap: wrap; }
+  .sched-list .run-when { align-items: flex-start; }
+  .sched-list .row-actions { margin-left: auto; }
+}
+
 .hist-paging { display: flex; justify-content: flex-end; gap: var(--s2); }
 .run-when { flex: 0 0 auto; display: flex; flex-direction: column; align-items: flex-end; gap: var(--s05); font-size: var(--t-sm); color: var(--muted); }
 .run-sub { font-size: var(--t-sm); color: var(--faint); }
@@ -505,6 +610,13 @@ a.row-main { color: inherit; text-decoration: none; }
 /* The variables row is the one fact that can hold several values, so it wraps
    into chips rather than truncating to one line like the others. */
 .detail-facts dd.detail-vars { overflow: visible; white-space: normal; display: flex; flex-wrap: wrap; gap: var(--s1); }
+/* A truncated fact keeps its full value in a `title`, and a touch screen has no
+   way to ask for one. The URL is usually the fact worth reading — it is how you
+   tell which environment the run was pointed at — so on a phone it wraps rather
+   than ellipsising into something no gesture can recover. */
+@media (max-width: 600px) {
+  .detail-facts dd { white-space: normal; overflow: visible; overflow-wrap: anywhere; }
+}
 .var-chip {
   font-size: var(--t-sm); padding: 0 var(--s15); border-radius: var(--r-sm);
   background: var(--sunken); color: var(--muted);
