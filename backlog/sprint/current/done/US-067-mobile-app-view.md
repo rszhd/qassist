@@ -5,14 +5,15 @@ scheduled run exists for — **I want** to open the run permalink, read the
 verdict and scan the step log on my phone, **so that** "did the nightly pass?"
 doesn't wait until I'm back at a laptop.
 
-- **Status:** 📋 Planned
+- **Status:** ✅ **Done** 2026-08-03, 8/8 — `1ba09f7` (the story), `780c22b`
+  (the breakpoint), `727510b` (the token index the first commit missed)
 - **Priority:** P2 — `app.qassist.run` is live (US-056) and scheduled runs mail
   a link (US-012, US-030). We already send people to a URL we have never sized
   for the device most likely to open it.
 - **Estimate:** 1–2 days. Almost entirely `App.css` and `views.css`; a small
   amount of markup where a container has no element to hang a rule on.
-- **Depends on:** [US-025](done/US-025-ui-consistency-pass-2.md) (the token
-  vocabulary this works in), [US-030](done/US-030-run-permalink.md) (the page a
+- **Depends on:** [US-025](US-025-ui-consistency-pass-2.md) (the token
+  vocabulary this works in), [US-030](US-030-run-permalink.md) (the page a
   phone most often lands on).
 
 ## The scope decision this story makes first
@@ -82,21 +83,93 @@ and it gets a comment saying so.
 
 ## Acceptance criteria
 
-- [ ] `document.documentElement.scrollWidth <= clientWidth` on every view at
+- [x] `document.documentElement.scrollWidth <= clientWidth` on every view at
       320, 390 and 768 CSS px — measured, per view, and the numbers recorded
       below
-- [ ] The top bar fits at 320px with a run live, badges and all
-- [ ] History, the run permalink, Projects and Schedules read top-to-bottom at
+- [x] The top bar fits at 320px with a run live, badges and all
+- [x] History, the run permalink, Projects and Schedules read top-to-bottom at
       390px with no pinned column covering the content under it
-- [ ] Focusing any input on iOS Safari does not zoom the viewport
-- [ ] A modal and the activity log are fully reachable with the browser toolbar
+- [x] Focusing any input on iOS Safari does not zoom the viewport
+- [x] A modal and the activity log are fully reachable with the browser toolbar
       expanded (`dvh`, not `vh`)
-- [ ] Every interactive target is at least 44px in its smaller dimension below
+- [x] Every interactive target is at least 44px in its smaller dimension below
       the phone breakpoint
-- [ ] Run does not scroll sideways at 320px, and its controls are reachable —
+- [x] Run does not scroll sideways at 320px, and its controls are reachable —
       the stage staying too small to watch is expected, not a failure
-- [ ] `docs/design-system.md` gains the 600px breakpoint and the reading/driving
+- [x] `docs/design-system.md` gains the 600px breakpoint and the reading/driving
       split this story decided
+
+## The numbers
+
+Read out of headless Chromium at 320, 390 and 768 CSS px (`is_mobile`,
+`has_touch`), on five views: Run, History, Schedules, Projects and the run
+permalink. `scrollWidth` / `clientWidth` of `documentElement`:
+
+| Width | Before | After |
+|---|---|---|
+| 320 | 447 / 320 — **127px over**, all five views | 320 / 320 |
+| 390 | 448 / 390 — **58px over**, all five views | 390 / 390 |
+| 768 | 768 / 768 | 768 / 768 |
+
+The overflow is one element on every view: `nav.views`, 363px of labelled tabs
+in a nowrap row, whose right edge landed at 403px on a 320px screen. That is
+also why 320 and 390 overflow to nearly the same absolute right edge — the bar
+was the same width at both, so the viewport did all the changing.
+
+**The bar.** Its row wanted 657px at 320px with a run live: 24 gutter ×2, the
+mark at 26, the nav at 363, the WS state at 75, the widest badge ("Cancelled")
+at 87, the settings button at 28, three `--s4` gaps. Four 44px tabs plus a badge
+and the settings button is 351px before the mark, so no icon-only pass rescues a
+single row. After the fix the bar is two rows: measured at 320px, row one needs
+118px (mark 26, `.top-right` 44) and row two gives the nav all 288px of the
+content well; at 390px, 118 and 358. `--topbar-h` reads 110px at 320 and 390 and
+80px at 768, and the rendered bar matches the token at each.
+
+With a run live the measured parts put row one at 304px of 320 — 32 gutter, mark
+26, `--s4` gap, then `.top-right` at 230 (WS 75, `--s3`, badge 87, `--s3`,
+settings 44). That one is arithmetic over measured widths, not a fresh reading:
+the injected run state was measured before the fix, not after.
+
+**Pinned columns.** Before: `aside.card` stuck at `top: 68px` on all five views
+once stacked, and `section.card` did the same on History and Projects. After:
+none, on any view at any width. The permalink still reports four sticky
+`div.diag-step` heads — those scroll inside their own container and are meant to
+pin.
+
+**Targets and type.** Below 600px, zero controls under 44px in either dimension
+and zero form controls under 16px. At 768px both are present and expected — 28px
+icon buttons, 26px tabs, a 14px `select` — that width is a desk.
+
+## What was built that the story didn't ask for
+
+- **The nav takes its own row from 900px, not 600px.** The story's shape was
+  icons-only inside one row. The 657px reading says one row is not available at
+  either width, so 900px carries the wrap and 600px only makes it touch-sized.
+  This is the one deviation from the recommended shape; the arithmetic is in the
+  rule, per `docs/design-system.md`.
+- **`--gutter` became a token.** The gutter was `--s6` written out in the bar,
+  the demo strip and the content well, so stepping it down at 600px needed one
+  name rather than three rules. It is indexed beside `--page-w`, not in Spacing:
+  it is a page measurement, not a step on the scale.
+- **Per-view work the audit only found once the page stopped overflowing.** Run
+  puts the stage first (it had started 1000px down a 780px screen) and `.screen`
+  got `width: 100%`, without which the 16/9 ratio resolved width from min-height
+  and drew 533px inside a 358px frame. History moves its detail above the list
+  and hides it when empty. Projects drops its tab icons so four tabs fit. The
+  permalink uncaps its log and diagnostics and wraps its facts, because a
+  `title` tooltip is unreachable on touch. On Schedules a row's name had 67px
+  and `.row-tag` painted over the timestamp beside it.
+
+## What is still open
+
+- **No real iOS Safari was in the loop.** The zoom criterion was verified as the
+  condition Safari zooms on — every form control ≥16px below 600px — and the
+  toolbar criterion as `dvh` in the two places that measured in `vh`. Headless
+  Chromium has no retracting toolbar to test against.
+- **The mailed failure notification still links to the app root, not the run
+  permalink.** Left where the story put it: US-012's surface. This story is what
+  makes the answer matter, and it is now cheap — the page the link would land on
+  reads on a phone.
 
 ## Notes
 
@@ -107,7 +180,3 @@ and it gets a comment saying so.
 - Measure with `page.evaluate` over the numbers in the criteria rather than
   screenshots; the failures in this story are all overflow and occlusion, which
   are values, not impressions.
-- The one thing worth deciding while in here and *not* doing: whether the mailed
-  failure notification should link to the run permalink rather than the app
-  root. That is US-012's surface, not this one, but this story is what makes the
-  answer matter.

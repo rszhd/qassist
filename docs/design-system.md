@@ -119,8 +119,8 @@ far such a column may be squeezed before it is owed a row of its own),
 card before it scrolls itself), `--card-pad` (a card's own inset — see
 Spacing, and note it is read by every full-bleed rule inside a card) and
 `--dot` (status dots). Media-query
-breakpoints can't read tokens, so 900px, 1155px and 1440px each carry a comment
-with the arithmetic they protect.
+breakpoints can't read tokens, so 600px, 900px, 1155px and 1440px each carry a
+comment with the arithmetic they protect.
 
 **On Run, the live frame is the measurement that doesn't yield.** `--stage-min`
 (800px) is a floor under it, and everything else on the view is sized to pay for
@@ -139,6 +139,36 @@ from the top of the viewport, which the rail does not start at, so a long list
 ran below the fold and grew the page for a column nothing else needed. That
 "the neighbour decides" is what `.rail-col` exists to express; a flanking column
 that can outgrow the frame should borrow the same trick rather than a number.
+
+### Below the desk: 900px and 600px
+
+Two narrow breakpoints, and they answer different questions. **900px** is where
+a view gives up its side column and the app becomes one stack. The top bar joins
+it there, because four labelled tabs beside a run's indicators is a side-by-side
+layout too: below 900px the nav takes a row of its own, and `--topbar-h` is
+restated to 80px for the taller bar. **600px is the phone**, and `--topbar-h` is
+restated again to 110px, because that nav row is now touch targets. Everything
+downstream measures from `--topbar-h`, which is why it is a token restated per
+breakpoint rather than three numbers.
+
+**A phone reads a result; it does not drive a run** (US-067). History, the run
+permalink, Projects and Schedules get a phone layout. Run does not — `--stage-min`
+is the measurement that doesn't yield, and a frame below it is not something you
+can watch. Below 600px Run only has to stop breaking the page: no sideways
+scroll, controls reachable, and the stage first so the view opens on it.
+
+600px changes tokens where it can and rules where it must. `--gutter` steps from
+`--s6` to `--s4`; `--ctl` and `--ctl-sm` meet at 44px, so the compact pair stops
+existing and every target is a finger; form controls go to 16px, which is an iOS
+Safari zoom workaround and not a type decision (`--t-base` is unchanged
+elsewhere, and the rule says so); page heads wrap their actions to a second line;
+and a flanking column that is still `position: sticky` once stacked goes static,
+because pinning covers the content it now sits above rather than beside.
+
+Heights on a phone are `dvh`, not `vh`: `vh` measures the viewport with the
+browser toolbar retracted, so `--sticky-h` and a modal's `max-height` both cut
+off under the chrome that is actually on screen. `vh` stays on the line above as
+the fallback.
 
 ## Palette
 
