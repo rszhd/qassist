@@ -274,7 +274,8 @@ one of these by name — the two tables cannot drift.
 
 `--card-pad` `var(--s5)`/20px · `--col-side` 300px · `--col-side-min` 250px ·
 `--stage-min` 800px · `--rail-strip` 34px · `--scroll-cap` 240px · `--dot` 6px ·
-`--page-w` 1480px ·
+`--page-w` 1480px · `--gutter` `var(--s6)`/24px — the page's side inset, `--s4`
+below the 600px breakpoint ·
 `--topbar-h` 52px · `--sticky-top` `calc(var(--topbar-h) + var(--s4))` ·
 `--sticky-h` `calc(100vh - var(--sticky-top) - var(--s4))`
 
