@@ -6,12 +6,15 @@ QAssist Session Capture extension the normal way, **so that** "capture a
 session without a terminal" doesn't still require `chrome://extensions` and
 Developer mode, which is its own small terminal.
 
-- **Status:** 🔨 **Prepared** 2026-08-03, 3/6 — everything that does not need a
-  Google account is built and tracked: icons, the privacy policy page, the
-  package script, and every listing field written out in
-  [`docs/chrome-web-store-listing.md`](../../../docs/chrome-web-store-listing.md).
-  The three open criteria all wait on a person at the dashboard — see Results.
-  Created 2026-07-31 as 📋 Planned.
+- **Status:** 🔨 **Prepared** 2026-08-03, 3/6 — icons, the privacy policy page,
+  the package script and every listing field are built and tracked in
+  [`docs/chrome-web-store-listing.md`](../../../docs/chrome-web-store-listing.md),
+  the developer account exists and the five screenshots render from a command
+  (`scripts/make-store-screenshots.mjs`), all as of 2026-08-03. What is left
+  is the upload itself and Google's review. Packaging the build for this
+  story is also what surfaced
+  [BUG-009](done/BUG-009-permission-prompt-closes-the-capture-popup.md) —
+  submit `0.1.1` or later, never `0.1.0`. Created 2026-07-31 as 📋 Planned.
 - **Priority:** P2 — same footing as [US-063](done/US-063-capture-a-session-without-a-terminal.md)
   itself: a P3-adjacent feature a developer can already use in full (side-load
   works today) is not finished for the audience it was built for until this
@@ -75,11 +78,12 @@ never itself shown to a user. Expect back-and-forth, not a rubber stamp.
       listing — page written and shipping with the frontend; the *linked from
       the listing* half is part of submitting
 - [x] Store listing assets (description, screenshots, category) are prepared —
-      copy and category written; screenshots still to take (see Results)
+      copy, category and five 1280×800 screenshots, all in the repo
 - [ ] Permission justification and the data-collection disclosure are
-      submitted — both written; submitting needs the dashboard
+      submitted — both written; submitting needs a dashboard session
 - [ ] The extension is packaged and submitted for review — packaging done
-      (`scripts/package-extension.sh`); submitting needs the account
+      (`scripts/package-extension.sh`), developer account registered
+      2026-08-03; what remains is the upload itself
 - [ ] The listing is live — or, if the first pass is rejected, the rejection
       reasons are recorded here rather than silently retried
 
@@ -106,13 +110,35 @@ route — the SPA is behind a login and the reviewer following that URL has no
 account, so it carries its own copy of the handful of tokens it uses. It has
 to be live *before* submitting; the dashboard fetches the URL.
 
+The app host, not the apex, and deliberately: `qassist.run` is the landing
+page and is hosted elsewhere, so a copy there would be a second file on a
+second host, and this page has to track `manifest.json`'s permissions commit
+by commit. The landing links to this URL instead of holding a copy, and its
+own privacy policy — accounts, mail, Stripe, run artifacts — stays a separate
+document. Full reasoning in the listing doc's prerequisites.
+
 **Package.** `scripts/package-extension.sh` zips from inside `extension/`
 (the store needs `manifest.json` at the zip root) and excludes the unit tests
 and the side-load README. The exclusions are a blocklist on purpose: this
 story's own description of the bundle listed `lib/storageState.js` and not
 `lib/siteScope.js`, which `popup.js` also imports — an allowlist written from
 that sentence would have shipped an extension that throws on load. The
-current bundle is 10 entries, 35 kB.
+blocklist earned itself a week later: `lib/pendingCapture.js`
+([BUG-009](done/BUG-009-permission-prompt-closes-the-capture-popup.md)) shipped
+with no change to the script at all. The current bundle is **11 entries,
+41 kB, version 0.1.1**.
+
+**What the packaged build turned up.** Loading the zip rather than
+`extension/` is what put the extension in front of a first-ever capture, and
+it failed: Chrome destroys the popup when it shows the host-permission prompt,
+so every user's first attempt was silently lost
+([BUG-009](done/BUG-009-permission-prompt-closes-the-capture-popup.md), fixed
+and hand-verified 2026-08-03). Submitting `0.1.0` would have spent a review
+cycle on a build whose primary flow does not work. Two things came out of that
+fix which this story now depends on: the version is `0.1.1`, and the manifest
+declares `minimum_chrome_version: "102"` for `chrome.storage.session`. The
+store honours that field, so older browsers are never offered a build whose
+popup cannot open.
 
 **Listing copy.** [`docs/chrome-web-store-listing.md`](../../../docs/chrome-web-store-listing.md)
 — name, short description (122 of 132 chars), detailed description, category
@@ -121,6 +147,26 @@ the data-collection table, and the screenshot plan. It lives in the repo
 rather than in the dashboard alone so a rejection is answered by editing a
 tracked file, and so the permission justifications stay honest to the code
 they describe.
+
+**Screenshots.** `scripts/make-store-screenshots.mjs` renders the five
+1280×800 shots from `extension/popup.js` itself — the shipped markup,
+stylesheet and state machine, with `chrome.*` stubbed and the flow seeded to
+land on each screen. Staging five popup screens by hand produces a listing
+asset nobody ever redoes; this one is a command, so it survives the next copy
+change. The account email, the setup code and the site are placeholders, which
+is not only cosmetic: a hand-taken shot of the account screen would have put
+the maintainer's own Chrome profile email in a public listing.
+
+Three things it had to get right, none of them obvious from the outside.
+Headless Chrome takes its shot without waiting for the load event, so the page
+settles by draining microtasks in a module that runs after `popup.js` rather
+than on a timer that loses the race — an earlier `setInterval` version shipped
+the success screen at the wrong zoom about half the time. The zoom is measured
+from the rendered popup, because the explainer screen is three times the
+height of the setup screen and one fixed value either clips it or strands the
+others. And the server that feeds Chrome runs in the same process, so the
+child must be spawned asynchronously — `execFileSync` blocks the event loop
+and Chrome waits forever on a page that can never be served.
 
 The disclosure's one non-obvious answer: **personally identifiable
 information is "No"** even though the extension reads the Chrome profile
@@ -132,13 +178,12 @@ that is the cookies and the localStorage blob.
 
 ### What is left, and why it is not code
 
-- **Developer registration** ($5, one-time) on the Google account that should
-  still own the listing in two years.
-- **Screenshots** — five, 1280×800, listed in the doc. The popup is 320px
-  wide, so each one is the popup composited on a background; taking them needs
-  the extension side-loaded against a real capture.
-- **Submit**, then wait. The `<all_urls>` optional ceiling is still the part
-  most likely to draw a question (see above), and the fallback is unchanged.
+- ~~**Developer registration**~~ — done 2026-08-03.
+- ~~**Screenshots**~~ — done 2026-08-03, `node scripts/make-store-screenshots.mjs`.
+- **Upload `0.1.1` or later and submit**, then wait. Never `0.1.0` — the
+  `storage.session` fix is what makes a first capture work at all. The
+  `<all_urls>` optional ceiling is still the part most likely to draw a
+  question (see above), and the fallback is unchanged.
 
 ## Notes
 

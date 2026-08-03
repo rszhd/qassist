@@ -8,14 +8,28 @@ a tracked file. The extension itself is `extension/`; the story is
 ## Prerequisites
 
 - A Google account with **Chrome Web Store developer registration** ($5,
-  one-time). Not tied to any account this repo knows about — pick the one that
-  should still own the listing in two years.
+  one-time) — **done 2026-08-03**. Not tied to any account this repo knows
+  about; it is whichever one should still own the listing in two years.
 - A **contact email**, verified in the dashboard. It is not shown on the
   listing page, but Google's review correspondence goes there.
 - The privacy policy live at
   **`https://app.qassist.run/extension-privacy.html`**
   (`frontend/public/extension-privacy.html`, shipped with the frontend build).
   It must be reachable before submitting — the dashboard checks the URL.
+
+**Why the app host and not the apex.** `qassist.run` is the landing page and
+is hosted elsewhere (`docs/deploy/production.md` → DNS), so a copy of the
+policy there would be a second file on a second host. This page describes
+exactly which permissions `extension/` declares, and it ships in the same
+commit as the `manifest.json` it describes — a permission change and the
+sentence explaining it move together. That is worth more than a prettier
+hostname, because a policy that has quietly stopped matching the manifest is
+the one page here that must not go stale. The landing links to this URL rather
+than holding its own copy; the landing's *own* privacy policy is a different
+document (accounts, magic-link mail, Stripe, run artifacts) and merging the
+two would make both vaguer. If the apex is wanted on the listing later, a
+redirect from `qassist.run/extension-privacy` keeps it to one copy — but
+confirm Google's validator accepts a redirecting URL before relying on it.
 
 ## The package
 
@@ -90,19 +104,34 @@ instance you point it at — your own or the hosted one. Source:
 https://github.com/rszhd/qassist
 ```
 
-**Screenshots** — 1280×800, up to five, in flow order. The popup is 320px
-wide, so each is the popup composited on a plain background rather than a raw
-capture:
+**Screenshots** — five, 1280×800, in flow order:
 
-1. `setup` — pasting the setup code.
-2. `origin` — naming the one site.
-3. `explain` — what will be read and where it goes, before the browser prompt.
-4. `account` — the profile email and the confirmation.
-5. `success` — with the QAssist Sessions tab behind it showing "captured via
-   extension".
+```sh
+node scripts/make-store-screenshots.mjs   # → dist/store-screenshots/*.png
+```
 
-Screens 3 and 4 are the two that answer a reviewer's first question, so they
-should not be dropped to save effort.
+They are rendered from `extension/popup.js` itself — the shipped markup,
+stylesheet and state machine — with the `chrome.*` APIs stubbed and the flow
+seeded to land on each screen. Re-run it when the popup's copy or styling
+changes; a listing screenshot that has to be staged by hand is one that never
+gets redone.
+
+| # | Screen | Caption |
+| --- | --- | --- |
+| 1 | `setup` | Paste the one-time code from QAssist |
+| 2 | `origin` | Name the one site to capture — never everything you browse |
+| 3 | `explain` | See what will be read, and where it goes, before the browser asks |
+| 4 | `account` | Confirm which account is about to be captured, every time |
+| 5 | `success` | Sent once, to your own QAssist instance |
+
+Screens 3 and 4 answer a reviewer's first question, so they should not be
+dropped to save space.
+
+**The data in them is placeholder, deliberately.** The account screen would
+otherwise carry a real Chrome profile email into a public listing and the
+setup screen a real capture token; the site is `app.example.com` rather than a
+third party's brand. Everything else — every pixel of the interface — is what
+the shipped extension renders.
 
 ## Single purpose
 
