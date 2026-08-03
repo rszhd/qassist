@@ -14,13 +14,20 @@
 //   6. capturing/needTab — read cookies + localStorage from an already-open,
 //                 already-signed-in tab; never opens a fresh one (a fresh tab
 //                 would be signed out, defeating the whole mechanism)
-//   7. success/error — on any failure, the assembled blob and the token are
-//                 dropped from memory. Nothing here ever writes them to
-//                 chrome.storage, IndexedDB, or retries automatically — that
-//                 is a property of what this file does NOT do; verify by
-//                 reading doCapture() below rather than by running anything.
+//   7. success/error — on any failure, the assembled blob is dropped from
+//                 memory. Nothing here ever writes what was read out of the
+//                 site to chrome.storage, IndexedDB, or retries automatically
+//                 — that is a property of what this file does NOT do; verify
+//                 by reading doCapture() below rather than by running
+//                 anything.
+//
+// Every screen change goes through `go()`, because a popup that loses focus
+// is destroyed and steps 3→5 both take the focus away (US-068). `go()`
+// renders and saves the in-flight flow, so reopening resumes it; the rules
+// for what is saved and what is dropped are in lib/pendingCapture.js.
 import { buildStorageState } from './lib/storageState.js';
 import { permissionPatterns, registrableDomain } from './lib/siteScope.js';
+import { makePending, resumeScreen } from './lib/pendingCapture.js';
 
 const APP = document.getElementById('app');
 
@@ -41,7 +48,69 @@ async function init() {
   const stored = await chrome.storage.local.get(['instanceUrl', 'isTestProfile']);
   state.instanceUrl = stored.instanceUrl || '';
   state.isTestProfile = !!stored.isTestProfile;
+  await resume();
   render();
+}
+
+/**
+ * Puts back a flow the popup was closed out of. Silent when there is nothing
+ * to resume — a first open must look exactly like a first open.
+ */
+async function resume() {
+  const { pendingCapture } = await chrome.storage.session.get('pendingCapture');
+  const screen = resumeScreen(pendingCapture, Date.now());
+  if (!screen) {
+    chrome.storage.session.remove('pendingCapture');
+    return;
+  }
+  state.token = pendingCapture.token;
+  state.instanceUrl = pendingCapture.instanceUrl;
+  state.origin = pendingCapture.origin;
+  // The permission dialog is what closed the popup at this screen, so by now
+  // the answer is usually in: if the grant went through, `explain` has
+  // nothing left to explain and asking again would be the second prompt for
+  // a permission Chrome has already recorded.
+  state.screen = screen === 'explain' && (await hasPermission(state.origin)) ? 'account' : screen;
+}
+
+/** @param {string} origin */
+async function hasPermission(origin) {
+  try {
+    return await chrome.permissions.contains({ origins: permissionPatterns(origin) });
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Move to a screen: render it, and save or drop the in-flight flow to match.
+ *
+ * Saving on arrival rather than on the click that leaves is what makes the
+ * permission dialog survivable — `chrome.permissions.request()` has to be
+ * called inside the user gesture that triggered it, so it cannot await a
+ * storage write first. By the time that button exists on screen, the write
+ * that covers it has already landed.
+ *
+ * @param {string} screen
+ */
+function go(screen) {
+  state.screen = screen;
+  persist();
+  render();
+}
+
+/**
+ * One rule decides both halves: whatever `resumeScreen` declines to bring
+ * back is exactly what is not worth keeping, so the two cannot drift.
+ */
+function persist() {
+  // Settings is reachable from anywhere and returns where it came from — an
+  // excursion, not a step, so it leaves the saved flow alone.
+  if (state.screen === 'settings') return;
+  const now = Date.now();
+  const pending = makePending(state, now);
+  if (resumeScreen(pending, now)) chrome.storage.session.set({ pendingCapture: pending });
+  else chrome.storage.session.remove('pendingCapture');
 }
 
 function render() {
@@ -75,8 +144,7 @@ function setApp(html) {
   if (link) {
     link.addEventListener('click', () => {
       state.previousScreen = state.screen;
-      state.screen = 'settings';
-      render();
+      go('settings');
     });
   }
 }
@@ -103,8 +171,7 @@ function renderSetup() {
       state.instanceUrl = instanceUrl;
       state.errorMsg = '';
       chrome.storage.local.set({ instanceUrl });
-      state.screen = 'origin';
-      render();
+      go('origin');
     } catch {
       state.errorMsg = 'That does not look like a setup code — copy it fresh from QAssist.';
       render();
@@ -123,10 +190,7 @@ function renderOrigin() {
       <button class="primary" id="next">Continue</button>
     </div>
   `);
-  document.getElementById('back').addEventListener('click', () => {
-    state.screen = 'setup';
-    render();
-  });
+  document.getElementById('back').addEventListener('click', () => go('setup'));
   document.getElementById('next').addEventListener('click', () => {
     const raw = /** @type {HTMLInputElement} */ (document.getElementById('origin')).value.trim();
     let parsed = null;
@@ -142,8 +206,7 @@ function renderOrigin() {
     }
     state.origin = parsed.origin;
     state.errorMsg = '';
-    state.screen = 'explain';
-    render();
+    go('explain');
   });
 }
 
@@ -163,10 +226,7 @@ function renderExplain() {
       <button class="primary" id="grant">Continue</button>
     </div>
   `);
-  document.getElementById('back').addEventListener('click', () => {
-    state.screen = 'origin';
-    render();
-  });
+  document.getElementById('back').addEventListener('click', () => go('origin'));
   document.getElementById('grant').addEventListener('click', requestPermission);
 }
 
@@ -175,6 +235,12 @@ async function requestPermission() {
   // (Domain=.google.com, how most SSO providers actually hold a session) is
   // invisible to chrome.cookies.getAll unless a granted host permission
   // covers it too — see lib/siteScope.js's header for how this was found.
+  //
+  // Nothing may be awaited before this call: it has to run inside the click
+  // that triggered it or Chrome refuses it as gesture-less. The flow was
+  // saved on arrival at this screen for exactly that reason (US-068) —
+  // Chrome destroys this popup the moment the dialog below opens, so the
+  // lines after the await usually never run at all.
   const patterns = permissionPatterns(state.origin);
   let granted = false;
   try {
@@ -184,13 +250,11 @@ async function requestPermission() {
   }
   if (!granted) {
     state.errorMsg = 'Permission was not granted — nothing was read.';
-    state.screen = 'origin';
-    render();
+    go('origin');
     return;
   }
   state.errorMsg = '';
-  state.screen = 'account';
-  render();
+  go('account');
 }
 
 function renderAccount() {
@@ -223,14 +287,10 @@ function renderAccountConfirm() {
         <button class="primary" id="goto-settings">Open settings</button>
       </div>
     `);
-    document.getElementById('back').addEventListener('click', () => {
-      state.screen = 'explain';
-      render();
-    });
+    document.getElementById('back').addEventListener('click', () => go('explain'));
     document.getElementById('goto-settings').addEventListener('click', () => {
       state.previousScreen = 'account';
-      state.screen = 'settings';
-      render();
+      go('settings');
     });
     return;
   }
@@ -248,14 +308,10 @@ function renderAccountConfirm() {
       <button class="primary" id="confirm">Yes, capture this session</button>
     </div>
   `);
-  document.getElementById('back').addEventListener('click', () => {
-    state.screen = 'explain';
-    render();
-  });
+  document.getElementById('back').addEventListener('click', () => go('explain'));
   document.getElementById('confirm').addEventListener('click', () => {
     state.errorMsg = '';
-    state.screen = 'capturing';
-    render();
+    go('capturing');
     doCapture();
   });
 }
@@ -269,13 +325,9 @@ function renderNeedTab() {
       <button class="primary" id="retry">Try again</button>
     </div>
   `);
-  document.getElementById('back').addEventListener('click', () => {
-    state.screen = 'account';
-    renderAccountConfirm();
-  });
+  document.getElementById('back').addEventListener('click', () => go('account'));
   document.getElementById('retry').addEventListener('click', () => {
-    state.screen = 'capturing';
-    render();
+    go('capturing');
     doCapture();
   });
 }
@@ -294,8 +346,7 @@ async function doCapture() {
   try {
     const tabs = await chrome.tabs.query({ url: `${state.origin}/*` });
     if (!tabs.length) {
-      state.screen = 'needTab';
-      render();
+      go('needTab');
       return;
     }
     // The tab's actual URL, not the bare origin. chrome.cookies.getAll only
@@ -329,8 +380,7 @@ async function doCapture() {
     });
     state.token = '';
     if (res.status === 204) {
-      state.screen = 'success';
-      render();
+      go('success');
       return;
     }
     let message = `Capture failed (${res.status}).`;
@@ -341,13 +391,11 @@ async function doCapture() {
       // Non-JSON error body — the generic message above stands.
     }
     state.errorMsg = message;
-    state.screen = 'error';
-    render();
+    go('error');
   } catch (err) {
     state.token = '';
     state.errorMsg = err && err.message ? err.message : 'Capture failed.';
-    state.screen = 'error';
-    render();
+    go('error');
   }
 }
 
@@ -359,10 +407,9 @@ function renderSuccess() {
     <div class="row"><button id="again">Capture another site</button></div>
   `);
   document.getElementById('again').addEventListener('click', () => {
-    state.screen = 'setup';
     state.origin = '';
     state.errorMsg = '';
-    render();
+    go('setup');
   });
 }
 
@@ -374,9 +421,8 @@ function renderError() {
     <div class="row"><button id="restart">Start over</button></div>
   `);
   document.getElementById('restart').addEventListener('click', () => {
-    state.screen = 'setup';
     state.errorMsg = '';
-    render();
+    go('setup');
   });
 }
 
@@ -394,9 +440,9 @@ function renderSettings() {
     const checked = /** @type {HTMLInputElement} */ (document.getElementById('test-profile')).checked;
     state.isTestProfile = checked;
     await chrome.storage.local.set({ isTestProfile: checked });
-    state.screen = state.previousScreen === 'account' ? 'account' : 'setup';
+    const back = state.previousScreen === 'account' ? 'account' : 'setup';
     state.previousScreen = null;
-    render();
+    go(back);
   });
 }
 

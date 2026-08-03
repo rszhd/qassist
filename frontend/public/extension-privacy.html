@@ -129,6 +129,14 @@
           test/disposable one — both in <code>chrome.storage.local</code>, which does not sync to other
           devices.</li>
         <li>
+          While a capture is in progress: the one-time setup code, the instance address and the site you
+          named, in <code>chrome.storage.session</code>. Chrome closes an extension popup whenever it loses
+          focus, including when it shows you its own permission prompt, so this is what lets you reopen the
+          popup and carry on instead of starting over. That storage is held in memory only — never written to
+          disk, discarded when the browser closes — and the entry is dropped on success, on failure, and after
+          15 minutes, when the setup code expires anyway.
+        </li>
+        <li>
           <strong>Not</strong> the captured session. It is assembled in memory, posted, and dropped. It is
           never written to <code>chrome.storage</code>, IndexedDB, or any other browser storage, and a failed
           post is never queued or retried — a failure means starting again with a fresh setup code.

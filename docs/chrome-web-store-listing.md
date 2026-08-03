@@ -142,8 +142,13 @@ page is modified.
 ```
 Two settings persist between uses: the address of the user's own QAssist
 instance, and a flag marking this Chrome profile as a test profile (capture is
-refused until it is set). chrome.storage.local only, never synced. The
-captured session is deliberately not stored — it is posted and dropped.
+refused until it is set). chrome.storage.local, never synced. A capture in
+progress is also held in chrome.storage.session — the one-time setup code and
+the site named — because Chrome destroys the popup when it shows its own
+permission prompt, and without this the user loses the flow every time. That
+storage is memory-only and the entry is dropped on success, on failure, and
+after 15 minutes. The captured session itself is never stored anywhere in the
+browser: it is posted and dropped.
 ```
 
 **`identity.email`**

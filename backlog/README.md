@@ -241,6 +241,7 @@ makes it stop being read.
 
 | ID | Defect | Status | Area |
 |---|---|---|---|
+| [BUG-009](sprint/current/done/BUG-009-permission-prompt-closes-the-capture-popup.md) | Chrome destroys the popup when it shows the host-permission prompt, so every user's first capture is silently lost | ✅ Fixed 2026-08-03 | `extension/popup.js`, `extension/lib/pendingCapture.js` |
 | [BUG-008](sprint/current/done/BUG-008-unique-violation-matched-on-message.md) | `isUniqueViolation` ORed the exact `23505` with a `/unique\|duplicate/i` match on the message, so any error whose text said either word was answered as a name clash | ✅ Fixed 2026-07-28 | `server/src/routes/helpers.js` |
 | [BUG-007](sprint/current/done/BUG-007-server-suite-fails-intermittently.md) | The server suite fails about one run in five, on a different test each time | ✅ Fixed 2026-07-28 — two causes, neither the oversubscription first blamed | `server/test/helpers/stored-key.js`, `server/test/stubs/fake_agent.js` |
 | [BUG-004](sprint/current/done/BUG-004-literal-secret-placeholder-in-goal.md) | A literal `<secret>name</secret>` in a saved goal is accepted and silently does nothing — it is `resolveForRun`'s output, not its input | ✅ Fixed 2026-07-28 | `server/src/variables.js` |

@@ -74,6 +74,24 @@ listing asks for is written down in
   15 minutes, and only for the one session it was minted for. It authenticates
   nothing else; losing it leaks no more than that one 15-minute window.
 
+## If the popup closes
+
+A Chrome popup is destroyed the moment it loses focus, and two ordinary steps
+here take the focus away: the browser's own permission dialog, and switching
+to the QAssist tab to copy the setup code. Both used to drop the whole flow,
+and because the app mints a fresh code every time that modal opens, "start
+again" meant a new code as well (US-068).
+
+So the in-flight flow — the setup token, the instance URL, the site you named
+— is written to `chrome.storage.session` on the way into each screen, and the
+popup resumes there when you reopen it. That storage is memory-only: never
+written to disk, gone when the browser closes, unreachable from any page. The
+entry is dropped on success, on failure, and after 15 minutes, which is the
+life of the setup token it carries.
+
+Nothing read out of the site goes there. What the capture assembles is still
+posted straight from memory and never stored — see below.
+
 ## The account guard
 
 The extension reads your *daily* browser by design — that's what makes it
@@ -98,7 +116,11 @@ to — the guard is a deliberate stop, not a lock.
 - The assembled session is never written to `chrome.storage`, IndexedDB, or
   anywhere else in the browser, and a failed post is never retried
   automatically. A failure means starting the capture again from a fresh
-  setup code — there is no queue holding a credential in the meantime.
+  setup code — there is no queue holding a credential in the meantime. What
+  the resume above holds is the setup token, never the session.
+- A capture that was interrupted never re-posts on its own. Resuming an
+  interrupted flow lands on the account confirmation, so the check on which
+  profile is about to be captured is answered every single time.
 - The blob is never echoed back in any response the popup reads; the server
   answers a bare `204` on success.
 
