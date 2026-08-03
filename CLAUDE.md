@@ -98,6 +98,18 @@ keep it that way when adding features.
 - **Verify agent:** `cd agent && .venv/bin/python -m pytest` (pure stdlib units,
   no browser/IMAP/network). Add a case per pure helper touched. Mutation audit
   (`mutmut`) and rationale: `docs/testing.md`.
+  **With no `.venv`, run it in a throwaway container instead** — never conclude
+  the suite can't run:
+
+      docker run --rm --entrypoint sh -v "$PWD/agent:/src:ro" -w /src qassist:latest \
+        -c '/opt/venv/bin/pip install -q "pytest>=9,<10"; /opt/venv/bin/python -m pytest -q'
+
+  Mount the worktree and install pytest, both for the same reason: the image
+  installs `requirements.txt` only (dev deps are deliberately out) and `COPY`s
+  `agent/` at build time, so the *running* container's copy is as old as the last
+  build. That image also has `browser_use`, which makes
+  `python -c "import run_agent"` a real import check where the host can only
+  byte-compile.
 - **Verify frontend:** `cd frontend && npm test` (Vitest) and `npm run build`.
   `curl` a new endpoint against :8081 before wiring it into a view. For visual
   changes, **ask before screenshotting — often quicker for me to look myself.**
