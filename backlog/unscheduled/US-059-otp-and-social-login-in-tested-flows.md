@@ -5,31 +5,31 @@ authenticator app, or a "Continue with Google" button, **I want** the agent to
 get past that wall, **so that** the funnel I most need tested is not the one
 QAssist can't reach.
 
-- **Status:** 🔄 In progress — spun out of
-  [US-013](done/US-013-registration-flow-verification.md)
-  on 2026-07-28 and scheduled into `sprint/current/` the same day, alongside
-  US-063. US-013's tier 1 (email codes) shipped 2026-07-21 and that
-  story is closed; tiers 2 and 3 never started, and they no longer belong in a
-  file whose results section is about IMAP. **This story's own tier 1 (TOTP)
-  and tier 2 (SMS) landed 2026-07-31**, both wired and unit-tested but not yet
-  proven against a live authenticator-gated or SMS-gated site (no such site
-  available in this environment) — that end-to-end pass is still owed before
-  either tier's first acceptance box can be checked. Tier 1:
-  `agent/totp_codes.py` (`TotpSecret.from_env` / `.code`), a `get_totp_code`
-  tool alongside the email-confirmation block, secrets routed through
-  `sensitive_data` the same way. Tier 2: `agent/sms_codes.py`
-  (`TwilioSmsInbox.from_env` / `.wait_for_code`), a `get_sms_code` tool of the
-  same shape, polling Twilio's Messages API rather than IMAP. **Tier 1 also
-  owes a move**: the shared secret is per-account, not per-machine, and the env
-  slot it currently lives in cannot serve two tenants — see "Tier 1 follow-up"
-  (2026-08-03). Unlike the
-  disposable per-run email address, the provisioned test number is routed as
-  a secret too (`<secret>sms_number</secret>`) since it is a single real,
-  billed number reused across every run. Tier 3 (social) has not started.
+- **Status:** ⏸️ **Unscheduled 2026-08-04 — code removed, replan from scratch.**
+  Spun out of
+  [US-013](../sprint/current/done/US-013-registration-flow-verification.md) on
+  2026-07-28 and scheduled the same day alongside US-063. Tiers 1 (TOTP) and 2
+  (SMS) were built on 2026-07-31 and **deleted on 2026-08-04**, unreleased and
+  never proven against a live gated site. Tier 3 (social) never started.
+  The requirement stands; the design does not. Both tiers put a per-account
+  credential in the server's process environment, and the follow-up sections
+  below record why each is the wrong shape rather than the right shape wrongly
+  configured. That is a replan, not a fix, and it is not urgent enough to hold a
+  sprint slot: the email tier still covers the common case, and an OTP test mode
+  on the tested site covers the recurring one with no feature at all.
+  **What was removed** (recover from the removal commit if the replan wants a
+  starting point): `agent/totp_codes.py`, `agent/sms_codes.py` and their two
+  test modules; the `get_totp_code` and `get_sms_code` blocks in
+  `agent/run_agent.py`; `totp_code`/`sms_code`/`sms_number` from
+  `AGENT_PROVIDED_SECRETS` in `server/src/variables.js`; the TOTP row in
+  `correctness-critical.md`; the TOTP and SMS sections of
+  `docs/auth-in-tested-flows.md`, replaced by one "Second factors" section that
+  states both are unsupported and why. No migration, no API and no UI ever
+  referenced either tier, so nothing outside those files moved.
 - **Priority:** P3 (inherited from US-013)
-- **Estimate:** ~1 day for TOTP, ~1–2 days for SMS, ~0.5–1 day for social —
-  see "What US-043 already paid for", which is why social is now the cheapest
-  of the three rather than the most expensive.
+- **Estimate:** stale — the tier-1/tier-2 figures below costed the shape that
+  was removed. Social is unchanged at ~0.5–1 day; see "What US-043 already paid
+  for".
 - **Depends on:** US-013 tier 1 (the tool-registration and `sensitive_data`
   pattern), US-043 (saved browser sessions — social login's actual mechanism),
   US-035 (secret variables carry the shared secret / provider credentials)
@@ -134,7 +134,7 @@ Stated plainly: this is a per-account credential living in the server's
 environment. Nobody would put a customer's password there.
 
 **Shape to build.** The destination already exists twice over.
-[`browser_sessions`](../../../db/migrations/015_browser_sessions.sql) is the
+[`browser_sessions`](../../db/migrations/015_browser_sessions.sql) is the
 closest sibling — also a per-account credential, also project-scoped, and
 crucially **named**, `unique (project_id, name_key)`, with a test pointing at
 one via `tests.browser_session_id`. Copy that, not a single slot per project:
@@ -155,13 +155,61 @@ declared. It is only the hosted tier that cannot live with it.
 
 `QA_TOTP_SECRET` is also absent from `.env.example`, `.env.preview.example` and
 `.env.staging.example` (as are `QA_IMAP_*` and `QA_TWILIO_*`) — documented only
-in [`docs/auth-in-tested-flows.md`](../../../docs/auth-in-tested-flows.md) and
+in [`docs/auth-in-tested-flows.md`](../../docs/auth-in-tested-flows.md) and
 the module docstrings. Worth fixing while the deployment-wide caveat is being
 written next to it.
 
+## Tier 2 limits — one number, and what it cannot repeat (2026-08-03)
+
+Two limits found while planning the live proof. Neither is a bug in the code as
+written; both are consequences of a phone number being one allocation from one
+carrier, and both change what the tier can be sold as.
+
+**Concurrent runs share the number and can steal each other's codes.**
+`_fetch_newest_code` filters on `To` and on `sms_since` (run start − 60 s) and
+nothing else. Two runs reaching an SMS step inside the same window both take the
+newest message. The mailbox has no such hazard because `generate_address` builds
+a per-run address from the run id and the fetch filters on it — which is exactly
+the discriminator SMS has no way to carry. With `MAX_CONCURRENT_SESSIONS=4` this
+is reachable by one tenant running two tests, so it is not a hosted-tier-only
+concern like the TOTP slot above.
+
+**A recurring signup cannot work, for a reason no code change reaches.** Sites
+treat a number as an account's unique key, so day two of a scheduled signup gets
+"already registered" — a real product rule, not a defect. The email tier is
+repeatable only because a fresh address costs nothing; a number has no
+sub-addressing. So `get_sms_code` fits a **2FA login** (same account, same
+number, daily) and a signup **once per number**.
+
+**A pool of numbers is rejected.** It is a standing monthly rental on every
+carrier — Telnyx, Plivo, SignalWire and Bandwidth differ from Twilio by a
+constant, not in kind — and every number in the pool is VoIP, so a site that
+rejects one rejects all of them. Paying per number to still be refused is the
+worst of both.
+
+**The recurring-signup answer is the tested site's own OTP test mode**, and it
+needs nothing built here. Twilio Verify test credentials always verify without
+sending; Firebase Auth registers test numbers with fixed codes; most providers
+have an equivalent. The fictional number is a US-035 variable, the fixed code a
+`secret` one (encrypted at rest since US-064, so a schedule fires unattended),
+and the goal types `<secret>otp_code</secret>`. No Twilio account, no
+`QA_TWILIO_*`, no polling. Written up in
+[`docs/auth-in-tested-flows.md`](../../docs/auth-in-tested-flows.md) → SMS.
+
+**This puts tier 2's first acceptance box in question.** It asks for a *signup*
+end-to-end, which is now known to be the one shape that cannot repeat. Left
+unchanged pending a decision: prove the signup once as written, or restate the
+box as a 2FA login, which is what the tier actually serves.
+
 ## Acceptance criteria
 
-**Tier 1 — TOTP**
+**Tiers 1 and 2 below are void as of 2026-08-04.** They are kept unedited as the
+record of what the removed implementation did and did not prove — the ticks were
+true against code that no longer exists. A replan writes its own, and should
+start from the two follow-up sections above rather than from these boxes. Tier
+3's criteria are unaffected: nothing about social login was built or removed.
+
+**Tier 1 — TOTP** (void)
 
 - [ ] With a shared secret configured, the agent completes a login whose second
       factor is an authenticator code, end-to-end — wired and unit-tested, not
@@ -175,7 +223,7 @@ written next to it.
 - [ ] `get_totp_code` is absent from a run whose test declares no secret, with
       another project's secret configured on the same instance
 
-**Tier 2 — SMS**
+**Tier 2 — SMS** (void)
 
 - [ ] With a number configured, the agent completes a signup requiring an SMS
       code, end-to-end — wired and unit-tested, not yet run live against a
@@ -198,11 +246,18 @@ written next to it.
 ## Correctness-critical
 
 Tiers 1 and 2 add **new secret sources** to a surface already in
-[`correctness-critical.md`](../../correctness-critical.md) — the Redaction row
+[`correctness-critical.md`](../correctness-critical.md) — the Redaction row
 (`agent/redact.py`) and the Secret variables row (US-035). The TOTP shared
 secret is a **non-expiring** credential, which neither existing row's failure
 description covers. Add a row and get the assertion reviewed before the
 implementation exists, per the Workflow rule.
+
+The TOTP row this called for was added on 2026-07-31 and **removed with the code
+on 2026-08-04** — the register indexes surfaces that exist, and a row pointing at
+a deleted module is the kind of entry that makes it stop being read. The
+paragraph above still holds for whatever the replan builds: a non-expiring
+credential is its own failure shape, and the row goes back before the
+implementation does.
 
 Tier 3 touches Saved browser sessions (US-043), already registered — its
 existing assertions should be extended rather than duplicated.

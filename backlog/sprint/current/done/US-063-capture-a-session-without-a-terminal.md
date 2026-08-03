@@ -21,7 +21,7 @@ people this product is for.
   not capture and should not be allowed to hide.
 - **Depends on:** [US-043](US-043-reusable-authenticated-sessions.md)
   (the session it fills, and the encrypt/store/teardown path it reuses wholesale),
-  US-021. Unblocks [US-059](../US-059-otp-and-social-login-in-tested-flows.md) tier 3
+  US-021. Unblocks [US-059](../../../unscheduled/US-059-otp-and-social-login-in-tested-flows.md) tier 3
   for anyone who is not a developer.
 - **Not** [US-062](../../../unscheduled/US-062-live-browser-test-tier.md). That is a headless test
   tier for the maintainer, proving US-042's redirect and US-043's round-trip.

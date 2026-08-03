@@ -20,9 +20,9 @@ using explains most of what follows.
   and localStorage that already authenticate somebody, so the run opens on the
   dashboard rather than the login form. Shipped: US-043.
 - **Fetch a code** — complete the login. The agent drives the form, then reads
-  the confirmation code out of a mailbox or an SMS inbox and types it, or
-  computes an authenticator code from a shared secret. Shipped for email
-  (US-013 tier 1), TOTP (US-059 tier 1) and SMS (US-059 tier 2).
+  the confirmation code out of a mailbox and types it. Shipped for email
+  (US-013 tier 1). A second factor that is *not* emailed — an authenticator app
+  or an SMS — has no support today; see [Second factors](#second-factors).
 
 Reuse is the default and the cheaper of the two by a wide margin — no tokens
 spent on six steps of login, no flakiness in a form nobody is testing, no
@@ -108,44 +108,42 @@ is one slot: no per-project mailbox, no UI, no way to give two projects
 different inboxes. That is a real limitation, not a simplification, and it is
 the first thing that breaks if you need several accounts with separate inboxes.
 
-### Authenticator app (TOTP)
+### Second factors
 
-Configure `QA_TOTP_SECRET` — the shared secret the site showed at enrolment,
-base32 — and the agent gains a `get_totp_code` action: an HMAC-SHA1 over the
-current 30-second time step (RFC 6238), computed rather than awaited. No
-vendor, no account, no polling loop.
+**Email is the only second factor QAssist fetches.** An authenticator app (TOTP)
+and an SMS code are both **unsupported**, and there is no environment variable
+that turns either on.
 
-The derived code goes through the same `sensitive_data` / `agent/redact.py`
-round-trip as the email code, so the model only ever sees
-`<secret>totp_code</secret>`. The shared secret itself never joins that dict or
-the task text at all — it stays inside the running agent process and is never
-placed anywhere a step, event, log, or report could pick it up. That matters
-more here than for an email code: an email code expires in minutes, but a TOTP
-secret does not expire, so a leak of the secret is a standing second factor
-rather than a stale one. Same deployment-wide caveat as the mailbox: one slot,
-inherited by every run on the instance.
+Both were built and then removed on 2026-08-04, unreleased and never proven
+against a live gated site. Each had shipped as one credential in the server's
+process environment, inherited by every run on the box, and that is the wrong
+place for both:
 
-### SMS
+- A **TOTP shared secret** is minted by one site for one account and *is* that
+  account's second factor. Nothing about it multiplexes, so one slot per machine
+  means the second account that needs 2FA cannot have one — while the tool and
+  its task paragraph attach to every other tenant's runs regardless.
+- An **SMS number** has no per-run discriminator the way a mailbox address does,
+  so two concurrent runs each take the newest message and can steal each other's
+  code. It is also an account key at the site under test, so a scheduled daily
+  signup fails on day two with "already registered" — and a *pool* of numbers is
+  a standing monthly rental on every carrier, all of it VoIP, which many sites
+  refuse outright.
 
-Configure `QA_TWILIO_ACCOUNT_SID` / `QA_TWILIO_AUTH_TOKEN` / `QA_TWILIO_TEST_NUMBER`
-and the agent gains a `get_sms_code` action: it polls the Twilio Messages API
-for up to 180 seconds for the newest message to the provisioned number and
-extracts its code, reusing the same extraction logic as the email tier.
+A replacement will be planned against those constraints rather than patched into
+that shape; the requirement is parked in
+[US-059](../backlog/unscheduled/US-059-otp-and-social-login-in-tested-flows.md),
+which records what was learned.
 
-Unlike the disposable per-run email address, the test number is routed as a
-secret (`<secret>sms_number</secret>`) rather than left plain in the task — it
-is a single real number tied to a billed account, reused across every run on
-the instance, not something scoped to disappear after one signup. The code
-itself follows the same `sensitive_data` / `agent/redact.py` round-trip as
-everywhere else.
-
-**This is the one tier with a real bill and a real vendor.** A programmable
-number is a monthly line rental plus a per-message cost, and it is BYO-Twilio-
-credentials, consistent with BYOK everywhere else in QAssist — we never hold
-or bill for it. A known, unresolved limitation: many sites reject VoIP numbers
-(which a Twilio programmable number is) outright at signup, and there is no
-workaround for that beyond provisioning a number the target site happens to
-accept.
+**What works today without any of it:** point a staging environment at your auth
+provider's OTP test mode and no code needs fetching. Twilio Verify has test
+credentials that always verify without sending a message, and Firebase Auth
+registers test phone numbers with fixed codes; most providers have an
+equivalent. The fictional number is then an ordinary
+[run variable](../backlog/sprint/current/done/US-035-run-variables.md), the fixed
+code is a `secret` one (stored encrypted, so a schedule can fire unattended —
+US-064), and the goal types `<secret>otp_code</secret>` like any other secret.
+This is also the only shape that repeats daily.
 
 ## Social login
 
@@ -237,10 +235,13 @@ reach, and the fence is what keeps a run from going there.
 
 ## Planned
 
-The remaining tier of
-[US-059](../backlog/sprint/current/US-059-otp-and-social-login-in-tested-flows.md)
-(P3, in progress — tiers 1/TOTP and 2/SMS above already shipped):
+[US-059](../backlog/unscheduled/US-059-otp-and-social-login-in-tested-flows.md)
+(P3, unscheduled since 2026-08-04 — it needs replanning, not resuming) holds all
+three:
 
+- **A second factor that is not emailed** — TOTP and SMS, to be designed against
+  the constraints in [Second factors](#second-factors) rather than as one
+  credential in the server's environment.
 - **Social, productised** — largely documentation rather than plumbing: which
   provider hosts to add to the fence, how to hold a provider test user, and
   re-proving expiry detection against a provider redirect, whose shape differs

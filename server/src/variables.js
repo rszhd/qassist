@@ -35,10 +35,10 @@ const NAME_RE = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
 const PLACEHOLDER = /\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g;
 
 // The secrets the *agent* puts in browser-use's `sensitive` dict itself, mid-run:
-// the generated signup password when a mailbox is configured, the code/link
-// get_email_code fetches, and the TOTP/SMS codes and SMS number US-059 added
-// (run_agent.py). They are never declared on a test, so `{{name}}` cannot reach
-// them — validateReferences would call them undeclared — and US-034's task
+// the generated signup password when a mailbox is configured, and the code/link
+// get_email_code fetches (run_agent.py). They are never declared on a test, so
+// `{{name}}` cannot reach them — validateReferences would call them undeclared
+// — and US-034's task
 // text teaches the `<secret>name</secret>` spelling to anyone who reads a run's
 // goal. So a hand-written literal is the only spelling they have, and
 // BUG-004's rejection has to let these through.
@@ -47,9 +47,6 @@ export const AGENT_PROVIDED_SECRETS = [
   'qa_password',
   'email_code',
   'email_link',
-  'totp_code',
-  'sms_number',
-  'sms_code',
 ];
 
 // The internal placeholder resolveForRun emits. Matching only well-formed tags
