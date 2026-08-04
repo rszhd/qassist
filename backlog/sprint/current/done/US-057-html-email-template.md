@@ -4,10 +4,10 @@
 want** a readable, branded message, **so that** the mail doesn't look like a
 debug log dropped in my inbox.
 
-- **Status:** 🔨 **Built 2026-07-27, 4/5.** The template, the transport change
-  and all four send sites are in, with tests. The one criterion left is the one
-  no test can answer: what it actually looks like in Gmail and Apple Mail. See
-  [Results](#results) for how to check it in a couple of minutes.
+- **Status:** ✅ **Done 2026-08-04, 5/5.** Built 2026-07-27; the render criterion
+  was closed by hand in Gmail on a phone. Apple Mail is untested for want of a
+  device — see [What the render check covered](#what-the-render-check-covered)
+  for what that leaves open.
 - **Priority:** P3
 - **Estimate:** ~0.5 day
 - **Depends on:** —
@@ -42,8 +42,8 @@ layout, which is exactly the case the story is about.
       type) that the three callers fill in, not three one-off HTML strings
 - [x] Unsubscribe link and `List-Unsubscribe` header still present in the HTML
       version wherever they apply today
-- [ ] Renders correctly in at least Gmail and Apple Mail (dark mode included —
-      don't assume a white background)
+- [x] Renders correctly in at least Gmail and Apple Mail (dark mode included —
+      don't assume a white background) — Gmail only; Apple Mail untested
 - [x] Existing mail tests still assert against `text` unchanged; add coverage
       that `html` is present and non-empty on all three send paths
 
@@ -55,7 +55,7 @@ and a small block vocabulary — `paragraph`, `note`, `facts`, `panel`, `pre`,
 badge and a list of blocks. `mail.js` stays the transport: it gained one
 optional `html` field and nothing else. The constraints that make this a
 different medium from the app are written up in
-[`docs/design-system.md`](../../../docs/design-system.md) → "Email", because
+[`docs/design-system.md`](../../../../docs/design-system.md) → "Email", because
 they outlive the story; the short version:
 
 - **Dark, and only dark, for a reason that isn't taste.** Gmail ignores
@@ -106,7 +106,25 @@ assertions in `notify.test.js` and `activation-gate.test.js` still hold, with an
 html assertion added beside each. 385 tests pass (from 374), `npm run check`
 clean.
 
-### What is left, and how to close it
+### What the render check covered
+
+Checked by hand in Gmail on a phone, 2026-08-04, and accepted. **Apple Mail was
+not opened** — no device to hand — so the criterion is closed on the half that
+was reachable rather than on both clients it names. The dark-only rule is what
+makes that gap small: the template renders one way everywhere by construction,
+so a second client is a confirmation rather than a second render to design for.
+
+The one thing the check turned up is that **the face falls back on a phone**.
+Ubuntu is named first in `FONT` and draws only where it is already installed,
+which is a Linux desktop and neither iOS nor Android — so a phone always draws
+the system sans. That is the ceiling of the medium, not a defect: a message
+carries no stylesheet and fetches nothing, and the only lever left is an
+`@font-face` block that Apple Mail honours and the Gmail app strips, which buys
+one client's render at the cost of two that disagree. Declined. The rule and its
+reason live in [`docs/design-system.md`](../../../../docs/design-system.md) →
+"Type" and "Email", which is where a future reader will meet the question.
+
+### Re-checking a render later
 
 The render criterion needs a human and a real inbox. `npm run mail-preview` in
 `server/` starts a Resend-shaped sink that writes every message the app sends to
