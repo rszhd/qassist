@@ -58,7 +58,7 @@ describe('RunDetail', () => {
     expect(screen.queryByText('passed')).toBeNull();
 
     // Same blocks as the panel, rearranged — not a second copy of them.
-    expect(screen.getByText('Goal')).toBeTruthy();
+    expect(screen.getByText('Instructions')).toBeTruthy();
     expect(screen.getAllByText(run.goal)).toHaveLength(1);
     expect(screen.getByText('Pass')).toBeTruthy();
     expect(screen.getByText('PDF report')).toBeTruthy();

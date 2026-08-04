@@ -114,13 +114,16 @@ export function TestDialog({
           </Field>
         )}
 
-        <Field label="Start URL">
+        <Field
+          label="Start URL"
+          hint="Some sites (Reddit, Cloudflare-protected pages) block datacenter IPs and will fail from a server."
+        >
           <input value={startUrl} autoFocus={isRun} onChange={(e) => setStartUrl(e.target.value)} />
         </Field>
 
         <Field
-          label="Goal"
-          hint="Some sites (Reddit, Cloudflare-protected pages) block datacenter IPs and will fail from a server."
+          label="Instructions"
+          hint="A goal, a list of steps, or a pasted ticket. The agent follows it, and the verdict is judged against it."
         >
           <textarea rows={4} value={goal} onChange={(e) => setGoal(e.target.value)} />
         </Field>

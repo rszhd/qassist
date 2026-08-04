@@ -568,7 +568,7 @@ export default function RunView({ token, health, keyStatus, visible, needsToken,
     <>
       <PageHeader
         title="Run"
-        description="Give the agent a URL and a goal in plain English, then watch it drive a real browser."
+        description="Give the agent a URL and instructions in plain English, then watch it drive a real browser."
       >
         {health?.db && (
           <Button icon={Plus} onClick={newTest} disabled={needsToken}>New test</Button>

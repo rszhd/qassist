@@ -173,7 +173,7 @@ function compose(run, name, recipient) {
   const lines = [
     `${label} — ${title}`,
     '',
-    `Goal: ${run.goal}`,
+    `Instructions: ${run.goal}`,
     `URL: ${run.start_url}`,
     `Steps: ${steps}${seconds != null ? ` · Duration: ${seconds}s` : ''}`,
     '',
@@ -193,7 +193,7 @@ function compose(run, name, recipient) {
       preheader: `${label} — ${verdict}`,
       blocks: [
         facts([
-          ['Goal', run.goal],
+          ['Instructions', run.goal],
           ['URL', run.start_url],
           ['Steps', steps],
           ['Duration', seconds != null ? `${seconds}s` : null],

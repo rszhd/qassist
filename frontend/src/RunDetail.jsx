@@ -196,12 +196,12 @@ export default function RunDetail({ run, token, onError, liveSteps, liveDiagnost
     </dl>
   );
 
-  // On the page the goal is the subject, so it gets a heading and leads the
-  // reading column; in the panel it stays an unlabelled paragraph under the
-  // facts, which is the shape History has always had.
+  // On the page the instructions are the subject, so they get a heading and
+  // lead the reading column; in the panel they stay an unlabelled paragraph
+  // under the facts, which is the shape History has always had.
   const goal = (
     <section className="goal-block">
-      {page && <CardHead title="Goal" />}
+      {page && <CardHead title="Instructions" />}
       <p ref={goalRef} className={`detail-goal${goalOpen ? ' open' : ''}`}>{run.goal}</p>
       {goalClamped && (
         <Button
