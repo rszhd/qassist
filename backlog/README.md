@@ -67,12 +67,12 @@ Sprints aren't split along a self-host/hosted-tier line — `sprint/current/` an
 | [US-056](sprint/current/US-056-production-deployment.md) | Production deployment: `app.qassist.run` goes live | 🔨 **Live** 2026-07-29 on `v0.3.0`, 4/10 — the rest need a sign-in, live Stripe keys, or a decision | US-007, US-038, US-052 |
 | [US-020](sprint/current/US-020-report-v2-screenshots-recording.md) | Report v2: step screenshots + recording | 📋 Planned — P2 | US-006 |
 | [US-066](sprint/current/US-066-chrome-web-store-listing.md) | List the session-capture extension on the Chrome Web Store | ⏳ **Submitted** 2026-08-03, 5/6 — `0.1.1` in review; the last criterion is Google's answer | US-063 |
-| [US-069](sprint/current/US-069-schedule-health-strip.md) | The last few nights, at a glance (pass/fail strip on the Schedules row) | 📋 Planned — P3 | US-010, US-011 |
 
 ### Done
 
 | ID | Story | Status | Depends on |
 |---|---|---|---|
+| [US-069](sprint/current/done/US-069-schedule-health-strip.md) | The last few nights, at a glance (pass/fail strip on the Schedules row) | ✅ **Done** 2026-08-04, 11/12 — the twelfth met server-side, not where it was written | US-010, US-011 |
 | [US-057](sprint/current/done/US-057-html-email-template.md) | An HTML template for outgoing email | ✅ **Done** 2026-08-04, 5/5 — render closed in Gmail; Apple Mail untested | — |
 | [US-067](sprint/current/done/US-067-mobile-app-view.md) | The app on a phone | ✅ **Done** 2026-08-03, 8/8 | US-025, US-030 |
 | [US-063](sprint/current/done/US-063-capture-a-session-without-a-terminal.md) | Capture a session without a terminal (browser extension) | ✅ **Shipped and hand-verified** 2026-07-31 — store listing out of scope | US-043, US-021 |

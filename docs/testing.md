@@ -67,8 +67,9 @@ rule that decides which of the four test shapes a given check gets:
   Anything whose correctness depends on the *type* a column arrives as — bigint
   counts, numerics, dates as strings — is in this class.
 
-  Four more, each found the same way — by writing the assertion first and
-  watching it pass against code that could not possibly be right:
+  Six more. The first four were found the same way — by writing the assertion
+  first and watching it pass against code that could not possibly be right; the
+  last two turned up while writing the query they break:
 
   - **An uncast `text[]` default comes back as the *string* `"{}"`** (US-042).
     An allowlist that arrives as a string matches nothing, which is precisely
@@ -87,6 +88,14 @@ rule that decides which of the four test shapes a given check gets:
     drops one name no-ops on the other engine, leaving the old constraint
     standing and rejecting every new value on exactly one of them. Drop both,
     as `004` and `011` do.
+  - **`row_number() over (…)` is rejected outright** (US-069). Loud, so
+    harmless in the same way the correlated subquery below is — but it takes
+    the per-row top-N with it, which is why the schedules strip fetches a
+    time-bounded window for the whole page and trims it in JS.
+  - **`count(*) filter (where …)` answers with the *unfiltered* count**
+    (US-069), silently. A per-slot failure tally written that way reports zero
+    failures on a slot that failed — green, which is the direction every wrong
+    answer on that surface fails in.
 
   It also can't run every query shape: a correlated subquery cannot see the
   outer alias, so `LIST_QUERY` in `routes/schedules.js` uses grouped derived

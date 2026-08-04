@@ -5,14 +5,15 @@
 results, **so that** "is my unattended testing healthy?" is answered by opening
 one page instead of filtering History four times.
 
-- **Status:** 📋 Planned — raised 2026-08-04 into `unscheduled/`, scheduled into
-  `sprint/current/` the same day.
+- **Status:** ✅ **Done** 2026-08-04 — raised into `unscheduled/`, scheduled,
+  built and closed the same day. 11 of 12 criteria; the twelfth is met
+  server-side rather than where it was written, for the reason under it.
 - **Priority:** P3
 - **Estimate:** ~a day (migration + one column threaded through the tick + a
   second query on the list route + the existing `Timeline` made reusable +
-  tests)
-- **Depends on:** [US-010](done/US-010-scheduled-runs.md) (schedules exist),
-  [US-011](done/US-011-run-history.md) (the runs table and the strip it already
+  tests). Actual: one day, and the estimate held.
+- **Depends on:** [US-010](US-010-scheduled-runs.md) (schedules exist),
+  [US-011](US-011-run-history.md) (the runs table and the strip it already
   draws)
 
 ## What exists today
@@ -157,12 +158,13 @@ wears the tag on the day it is made.
 
 ## Correctness
 
-**The slot collapse is an assertion-first candidate** (`CLAUDE.md` workflow
-rule), and it is offered as a candidate rather than assumed to be one — the
-maintainer's call.
+**The slot collapse is correctness-critical** — ruled 2026-08-04 by the
+maintainer, on the argument below, and it now holds a row in
+`correctness-critical.md`.
 
-The argument for: the input is seven statuses (`queued`, `running`, `passed`,
-`failed`, `completed`, `error`, `cancelled`) crossed with a nullable `success`,
+The argument for, which carried it: the input is seven statuses (`queued`,
+`running`, `passed`, `failed`, `completed`, `error`, `cancelled`) crossed with a
+nullable `success`,
 collapsed into one colour, and every wrong answer fails in the same direction —
 **green**. A slot of nine passes and one error reading green is a false all-clear
 on the page whose entire purpose is to raise the alarm, and it is invisible:
@@ -172,12 +174,22 @@ a mess — a still-running member, a stopped one (US-047), a `completed` one wit
 no verdict — and there is no obvious right answer to any of them that a
 written-alongside test would not simply ratify.
 
-The argument against: it is display aggregation, not billing or secrets or slot
-math. If it is judged ordinary, it is test-alongside like any other UI helper
-and no row is owed to `correctness-critical.md`.
+The argument against, which did not: it is display aggregation, not billing or
+secrets or slot math.
 
-Either way the collapse is a **pure function in its own module** with the
-precedence order written down as data, not an inline ternary in JSX.
+The collapse is a **pure function in its own module** with the precedence order
+written down as data, not an inline ternary in JSX. The order that shipped:
+`error > failed > running > queued > cancelled > completed > passed`, with an
+unknown status sorting worst. Outcomes beat in-flight members, an unfinished
+slot never gets a settled-looking colour, and green needs every member.
+
+**What the ruling does not claim.** The assertion-first order was *not* followed
+here. The implementation and its tests landed in one sitting, so
+`server/test/slot-verdict.test.js` ratifies the precedence rather than having
+specified it, and the maintainer confirmed the order after the fact rather than
+before. The row is added anyway, because the register's job is to say which
+surfaces owe the discipline *next time* — the collapse escalates on its next
+change, the same footing as the five other test-alongside rows.
 
 ## Acceptance criteria
 
@@ -207,6 +219,34 @@ precedence order written down as data, not an inline ternary in JSX.
       this story exists to prevent. Its precedence is asserted directly in
       `server/test/slot-verdict.test.js`; the frontend covers the mapping from
       a slot to a bar (`Timeline.test.jsx`)
+
+## Results
+
+Shipped 2026-08-04 across two commits: the feature (`f3a6267`) and a visual
+revision the day it landed (`d3fae0e`).
+
+- **Migration 019 is inert on arrival.** Existing rows get null in both new
+  columns, so no strip appears until the first tick after deploy. That is a
+  night of a feature looking broken, and the migration comment says so.
+- **The strip fills its row.** The ticks first shipped at a fixed `--s15`
+  anchored to the right edge, which left most of a wide row empty and read as a
+  fragment. They now share the width they are given, one rule serving History
+  and a schedule row. Measured in Chromium against the real stylesheets: a
+  25-run strip draws 24px ticks at 1280px and 7.6px at 360px, with no overflow
+  at any width and no wrap. Below the 600px breakpoint the *gap* drops to
+  `--s05` — at `--s1` it was as wide as the tick beside it and the strip read as
+  a dotted line. A ~7px tick is still under a comfortable touch target; fixing
+  that means charting fewer bars on a phone, which is its own decision.
+- **History lost its caption with the same change.** "5/7 passed in this page"
+  counted the page rather than the test, so the number moved with the paging
+  controls instead of with anything the reader was looking at, and the strip's
+  own colours already answer it. "Oldest" went too — the bars read left to right
+  and only the far end needs naming.
+- **Two pg-mem traps, both silent**, now recorded in `docs/testing.md`'s terms:
+  `row_number() over (…)` is rejected outright, and `count(*) filter (where …)`
+  answers with the **unfiltered** count — which would have put a clean tally
+  under a failed slot. The partial index went to a real Postgres test for the
+  reason the Details section predicted.
 
 ## Notes
 
