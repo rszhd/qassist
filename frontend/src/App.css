@@ -465,6 +465,14 @@ code { font-family: var(--mono); font-size: .92em; }
 }
 .onboard-foot span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
+/* Settings is a stack of unrelated sections, not one form, and every one of
+   them opens with a `--t-base` label — at a card's gap alone the account, the
+   keys and the theme all read as one list of fields. Same divider a card uses
+   between its blocks, so the sections separate without a second border. */
+.settings { display: flex; flex-direction: column; gap: var(--s4); }
+.settings > * + * { padding-top: var(--s3); border-top: 1px solid var(--border); }
+
+.settings-instance { display: flex; flex-direction: column; gap: var(--s2); }
 .settings-account { display: flex; align-items: center; gap: var(--s3); }
 .settings-account span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
@@ -690,7 +698,13 @@ select {
 .modal-head h2 { font-size: var(--t-lg); font-weight: 600; letter-spacing: -.008em; }
 .modal-head p { margin-top: var(--s1); font-size: var(--t-base); line-height: 1.5; color: var(--muted); }
 .modal-head .icon-btn { margin-left: auto; }
-.modal-body { padding: 0 var(--card-pad) var(--card-pad); overflow-y: auto; display: flex; flex-direction: column; gap: var(--s4); }
+/* `overscroll-behavior` and not just the body lock in `Modal`: iOS ignores
+   `overflow: hidden` on <body>, so a flick that reaches the end of a long
+   dialog handed the scroll to the page underneath and rubber-banded it. */
+.modal-body {
+  padding: 0 var(--card-pad) var(--card-pad); overflow-y: auto; overscroll-behavior: contain;
+  display: flex; flex-direction: column; gap: var(--s4);
+}
 .modal-foot {
   display: flex; justify-content: flex-end; gap: var(--s2);
   padding: var(--s3) var(--card-pad); border-top: 1px solid var(--border); background: var(--sunken);
@@ -812,7 +826,11 @@ select {
   .list li > .row-main { align-self: stretch; justify-content: center; min-height: var(--ctl); }
 
   /* The scrim's inset is the modal's only side margin on a phone, and at
-     `--s5` it cost 40px of a 320px screen. */
-  .overlay { padding: var(--s3); }
+     `--s5` it cost 40px of a 320px screen. And no blur: a backdrop filter over
+     the whole viewport is re-run by the compositor while the dialog above it
+     scrolls — and what it samples includes the top bar's own `blur(12px)` —
+     which is what made a long Settings drag frame by frame. The scrim alone
+     separates the dialog. */
+  .overlay { padding: var(--s3); backdrop-filter: none; }
 }
 

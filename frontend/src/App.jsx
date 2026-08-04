@@ -270,74 +270,79 @@ export default function App() {
           onClose={() => setSettingsOpen(false)}
           footer={<Button variant="primary" onClick={() => setSettingsOpen(false)}>Done</Button>}
         >
-          {multi && (
-            <>
-              <Field label="Account" hint="Your session is a sign-in cookie, not a token.">
-                <div className="settings-account">
-                  <span>{me?.email}</span>
-                  <Button variant="secondary" size="sm" onClick={signOut}>
-                    Sign out
-                  </Button>
-                </div>
+          <div className="settings">
+            {multi && (
+              <>
+                <Field label="Account" hint="Your session is a sign-in cookie, not a token.">
+                  <div className="settings-account">
+                    <span>{me?.email}</span>
+                    <Button variant="secondary" size="sm" onClick={signOut}>
+                      Sign out
+                    </Button>
+                  </div>
+                </Field>
+                {/* US-022: only when the instance actually bills. Unset STRIPE_*
+                    leaves health.billing false and the dialog is what it was. */}
+                {health?.billing && <Billing state={billingStatus} keyStatus={keyStatus} />}
+                <ApiKeys />
+              </>
+            )}
+            {/* Both cookie modes hide this: the field asks for the deployment's
+                WORKER_API_TOKEN, which a demo visitor can't have and doesn't need. */}
+            {!multi && !demo && (
+              <Field
+                label="API token"
+                hint="The worker's WORKER_API_TOKEN. Required on every API and WebSocket call."
+              >
+                <input
+                  type="password"
+                  value={token}
+                  placeholder="WORKER_API_TOKEN"
+                  onChange={(e) => setToken(e.target.value)}
+                />
               </Field>
-              {/* US-022: only when the instance actually bills. Unset STRIPE_*
-                  leaves health.billing false and the dialog is what it was. */}
-              {health?.billing && <Billing state={billingStatus} keyStatus={keyStatus} />}
-              <ApiKeys />
-            </>
-          )}
-          {/* Both cookie modes hide this: the field asks for the deployment's
-              WORKER_API_TOKEN, which a demo visitor can't have and doesn't need. */}
-          {!multi && !demo && (
-            <Field
-              label="API token"
-              hint="The worker's WORKER_API_TOKEN. Required on every API and WebSocket call."
-            >
-              <input
-                type="password"
-                value={token}
-                placeholder="WORKER_API_TOKEN"
-                onChange={(e) => setToken(e.target.value)}
-              />
+            )}
+            {/* Every mode with an agent (US-039): runs are funded by the caller's
+                stored key, in a solo self-host exactly like a tenant. A demo runs
+                no agent, so it has no key to manage. */}
+            {!demo && <OpenaiKey token={token} status={keyStatus} onReload={loadKeyStatus} />}
+            <Field label="Theme" hint="Dark is the default. Match system follows your OS setting.">
+              <select value={theme} onChange={(e) => setTheme(e.target.value)}>
+                <option value="dark">Dark</option>
+                <option value="light">Light</option>
+                <option value="system">Match system</option>
+              </select>
             </Field>
-          )}
-          {/* Every mode with an agent (US-039): runs are funded by the caller's
-              stored key, in a solo self-host exactly like a tenant. A demo runs
-              no agent, so it has no key to manage. */}
-          {!demo && <OpenaiKey token={token} status={keyStatus} onReload={loadKeyStatus} />}
-          <Field label="Theme" hint="Dark is the default. Match system follows your OS setting.">
-            <select value={theme} onChange={(e) => setTheme(e.target.value)}>
-              <option value="dark">Dark</option>
-              <option value="light">Light</option>
-              <option value="system">Match system</option>
-            </select>
-          </Field>
-          {health && (
-            <dl className="detail-facts">
-              <dt>Control plane</dt>
-              <dd>{health.db ? 'Connected' : 'Not configured — saved tests and history are off'}</dd>
-              <dt>Auth</dt>
-              <dd>
-                {multi
-                  ? 'Multi-user (magic-link)'
-                  : demo
-                    ? 'Demo sandbox (session cookie)'
-                    : health.auth
-                      ? 'Token required'
-                      : 'Open (no token configured)'}
-              </dd>
-              <dt>Email</dt>
-              <dd>{health.mail ? 'Configured' : 'Off — no RESEND_API_KEY / MAIL_FROM'}</dd>
-              {/* Absent rather than "Off" (US-022): on a free instance billing
-                  isn't a setting that happens to be disabled, it doesn't exist. */}
-              {health.billing && (
-                <>
-                  <dt>Billing</dt>
-                  <dd>Stripe — runs need a subscription</dd>
-                </>
-              )}
-            </dl>
-          )}
+            {health && (
+              <div className="settings-instance">
+                <div className="field-label">Instance</div>
+                <dl className="detail-facts">
+                  <dt>Control plane</dt>
+                  <dd>{health.db ? 'Connected' : 'Not configured — saved tests and history are off'}</dd>
+                  <dt>Auth</dt>
+                  <dd>
+                    {multi
+                      ? 'Multi-user (magic-link)'
+                      : demo
+                        ? 'Demo sandbox (session cookie)'
+                        : health.auth
+                          ? 'Token required'
+                          : 'Open (no token configured)'}
+                  </dd>
+                  <dt>Email</dt>
+                  <dd>{health.mail ? 'Configured' : 'Off — no RESEND_API_KEY / MAIL_FROM'}</dd>
+                  {/* Absent rather than "Off" (US-022): on a free instance billing
+                      isn't a setting that happens to be disabled, it doesn't exist. */}
+                  {health.billing && (
+                    <>
+                      <dt>Billing</dt>
+                      <dd>Stripe — runs need a subscription</dd>
+                    </>
+                  )}
+                </dl>
+              </div>
+            )}
+          </div>
         </Modal>
       )}
     </>
