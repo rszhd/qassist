@@ -606,28 +606,28 @@ a.row-main { color: inherit; text-decoration: none; }
 .sched-list .list li { flex-wrap: wrap; }
 .sched-strip { flex-basis: 100%; }
 .sched-strip:not(:empty) { margin-top: var(--s2); }
-/* Bars first, then their tally, both left-aligned under the name above them.
-   History's strip is the subject of its page and spans it; this one is a
-   footnote to a row, and stretching it to the far edge only opened a gutter
-   between the two halves of one thought. */
-.sched-strip .timeline-chart { order: 1; margin-left: 0; }
-.sched-strip .timeline-rate { order: 2; margin-right: 0; font-weight: 400; }
+/* Bars first, spanning the row, then their tally at the far end. */
+.sched-strip .timeline-chart { order: 1; }
+.sched-strip .timeline-rate { order: 2; font-weight: 400; }
 /* Shorter than History's: a glance from a list, not the chart of a page. */
 .sched-strip .timeline-bars { height: var(--s4); }
 
-/* Uptime-monitor status bar: solid ticks of a fixed width, anchored right so
-   the newest slot sits at the same edge whether there are three of them or
-   twenty, and a short history reads as short instead of stretching to fill. */
+/* Uptime-monitor status bar: the bars take the whole width they are given and
+   share it evenly, so few slots draw wide ticks and many draw narrow ones. */
 .timeline { display: flex; align-items: center; flex-wrap: wrap; gap: var(--s2); font-size: var(--t-xs); color: var(--faint); }
-/* The caption holds the left edge and the chart the right, so every row's
-   newest tick lands on the same column however many slots it has. */
-.timeline-rate { margin-right: auto; font-weight: 600; color: var(--muted); }
-.timeline-chart { display: flex; align-items: center; gap: var(--s2); min-width: 0; margin-left: auto; }
+.timeline-rate { flex: 0 0 auto; font-weight: 600; color: var(--muted); }
+.timeline-chart { flex: 1; display: flex; align-items: center; gap: var(--s2); min-width: 0; }
 .timeline-scale { flex: 0 0 auto; white-space: nowrap; }
-.timeline-bars { display: flex; justify-content: flex-end; gap: var(--s1); height: var(--s6); min-width: 0; }
-.tl-bar { flex: 0 1 var(--s15); min-width: 2px; border: 0; padding: 0; border-radius: 2px; cursor: pointer; transition: filter var(--fast), transform var(--fast); }
+.timeline-bars { flex: 1; display: flex; gap: var(--s1); height: var(--s6); min-width: 0; }
+.tl-bar { flex: 1 1 0; min-width: 2px; border: 0; padding: 0; border-radius: 2px; cursor: pointer; transition: filter var(--fast), transform var(--fast); }
 .tl-bar:hover { filter: brightness(1.2); transform: scaleY(1.12); }
 .tl-bar.active { outline: 1px solid var(--text); outline-offset: 2px; }
+/* On a phone the strip has ~240px for 25 ticks, where a `--s1` gap is as wide
+   as the tick beside it and the strip reads as a dotted line. The gap gives way
+   before the tick does. */
+@media (max-width: 600px) {
+  .timeline-bars { gap: var(--s05); }
+}
 
 .detail-facts { display: grid; grid-template-columns: auto 1fr; gap: var(--s15) var(--s4); margin: 0; font-size: var(--t-base); }
 .detail-facts dt { color: var(--faint); }

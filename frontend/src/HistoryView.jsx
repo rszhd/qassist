@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { AlertTriangle, ChevronLeft, ChevronRight, Clock, MousePointerClick } from 'lucide-react';
 import { api } from './api.js';
 import RunDetail from './RunDetail.jsx';
-import Timeline, { runMarks, runCaption } from './Timeline.jsx';
+import Timeline, { runMarks } from './Timeline.jsx';
 import { Button, CardHead, EmptyState, PageHeader } from './ui.jsx';
 import { statusColor, formatWhen, formatDuration } from './status.js';
 
@@ -211,8 +211,6 @@ export default function HistoryView({ token }) {
           {testId !== 'all' && (
             <Timeline
               marks={runMarks(data.runs)}
-              caption={runCaption(data.runs)}
-              startLabel="Oldest"
               endLabel="Newest"
               onPick={setSelectedId}
               selectedKey={selectedId}

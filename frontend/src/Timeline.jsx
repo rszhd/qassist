@@ -16,11 +16,10 @@ import { statusColor, formatWhen, statusLabel } from './status.js';
  */
 
 /**
- * @param {{ marks: Mark[], caption?: string, startLabel?: string,
- *           endLabel?: string, onPick?: (key: string) => void,
- *           selectedKey?: string | null }} props
+ * @param {{ marks: Mark[], caption?: string, endLabel?: string,
+ *           onPick?: (key: string) => void, selectedKey?: string | null }} props
  */
-export default function Timeline({ marks, caption, startLabel, endLabel, onPick, selectedKey }) {
+export default function Timeline({ marks, caption, endLabel, onPick, selectedKey }) {
   // Nothing to chart draws nothing, not an empty frame: a schedule that has
   // not run yet and one whose runs predate the attribution columns both land
   // here, and an empty strip would read as "ran and produced no verdicts".
@@ -28,13 +27,11 @@ export default function Timeline({ marks, caption, startLabel, endLabel, onPick,
 
   return (
     <div className="timeline">
-      <span className="timeline-rate">{caption}</span>
-      {/* Scale labels sit either side of the bars rather than at the edges of
-          the row — fixed-width ticks do not fill the width, so an edge-anchored
-          "Newest" would point at empty space. Optional: in a list row there is
-          no space for them, and every bar's tooltip names its own slot. */}
+      {caption && <span className="timeline-rate">{caption}</span>}
+      {/* One end label, not two: the bars run oldest to newest and only the
+          newest end is worth naming. Optional — in a list row there is no space
+          for it, and every bar's tooltip names its own slot. */}
       <span className="timeline-chart">
-        {startLabel && <span className="timeline-scale">{startLabel}</span>}
         <span className="timeline-bars">
           {marks.map((mark) => (
             <button
@@ -94,13 +91,4 @@ function slotTitle({ scheduled_for, status, runs, failed }) {
 export function slotCaption(recent) {
   const passed = recent.filter((s) => s.status === 'passed').length;
   return `${passed}/${recent.length} ${recent.length === 1 ? 'slot' : 'slots'} passed`;
-}
-
-/** The caption above History's strip: how the page it charts turned out. */
-export function runCaption(runs) {
-  const judged = runs.filter((r) => r.success !== null);
-  const passed = judged.filter((r) => r.success).length;
-  return judged.length
-    ? `${passed}/${judged.length} passed in this page`
-    : 'No verdicts in this page';
 }

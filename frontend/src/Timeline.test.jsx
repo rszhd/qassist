@@ -6,7 +6,7 @@
 // is asserted here — order, click, and the mapping History feeds it.
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import Timeline, { runMarks, runCaption, slotMarks, slotCaption } from './Timeline.jsx';
+import Timeline, { runMarks, slotMarks, slotCaption } from './Timeline.jsx';
 
 afterEach(cleanup);
 
@@ -25,7 +25,6 @@ describe('Timeline', () => {
       <Timeline
         marks={[mark('a'), mark('b'), mark('c')]}
         caption="3 slots"
-        startLabel="Oldest"
         endLabel="Newest"
       />
     );
@@ -34,15 +33,14 @@ describe('Timeline', () => {
       'b — passed',
       'c — passed',
     ]);
-    expect(screen.getByText('Oldest')).toBeTruthy();
+    expect(screen.getByText('Newest')).toBeTruthy();
     expect(screen.getByText('3 slots')).toBeTruthy();
   });
 
-  it('omits the scale labels a list row has no space for', () => {
+  it('omits the scale label a list row has no space for', () => {
     // Opt-in, so the strip on a Schedules row is bars and a tally and nothing
     // else — every bar's tooltip already names its own slot.
     render(<Timeline marks={[mark('a')]} caption="1 slot" />);
-    expect(screen.queryByText('Oldest')).toBe(null);
     expect(screen.queryByText('Newest')).toBe(null);
   });
 
@@ -82,12 +80,6 @@ describe('runMarks', () => {
     expect(colours.newest).toBe('var(--fill-failed)');
     expect(colours.middle).toBe('var(--fill-passed)');
     expect(colours.oldest).toBe('var(--fill-running)');
-  });
-
-  it('counts only the runs that reached a verdict', () => {
-    // The one still running has no verdict to be counted for or against.
-    expect(runCaption(runs)).toBe('1/2 passed in this page');
-    expect(runCaption([runs[2]])).toBe('No verdicts in this page');
   });
 });
 
