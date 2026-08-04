@@ -94,6 +94,17 @@ permissive while meaning something. That was the deciding argument over the
 that quietly narrowed the envelope would be found by a killed run, not by
 reading the diff.
 
+**The sizing rule followed** (2026-08-05, maintainer's call). `MAX_CONCURRENT_
+SESSIONS`'s rule of thumb was `floor((RAM_GB − 1.5) / 1)` and is now
+`floor((RAM_GB − 1.5) / 0.7)`, stated the same way in `README.md`,
+`.env.example`, `docs/deploy/production.md` and `docs/quickstart.md`. The old
+divisor was conservative *by accident* — it inherited the 1.7x over-count — so
+leaving it would have kept the README contradicting its own new 700 MB figure
+in the adjacent row. The **default stays 4**: this is guidance, not a capacity
+change, and no instance re-sizes itself. Documented as a ceiling to size down
+from, because 700 MB is one page with no LLM in the loop; on 7.6 GB the rule
+now says 8 where it said 6.
+
 ### The RSS fallback is the part that needed the assertions
 
 `smaps_rollup` is absent before Linux 4.14 and unreadable without ptrace access,

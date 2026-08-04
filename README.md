@@ -140,7 +140,7 @@ Set in `.env` (see `.env.example`):
 |---|---|---|
 | `WORKER_API_TOKEN` | — | Bearer token required on every API/WS call |
 | `BROWSER_USE_MODEL` | `gpt-4.1` | OpenAI model |
-| `MAX_CONCURRENT_SESSIONS` | `4` | Concurrent browser cap — the real throttle. Rule: `floor((RAM_GB − 1.5) / 1)`. Runs over the cap wait in an in-memory FIFO and are told their position live; the queue is not durable, so a restart marks everything still waiting `error` |
+| `MAX_CONCURRENT_SESSIONS` | `4` | Concurrent browser cap — the real throttle. Rule: `floor((RAM_GB − 1.5) / 0.7)`, from the ~700 MB a run peaks at (US-024) and a 1.5 GB reserve for Postgres, Node and the OS. It assumes the box is yours alone; subtract anything else on it. Runs over the cap wait in an in-memory FIFO and are told their position live; the queue is not durable, so a restart marks everything still waiting `error` |
 | `MAX_STEPS` | `60` | Safety ceiling on agent steps per run |
 | `MAX_RUN_MEMORY_MB` | `1000` | Per-run **PSS** cap over the run's process tree; over it the run is killed and marked failed. PSS divides Chromium's shared pages among the processes sharing them, so this is what the machine pays: a recording run peaks at ~700 MB. Sizing rule it implies: budget ~700 MB per concurrent run. **The unit changed** (US-024) — it was summed RSS, which measured that same run at ~1190 MB, so a value you set yourself before then needs dividing by ~1.7. Re-measure with `agent/measure_memory.py` |
 | `STOP_GRACE_SECONDS` | `10` | How long a stopped run (US-047) has to end itself gracefully — finalizing its recording and report — before the process tree is killed anyway. A run stopped either way ends `cancelled` |

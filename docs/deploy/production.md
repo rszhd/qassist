@@ -55,12 +55,17 @@ the PDF, a working run link in notification mail, and — because it is how the
 app knows it is on HTTPS — what makes the session cookie `Secure`.
 
 `MAX_CONCURRENT_SESSIONS` deserves a thought rather than the default.
-`.env.example`'s rule — `floor((RAM_GB − 1.5) / 1)` — assumes the box is yours
+`.env.example`'s rule — `floor((RAM_GB − 1.5) / 0.7)` — assumes the box is yours
 alone. Subtract anything else living on it, and subtract every other stack that
 borrows from the same RAM. A 4 vCPU / 8 GB box already running an unrelated
-database lands at **3 for production and 1 for staging**, not the 6 the rule
+database lands at **3 for production and 1 for staging**, not the 9 the rule
 alone would suggest — and standing [preview](preview.md) up as well means that 3
 comes down, because a fourth app container brings a fourth Postgres with it.
+
+The gap between 9 and 3 is the point: the 0.7 is a measured peak from a single
+page with no LLM in the loop (US-024), so the rule is a ceiling to size *down*
+from, not a target. It replaced a `/ 1` that was conservative by accident,
+because the metric behind it over-counted Chromium's shared pages by 1.7x.
 
 If this instance runs multi-user auth, also set `AUTH_ENABLED=1`,
 `SESSION_SECRET`, `RESEND_API_KEY` and `MAIL_FROM`; the app refuses to boot
