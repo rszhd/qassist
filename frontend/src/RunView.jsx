@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
-  Activity, AlertTriangle, Check, CircleStop, Clock, CreditCard, Download, KeyRound, Monitor,
-  PanelLeftOpen, Play, Plus, Undo2, X,
+  Activity, AlertTriangle, Check, CircleStop, Clock, CreditCard, Download, ExternalLink, KeyRound,
+  Monitor, PanelLeftOpen, Play, Plus, Undo2, X,
 } from 'lucide-react';
 import { api, openReport } from './api.js';
 import ActivityLog from './Activity.jsx';
@@ -571,6 +572,14 @@ export default function RunView({ token, health, keyStatus, visible, needsToken,
       >
         {health?.db && (
           <Button icon={Plus} onClick={newTest} disabled={needsToken}>New test</Button>
+        )}
+        {/* The stage shows this run; /runs/<id> is everything else about it —
+            the steps, the evidence, the report. It appears as soon as the run
+            has an id, not once it ends: the address is what you send to someone
+            else while it is still going. Navigating there keeps the run alive,
+            because the Run view hides rather than unmounts (see App). */}
+        {runId && (
+          <Button as={Link} icon={ExternalLink} to={`/runs/${runId}`}>Full report</Button>
         )}
         {/* US-047. `danger` colours the click, not the outcome: this interrupts
             something, and while a run is healthy it is the only red on the page,

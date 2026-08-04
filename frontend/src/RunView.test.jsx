@@ -9,6 +9,7 @@
 // either. The rest of RunView (WebSocket, live frames) is stubbed away.
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import RunView from './RunView.jsx';
 
 // Every socket the view opens, newest last, so a test can push relay events
@@ -59,17 +60,21 @@ function stubEnv(withVars = WITH_VARS) {
   return calls;
 }
 
+// Inside a router: the view links a started run to its own page, and a bare
+// <Link> outside one throws.
 function renderRunView() {
   return render(
-    <RunView
-      token="t"
-      health={{ db: true }}
-      keyStatus={{ set: true, updated_at: null }}
-      visible
-      needsToken={false}
-      onOpenSettings={() => {}}
-      onRunState={() => {}}
-    />
+    <MemoryRouter>
+      <RunView
+        token="t"
+        health={{ db: true }}
+        keyStatus={{ set: true, updated_at: null }}
+        visible
+        needsToken={false}
+        onOpenSettings={() => {}}
+        onRunState={() => {}}
+      />
+    </MemoryRouter>
   );
 }
 
