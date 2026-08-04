@@ -11,6 +11,7 @@ import { formatWhen } from './status.js';
 // bring it back.
 export default function ApiKeys() {
   const [keys, setKeys] = useState(null);
+  const [label, setLabel] = useState('');
   const [fresh, setFresh] = useState(null);
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -25,13 +26,15 @@ export default function ApiKeys() {
     load();
   }, []);
 
-  async function create() {
+  async function create(event) {
+    event.preventDefault();
     setBusy(true);
     setError(null);
     try {
-      const key = await api('/api/keys', { method: 'POST', body: {} });
+      const key = await api('/api/keys', { method: 'POST', body: { label: label.trim() } });
       setFresh(key);
       setCopied(false);
+      setLabel('');
       setKeys((prev) => [key, ...(prev || [])]);
     } catch (e) {
       setError(e.message);
@@ -61,15 +64,23 @@ export default function ApiKeys() {
 
   return (
     <div className="api-keys">
-      <div className="api-keys-head">
-        <div className="field-label">API keys</div>
-        <Button size="sm" icon={Plus} onClick={create} disabled={busy}>
-          New key
-        </Button>
-      </div>
+      <div className="field-label">API keys</div>
       <p className="field-hint">
         Bearer tokens for CI and scripts. A key carries your access — treat it like a password.
       </p>
+
+      <form className="api-key-new" onSubmit={create}>
+        <input
+          value={label}
+          onChange={(e) => setLabel(e.target.value)}
+          placeholder="Name this key, e.g. CI pipeline"
+          aria-label="Key name"
+          maxLength={120}
+        />
+        <Button icon={Plus} type="submit" disabled={busy}>
+          New key
+        </Button>
+      </form>
 
       {fresh && (
         <div className="api-key-fresh">
