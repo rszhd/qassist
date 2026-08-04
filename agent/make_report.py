@@ -3,12 +3,13 @@
 Usage:  make_report.py <data.json> <out.pdf>
 
 "Verdict Band" design: the whole header IS the verdict — a full-bleed color
-field (pine green pass / deep red fail). Below it, steps read as an execution
-log with elapsed-time markers on a timeline rail.
+field (pine green pass / deep red fail). Below it the cover carries the run's
+figures and summary, and the pages after it the instruction in full (when the
+band could hold only its opening) and the browser diagnostics.
 
 Reuses the Chromium that browser-use already installed (via Playwright) to
-convert an HTML template to PDF — highest fidelity, embeds screenshots and
-fonts as data URIs, fully self-contained.
+convert an HTML template to PDF — highest fidelity, embeds fonts as data URIs,
+fully self-contained.
 
 The data JSON shape is produced by the Express server (see generateReport()):
   { runId, goal, start_url, model, status, success, duration_seconds,
@@ -18,7 +19,8 @@ The data JSON shape is produced by the Express server (see generateReport()):
     steps: [{ step, elapsed, next_goal, evaluation, url, screenshot_file }],
     diagnostics: [{ kind, step, count, url?, status?, error?, level?, text? }],
     diagnostics_dropped: n }
-Screenshot files are resolved relative to the data file's directory.
+`steps` is read for its count only — the per-step log the server still sends
+was never rendered by this template and its half of it is gone (2026-08-04).
 """
 from __future__ import annotations
 
@@ -29,15 +31,14 @@ import re
 import sys
 
 from report_format import (
+    clamp_goal,
     diagnostic_detail,
     diagnostic_label,
     esc,
     fmt_date,
     fmt_duration,
-    fmt_elapsed,
     fmt_occurrences,
     group_diagnostics,
-    step_ok,
 )
 
 FONTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fonts")
@@ -113,16 +114,7 @@ def font_face_css() -> str:
     return "\n".join(rules)
 
 
-def img_data_uri(path: str) -> str | None:
-    try:
-        with open(path, "rb") as f:
-            b64 = base64.b64encode(f.read()).decode()
-        return f"data:image/png;base64,{b64}"
-    except Exception:
-        return None
-
-
-def build_html(data: dict, base_dir: str) -> str:
+def build_html(data: dict) -> str:
     success = data.get("success")
     # A stopped run (US-047) is read off the status, not the verdict: it carries
     # no `success` at all, and letting it fall through to "neutral" would print
@@ -204,56 +196,6 @@ def build_html(data: dict, base_dir: str) -> str:
     else:
         summary_html = '<p class="summary-text muted">No summary text was produced.</p>'
 
-    steps = data.get("steps", [])
-    steps_html = ""
-    for i, s in enumerate(steps):
-        first = " first" if i == 0 else ""
-        last = " last" if i == len(steps) - 1 else ""
-        shot = s.get("screenshot_file")
-        uri = img_data_uri(os.path.join(base_dir, shot)) if shot else None
-        shot_area = (
-            f'<div class="shot-area"><img src="{uri}" alt="step screenshot"/></div>'
-            if uri
-            else '<div class="shot-area shot-empty">SCREENSHOT</div>'
-        )
-        # Full-width screenshot in a faux browser chrome; the step URL lives
-        # in its address bar.
-        addr = (
-            f'<span class="addr">{esc(s.get("url"))}</span>' if s.get("url") else ""
-        )
-        browser_frame = f"""
-            <div class="shot">
-              <div class="shot-chrome">
-                <span class="dot"></span><span class="dot"></span><span class="dot"></span>
-                {addr}
-              </div>
-              {shot_area}
-            </div>"""
-        ok = step_ok(s.get("evaluation"))
-        ok_html = (
-            '<span class="ok-mark">· OK</span>' if ok is True
-            else '<span class="ok-mark bad">· FAILED</span>' if ok is False
-            else ""
-        )
-        eval_html = (
-            f'<div class="label lbl-gap">Result</div>'
-            f'<p class="step-p">{esc(s.get("evaluation"))} {ok_html}</p>'
-            if s.get("evaluation")
-            else ""
-        )
-        steps_html += f"""
-        <div class="log-step{first}{last}">
-          <div class="log-time">{fmt_elapsed(s.get("elapsed"))}</div>
-          <div class="log-rail"><span class="node{' node-bad' if ok is False else ''}"></span><span class="rail-line"></span></div>
-          <div class="log-body">
-            <h3>Step {esc(s.get("step"))}</h3>
-            <div class="label">Action</div>
-            <p class="step-p">{esc(s.get("next_goal"))}</p>
-            {eval_html}
-            <div class="shot-wrap">{browser_frame}</div>
-          </div>
-        </div>"""
-
     # What the browser said while this was failing (US-044). Its own section on
     # its own page: this is the part a developer reading a 3am failure mail
     # starts from, and it has to be findable without scrolling the whole log.
@@ -299,6 +241,23 @@ def build_html(data: dict, base_dir: str) -> str:
           {dropped_html}
         </section>"""
 
+    # A long instruction is the test itself, so none of it can be lost — but a
+    # band that grows with it takes the cover with it, and the reader loses the
+    # verdict to read the setup. The band gets an opening that fits; the body
+    # gets every word.
+    cover_goal, goal_clamped = clamp_goal(data.get("goal"))
+    instruction_html = ""
+    band_more = ""
+    if goal_clamped:
+        band_more = '<p class="band-more">Full instruction on the next page</p>'
+        instruction_html = f"""
+        <section class="instruction">
+          <div class="log-head">
+            <div class="label">Test instruction</div>
+          </div>
+          <p class="instruction-text">{esc(str(data.get("goal")).strip())}</p>
+        </section>"""
+
     recording_url = data.get("recording_url")
     if recording_url:
         rec_cta = f'<a class="rec-cta" href="{esc(recording_url)}">▶&nbsp; View recording</a>'
@@ -318,12 +277,6 @@ def build_html(data: dict, base_dir: str) -> str:
             <div class="rec-hero-note">{rec_note}</div>
           </div>
           {rec_cta}
-        </div>"""
-
-    scroll_cta = """
-        <div class="scroll-cta">
-          <div class="scroll-cta-main">Execution log continues on the following pages</div>
-          <div class="scroll-arrow">↓</div>
         </div>"""
 
     generated = fmt_date(data.get("generated_at"))
@@ -382,6 +335,11 @@ def build_html(data: dict, base_dir: str) -> str:
     font-size: 21px; font-weight: 400; line-height: 1.45; margin: 20px 0 0;
     max-width: 46ch; color: rgba(255,255,255,.92);
   }}
+  .band-more {{
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-size: 11.5px; letter-spacing: .14em; text-transform: uppercase;
+    color: rgba(255,255,255,.62); margin: 14px 0 0;
+  }}
   .band-specs {{
     font-family: 'IBM Plex Mono', ui-monospace, monospace;
     display: flex; flex-wrap: wrap; gap: 8px 28px; margin-top: 30px; font-size: 13.5px;
@@ -417,7 +375,11 @@ def build_html(data: dict, base_dir: str) -> str:
 
   .summary {{ margin-bottom: 40px; }}
   .summary .label {{ margin-bottom: 10px; }}
-  .summary-text {{ font-size: 17px; line-height: 1.7; color: #45494F; margin: 0; max-width: 68ch; }}
+  /* the agent's line breaks are part of its summary, not stray whitespace */
+  .summary-text {{
+    font-size: 17px; line-height: 1.7; color: #45494F; margin: 0; max-width: 68ch;
+    white-space: pre-line;
+  }}
   .summary-text strong {{ font-weight: 700; }}
 
   .errors {{ margin: -16px 0 40px; }}
@@ -457,8 +419,17 @@ def build_html(data: dict, base_dir: str) -> str:
   }}
   .diag-note {{ font-size: 13px; color: #8A9096; margin-top: 18px; }}
 
-  /* execution log always starts on a fresh page */
-  .exec {{ page-break-before: always; }}
+  /* the instruction in full, for the run whose band could only hold its
+     opening; the cover is page 1, so this lands on page 2 on its own */
+  .instruction {{ page-break-before: always; }}
+  /* a pasted instruction is usually a numbered list; the band flattens it to
+     measure what it prints, but here it reads as it was typed */
+  .instruction-text {{
+    font-size: 17px; line-height: 1.75; color: #45494F; margin: 0; max-width: 68ch;
+    white-space: pre-line;
+  }}
+
+  /* section head — browser diagnostics and the full instruction */
   .log-head {{
     display: flex; justify-content: space-between; align-items: baseline;
     border-bottom: 1.5px solid #14161A; padding-bottom: 9px; margin-bottom: 28px;
@@ -466,72 +437,7 @@ def build_html(data: dict, base_dir: str) -> str:
   .log-head .label {{ color: #14161A; margin: 0; }}
   .log-count {{ font-family: 'IBM Plex Mono', ui-monospace, monospace;
                 font-size: 12.5px; color: #8A9096; }}
-
-  /* one execution step per page: each step fills the page so the rail runs
-     top-to-bottom; keep each step whole and start each on a new page */
-  .log-step {{
-    display: grid; grid-template-columns: 52px 24px 1fr;
-    page-break-inside: avoid; page-break-before: always;
-    min-height: 255mm;
-  }}
-  .log-step.first {{ page-break-before: avoid; min-height: 242mm; }}
-  .log-time {{
-    font-family: 'IBM Plex Mono', ui-monospace, monospace;
-    font-size: 13px; font-weight: 500; color: #8A9096; padding-top: 3px;
-  }}
-  .log-rail {{ position: relative; }}
-  .node {{
-    position: absolute; left: 4px; top: 4px; width: 11px; height: 11px;
-    border-radius: 50%; background: {t["node"]}; box-shadow: 0 0 0 3px #fff; z-index: 1;
-  }}
-  .node-bad {{ background: #D1453E; }}
-  .rail-line {{
-    position: absolute; left: 8.5px; top: 15px; bottom: 0; width: 2px; background: #E4E6E8;
-  }}
-  .log-body {{ min-width: 0; display: flex; flex-direction: column; }}
-  /* screenshot centers in the space below the text so the page reads balanced */
-  .shot-wrap {{ flex: 1; display: flex; align-items: center; margin-top: 20px; }}
-  .shot-wrap .shot {{ margin-top: 0; width: 100%; }}
-  .log-body h3 {{
-    font-size: 20px; font-weight: 700; letter-spacing: -.01em;
-    margin: 0 0 10px; color: #14161A;
-    page-break-after: avoid;
-  }}
   .label {{ page-break-after: avoid; }}
-  .lbl-gap {{ margin-top: 13px; }}
-  .step-p {{ font-size: 15.5px; line-height: 1.65; color: #45494F; margin: 0; max-width: 64ch; }}
-  .ok-mark {{
-    font-family: 'IBM Plex Mono', ui-monospace, monospace;
-    font-size: 12px; font-weight: 600; color: {t["accent"]}; margin-left: 3px;
-  }}
-  .ok-mark.bad {{ color: #8C1D18; }}
-
-  /* full-width screenshot in a faux browser chrome */
-  .shot {{
-    margin-top: 16px; border-radius: 10px; border: 1px solid #E4E6E8;
-    overflow: hidden; background: #fff;
-    box-shadow: 0 1px 3px rgba(20,22,26,.05);
-    page-break-inside: avoid;
-  }}
-  .shot-chrome {{
-    display: flex; align-items: center; gap: 5px;
-    padding: 8px 12px; background: #F5F6F7; border-bottom: 1px solid #E4E6E8;
-  }}
-  .dot {{ width: 8px; height: 8px; border-radius: 50%; background: #D6D9DC; }}
-  .addr {{
-    font-family: 'IBM Plex Mono', ui-monospace, monospace;
-    font-size: 12.5px; color: #6E747B; background: #fff; border: 1px solid #E4E6E8;
-    border-radius: 5px; padding: 3px 11px; margin-left: 7px;
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 70%;
-  }}
-  .shot-area {{ background: #fff; }}
-  .shot-area img {{ width: 100%; display: block; }}
-  .shot-empty {{
-    height: 180px; display: flex; align-items: center; justify-content: center;
-    font-family: 'IBM Plex Mono', ui-monospace, monospace;
-    font-size: 12px; letter-spacing: .12em; color: #8A9096;
-    background: linear-gradient(135deg, #F6F7F8 0%, #EDEFF1 100%);
-  }}
 
   /* recording hero — the marketing hook, on the cover */
   .rec-hero {{
@@ -555,14 +461,6 @@ def build_html(data: dict, base_dir: str) -> str:
   }}
   .rec-cta-soon {{ background: rgba(255,255,255,.16); color: rgba(255,255,255,.85); }}
 
-  /* scroll prompt — invite the reader into the detailed log */
-  .scroll-cta {{
-    text-align: center; margin-top: 30px; page-break-inside: avoid;
-  }}
-  .scroll-cta-main {{ font-size: 17px; font-weight: 700; color: #14161A; letter-spacing: -.01em; }}
-  .scroll-cta-sub {{ font-size: 13.5px; color: #8A9096; margin-top: 5px; }}
-  .scroll-arrow {{ font-size: 24px; color: {t["accent"]}; margin-top: 12px; line-height: 1; }}
-
   .footer {{
     margin-top: 40px; padding-top: 14px; border-top: 1px solid #E4E6E8;
     display: flex; justify-content: space-between;
@@ -584,7 +482,8 @@ def build_html(data: dict, base_dir: str) -> str:
         <div class="verdict-ring">{t["mark"]}</div>
         <div class="verdict-word">{t["word"]}</div>
       </div>
-      <p class="band-goal">{esc(data.get("goal"))}</p>
+      <p class="band-goal">{esc(cover_goal)}</p>
+      {band_more}
     </div>
 
     <div class="cover">
@@ -604,6 +503,7 @@ def build_html(data: dict, base_dir: str) -> str:
     </div>
   </div>
 
+  {instruction_html}
   {diagnostics_html}
 </body></html>"""
 
@@ -615,8 +515,7 @@ def main() -> int:
     data_path, out_path = sys.argv[1], sys.argv[2]
     with open(data_path) as f:
         data = json.load(f)
-    base_dir = os.path.dirname(os.path.abspath(data_path))
-    doc = build_html(data, base_dir)
+    doc = build_html(data)
 
     # Imported here, not at module scope: everything above this line is stdlib
     # plus report_format, and that is what lets agent/tests/ cover build_html in

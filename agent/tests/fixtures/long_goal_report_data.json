@@ -1,0 +1,53 @@
+{
+  "runId": "7b2e04af-91cc-4a35-bd77-xlonggoal0001",
+  "goal": "Open the admin console and sign in as the operations user, then go to Billing → Subscriptions and filter to plans that renew in the next 7 days. For the first customer in that list, open the subscription detail, change the seat count from 12 to 20, and check that the proration preview shows a charge for 8 seats at the current rate and not a full new-term charge. Save the change, wait for the invoice row to appear, and open it. Confirm the invoice line items are: the proration charge, the existing seat line, and no duplicate tax line. Then go back to the customer record, add an internal note that says \"seats raised for Q3 onboarding\", and verify the note appears in the activity timeline with today's date and the operations user as the author. Finally, sign out and sign back in as a read-only auditor account, open the same customer, and confirm the note is visible but the seat count field is disabled and the Save button is not shown anywhere on the page.",
+  "start_url": "https://admin.staging.example.com/login",
+  "model": "gpt-4.1",
+  "status": "failed",
+  "success": false,
+  "duration_seconds": 184.7,
+  "steps_count": 4,
+  "final_result": "Goal failed: the proration preview showed a full new-term charge for 20 seats instead of a prorated charge for the 8 added seats, so the run stopped before the invoice checks.",
+  "errors": [],
+  "failure_reason": "The proration preview did not match the expected 8-seat charge.",
+  "blocked_url": null,
+  "has_recording": true,
+  "recording_url": null,
+  "generated_at": "2026-08-04T10:20:00Z",
+  "steps": [
+    {
+      "step": 1,
+      "elapsed": 8.9,
+      "next_goal": "Sign in as the operations user",
+      "evaluation": "Success — the admin dashboard is open",
+      "url": "https://admin.staging.example.com/login",
+      "screenshot_file": null
+    },
+    {
+      "step": 2,
+      "elapsed": 47.3,
+      "next_goal": "Filter subscriptions to those renewing in the next 7 days",
+      "evaluation": "Success — 6 subscriptions listed",
+      "url": "https://admin.staging.example.com/billing/subscriptions",
+      "screenshot_file": null
+    },
+    {
+      "step": 3,
+      "elapsed": 121.0,
+      "next_goal": "Raise the seat count from 12 to 20 and read the proration preview",
+      "evaluation": "Failure — the preview shows a full-term charge for 20 seats",
+      "url": "https://admin.staging.example.com/billing/subscriptions/sub_9f21",
+      "screenshot_file": null
+    },
+    {
+      "step": 4,
+      "elapsed": 184.7,
+      "next_goal": "Re-read the preview after reloading the page",
+      "evaluation": "Failure — the same full-term charge is shown",
+      "url": "https://admin.staging.example.com/billing/subscriptions/sub_9f21",
+      "screenshot_file": null
+    }
+  ],
+  "diagnostics": [],
+  "diagnostics_dropped": 0
+}

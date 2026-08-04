@@ -22,13 +22,6 @@ def fmt_duration(secs) -> str:
     return f"{secs // 60}m {secs % 60}s"
 
 
-def fmt_elapsed(secs) -> str:
-    if secs is None:
-        return "—:—"
-    secs = int(secs)
-    return f"{secs // 60:02d}:{secs % 60:02d}"
-
-
 def fmt_date(iso) -> str:
     try:
         dt = datetime.fromisoformat(str(iso).replace("Z", "+00:00")).astimezone(timezone.utc)
@@ -89,13 +82,28 @@ def fmt_occurrences(count) -> str:
     return f"{count}×" if isinstance(count, int) and count > 1 else ""
 
 
-def step_ok(evaluation) -> bool | None:
-    """Heuristic pass/fail marker per step from the agent's own evaluation text."""
-    if not evaluation:
-        return None
-    text = str(evaluation).lower()
-    if any(w in text for w in ("fail", "error", "block", "unable", "could not")):
-        return False
-    if "success" in text:
-        return True
-    return None
+# The cover fits about ten lines of instruction under the verdict before the
+# recording hero is pushed onto a page of its own. Errors and a long summary
+# share that space, so the band gets well under half of it.
+GOAL_COVER_LIMIT = 280
+
+
+def clamp_goal(goal, limit: int = GOAL_COVER_LIMIT) -> tuple[str, bool]:
+    """Cut the cover's copy of the instruction to `limit` characters.
+
+    Returns `(cover_text, clamped)`. A clamped instruction is printed in full
+    in the body, so the cut only has to read as a sentence, not carry the
+    whole test: it breaks on a space and ends in an ellipsis.
+    """
+    text = " ".join(str(goal or "").split())
+    if len(text) <= limit:
+        return text, False
+    head = text[:limit]
+    # Only drop the trailing token when the limit fell inside it. A cut that
+    # already landed on a boundary keeps the word it just completed.
+    if text[limit] != " ":
+        head = head.rsplit(" ", 1)[0]
+    cut = head.rstrip(".,;:—- ")
+    # A single word longer than the limit has no space to break on; the raw cut
+    # is better than an empty band.
+    return (cut or head) + "…", True

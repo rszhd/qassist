@@ -305,7 +305,12 @@
 .verdict.stopped { border-color: var(--info-line); }
 .verdict.stopped .verdict-head { color: var(--info); }
 .verdict-head .badge { margin-left: auto; }
-.final { font-size: var(--t-base); line-height: 1.6; color: var(--text); }
+/* the agent writes its summary with line breaks in it — often a list of what
+   it checked, which collapses into one paragraph without this */
+.final {
+  font-size: var(--t-base); line-height: 1.6; color: var(--text);
+  white-space: pre-line;
+}
 .errs { margin: 0; padding-left: var(--s4); color: var(--bad); font-size: var(--t-base); }
 .verdict-actions { display: flex; gap: var(--s2); flex-wrap: wrap; }
 

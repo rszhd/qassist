@@ -42,26 +42,6 @@ class TestFmtDuration:
         assert rf.fmt_duration(59.5) == "1m 0s"
 
 
-class TestFmtElapsed:
-    def test_none_is_dash_pair(self):
-        assert rf.fmt_elapsed(None) == "—:—"
-
-    def test_zero_is_zero_padded(self):
-        assert rf.fmt_elapsed(0) == "00:00"
-
-    def test_seconds_only(self):
-        assert rf.fmt_elapsed(9) == "00:09"
-
-    def test_minutes_and_seconds(self):
-        assert rf.fmt_elapsed(125) == "02:05"
-
-    def test_truncates_fractional_seconds(self):
-        assert rf.fmt_elapsed(65.9) == "01:05"
-
-    def test_beyond_an_hour_keeps_counting_minutes(self):
-        assert rf.fmt_elapsed(3661) == "61:01"
-
-
 class TestFmtDate:
     def test_z_suffix_is_utc(self):
         assert rf.fmt_date("2026-07-24T13:05:00Z") == "2026-07-24 · 13:05 UTC"
@@ -74,31 +54,6 @@ class TestFmtDate:
 
     def test_unparseable_input_is_html_escaped(self):
         assert rf.fmt_date("<x>") == "&lt;x&gt;"
-
-
-class TestStepOk:
-    def test_empty_is_none(self):
-        assert rf.step_ok("") is None
-        assert rf.step_ok(None) is None
-
-    def test_success_is_true(self):
-        assert rf.step_ok("Successfully clicked the button") is True
-
-    def test_failure_keywords_are_false(self):
-        for text in ("Login failed", "hit an error", "blocked by captcha",
-                     "unable to proceed", "could not find field"):
-            assert rf.step_ok(text) is False, text
-
-    def test_case_insensitive(self):
-        assert rf.step_ok("FAILED") is False
-        assert rf.step_ok("SUCCESS") is True
-
-    def test_neutral_text_is_none(self):
-        assert rf.step_ok("Navigated to the pricing page") is None
-
-    def test_failure_wins_over_success_when_both_present(self):
-        # Failure words are checked first, so a mixed line reads as failed.
-        assert rf.step_ok("success was expected but the step failed") is False
 
 
 class TestGroupDiagnostics:
@@ -187,3 +142,36 @@ class TestFmtOccurrences:
         assert rf.fmt_occurrences(1) == ""
         assert rf.fmt_occurrences(None) == ""
         assert rf.fmt_occurrences("many") == ""
+
+
+class TestClampGoal:
+    def test_a_short_instruction_is_untouched(self):
+        goal = "Log in and check the dashboard loads"
+        assert rf.clamp_goal(goal) == (goal, False)
+
+    def test_a_long_instruction_is_cut_and_flagged(self):
+        text, clamped = rf.clamp_goal("word " * 200)
+        assert clamped is True
+        assert len(text) <= rf.GOAL_COVER_LIMIT + 1  # the ellipsis
+
+    def test_the_cut_falls_on_a_word_boundary(self):
+        text, _ = rf.clamp_goal("alpha bravo charlie delta", limit=12)
+        assert text == "alpha bravo…"
+
+    def test_trailing_punctuation_does_not_precede_the_ellipsis(self):
+        text, _ = rf.clamp_goal("open the cart, then pay", limit=14)
+        assert text == "open the cart…"
+
+    def test_a_word_longer_than_the_limit_is_still_cut(self):
+        # No space to break on, and an empty band would be worse than a hard cut.
+        text, clamped = rf.clamp_goal("x" * 40, limit=10)
+        assert (text, clamped) == ("x" * 10 + "…", True)
+
+    def test_newlines_collapse_so_the_band_measures_what_it_prints(self):
+        # A pasted multi-line instruction is one paragraph in the band; the
+        # limit counts the characters that are actually set.
+        text, clamped = rf.clamp_goal("open\n\n  the   cart\n")
+        assert (text, clamped) == ("open the cart", False)
+
+    def test_no_instruction_is_empty_not_a_crash(self):
+        assert rf.clamp_goal(None) == ("", False)

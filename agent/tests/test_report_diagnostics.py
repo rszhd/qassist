@@ -28,7 +28,7 @@ FIXTURES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures")
 def build():
     path = os.path.join(FIXTURES, "broken_page_report_data.json")
     with open(path) as f:
-        return make_report.build_html(json.load(f), FIXTURES)
+        return make_report.build_html(json.load(f))
 
 
 class TestDiagnosticsSection:
@@ -83,12 +83,12 @@ class TestQuietRun:
     def test_a_run_with_no_findings_grows_no_section(self):
         # The common case. An empty "Browser diagnostics" page on every passing
         # run would be a blank sheet in every emailed report.
-        html = make_report.build_html({"goal": "g", "success": True, "steps": []}, FIXTURES)
+        html = make_report.build_html({"goal": "g", "success": True, "steps": []})
         assert "Browser diagnostics" not in html
 
     def test_a_report_file_from_before_this_story_still_renders(self):
         # Every run already in an installation's runs/ predates both keys.
-        html = make_report.build_html({"goal": "g", "steps": [], "diagnostics": None}, FIXTURES)
+        html = make_report.build_html({"goal": "g", "steps": [], "diagnostics": None})
         assert "Browser diagnostics" not in html
         assert "QAssist" in html
 
@@ -108,7 +108,7 @@ class TestEscaping:
                  "url": "https://x/?q=<img src=x onerror=alert(1)>", "count": 1},
             ],
         }
-        html = make_report.build_html(data, FIXTURES)
+        html = make_report.build_html(data)
         # The property is that no *tag* can form: the payload may well survive as
         # literal text, and inert text is the correct outcome. So the assertion is
         # on the delimiters, not on the words between them.
