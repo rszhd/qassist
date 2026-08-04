@@ -9,8 +9,9 @@
 
    The palette is deliberately near-monochrome: a single neutral ramp, one
    accent spent only on the primary action and focus, and verdict colours held
-   well below full saturation. Depth comes from hairline borders, not from
-   stacking ever-lighter surfaces.
+   well below full saturation. Depth comes from the surface ramp itself — a card
+   is its fill and a shadow, not a drawn edge. Hairlines are kept for dividers
+   inside a surface and for the boxes whose border is signal.
 
    The ramp is warm — every neutral carries a low-saturation ~36° cast rather
    than sitting on true grey. The accent stays blue against it on purpose: warn
@@ -26,11 +27,10 @@
      raised (modals) → hover. The ramp sits at warm graphite rather than at
      black — dark enough to be a dark theme, light enough that the surfaces
      read as paper.
-     `--sunken` is the one that sits *below* the page rather than above it: a
-     well inside a card is the only surface pairing asked to separate without a
-     border (see "the fill does the separating" on `.stat` and friends), and at
-     4 units under the card it could not. Below `--bg` it clears the card by 8,
-     which is what a recess needs to read as one. */
+     `--sunken` is the one that sits *below* the page rather than above it. No
+     surface here separates with a border, and a well inside a card is the
+     hardest case of that: at 4 units under the card it could not. Below `--bg`
+     it clears the card by 8, which is what a recess needs to read as one. */
   --bg: #17130f;
   --sunken: #181410;
   --card: #201c17;
@@ -199,9 +199,9 @@
      genuinely floats — modals, and nothing else.
      `--shadow-sm` is what a card gets, and it is mostly not the drop: the
      inset top hairline is a lit edge, the one cue that separates a surface
-     from the page when both are neutrals four units apart and the border
-     between them is a single hairline. Depth still comes from the border —
-     this finishes it rather than replacing it. In light there is no lit edge
+     from the page when both are neutrals nine units apart with nothing drawn
+     between them. With no border on the card, the fill and this edge are the
+     whole separation. In light there is no lit edge
      to draw (white on near-white is nothing), so that half goes and a fainter
      drop carries it alone. */
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, .3), inset 0 1px 0 rgba(255, 255, 255, .03);
@@ -422,7 +422,7 @@ code { font-family: var(--mono); font-size: .92em; }
 }
 .auth-card {
   width: 100%; max-width: 340px;
-  background: var(--card); border: 1px solid var(--border); border-radius: var(--r-lg);
+  background: var(--card); border-radius: var(--r-lg);
   padding: var(--s6); box-shadow: var(--shadow-sm);
 }
 .auth-brand {
@@ -579,14 +579,16 @@ li:focus-within > .row-actions,
 .field-label { font-size: var(--t-base); font-weight: 500; color: var(--text); }
 .field-hint { font-size: var(--t-sm); line-height: 1.5; color: var(--faint); }
 
-/* Idle at `--border`, the hairline every other surface separates with, rather
-   than at the emphasis weight: a row of five filters is the densest thing on
-   History, and at `--border-hi` it read as five hard boxes before you had asked
-   it anything. The emphasis weight is where hover goes instead, so the ramp
-   runs border → border-hi → accent as you approach the field. */
+/* No hairline at rest — the `--sunken` fill separates the field, the same way
+   it separates a `.stat` from the card under it. The idle border had already
+   come down from `--border-hi` to `--border` because a row of five filters read
+   as five hard boxes before you had asked it anything, and dropping it is that
+   move finished. The border stays in the box at `transparent`, so the geometry
+   never shifts and the ramp still runs border-hi on hover → accent on focus as
+   you approach the field. */
 input, textarea, select {
   width: 100%; background: var(--sunken); color: var(--text);
-  border: 1px solid var(--border); border-radius: var(--r-md);
+  border: 1px solid transparent; border-radius: var(--r-md);
   padding: var(--s2) var(--s3); font: inherit; font-size: var(--t-base); resize: vertical;
   transition: border-color var(--fast), box-shadow var(--fast), background var(--fast);
 }
@@ -646,7 +648,7 @@ select {
    it was the same distance as the gap between two cards, so a card read as a
    border drawn around content rather than as content set into a surface. */
 .card {
-  background: var(--card); border: 1px solid var(--border); border-radius: var(--r-lg);
+  background: var(--card); border-radius: var(--r-lg);
   padding: var(--card-pad); box-shadow: var(--shadow-sm);
 }
 .card-head {
@@ -673,9 +675,8 @@ select {
    ("Duration") on one line at `--t-sm`; below that the grid drops a column
    instead of wrapping it. */
 .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(84px, 1fr)); gap: var(--s2); }
-/* No border: a stat is a well on a card that already has one, and three
-   concentric hairlines around one number was the densest corner of the app.
-   The `--sunken` fill separates it on its own. */
+/* No border: the `--sunken` fill separates it on its own, and three concentric
+   hairlines around one number was the densest corner of the app. */
 .stat {
   background: var(--sunken); border-radius: var(--r-md);
   padding: var(--s2) var(--s3); display: flex; flex-direction: column; gap: var(--s05);
@@ -699,7 +700,7 @@ select {
   max-height: calc(100vh - var(--s10));
   max-height: calc(100dvh - var(--s10));
   display: flex; flex-direction: column;
-  background: var(--raised); border: 1px solid var(--border-hi); border-radius: var(--r-lg);
+  background: var(--raised); border-radius: var(--r-lg);
   box-shadow: var(--shadow-lg); animation: rise 130ms ease;
 }
 .modal-wide { max-width: 660px; }

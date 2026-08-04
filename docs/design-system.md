@@ -206,21 +206,22 @@ the fallback.
 The palette is near-monochrome by design: one neutral ramp, a single accent
 spent only on the primary button, focus and the live pulse, and verdict colours
 held below full saturation. That holds in both themes — the ramp inverts, the
-constraints don't. Depth comes from hairline borders, not from gradients — no
-surface in the app is a ramp between two colours.
+constraints don't. Depth comes from the surface ramp and from shadow, not from
+gradients — no surface in the app is a ramp between two colours.
 
 **A card carries `--shadow-sm`, and it is mostly not the drop.** In dark the
 token is a 1px drop plus `inset 0 1px 0 rgba(255,255,255,.03)` — a lit top
 edge, which is the cue that separates a surface from the page when the two are
-neutrals four units apart with one hairline between them. The border still does
-the separating; this finishes it. In light there is no lit edge worth drawing
+neutrals nine units apart with nothing drawn between them. The fill and that
+edge are the whole separation. In light there is no lit edge worth drawing
 (white on `#fffdfa` is nothing), so that half is dropped and a fainter drop
 carries the card alone — which is why `--shadow-sm` is one of the few tokens
 whose two themes differ in *shape*, not just in value. `--shadow-lg` stays what
 it was: for things that genuinely float, which means modals and nothing else.
-Anything card-shaped takes the card's treatment — `--r-lg`, a hairline and
-`--shadow-sm` — including `.rail-strip`, `.auth-card` and the `.browser` frame,
-whose corner has to match the cards it shares a row with.
+Anything card-shaped takes the card's treatment — `--r-lg` and `--shadow-sm` —
+including `.rail-strip` and `.auth-card`. The `.browser` frame matches that
+corner, because it shares a row with cards, but keeps its hairline: it is chrome
+around a live page, and the drawn edge is what says so.
 
 **The ramp is warm, the accent is not.** Every neutral carries a low-saturation
 ~36° cast; the accent stays blue against it, and that is the one part of the
@@ -231,17 +232,22 @@ nothing: a cool accent on warm neutrals is what leaves it the only saturated
 thing on the page. Verdict hues keep their own temperatures for the same
 reason — they are signal, not surface.
 
-**One border deep.** A card draws a hairline; what sits inside it separates
-with the `--sunken` fill alone — `.stat`, `.card-count`, `.row-tag`,
-`.var-chip`, `.member-list`, `.api-key-fresh`, `.ci-code`, `.browser-url`,
-inline `code`. Three concentric hairlines around a single number was the
-densest the app ever got, and a nested border buys nothing the fill doesn't:
-`--sunken` sits below `--bg` in dark precisely so it can do this job without
-one. The exceptions are the boxes whose border *is* the signal — `.badge` and
-`.diag-tag` carry a verdict in `--ok-line`/`--bad-line`/`--warn-line`, and in
-the light theme that hairline is most of what makes a passed pill visible on a
-white card. So: a new box inside a card gets a fill, and gets a border only if
-the border is saying something the fill can't. A run status renders as a tinted `.badge-<status>`
+**No box is drawn; the fill does the separating.** At every level — a `.card`
+on the page, a `.modal` over the scrim, a field or a `.stat` inside a card — the
+surface is told apart by where it sits on the ramp, never by a hairline round
+it. `--sunken` sits below `--bg` in dark precisely so a well can do this without
+one, and `.card` clears `--bg` by nine going the other way. Three concentric
+hairlines around a single number was the densest the app ever got.
+
+Three things still draw one, and each is saying something a fill cannot. A
+verdict: `.badge` and `.diag-tag` carry `--ok-line`/`--bad-line`/`--warn-line`,
+and in the light theme that hairline is most of what makes a passed pill visible
+on a white card — the tinted banners are the same vocabulary. Chrome: the
+`.browser` frame. A division inside a surface: the rules below. A control that
+is reaching for you — `.btn-secondary`, `.btn-danger` — keeps its edge too,
+because a button has to read as pressable before it is hovered. So: a new box
+gets a fill, and gets a border only if the border is saying something the fill
+can't. A run status renders as a tinted `.badge-<status>`
 pill; `statusColor()` in `status.js` maps a status to a `--fill-*` token for the
 solid dots and timeline bars, so the two can't drift and a theme swap carries
 the dots with it.
@@ -263,7 +269,7 @@ the system.** Colours are declared twice, in `:root` (dark, the default) and in
 | `--card` | `#201c17` | `#fffdfa` | |
 | `--raised` | `#26211b` | `#fffdfa` | modals |
 | `--hover` | `#2b2620` | `#f5f1ea` | |
-| `--border` | `#302b25` | `#e8e3da` | hairline, does the separating |
+| `--border` | `#302b25` | `#e8e3da` | dividers and rules inside a surface |
 | `--border-hi` | `#403a33` | `#d5cfc5` | emphasis / hover border |
 | `--stage` | `#100d0a` | `#ede8e0` | letterbox around the live frame |
 

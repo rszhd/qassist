@@ -107,11 +107,11 @@
   position: sticky; top: var(--sticky-top);
   display: flex; flex-direction: column; align-items: center; gap: var(--s3);
   padding: var(--s3) 0; width: var(--rail-strip);
-  background: var(--card); border: 1px solid var(--border); border-radius: var(--r-lg);
+  background: var(--card); border-radius: var(--r-lg);
   box-shadow: var(--shadow-sm);
   color: var(--muted); font-size: var(--t-sm); cursor: pointer;
 }
-.rail-strip:hover { color: var(--text); border-color: var(--border-hi); }
+.rail-strip:hover { color: var(--text); background: var(--hover); }
 .rail-strip span { writing-mode: vertical-rl; letter-spacing: .04em; }
 @media (max-width: 900px) {
   .rail-strip { flex-direction: row; justify-content: center; width: auto; padding: var(--s2); }
@@ -667,9 +667,11 @@ a.row-main { color: inherit; text-decoration: none; }
 /* Each free-text block stacks its heading, its prose and (for the goal) its
    toggle. */
 .goal-block, .result-block { display: flex; flex-direction: column; align-items: flex-start; gap: var(--s15); }
-/* `pre-wrap`, because the goal is typed into a textarea: a pasted test case
+/* `pre-line`, because the goal is typed into a textarea: a pasted test case
    arrives with its line breaks and its numbering, and collapsing that to one
-   run-on paragraph loses the only structure the author gave it. The measure is
+   run-on paragraph loses the only structure the author gave it. The line breaks
+   are the structure, not the spacing around them, so runs of spaces collapse —
+   the same treatment `.final` gives the agent's own summary. The measure is
    capped in ch rather than px — it is prose, and the column it sits in is as
    wide as the page.
 
@@ -680,7 +682,7 @@ a.row-main { color: inherit; text-decoration: none; }
    exceeds the cap — RunDetail measures that. */
 .detail-goal {
   font-size: var(--t-base); line-height: 1.6; color: var(--text);
-  white-space: pre-wrap; overflow-wrap: anywhere; max-width: 68ch;
+  white-space: pre-line; overflow-wrap: anywhere; max-width: 68ch;
 }
 .detail-goal:not(.open) {
   display: -webkit-box; -webkit-box-orient: vertical;
@@ -697,17 +699,18 @@ a.row-main { color: inherit; text-decoration: none; }
    Each break gets the same rule the panel draws above the goal, so the page
    reads as sections rather than as one long scroll.
 
-   Between blocks, so the first one never opens the card with a rule: which
-   block is first depends on the run (only some have a recording), and the reset
-   is what keeps `.goal-block`'s own divider from firing when it leads. The
-   error banner is skipped — it is bordered on all four sides already. */
+   Between blocks, so the first one never opens the card with a rule. Which
+   block is first depends on the run — only some have a recording — and the one
+   that can arrive with a rule of its own is the goal, which carries the panel's
+   divider from `.goal-block`; that is the only thing reset, because a blanket
+   reset takes the top edge off the recording's frame with it. The error banner
+   is skipped — it is bordered on all four sides already. */
 .detail-block { display: flex; flex-direction: column; gap: var(--s3); }
-.detail-main > * { padding-top: 0; border-top: 0; }
+.detail-main > .goal-block:first-child { padding-top: 0; border-top: 0; }
 .detail-main > * + *:not(.error) { padding-top: var(--s3); border-top: 1px solid var(--border); }
-/* The player is sized, not stretched. `.screen video` is `width: 100%`, so
-   without a cap the recording is as wide as the column it opens in — which was
-   fine while it was behind a button and is not now that it leads the page. */
-.detail-screen { margin: 0; max-width: 720px; }
+/* The player takes the reading column, which is itself capped at 880 — so the
+   recording is as wide as the prose beside it and no wider. */
+.detail-screen { margin: 0; }
 
 /* Inline row editors (rename a project/module, edit a suite's membership). */
 .inline-edit { display: flex; flex-direction: column; gap: var(--s2); width: 100%; }
