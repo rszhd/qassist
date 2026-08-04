@@ -34,6 +34,7 @@ import {
   PYTHON_BIN,
   AGENT_SCRIPT,
   REPORT_SCRIPT,
+  REPORTS_ENABLED,
   ARTIFACTS_DIR,
   MODEL,
   PUBLIC_BASE_URL,
@@ -972,6 +973,10 @@ function startNext() {
 
 // Build the run's data JSON and render it to a PDF via the Python renderer
 // (which reuses the installed Chromium). Runs once per finished run.
+//
+// With REPORTS_ENABLED off the JSON is still written and only the render is
+// skipped: `report_data.json` is where the steps endpoint and US-044's
+// diagnostics come from, so dropping it would empty the run page as well.
 function generateReport(run) {
   if (run.reportStatus === 'generating' || run.reportStatus === 'ready') return;
   run.reportStatus = 'generating';
@@ -1015,6 +1020,16 @@ function generateReport(run) {
   const dataPath = path.join(runDir, REPORT_DATA_FILENAME);
   const pdfPath = path.join(runDir, 'report.pdf');
   fs.writeFileSync(dataPath, JSON.stringify(data, null, 2));
+
+  // 'none' rather than 'error': no report was asked for, so nothing failed.
+  // The notify call is the one the renderer's `close` would have made — without
+  // it a mail that waits on the report waits for a process that never spawns.
+  if (!REPORTS_ENABLED) {
+    run.reportStatus = 'none';
+    persistUpdate(run);
+    maybeNotify(run);
+    return;
+  }
 
   const child = spawn(PYTHON_BIN, [REPORT_SCRIPT, dataPath, pdfPath]);
   child.stderr.on('data', (d) => process.stderr.write(`[report ${run.id.slice(0, 8)}] ${d}`));

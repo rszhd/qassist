@@ -32,6 +32,9 @@ before(async () => {
   process.env.PYTHON_BIN = process.execPath; // stubs are .js, run them with node
   process.env.AGENT_SCRIPT = path.join(__dirname, 'stubs', 'fake_agent.js');
   process.env.REPORT_SCRIPT = path.join(__dirname, 'stubs', 'fake_report.js');
+  // The renderer is opt-in (REPORTS_ENABLED, default off) — a suite that covers
+  // the PDF has to ask for it. reports-disabled.test.js is the other half.
+  process.env.REPORTS_ENABLED = '1';
   process.env.ARTIFACTS_DIR = artifactsDir;
 
   // The control plane is a boot requirement since US-039 (a run's key lives on

@@ -27,6 +27,7 @@ export async function createDemoHarness({ maxTenants, ipMax, trustProxy } = {}) 
   process.env.PYTHON_BIN = process.execPath;
   process.env.AGENT_SCRIPT = path.join(__dirname, '..', 'stubs', 'fake_agent.js');
   process.env.REPORT_SCRIPT = path.join(__dirname, '..', 'stubs', 'fake_report.js');
+  process.env.REPORTS_ENABLED = '1';
   process.env.ARTIFACTS_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'qassist-demo-'));
   if (maxTenants != null) process.env.DEMO_MAX_TENANTS = String(maxTenants);
   if (ipMax != null) process.env.DEMO_IP_MAX = String(ipMax);

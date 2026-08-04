@@ -20,6 +20,7 @@ import {
   NOTIFY_MODE,
   NOTIFY_SECRET,
   PUBLIC_BASE_URL,
+  REPORTS_ENABLED,
 } from './config.js';
 
 export const NOTIFY_MODES = new Set(['failure', 'always', 'never']);
@@ -167,7 +168,14 @@ function compose(run, name, recipient) {
   const unsubscribe = unsubscribeUrl(recipient);
 
   const verdict = res.final_result || res.message || '(no result text)';
-  const report = run.reportStatus === 'ready' ? 'The PDF report is attached.' : 'No report was produced.';
+  // Nothing at all when the instance renders no PDFs: "No report was produced"
+  // is a remark about this run, and on an instance with reports off it would
+  // read as one more thing that went wrong.
+  const report = !REPORTS_ENABLED
+    ? null
+    : run.reportStatus === 'ready'
+      ? 'The PDF report is attached.'
+      : 'No report was produced.';
   const runUrl = PUBLIC_BASE_URL ? `${PUBLIC_BASE_URL}/runs/${run.id}` : null;
 
   const lines = [
@@ -179,8 +187,8 @@ function compose(run, name, recipient) {
     '',
     verdict,
     '',
-    report,
   ];
+  if (report) lines.push(report);
   if (runUrl) lines.push(`Open this run: ${runUrl}`);
   if (unsubscribe) lines.push('', `Unsubscribe: ${unsubscribe}`);
 
@@ -199,7 +207,7 @@ function compose(run, name, recipient) {
           ['Duration', seconds != null ? `${seconds}s` : null],
         ]),
         panel(verdict, TONE[run.status] || 'neutral'),
-        note(report),
+        report ? note(report) : '',
         runUrl ? button('Open this run', runUrl) : '',
       ],
       unsubscribeUrl: unsubscribe,

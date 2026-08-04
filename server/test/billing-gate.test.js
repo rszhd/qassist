@@ -145,6 +145,7 @@ before(async () => {
   process.env.PYTHON_BIN = process.execPath;
   process.env.AGENT_SCRIPT = path.join(__dirname, 'stubs', 'fake_agent.js');
   process.env.REPORT_SCRIPT = path.join(__dirname, 'stubs', 'fake_report.js');
+  process.env.REPORTS_ENABLED = '1';
   process.env.ARTIFACTS_DIR = artifactsDir;
 
   const mem = newDb();

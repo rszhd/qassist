@@ -811,7 +811,7 @@ export default function RunView({ token, health, keyStatus, visible, needsToken,
                   {stopped && (
                     <p className="hint">
                       {result
-                        ? 'You stopped this run, so it reached no verdict. The steps it did take are in the report and the recording.'
+                        ? 'You stopped this run, so it reached no verdict. The steps it did take are kept, with the recording, on the run’s own page.'
                         : 'You stopped this run before it got a slot, so it never started.'}
                     </p>
                   )}
@@ -821,9 +821,14 @@ export default function RunView({ token, health, keyStatus, visible, needsToken,
                   )}
                   {result && (
                     <div className="verdict-actions">
-                      <Button icon={Download} onClick={downloadReport} disabled={reportBusy}>
-                        {reportBusy ? 'Preparing PDF…' : 'PDF report'}
-                      </Button>
+                      {/* REPORTS_ENABLED off means no PDF is rendered for any
+                          run on this instance, so the offer goes rather than
+                          becoming a download that 404s. */}
+                      {health?.reports && (
+                        <Button icon={Download} onClick={downloadReport} disabled={reportBusy}>
+                          {reportBusy ? 'Preparing PDF…' : 'PDF report'}
+                        </Button>
+                      )}
                       {/* The stage shows the run; /runs/<id> holds everything
                           else about it — the steps, the evidence, the report.
                           Beside the PDF because it is the same question asked

@@ -30,7 +30,7 @@ import { formatWhen, formatDuration, statusLabel } from './status.js';
 //
 // `onStopped` is the caller's cue to refetch after US-047's Stop: this card
 // renders the row it was handed, so it cannot update the row itself.
-export default function RunDetail({ run, token, onError, liveSteps, liveDiagnostics, permalink, layout = 'panel', onStopped }) {
+export default function RunDetail({ run, token, onError, liveSteps, liveDiagnostics, permalink, reports, layout = 'panel', onStopped }) {
   const [reportBusy, setReportBusy] = useState(false);
   const [showRecording, setShowRecording] = useState(false);
   const [stopping, setStopping] = useState(false);
@@ -196,12 +196,13 @@ export default function RunDetail({ run, token, onError, liveSteps, liveDiagnost
     </dl>
   );
 
-  // On the page the instructions are the subject, so they get a heading and
-  // lead the reading column; in the panel they stay an unlabelled paragraph
-  // under the facts, which is the shape History has always had.
+  // On the page the instructions lead the reading column; in the panel they
+  // follow the facts. Both label the paragraph — with the step log gone from
+  // the panel, the goal and the summary are two grey paragraphs in a row there
+  // and nothing but a heading tells which is which.
   const goal = (
     <section className="goal-block">
-      {page && <CardHead title="Instructions" />}
+      <CardHead title="Instructions" />
       <p ref={goalRef} className={`detail-goal${goalOpen ? ' open' : ''}`}>{run.goal}</p>
       {goalClamped && (
         <Button
@@ -225,7 +226,7 @@ export default function RunDetail({ run, token, onError, liveSteps, liveDiagnost
     <>
       {run.final_result && (
         <section className="result-block">
-          {page && <CardHead title="Summary" />}
+          <CardHead title="Summary" />
           <p className="final">{run.final_result}</p>
         </section>
       )}
@@ -269,42 +270,58 @@ export default function RunDetail({ run, token, onError, liveSteps, liveDiagnost
     </>
   );
 
+  // Leads the row while the run is still going: it is the only action there
+  // that does anything yet — the report does not exist and the recording is
+  // still being written.
+  const stopAction = unfinished && (
+    <Button variant="danger" icon={CircleStop} onClick={stop} disabled={stopping}>
+      {stopping ? 'Stopping…' : 'Stop run'}
+    </Button>
+  );
+
+  // Artifacts belong to the run's own page. In the History panel you are
+  // picking a run, not reading one, and the PDF and the 16:9 player are both
+  // things that column is too narrow to hold — `verdictHead`'s link out is the
+  // way to them.
+  //
+  // `reports` is the instance-wide REPORTS_ENABLED off /api/health: with it off
+  // nothing renders a PDF, so a button here would be a permanently disabled one
+  // with no way to explain itself.
+  const reportAction = page && reports && (
+    <Button
+      icon={Download}
+      onClick={downloadReport}
+      disabled={reportBusy || run.report_status === 'none'}
+      title={
+        run.report_status !== 'none'
+          ? undefined
+          : unfinished
+            ? 'The report is rendered when the run finishes'
+            : 'No report for this run'
+      }
+    >
+      {reportBusy ? 'Preparing PDF…' : 'PDF report'}
+    </Button>
+  );
+
+  const recordingAction = page && run.has_recording && (
+    <Button icon={showRecording ? Undo2 : Play} onClick={() => setShowRecording((v) => !v)}>
+      {showRecording ? 'Hide recording' : 'Watch recording'}
+    </Button>
+  );
+
   const actions = pruned ? (
     <p className="hint">
       Artifacts were removed on {formatWhen(run.artifacts_deleted_at)} — the report and
       recording are gone, the verdict above is kept.
     </p>
-  ) : (
+  ) : (stopAction || reportAction || recordingAction) ? (
     <div className="verdict-actions">
-      {/* Leads the row while the run is still going: it is the only action
-          there that does anything yet — the report does not exist and the
-          recording is still being written. */}
-      {unfinished && (
-        <Button variant="danger" icon={CircleStop} onClick={stop} disabled={stopping}>
-          {stopping ? 'Stopping…' : 'Stop run'}
-        </Button>
-      )}
-      <Button
-        icon={Download}
-        onClick={downloadReport}
-        disabled={reportBusy || run.report_status === 'none'}
-        title={
-          run.report_status !== 'none'
-            ? undefined
-            : unfinished
-              ? 'The report is rendered when the run finishes'
-              : 'No report for this run'
-        }
-      >
-        {reportBusy ? 'Preparing PDF…' : 'PDF report'}
-      </Button>
-      {run.has_recording && (
-        <Button icon={showRecording ? Undo2 : Play} onClick={() => setShowRecording((v) => !v)}>
-          {showRecording ? 'Hide recording' : 'Watch recording'}
-        </Button>
-      )}
+      {stopAction}
+      {reportAction}
+      {recordingAction}
     </div>
-  );
+  ) : null;
 
   // The page drops `verdictHead`: RunPage's own header already names the run
   // and carries its status, so repeating it here printed the title twice.
@@ -337,10 +354,11 @@ export default function RunDetail({ run, token, onError, liveSteps, liveDiagnost
       {facts}
       {goal}
       {outcome}
+      {/* Direct child of `.run-detail`, so the header and the list take the
+          card's own gap — the same rhythm the live panel reads at. The step
+          log is not here for the same reason the artifacts are not: the panel
+          answers what happened, the run's own page is where you read it. */}
       {evidenceBlock}
-      {/* Direct children of `.run-detail`, so the header and the list take the
-          card's own gap — the same rhythm the live panel reads at. */}
-      {activity}
       {actions}
     </div>
   );

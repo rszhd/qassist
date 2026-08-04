@@ -42,6 +42,12 @@ export const PYTHON_BIN = process.env.PYTHON_BIN || 'python3';
 export const AGENT_DIR = process.env.AGENT_DIR || path.join(__dirname, '..', '..', 'agent');
 export const AGENT_SCRIPT = process.env.AGENT_SCRIPT || path.join(AGENT_DIR, 'run_agent.py');
 export const REPORT_SCRIPT = process.env.REPORT_SCRIPT || path.join(AGENT_DIR, 'make_report.py');
+// Whether a finished run is rendered to a PDF at all. Off by default while the
+// report is being reworked — off means the renderer is never spawned, the
+// endpoint 404s and no UI offers a download, so nothing points at a file that
+// isn't coming. What it does NOT switch off is `report_data.json`: the step
+// list and the diagnostics are read out of that file, not out of the PDF.
+export const REPORTS_ENABLED = /^(1|true|yes|on)$/i.test((process.env.REPORTS_ENABLED || '').trim());
 export const ARTIFACTS_DIR = process.env.ARTIFACTS_DIR || path.join(__dirname, '..', '..', 'runs');
 export const MODEL = process.env.BROWSER_USE_MODEL || 'gpt-4.1';
 export const PUBLIC_DIR = path.join(__dirname, '..', 'public');

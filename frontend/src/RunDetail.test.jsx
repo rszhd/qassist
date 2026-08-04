@@ -41,7 +41,27 @@ describe('RunDetail', () => {
     expect(screen.getByText('Checkout smoke')).toBeTruthy();
     expect(screen.getByText('passed')).toBeTruthy();
     expect(screen.getByText('Pass')).toBeTruthy();
+    expect(screen.getByText('Instructions')).toBeTruthy();
     expect(screen.getByText(run.goal)).toBeTruthy();
+  });
+
+  // The artifacts and the step log are the run page's; the History panel only
+  // picks a run.
+  it('offers no report, recording or activity in the panel', () => {
+    render(
+      <MemoryRouter>
+        <RunDetail
+          run={{ ...run, has_recording: true }}
+          token="t"
+          onError={() => {}}
+          liveSteps={[{ type: 'step', action: 'click', detail: 'Buy now' }]}
+        />
+      </MemoryRouter>
+    );
+
+    expect(screen.queryByText('PDF report')).toBeNull();
+    expect(screen.queryByText('Watch recording')).toBeNull();
+    expect(screen.queryByText('Activity')).toBeNull();
   });
 
   // The page arrangement drops the run's own title and status because RunPage's
@@ -50,7 +70,7 @@ describe('RunDetail', () => {
   it('renders the page layout without repeating the title RunPage already shows', () => {
     render(
       <MemoryRouter>
-        <RunDetail run={run} token="t" onError={() => {}} liveSteps={[]} layout="page" />
+        <RunDetail run={run} token="t" onError={() => {}} liveSteps={[]} layout="page" reports />
       </MemoryRouter>
     );
 
@@ -62,6 +82,21 @@ describe('RunDetail', () => {
     expect(screen.getAllByText(run.goal)).toHaveLength(1);
     expect(screen.getByText('Pass')).toBeTruthy();
     expect(screen.getByText('PDF report')).toBeTruthy();
+  });
+
+  // REPORTS_ENABLED off (the default): /api/health says `reports: false` and no
+  // PDF exists for any run, so the offer goes rather than 404ing on click.
+  it('offers no PDF on the page when the instance renders none', () => {
+    render(
+      <MemoryRouter>
+        <RunDetail run={run} token="t" onError={() => {}} liveSteps={[]} layout="page" />
+      </MemoryRouter>
+    );
+
+    expect(screen.queryByText('PDF report')).toBeNull();
+    // The rest of the page is untouched — this is one button, not a mode.
+    expect(screen.getByText('Instructions')).toBeTruthy();
+    expect(screen.getByText('Activity')).toBeTruthy();
   });
 });
 

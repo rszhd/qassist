@@ -21,7 +21,7 @@ import { statusLabel } from './status.js';
 // encode either way. This is the one bit of the Run view's stage repeated
 // here — the rest of that stage is its own state (queued copy, replay player,
 // verdict card) and belongs to it.
-export default function RunPage({ token, needsToken, onOpenSettings }) {
+export default function RunPage({ token, health, needsToken, onOpenSettings }) {
   const { id } = useParams();
   const [run, setRun] = useState(null);
   const [steps, setSteps] = useState(null);
@@ -165,6 +165,7 @@ export default function RunPage({ token, needsToken, onOpenSettings }) {
               onError={setError}
               liveSteps={unfinished ? steps : null}
               liveDiagnostics={unfinished ? evidence : null}
+              reports={!!health?.reports}
               layout="page"
               onStopped={load}
             />

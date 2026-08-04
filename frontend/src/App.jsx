@@ -260,6 +260,7 @@ export default function App() {
             element={
               <RunPage
                 token={token}
+                health={health}
                 needsToken={needsToken}
                 onOpenSettings={openSettings}
               />

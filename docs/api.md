@@ -27,7 +27,10 @@ curl -X POST http://<host>:8080/api/runs \
 # for polling; the run's own page is http://<host>:8080/runs/<runId>)
 curl http://<host>:8080/api/runs/<runId> -H "Authorization: Bearer $WORKER_API_TOKEN"
 
-# download the PDF report (202 while generating, 200 when ready)
+# download the PDF report (202 while generating, 200 when ready).
+# 404 on every run unless the instance sets REPORTS_ENABLED — reports are off
+# by default while the renderer is being reworked, and /api/health says which
+# (`reports`). The step list below is unaffected.
 curl -L http://<host>:8080/api/runs/<runId>/report.pdf \
   -H "Authorization: Bearer $WORKER_API_TOKEN" -o report.pdf
 
@@ -526,8 +529,9 @@ curl -X PUT http://<host>:8080/api/projects/checkout \
 
 Prefs are settable on `PUT` only, never on create. An empty `notify_emails`
 falls through to `NOTIFY_EMAILS`, then to `OPERATOR_EMAIL`. Each finished run
-decides for itself, one mail per recipient with the PDF attached; a run
-started ad-hoc from the Run view never mails, having no test and no project.
+decides for itself, one mail per recipient — with the PDF attached where the
+instance renders one (`REPORTS_ENABLED`); a run started ad-hoc from the Run
+view never mails, having no test and no project.
 
 Every mail carries a signed unsubscribe link — the one route in the app that
 takes no bearer token, because the person clicking it was mailed a report and

@@ -41,6 +41,9 @@ export async function createHarness() {
   process.env.PYTHON_BIN = process.execPath;
   process.env.AGENT_SCRIPT = path.join(__dirname, '..', 'stubs', 'fake_agent.js');
   process.env.REPORT_SCRIPT = path.join(__dirname, '..', 'stubs', 'fake_report.js');
+  // Reports are opt-in (REPORTS_ENABLED, default off); the harness renders them
+  // so a suite can assert on the PDF. reports-disabled.test.js covers the default.
+  process.env.REPORTS_ENABLED = '1';
   process.env.ARTIFACTS_DIR = artifactsDir;
 
   const mem = newDb();

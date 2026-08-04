@@ -144,6 +144,7 @@ Set in `.env` (see `.env.example`):
 | `STOP_GRACE_SECONDS` | `10` | How long a stopped run (US-047) has to end itself gracefully — finalizing its recording and report — before the process tree is killed anyway. A run stopped either way ends `cancelled` |
 | `PORT` | `8080` | Express listen port |
 | `QA_RECORD` | `1` | Record every session to `runs/<runId>/recording.mp4`. `0` disables it — frame capture is then skipped entirely while nobody is watching the run |
+| `REPORTS_ENABLED` | — | Render a PDF for every finished run. Off while the report is being reworked: no renderer runs, `report.pdf` 404s, no download is offered and mail carries no attachment. `1`/`true`/`yes`/`on` turns it back on. Step lists and diagnostics are unaffected — they come from `report_data.json`, still written either way. `/api/health` reports this as `reports` |
 | `ARTIFACT_RETENTION_DAYS` | `7` | How long `runs/<runId>/` (report PDF + mp4 recording) is kept. Swept at startup and every 6 h; the history row and its verdict are kept forever regardless. `0` = never prune |
 | `PUBLIC_BASE_URL` | — | Public address of this instance (`https://qa.example.com`). Only used to make the PDF report's "View recording" link resolvable; the recording is served either way |
 | `KEY_ENCRYPTION_SECRET` | — | **Required.** Encrypts stored OpenAI keys at rest. Generate once (`openssl rand -hex 32`) and keep it — losing it makes every stored key undecryptable |
@@ -190,7 +191,8 @@ curl -X POST http://<host>:8080/api/runs \
 # poll status + result (the run's own page is http://<host>:8080/runs/<runId>)
 curl http://<host>:8080/api/runs/<runId> -H "Authorization: Bearer $WORKER_API_TOKEN"
 
-# download the PDF report (202 while generating, 200 when ready)
+# download the PDF report — needs REPORTS_ENABLED, off by default while the
+# renderer is reworked (202 while generating, 200 when ready, else 404)
 curl -L http://<host>:8080/api/runs/<runId>/report.pdf \
   -H "Authorization: Bearer $WORKER_API_TOKEN" -o report.pdf
 

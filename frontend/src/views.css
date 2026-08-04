@@ -662,10 +662,10 @@ a.row-main { color: inherit; text-decoration: none; }
    wide as the page.
 
    The goal is also the only field here with no length limit, so it is the only
-   thing that can push the step log off the bottom of the column: collapsed it
-   is capped at four lines, which a written-out goal reads in two or three at
-   the panel's width. The toggle only renders when the text actually exceeds
-   the cap — RunDetail measures that. */
+   thing that can push the summary and the actions off the bottom of the panel:
+   collapsed it is capped at four lines, which a written-out goal reads in two
+   or three at the panel's width. The toggle only renders when the text actually
+   exceeds the cap — RunDetail measures that. */
 .detail-goal {
   font-size: var(--t-base); line-height: 1.6; color: var(--text);
   white-space: pre-wrap; overflow-wrap: anywhere; max-width: 68ch;

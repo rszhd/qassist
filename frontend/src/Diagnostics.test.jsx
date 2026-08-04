@@ -120,9 +120,13 @@ describe('RunDetail diagnostics block', () => {
         json: async () => ({ steps: [{ step: 1, next_goal: 'open page' }], diagnostics: [] }),
       }))
     );
+    // The page layout, because the settled fetch has to be visible somewhere
+    // for the absence below to mean anything: the History panel no longer
+    // renders the step log, so there the Diagnostics block is the only thing
+    // that response draws — and it is what this test says is missing.
     render(
       <MemoryRouter>
-        <RunDetail run={run} token="t" onError={() => {}} />
+        <RunDetail run={run} token="t" onError={() => {}} layout="page" />
       </MemoryRouter>
     );
     await waitFor(() => expect(screen.getByText('Activity')).toBeTruthy());

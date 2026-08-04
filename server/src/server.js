@@ -11,7 +11,7 @@ import { WebSocketServer } from 'ws';
 import { createServer } from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { PORT, API_TOKEN, MAX_CONCURRENT, PUBLIC_DIR, AUTH_ENABLED, AUTH_MODE, DEMO_CTA_URL, TRUST_PROXY, FIXTURES_DIR, ARTIFACTS_DIR, SESSIONS_DIR } from './config.js';
+import { PORT, API_TOKEN, MAX_CONCURRENT, PUBLIC_DIR, AUTH_ENABLED, AUTH_MODE, DEMO_CTA_URL, TRUST_PROXY, FIXTURES_DIR, ARTIFACTS_DIR, SESSIONS_DIR, REPORTS_ENABLED } from './config.js';
 import { db, initDb, getOperatorUserId, userContext } from './db.js';
 import { missingBootRequirements } from './boot.js';
 import { fixturesDirConflict } from './fixtures.js';
@@ -131,6 +131,10 @@ app.get('/api/health', (_req, res) => {
     // US-022: whether this instance charges for runs. False on every self-host
     // default, so the SPA renders no billing UI at all rather than an inert one.
     billing: billingEnabled(),
+    // Whether finished runs are rendered to a PDF (REPORTS_ENABLED). False by
+    // default while the report is being reworked; the SPA then offers no
+    // download rather than one that 404s.
+    reports: REPORTS_ENABLED,
     // US-036: in demo mode the SPA shows a persistent "simulated results" banner
     // whose signup CTA points here (the hosted app's marketing/login page). Null
     // off demo mode, so nothing about the sandbox leaks into a normal deployment.

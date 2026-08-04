@@ -290,7 +290,8 @@ export default function HistoryView({ token }) {
             />
           ) : (
             <EmptyState icon={MousePointerClick} title="No run selected">
-              Pick a run to see its verdict, report and recording.
+              Pick a run to see its verdict. What the agent did, the report and the recording
+              are on the run's own page.
             </EmptyState>
           )}
         </section>

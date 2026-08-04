@@ -11,7 +11,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { db, isUuid, currentUserId } from '../db.js';
 import { createRun, diagnosticsOf, getRun, stepsOf, stopRun, verdictOf } from '../runs.js';
-import { ARTIFACTS_DIR, HAR_FILENAME, RECORDING_FILENAME, REPORT_DATA_FILENAME } from '../config.js';
+import { ARTIFACTS_DIR, HAR_FILENAME, RECORDING_FILENAME, REPORT_DATA_FILENAME, REPORTS_ENABLED } from '../config.js';
 import { h, requireDb, requireAgentKey, requireEntitled, withUserCap, respondOverCap, STORED_TRIGGERS } from './helpers.js';
 import { validateSecretTags } from '../variables.js';
 
@@ -409,6 +409,12 @@ export function runsRouter({ checkToken, checkTokenOrQuery }) {
     '/:id/report.pdf',
     checkToken,
     h(async (req, res) => {
+      // Its own answer, before the run is even looked up: with reports off no
+      // run has a PDF, and "no report (run not finished?)" would send a caller
+      // to look at a run that finished perfectly well.
+      if (!REPORTS_ENABLED) {
+        return res.status(404).json({ error: 'PDF reports are disabled on this instance' });
+      }
       const run = ownedLiveRun(req.params.id);
       const pdfPath = run?.reportPath || path.join(ARTIFACTS_DIR, req.params.id, 'report.pdf');
       /** @param {string} status */
