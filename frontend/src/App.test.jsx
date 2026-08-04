@@ -54,7 +54,9 @@ describe('App shell', () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByLabelText('QAssist')).toBeTruthy();
+    // Awaited, not synchronous: the shell renders nothing until /api/health
+    // answers, because what a stranger is allowed to see is derived from it.
+    expect(await screen.findByLabelText('QAssist')).toBeTruthy();
     // The nav only appears once /api/health reports a DB, so finding it proves
     // the health fetch resolved and TopBar re-rendered on it.
     expect(await screen.findByText('History')).toBeTruthy();
@@ -95,6 +97,35 @@ describe('App shell', () => {
     expect(await screen.findByText('Theme')).toBeTruthy();
     expect(screen.queryByText('API token')).toBeNull();
     expect(screen.queryByText('Token required')).toBeNull();
+  });
+
+  // The gates that decide what a visitor may see — multi, demo, the onboarding
+  // wall — are all derived from `health`, and an unresolved `health` reads as
+  // the unauthenticated branch of every one of them. So a shell that renders
+  // before health answers shows a signed-out visitor the whole app for a frame
+  // and then takes it away: the Run view flashed over the login screen, and
+  // again over the onboarding wall while /api/billing/status was in flight.
+  // Asserted synchronously, because a frame is all the bug ever was.
+  it('shows no app frame before it knows the visitor is signed out', async () => {
+    stubApi({
+      '/api/health': { auth: false, db: true, mail: false, auth_mode: 'multi' },
+      '/api/tests': { tests: [] },
+      '/api/projects': { projects: [] },
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <App />
+      </MemoryRouter>
+    );
+
+    expect(screen.queryByRole('button', { name: /New run/ })).toBeNull();
+    expect(screen.queryByLabelText('QAssist')).toBeNull();
+
+    // /api/auth/me is unstubbed, so it 404s — no session, which is the login
+    // screen. Nothing but it was ever painted.
+    expect(await screen.findByRole('button', { name: /Send sign-in link/ })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /New run/ })).toBeNull();
   });
 
   it('mounts with no control plane and hides the nav', async () => {

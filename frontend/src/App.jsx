@@ -151,6 +151,13 @@ export default function App() {
 
   const location = useLocation();
 
+  // Every gate below is derived from `health`, and an unresolved `health` makes
+  // each of them read as its *unauthenticated* branch: no multi, no demo, no
+  // wall. So rendering before it answers paints the whole app — Run view and
+  // all — over whatever the deployment actually shows a stranger, and takes it
+  // away again a round trip later. Hold instead.
+  if (health == null) return null;
+
   // The token is a deployment detail, not part of running a test, so it lives
   // behind the gear rather than in the run form. Both cookie modes are exempt:
   // in multi the session cookie is the credential, and in demo it's the
@@ -158,7 +165,7 @@ export default function App() {
   // is *set*, and a demo deployment sets one it never consults (makeGate takes
   // the cookie branch first), so without `!demo` the demo blocks every visitor
   // behind a token none of them can have.
-  const needsToken = !multi && !demo && (!health || health.auth) && !token;
+  const needsToken = !multi && !demo && health.auth && !token;
 
   const atRun = location.pathname === '/';
 
@@ -187,19 +194,22 @@ export default function App() {
   // the wall, on a fourth step. `activation_pending` is absent on every instance
   // without an activation window — and on every server that predates one — so
   // this reads as the pre-US-054 condition there.
-  const walled = !billingStatus?.entitled || billingStatus?.activation_pending;
-  if (multi && health?.billing && billingStatus && keyStatus && walled) {
-    return (
-      <Onboarding
-        email={me?.email}
-        token={token}
-        keyStatus={keyStatus}
-        onReloadKey={loadKeyStatus}
-        billing={billingStatus}
-        onReloadBilling={loadBillingStatus}
-        onSignOut={signOut}
-      />
-    );
+  if (multi && health.billing) {
+    if (!billingStatus || !keyStatus) return null;
+    const walled = !billingStatus.entitled || billingStatus.activation_pending;
+    if (walled) {
+      return (
+        <Onboarding
+          email={me?.email}
+          token={token}
+          keyStatus={keyStatus}
+          onReloadKey={loadKeyStatus}
+          billing={billingStatus}
+          onReloadBilling={loadBillingStatus}
+          onSignOut={signOut}
+        />
+      );
+    }
   }
 
   return (
@@ -256,10 +266,7 @@ export default function App() {
               it needs its own route, or the catch-all below would match it and
               redirect the app to itself forever. */}
           <Route path="/" element={null} />
-          {/* Hold the redirect until health resolves, so a first paint that
-              lands on a real path isn't bounced to '/' before its route
-              registers. */}
-          <Route path="*" element={health ? <Navigate to="/" replace /> : null} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>
 
