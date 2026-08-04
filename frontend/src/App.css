@@ -428,8 +428,12 @@ code { font-family: var(--mono); font-size: .92em; }
 }
 .auth-brand {
   font-size: var(--t-lg); font-weight: 600; letter-spacing: -.006em;
-  text-align: center; padding-bottom: var(--s4);
+  display: flex; align-items: center; justify-content: center; gap: var(--s2);
+  padding-bottom: var(--s4);
 }
+/* Bigger than the header's 22px: here the lockup is the only thing above the
+   card, not a glyph sharing a row with the nav. */
+.auth-brand .brand { height: 28px; }
 .auth-body { display: flex; flex-direction: column; gap: var(--s3); align-items: flex-start; }
 .auth-lead { font-size: var(--t-lg); font-weight: 500; }
 .auth-sub { font-size: var(--t-base); line-height: 1.6; color: var(--muted); }

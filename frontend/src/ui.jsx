@@ -5,6 +5,41 @@ import { X } from 'lucide-react';
 // view lives here so a button, a field or a dialog can't drift between views —
 // the styles for all of it are the "Primitives" section of App.css.
 
+// `public/qassist-mark.svg`, inlined rather than served as an <img>: the file's
+// check is white, which is invisible on the light theme, so it takes its
+// container's text colour. The green stroke is the brand and is fixed in both
+// themes. The viewBox is cropped to the ink — the file carries the square
+// padding a favicon needs, which as a glyph in a row would just be a hole on
+// the left edge.
+//
+// It names itself only where it stands alone. Beside the wordmark it is
+// decoration, and a second "QAssist" for a screen reader to read is noise.
+export function BrandMark({ labelled = false }) {
+  return (
+    <svg
+      className="brand"
+      viewBox="20 20 86 74"
+      fill="none"
+      {...(labelled ? { role: 'img', 'aria-label': 'QAssist' } : { 'aria-hidden': 'true' })}
+    >
+      <path
+        d="M26 60 L52 88 L100 26"
+        stroke="currentColor"
+        strokeWidth="9"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M26 60 L100 26"
+        stroke="#3DDC97"
+        strokeWidth="9"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 /**
  * One button component for the whole app; `variant` carries the emphasis
  * (primary action, secondary, quiet, destructive) and `icon` a lucide icon

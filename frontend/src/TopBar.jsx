@@ -1,6 +1,6 @@
 import { CalendarClock, FolderTree, History, Play, Settings } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
-import { IconButton } from './ui.jsx';
+import { BrandMark, IconButton } from './ui.jsx';
 import { statusLabel } from './status.js';
 
 const VIEWS = [
@@ -9,32 +9,6 @@ const VIEWS = [
   ['/schedules', 'Schedules', CalendarClock],
   ['/projects', 'Projects', FolderTree],
 ];
-
-// `public/qassist-mark.svg`, inlined rather than served as an <img>: the file's
-// check is white, which is invisible on the light theme, so it takes the bar's
-// text colour here. The green stroke is the brand and is fixed in both themes.
-// The viewBox is cropped to the ink — the file carries the square padding a
-// favicon needs, which as a header glyph would just be a hole on the left edge.
-function BrandMark() {
-  return (
-    <svg className="brand" viewBox="20 20 86 74" fill="none" role="img" aria-label="QAssist">
-      <path
-        d="M26 60 L52 88 L100 26"
-        stroke="currentColor"
-        strokeWidth="9"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M26 60 L100 26"
-        stroke="#3DDC97"
-        strokeWidth="9"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
 
 // Shared header. It carries the run indicators even while another view is
 // open, so a run started in Run stays visible while you browse history or
@@ -48,7 +22,7 @@ export default function TopBar({ showNav, runState, onOpenSettings }) {
   return (
     <header className="topbar">
       <div className="topbar-inner">
-        <BrandMark />
+        <BrandMark labelled />
 
         {showNav && (
           <nav className="views">

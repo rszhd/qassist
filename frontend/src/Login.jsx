@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button } from './ui.jsx';
+import { BrandMark, Button } from './ui.jsx';
 import { api } from './api.js';
 
 // Magic-link sign-in (US-021), shown only when the server is in multi-user mode
@@ -32,7 +32,10 @@ export default function Login({ invalid }) {
   return (
     <div className="auth">
       <div className="auth-card">
-        <div className="auth-brand">QAssist</div>
+        <div className="auth-brand">
+          <BrandMark />
+          QAssist
+        </div>
         {sent ? (
           <div className="auth-body">
             <p className="auth-lead">Check your email</p>
