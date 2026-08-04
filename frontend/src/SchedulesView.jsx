@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, CalendarClock, Pause, Pencil, Play, Plus, Trash2 } from 'lucide-react';
 import { api } from './api.js';
+import Timeline, { slotMarks, slotCaption } from './Timeline.jsx';
 import { Button, CardHead, EmptyState, Field, IconButton, Modal, PageHeader } from './ui.jsx';
 import { formatWhen } from './status.js';
 
@@ -93,6 +95,7 @@ const formFor = (s) => ({
 });
 
 export default function SchedulesView({ token }) {
+  const navigate = useNavigate();
   const [schedules, setSchedules] = useState([]);
   const [editing, setEditing] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -233,6 +236,15 @@ export default function SchedulesView({ token }) {
                     {s.target_name}
                     <span className="row-tag">{s.target_type}</span>
                     {s.target_tests === 0 && <span className="row-tag warn">no tests</span>}
+                    {/* US-069: the strip below charts slots that produced runs,
+                        so a schedule consuming slot after slot and starting
+                        nothing draws as blank — which reads as quiet, not as
+                        broken. The tag is the only thing that says otherwise.
+                        Not shown beside "no tests", which already names the
+                        reason this one is guessing at. */}
+                    {s.firing_into_nothing && s.target_tests !== 0 && (
+                      <span className="row-tag warn">not running</span>
+                    )}
                   </span>
                   <span className="row-sub">
                     {describeSchedule(s)}
@@ -264,6 +276,20 @@ export default function SchedulesView({ token }) {
                     label="Delete"
                     disabled={busy}
                     onClick={() => remove(s)}
+                  />
+                </span>
+                {/* US-069. Its own line under the row rather than a fourth
+                    column: the row already carries more than a phone fits side
+                    by side, and a strip squeezed beside three touch targets is
+                    unreadable at every width. A schedule with nothing
+                    attributed draws no strip at all — Timeline returns null on
+                    an empty list — so a row that has never fired looks exactly
+                    as it did before this shipped. */}
+                <span className="sched-strip">
+                  <Timeline
+                    marks={slotMarks(s.recent || [])}
+                    caption={slotCaption(s.recent || [])}
+                    onPick={() => navigate(`/history?schedule_id=${s.id}`)}
                   />
                 </span>
               </li>

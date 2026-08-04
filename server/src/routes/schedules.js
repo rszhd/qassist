@@ -7,7 +7,8 @@
 // marker can never disagree with the schedule the user is looking at.
 import express from 'express';
 import { db, currentUserId, isUuid } from '../db.js';
-import { validateSchedule, nextSlot } from '../schedule.js';
+import { validateSchedule, nextSlot, firesIntoNothing } from '../schedule.js';
+import { slotVerdict } from '../slotVerdict.js';
 import { testsOf } from '../scheduler.js';
 import { unresolvableSecrets } from '../variables.js';
 import { storedSecretNames } from '../testSecrets.js';
@@ -66,6 +67,79 @@ const LIST_QUERY = `
     left join (select st.suite_id, count(*)::int as n from suite_tests st
                  join tests t2 on t2.id = st.test_id
                 group by st.suite_id) uc on uc.suite_id = s.suite_id`;
+
+/**
+ * How many slots a strip charts. A server constant, not a query parameter:
+ * enough to see a pattern, small enough that this stays a list response.
+ */
+const SLOT_WINDOW = 20;
+
+/** Roughly how far apart a preset's slots are, for bounding the scan below. */
+function slotSpacingMs(schedule) {
+  if (schedule.kind === 'hourly') return (schedule.interval_hours || 1) * 3600_000;
+  return (schedule.kind === 'weekly' ? 7 : 1) * 86_400_000;
+}
+
+/**
+ * The recent slots for a page of schedules (US-069): one bar per firing,
+ * newest first, with the tally its tooltip names.
+ *
+ * A **second query**, not a join into LIST_QUERY. That one already carries
+ * four grouped derived tables to work around pg-mem's inability to see an
+ * outer alias from a subquery, and a per-row top-N is a lateral join — the
+ * same trap one step further in. Two more things pg-mem cannot be trusted with
+ * here, both of which it fails *silently*: `row_number() over (…)` it rejects
+ * outright, and `count(*) filter (where …)` it answers with the **unfiltered**
+ * count, which would put a clean tally under a failed slot.
+ *
+ * The window is bounded by time rather than by a per-schedule row limit: the
+ * preset says how far apart slots are, so SLOT_WINDOW of them is a floor the
+ * whole page shares. Over-fetching a little for the slowest schedule is the
+ * price of not needing a lateral join, and the extra rows are dropped below.
+ * @param {any[]} schedules
+ */
+async function recentSlots(schedules) {
+  // A fresh install answers in one round trip.
+  if (!schedules.length) return new Map();
+
+  let floor = Infinity;
+  for (const s of schedules) {
+    const from = s.next_run_at ? new Date(s.next_run_at).getTime() : Date.now();
+    floor = Math.min(floor, from - SLOT_WINDOW * slotSpacingMs(s));
+  }
+
+  // Generated placeholders rather than `= any($1)`: pg-mem does not bind array
+  // parameters, and `activeTestIds` in scheduler.js is the existing pattern.
+  const ids = schedules.map((s) => s.id);
+  const placeholders = ids.map((_, i) => `$${i + 1}`).join(', ');
+  const { rows } = await db().query(
+    `select schedule_id, scheduled_for,
+            count(*)::int as runs,
+            sum(case when status in ('failed', 'error') then 1 else 0 end)::int as failed,
+            array_agg(status) as statuses
+       from runs
+      where schedule_id in (${placeholders})
+        and scheduled_for >= $${ids.length + 1}
+      group by schedule_id, scheduled_for
+      order by scheduled_for desc`,
+    [...ids, new Date(floor)]
+  );
+
+  /** @type {Map<string, any[]>} */
+  const bySchedule = new Map();
+  for (const row of rows) {
+    const slots = bySchedule.get(row.schedule_id) || [];
+    if (slots.length >= SLOT_WINDOW) continue;
+    slots.push({
+      scheduled_for: row.scheduled_for,
+      status: slotVerdict(row.statuses),
+      runs: row.runs,
+      failed: row.failed,
+    });
+    bySchedule.set(row.schedule_id, slots);
+  }
+  return bySchedule;
+}
 
 /**
  * Pick the one target a write names and check it exists. The column is the
@@ -157,7 +231,17 @@ export function schedulesRouter({ checkToken }) {
         `${LIST_QUERY} where ${where.join(' and ')} order by s.next_run_at nulls last`,
         params
       );
-      res.json({ schedules: rows });
+      const recent = await recentSlots(rows);
+      res.json({
+        // `firing_into_nothing` is derived here rather than in the query: the
+        // answer is slot math in the schedule's own timezone, which is
+        // `schedule.js`'s job and not something SQL should reproduce.
+        schedules: rows.map((s) => ({
+          ...s,
+          firing_into_nothing: firesIntoNothing(s),
+          recent: recent.get(s.id) || [],
+        })),
+      });
     })
   );
 

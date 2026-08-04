@@ -319,3 +319,117 @@ test('schedules require the bearer token', async () => {
   await request(app).post('/api/schedules').send({ kind: 'daily' }).expect(401);
   await request(app).delete(`/api/schedules/${randomUUID()}`).expect(401);
 });
+
+// US-069: the tell `docs/api.md` already documents — next_run_at moving while
+// last_run_at stays put — carried on the row instead of left for the reader to
+// spot by comparing two timestamps.
+test('the list marks a schedule that keeps claiming slots and starting nothing', async () => {
+  const testId = await makeTest();
+  const created = (await post({ test_id: testId, kind: 'daily', hour: 2 }).expect(201)).body;
+
+  const listed = async () =>
+    (await request(app).get('/api/schedules').set(auth).expect(200)).body.schedules.find(
+      (s) => s.id === created.id
+    );
+
+  assert.equal(
+    (await listed()).firing_into_nothing,
+    false,
+    'a schedule made today has missed nothing'
+  );
+
+  // A week of claimed slots with nothing to show for them: `next_run_at` is
+  // tomorrow because the claim keeps advancing it, and `last_run_at` is null
+  // because `stampRun` only writes when a member actually started (BUG-006).
+  await pool.query(
+    `update schedules set created_at = now() - interval '7 days', last_run_at = null
+      where id = $1`,
+    [created.id]
+  );
+  assert.equal((await listed()).firing_into_nothing, true);
+
+  // And a slot that did start something clears it.
+  await pool.query('update schedules set last_run_at = now() where id = $1', [created.id]);
+  assert.equal((await listed()).firing_into_nothing, false);
+});
+
+// US-069: the strip's data. One bar per firing, not per run — a suite fires
+// one run per member and they are one night, not ten.
+test('the list carries recent slots, collapsed one bar per firing', async () => {
+  const testId = await makeTest('nightly checkout');
+  const created = (await post({ test_id: testId, kind: 'daily', hour: 2 }).expect(201)).body;
+
+  const slot = (iso) => new Date(iso);
+  const addRun = (status, scheduledFor) =>
+    pool.query(
+      `insert into runs (id, test_id, user_id, goal, start_url, max_steps, status, trigger,
+                         schedule_id, scheduled_for)
+       values ($1, $2, (select user_id from schedules where id = $3), 'g',
+               'https://example.com', 5, $4, 'schedule', $3, $5)`,
+      [randomUUID(), testId, created.id, status, scheduledFor]
+    );
+
+  const nextRun = new Date(created.next_run_at);
+  const night = (daysBack) => slot(nextRun.getTime() - daysBack * 86400_000);
+
+  // Two nights, the older one a clean sweep, the newer one a suite where a
+  // single member failed among four.
+  await addRun('passed', night(2));
+  for (const status of ['passed', 'passed', 'failed', 'passed']) await addRun(status, night(1));
+  // A run this schedule did not start, on the same test and the same night.
+  await pool.query(
+    `insert into runs (id, test_id, user_id, goal, start_url, max_steps, status, trigger)
+     values ($1, $2, (select user_id from schedules where id = $3), 'g',
+             'https://example.com', 5, 'error', 'ui')`,
+    [randomUUID(), testId, created.id]
+  );
+
+  const { body } = await request(app).get('/api/schedules').set(auth).expect(200);
+  const recent = body.schedules.find((s) => s.id === created.id).recent;
+
+  assert.equal(recent.length, 2, 'five scheduled runs over two nights are two bars');
+  assert.equal(recent[0].status, 'failed', 'newest first, and one failure colours the night');
+  assert.deepEqual([recent[0].runs, recent[0].failed], [4, 1], 'the tally its tooltip names');
+  assert.equal(recent[1].status, 'passed');
+  assert.deepEqual([recent[1].runs, recent[1].failed], [1, 0]);
+  // The hand-started error is louder than anything on the strip and must not
+  // reach it: this schedule did not do that.
+  assert.ok(!recent.some((s) => s.status === 'error'));
+});
+
+test('a schedule with nothing attributed to it carries an empty strip', async () => {
+  const testId = await makeTest('never run');
+  const created = (await post({ test_id: testId, kind: 'daily', hour: 4 }).expect(201)).body;
+  // Runs made before 019 landed: right test, right trigger, no attribution.
+  await pool.query(
+    `insert into runs (id, test_id, user_id, goal, start_url, max_steps, status, trigger)
+     values ($1, $2, (select user_id from schedules where id = $3), 'g',
+             'https://example.com', 5, 'passed', 'schedule')`,
+    [randomUUID(), testId, created.id]
+  );
+
+  const { body } = await request(app).get('/api/schedules').set(auth).expect(200);
+  // Empty, so the view draws no strip at all rather than an empty frame — a
+  // bar guessed from trigger+test_id would be attributed to whichever schedule
+  // happened to point there today.
+  assert.deepEqual(body.schedules.find((s) => s.id === created.id).recent, []);
+});
+
+test('an empty list costs no second query', async () => {
+  const queries = [];
+  const { attachDb } = await import('../src/db.js');
+  const spy = {
+    query: (text, params) => {
+      queries.push(String(text));
+      return pool.query(text, params);
+    },
+  };
+  attachDb(/** @type {any} */ (spy));
+  try {
+    const { body } = await request(app).get('/api/schedules').set(auth).expect(200);
+    assert.deepEqual(body.schedules, []);
+    assert.equal(queries.length, 1, 'the list query, and nothing to ask about');
+  } finally {
+    attachDb(pool);
+  }
+});

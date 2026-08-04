@@ -182,3 +182,94 @@ test('the list reports an empty target as a number the view can test', { skip },
   );
   assert.strictEqual(await counted(), 1, 'and follows the target it points at');
 });
+
+// --- US-069: the attribution columns and the index the strip reads ----------
+
+/** One run row, attributed or not, with a status the strip has to colour. */
+async function makeRun(fields) {
+  const id = randomUUID();
+  await pool.query(
+    `insert into runs (id, test_id, user_id, trigger, goal, start_url, max_steps, status,
+                       schedule_id, scheduled_for)
+     values ($1, null, $2, $3, 'g', 'https://example.com', 5, $4, $5, $6)`,
+    [id, userId, fields.trigger, fields.status, fields.schedule_id ?? null, fields.scheduled_for ?? null]
+  );
+  return id;
+}
+
+async function makeSchedule(slug) {
+  const { rows: p } = await pool.query(
+    `insert into projects (user_id, name, slug) values ($1, $2, $2) returning id`,
+    [userId, slug]
+  );
+  const { rows: s } = await pool.query(
+    `insert into schedules (user_id, project_id, kind, hour, minute, tz, enabled, next_run_at)
+     values ($1, $2, 'daily', 2, 0, 'UTC', true, now() + interval '1 day') returning id`,
+    [userId, p[0].id]
+  );
+  return s[0].id;
+}
+
+// pg-mem strips every index (`runMigrations({ skipIndexes: true })`) and
+// answers partial-index queries wrongly when it does not, so the route suite
+// cannot see this one at all. Here it exists, and the predicate is the whole
+// point: the strip's index must not carry a row per UI run on a box where UI
+// runs are most of the table.
+test('the strip index exists and is partial', { skip }, async () => {
+  const { rows } = await pool.query(
+    `select indexdef from pg_indexes where tablename = 'runs' and indexname = 'runs_schedule_idx'`
+  );
+  assert.equal(rows.length, 1, '019 created the index');
+  assert.match(rows[0].indexdef, /where \(schedule_id is not null\)/i);
+});
+
+test('the strip reads one schedule’s slots, newest first, and nobody else’s', { skip }, async () => {
+  const mine = await makeSchedule('strip-mine');
+  const other = await makeSchedule('strip-other');
+  const slot = (iso) => new Date(`${iso}Z`);
+
+  await makeRun({ trigger: 'schedule', status: 'passed', schedule_id: mine, scheduled_for: slot('2026-08-01T02:00:00') });
+  await makeRun({ trigger: 'schedule', status: 'failed', schedule_id: mine, scheduled_for: slot('2026-08-02T02:00:00') });
+  await makeRun({ trigger: 'schedule', status: 'passed', schedule_id: mine, scheduled_for: slot('2026-08-02T02:00:00') });
+  await makeRun({ trigger: 'schedule', status: 'passed', schedule_id: other, scheduled_for: slot('2026-08-02T02:00:00') });
+  // The run that has no schedule at all, and the one that predates 019 — both
+  // must stay out of the strip rather than land on it as an untimed bar.
+  await makeRun({ trigger: 'ui', status: 'passed' });
+
+  const { rows } = await pool.query(
+    `select scheduled_for, count(*)::int as runs,
+            count(*) filter (where status in ('failed', 'error'))::int as failed
+       from runs
+      where schedule_id = $1
+      group by scheduled_for
+      order by scheduled_for desc`,
+    [mine]
+  );
+  assert.deepEqual(
+    rows.map((r) => [r.scheduled_for.toISOString(), r.runs, r.failed]),
+    [
+      ['2026-08-02T02:00:00.000Z', 2, 1],
+      ['2026-08-01T02:00:00.000Z', 1, 0],
+    ],
+    'two slots, the newer one holding both of its members'
+  );
+});
+
+test('deleting a schedule takes the strip and leaves the history', { skip }, async () => {
+  const scheduleId = await makeSchedule('strip-deleted');
+  const runId = await makeRun({
+    trigger: 'schedule',
+    status: 'failed',
+    schedule_id: scheduleId,
+    scheduled_for: new Date('2026-08-03T02:00:00Z'),
+  });
+
+  await pool.query('delete from schedules where id = $1', [scheduleId]);
+
+  const { rows } = await pool.query('select trigger, status, schedule_id from runs where id = $1', [
+    runId,
+  ]);
+  assert.equal(rows.length, 1, 'set null, not cascade — the finding outlives the schedule');
+  assert.equal(rows[0].schedule_id, null);
+  assert.equal(rows[0].status, 'failed', 'and the verdict it recorded is untouched');
+});

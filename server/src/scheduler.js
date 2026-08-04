@@ -283,6 +283,15 @@ export async function tick(now = Date.now()) {
     const started = runTests(ready, {
       trigger: 'schedule',
       user_id: schedule.user_id,
+      // Which schedule started these, and which firing (US-069). The slot
+      // itself, not `now`: `claim` moved the row's next_run_at forward but not
+      // this in-memory copy, so this still holds the boundary the schedule was
+      // due at — 02:00, not the 02:00:07 the tick got round to it, and still
+      // 02:00 for a slot a box that was down fires late. Every member of one
+      // slot carries the same value, which is what collapses a suite's ten
+      // runs into one mark.
+      schedule_id: schedule.id,
+      scheduled_for: schedule.next_run_at,
       openai_api_key: storedKey,
       // Sessions are decrypted before the (synchronous) run engine is entered,
       // the same way the HTTP paths do it in runTestsFromRequest (US-043).

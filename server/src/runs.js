@@ -206,8 +206,9 @@ function persistInsert(run) {
   if (!db()) return;
   run.persisted = db()
     .query(
-      `insert into runs (id, test_id, user_id, trigger, goal, start_url, max_steps, model, status, variables)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      `insert into runs (id, test_id, user_id, trigger, goal, start_url, max_steps, model, status, variables,
+                        schedule_id, scheduled_for)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
       [
         run.id,
         run.test_id,
@@ -219,6 +220,8 @@ function persistInsert(run) {
         run.model,
         run.status,
         JSON.stringify(run.variables || {}),
+        run.schedule_id,
+        run.scheduled_for,
       ]
     )
     .catch((err) => console.error(`db: insert run ${run.id.slice(0, 8)} failed:`, err.message));
@@ -306,7 +309,8 @@ function maybeNotify(run) {
  *           openai_api_key?: string | null, project_id?: string | null,
  *           allowed_domains?: string[], har?: boolean,
  *           storage_state?: string | null, session_verify?: any,
- *           capture_session_id?: string | null, preamble?: any[] }} fields
+ *           capture_session_id?: string | null, preamble?: any[],
+ *           schedule_id?: string | null, scheduled_for?: Date | null }} fields
  */
 export function createRun(fields) {
   // Explicit user_id for the scheduler (no request context); a request-borne run
@@ -387,6 +391,12 @@ export function createRun(fields) {
     preamble: fields.preamble || [],
     user_id: uid,
     trigger,
+    // Which schedule started this and which of its firings (US-069). Only the
+    // tick sets them — every other caller of this function leaves both null,
+    // which is what keeps a non-null `schedule_id` meaning "the scheduler
+    // started this" rather than "someone passed the field".
+    schedule_id: fields.schedule_id || null,
+    scheduled_for: fields.scheduled_for || null,
     status: 'queued',
     events: [],
     subscribers: new Set(),
@@ -421,7 +431,7 @@ export function createRun(fields) {
  * variable with no value) is skipped with an `error` marker rather than
  * starting a broken run — one misconfigured member never blocks the batch.
  * @param {{ id: string, goal: string, start_url: string, max_steps: number, model: string|null, variables?: any, project_id?: string|null, allowed_domains?: string[], browser_session_id?: string|null, captures_session_id?: string|null, initial_actions?: any }[]} tests
- * @param {{ start_url?: string|null, trigger?: string, variables?: Record<string, string>, user_id?: string|null, openai_api_key?: string|null, sessions?: Map<string, any>, storedSecrets?: Map<string, any> }} [opts]
+ * @param {{ start_url?: string|null, trigger?: string, variables?: Record<string, string>, user_id?: string|null, openai_api_key?: string|null, sessions?: Map<string, any>, storedSecrets?: Map<string, any>, schedule_id?: string|null, scheduled_for?: Date|null }} [opts]
  */
 export function runTests(tests, opts = {}) {
   return tests.map((t) => {
@@ -464,6 +474,10 @@ export function runTests(tests, opts = {}) {
       session_verify: session.verify,
       capture_session_id: session.captureSessionId,
       preamble: preambleForRun(t.initial_actions),
+      // One slot's members all carry the same pair (US-069), which is what
+      // makes a suite schedule's ten runs one mark on the strip instead of ten.
+      schedule_id: opts.schedule_id,
+      scheduled_for: opts.scheduled_for,
     });
     // Blocked (US-042) is a per-member outcome, beside the {error} above and
     // for the same reason: one test pointed at localhost must not cost a suite

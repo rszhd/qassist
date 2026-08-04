@@ -143,6 +143,45 @@ test('run history filters by trigger, including the scheduler its callers cannot
   assert.ok(!manualIds.includes(ids.schedule) && !manualIds.includes(ids.ci));
 });
 
+// The other end of US-069's strip: a bar is clickable, and what it opens is
+// History filtered to the schedule that drew it. Two schedules on one test are
+// the case `?test_id=` cannot answer.
+test('run history filters by the schedule that started the run', async () => {
+  const p = await makeProject('Scheduled History');
+  const scheduleId = async () =>
+    (
+      await pool.query(
+        `insert into schedules (user_id, project_id, kind, hour, minute, tz, enabled, next_run_at)
+         values ($1, $2, 'daily', 2, 0, 'UTC', true, now() + interval '1 day') returning id`,
+        [operatorId, p.id]
+      )
+    ).rows[0].id;
+  const nightly = await scheduleId();
+  const hourly = await scheduleId();
+
+  const runs = {};
+  for (const [key, schedule] of [
+    ['nightly', nightly],
+    ['hourly', hourly],
+    ['manual', null],
+  ]) {
+    runs[key] = randomUUID();
+    await pool.query(
+      `insert into runs (id, user_id, goal, start_url, max_steps, status, trigger, schedule_id, scheduled_for)
+       values ($1, $2, 'nightly checkout', 'https://example.com', 60, 'passed', $3, $4,
+               case when $4::uuid is null then null else now() end)`,
+      [runs[key], operatorId, schedule ? 'schedule' : 'ui', schedule]
+    );
+  }
+
+  const listed = (
+    await request(app).get(`/api/runs?schedule_id=${nightly}&limit=200`).set(auth).expect(200)
+  ).body.runs.map((r) => r.id);
+  assert.ok(listed.includes(runs.nightly));
+  assert.ok(!listed.includes(runs.hourly), 'the other schedule on the same target stays out');
+  assert.ok(!listed.includes(runs.manual));
+});
+
 test('run history hides artifact links once retention prunes the directory', async () => {
   const id = randomUUID();
   await pool.query(
@@ -211,6 +250,7 @@ test('retention collects orphan dirs with no run row', async () => {
 test('run history rejects bad filters and paging', async () => {
   for (const q of [
     'test_id=nope',
+    'schedule_id=nope',
     'project_id=nope',
     'status=bogus',
     'trigger=bogus',

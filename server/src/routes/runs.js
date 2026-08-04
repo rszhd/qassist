@@ -55,6 +55,10 @@ function buildFilters(q) {
     if (!isUuid(q.test_id)) return { error: 'invalid test_id', where: '', params: [] };
     add('r.test_id = $?', q.test_id);
   }
+  if (q.schedule_id !== undefined) {
+    if (!isUuid(q.schedule_id)) return { error: 'invalid schedule_id', where: '', params: [] };
+    add('r.schedule_id = $?', q.schedule_id);
+  }
   if (q.status !== undefined) {
     // Comma-separated so the UI's "unfinished" and "failed or errored" filters
     // are one request each.

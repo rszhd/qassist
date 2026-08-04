@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { AlertTriangle, ChevronLeft, ChevronRight, Clock, MousePointerClick } from 'lucide-react';
 import { api } from './api.js';
 import RunDetail from './RunDetail.jsx';
+import Timeline, { runMarks, runCaption } from './Timeline.jsx';
 import { Button, CardHead, EmptyState, PageHeader } from './ui.jsx';
-import { statusColor, formatWhen, formatDuration, statusLabel } from './status.js';
+import { statusColor, formatWhen, formatDuration } from './status.js';
 
 // History (US-011): every run the control plane has kept, filtered and paged
 // off GET /api/runs. The list rows carry everything the detail panel shows
@@ -40,6 +42,12 @@ const RANGES = [
 ];
 
 export default function HistoryView({ token }) {
+  // Arrived at from a bar on the Schedules strip (US-069). Read off the URL
+  // rather than copied into state, so the filter is linkable and survives a
+  // reload — the same call Projects makes about which project is open.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const scheduleId = searchParams.get('schedule_id') || '';
+
   const [projects, setProjects] = useState([]);
   const [tests, setTests] = useState([]);
   const [project, setProject] = useState('all');
@@ -86,6 +94,7 @@ export default function HistoryView({ token }) {
     const q = new URLSearchParams({ limit: String(PAGE), offset: String(offset) });
     if (project !== 'all') q.set('project_id', project);
     if (testId !== 'all') q.set('test_id', testId);
+    if (scheduleId) q.set('schedule_id', scheduleId);
     const statuses = STATUS_FILTERS.find((f) => f.value === status)?.query;
     if (statuses) q.set('status', statuses);
     const triggers = TRIGGER_FILTERS.find((f) => f.value === trigger)?.query;
@@ -93,7 +102,7 @@ export default function HistoryView({ token }) {
     const hours = RANGES.find((r) => r.value === range)?.hours;
     if (hours) q.set('since', new Date(Date.now() - hours * 3600e3).toISOString());
     return q.toString();
-  }, [project, testId, status, trigger, range, offset]);
+  }, [project, testId, scheduleId, status, trigger, range, offset]);
 
   const load = useCallback(async () => {
     try {
@@ -113,7 +122,7 @@ export default function HistoryView({ token }) {
   // Changing a filter invalidates the page number, never the other way round.
   useEffect(() => {
     setOffset(0);
-  }, [project, testId, status, trigger, range]);
+  }, [project, testId, scheduleId, status, trigger, range]);
 
   // A run started in the Run view finishes while this list is open, so poll —
   // but only while something is actually in flight.
@@ -179,7 +188,36 @@ export default function HistoryView({ token }) {
             </select>
           </div>
 
-          {testId !== 'all' && <Timeline runs={data.runs} onPick={setSelectedId} selectedId={selectedId} />}
+          {/* A schedule filter has no picker to show it — it arrives in the
+              URL from a bar on the Schedules strip. Without this the list is
+              silently narrowed and the only way out is the back button, which
+              is not obviously the way out. */}
+          {scheduleId && (
+            <div className="hist-scope">
+              <span>Runs from one schedule</span>
+              <Button
+                size="sm"
+                onClick={() => {
+                  const next = new URLSearchParams(searchParams);
+                  next.delete('schedule_id');
+                  setSearchParams(next, { replace: true });
+                }}
+              >
+                Show all
+              </Button>
+            </div>
+          )}
+
+          {testId !== 'all' && (
+            <Timeline
+              marks={runMarks(data.runs)}
+              caption={runCaption(data.runs)}
+              startLabel="Oldest"
+              endLabel="Newest"
+              onPick={setSelectedId}
+              selectedKey={selectedId}
+            />
+          )}
 
           {loading ? (
             <EmptyState icon={Clock}>Loading runs…</EmptyState>
@@ -263,40 +301,3 @@ export default function HistoryView({ token }) {
   );
 }
 
-/**
- * Pass/fail strip for a single test, oldest on the left — the regression view.
- * It charts the runs currently listed rather than fetching its own window, so
- * what the strip shows and what the list shows can never disagree.
- */
-function Timeline({ runs, onPick, selectedId }) {
-  if (!runs.length) return null;
-  const ordered = [...runs].reverse();
-  const judged = ordered.filter((r) => r.success !== null);
-  const passed = judged.filter((r) => r.success).length;
-
-  return (
-    <div className="timeline">
-      <div className="timeline-head">
-        <span>Oldest</span>
-        <span className="timeline-rate">
-          {judged.length
-            ? `${passed}/${judged.length} passed in this page`
-            : 'No verdicts in this page'}
-        </span>
-        <span>Newest</span>
-      </div>
-      <div className="timeline-bars">
-        {ordered.map((run) => (
-          <button
-            key={run.id}
-            type="button"
-            className={`tl-bar${run.id === selectedId ? ' active' : ''}`}
-            style={{ background: statusColor(run.status) }}
-            title={`${formatWhen(run.created_at)} — ${statusLabel(run.status)}`}
-            onClick={() => onPick(run.id)}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}

@@ -82,6 +82,16 @@ preset should have hit — and leave the full slot ledger to a follow-up. The
 existing `target_tests === 0` → "no tests" tag is the precedent for exactly this
 shape of warning.
 
+Two things that only showed up in the writing. `schedule.js` had no
+previous-slot function — `nextSlot` walks one way only — so `prevSlot` is new,
+and it is the same local-calendar walk reversed rather than a subtraction, for
+the DST reason its sibling already carries. And the slot to measure against is
+the one before **`next_run_at`**, not the one before *now*: the claim has
+certainly been through it, so no grace period is needed for the seconds between
+a slot arriving and the tick reaching it. `firesIntoNothing` also has to
+exclude a slot older than the schedule's own `created_at`, or every schedule
+wears the tag on the day it is made.
+
 ## Details
 
 - `019_schedule_run_attribution.sql`:
@@ -99,8 +109,13 @@ shape of warning.
     the strip shows nothing until the first tick after deploy. Say so in the
     migration comment; a feature that looks broken for one night otherwise
     reads as a bug.
-- `scheduler.js`: pass `schedule_id: schedule.id, scheduled_for: new Date(now)`
-  into the `runTests` opts already carrying `trigger: 'schedule'`
+- `scheduler.js`: pass `schedule_id: schedule.id, scheduled_for:
+  schedule.next_run_at` into the `runTests` opts already carrying
+  `trigger: 'schedule'`. **`next_run_at`, not `now`** — corrected while
+  implementing: `claim` advances the row but not the in-memory copy, so this
+  still holds the boundary the schedule was due at. `now` is when the tick got
+  round to it, which labels a slot 02:00:07 and puts a whole backlog of missed
+  nights under the morning a downed box came back
   (`scheduler.js`, the `runTests(ready, {...})` call). `runs.js:runTests` hands
   them to `createRun`, which adds them to its insert
   (`runs.js:209`). Nothing else calls this path, so no other trigger can set
@@ -166,27 +181,32 @@ precedence order written down as data, not an inline ternary in JSX.
 
 ## Acceptance criteria
 
-- [ ] A run started by the tick records the schedule that started it and the
+- [x] A run started by the tick records the schedule that started it and the
       slot it fired for; a UI, API or CI run records neither
-- [ ] Two schedules pointing at the same test produce strips that differ
-- [ ] A suite schedule's slot is one bar however many tests it ran, and the bar
+- [x] Two schedules pointing at the same test produce strips that differ
+- [x] A suite schedule's slot is one bar however many tests it ran, and the bar
       is red if any member failed or errored
-- [ ] A slot where every member passed is green; a slot still in flight reads as
+- [x] A slot where every member passed is green; a slot still in flight reads as
       running, not as passed
-- [ ] Deleting a schedule leaves its runs in History and takes only the strip
-- [ ] Runs that predate the migration are absent from the strip and break
+- [x] Deleting a schedule leaves its runs in History and takes only the strip
+- [x] Runs that predate the migration are absent from the strip and break
       nothing — a schedule with only such runs shows no strip, not an empty one
-- [ ] A schedule whose slots are firing into nothing is marked on the row, and
+- [x] A schedule whose slots are firing into nothing is marked on the row, and
       is distinguishable from one that has genuinely never been due
-- [ ] Clicking a bar opens History filtered to that schedule, and
+- [x] Clicking a bar opens History filtered to that schedule, and
       `GET /api/runs?schedule_id=` rejects a non-uuid with 400
-- [ ] The list route makes one extra query for the whole page, not one per
+- [x] The list route makes one extra query for the whole page, not one per
       schedule, and none at all when there are no schedules
-- [ ] The strip drops below the row on a phone and does not crowd the actions
-- [ ] `cd server && npm test` covers the attribution and the collapse; the
+- [x] The strip drops below the row on a phone and does not crowd the actions
+- [x] `cd server && npm test` covers the attribution and the collapse; the
       migration and its partial index are exercised against real Postgres
 - [ ] `cd frontend && npm test` covers the collapse function's precedence
-      directly, not only through a rendered row
+      directly, not only through a rendered row — **not as written**: the
+      collapse ended up server-side, because `recent[].status` is part of the
+      API response and a second copy of the rule on the client is the drift
+      this story exists to prevent. Its precedence is asserted directly in
+      `server/test/slot-verdict.test.js`; the frontend covers the mapping from
+      a slot to a bar (`Timeline.test.jsx`)
 
 ## Notes
 

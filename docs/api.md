@@ -198,6 +198,26 @@ resolved the same way the scheduler resolves it. A target can be emptied
 without the schedule being touched, and `0` there is a schedule firing into
 nothing.
 
+Each row also carries `recent`: up to 20 past slots, newest first, as
+`{ scheduled_for, status, runs, failed }`. **A slot is one firing, not one
+run** — a suite schedule starts one run per member and they are a single entry,
+whose `status` is the worst of them. Green means every member passed; a slot
+still in flight reads as `running` or `queued`, never as passed. Nothing here
+is a new state: every `status` is a `runs.status` value.
+
+What `recent` cannot show is a slot that started nothing at all — an empty
+target, every member already running, a lapsed subscription. Those write no run
+row, so they are absent rather than marked, and `firing_into_nothing` below is
+the tell for them. Runs made before the attribution columns existed are absent
+for the same reason: they carry no `schedule_id`.
+
+The comparison itself is on the row too: `firing_into_nothing` is true when the
+slot before `next_run_at` — one the claim has certainly been through — is newer
+than `last_run_at`, and newer than the schedule's own `created_at`. That last
+clause is what separates "has been failing to start for a week" from "was made
+this afternoon and is not due until 02:00". A disabled or never-dated schedule
+is never marked.
+
 ## From CI/CD
 
 A pipeline triggers a **module or a suite** — the set of tests that covers a
@@ -213,8 +233,8 @@ carries the test's name and grouping, so a history table renders from one
 request.
 
 ```bash
-# filters combine: test_id, project_id, module_id, status (comma-separated),
-# since/until (ISO timestamps on created_at), limit (≤200) and offset
+# filters combine: test_id, schedule_id, project_id, module_id, trigger and
+# status (comma-separated), since/until (ISO on created_at), limit (≤200), offset
 curl "http://<host>:8080/api/runs?test_id=<testId>&status=failed,error&limit=20" \
   -H "Authorization: Bearer $WORKER_API_TOKEN"
 # -> {"runs":[{"id":"...","status":"failed","test_name":"login smoke",
@@ -227,6 +247,12 @@ reached by join — so a run whose test was later deleted keeps its history row
 (goal and start_url were copied at enqueue time) but matches no project
 filter. Once retention prunes `runs/<id>/`, `artifacts_deleted_at` is set and
 the row reports no recording or report while the verdict survives.
+
+`schedule_id` narrows to the runs one schedule started. It is the filter to
+reach for when two schedules point at the same target — an hourly smoke and a
+nightly regression on one test are indistinguishable under `test_id` and under
+`trigger=schedule`. Runs made before the schedule was deleted stay in history
+and stop matching it, and runs made before this filter existed match nothing.
 
 ## Why a run failed: network and console evidence
 

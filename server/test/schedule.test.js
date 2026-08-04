@@ -4,7 +4,13 @@
 // the schedule's own zone, which is the only thing the user ever sees.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { nextSlot, validateSchedule, HOURLY_INTERVALS } from '../src/schedule.js';
+import {
+  nextSlot,
+  prevSlot,
+  firesIntoNothing,
+  validateSchedule,
+  HOURLY_INTERVALS,
+} from '../src/schedule.js';
 
 const BERLIN = 'Europe/Berlin';
 
@@ -177,4 +183,120 @@ test('every allowed interval divides the day evenly', () => {
     assert.equal(count, 24 / hours, `${hours} h should fire ${24 / hours}× a day`);
     assert.ok(first);
   }
+});
+
+// --- US-069: the slot behind, and the row tag that reads it -----------------
+
+test('the previous slot is strictly in the past: standing on one returns the one before', () => {
+  const daily = { kind: 'daily', hour: 2, minute: 30, tz: BERLIN };
+  assert.equal(localOf(prevSlot(daily, at('2026-07-23T02:30')), BERLIN), '2026-07-22 02:30');
+  assert.equal(localOf(prevSlot(daily, at('2026-07-23T02:29')), BERLIN), '2026-07-22 02:30');
+  assert.equal(localOf(prevSlot(daily, at('2026-07-23T02:31')), BERLIN), '2026-07-23 02:30');
+});
+
+test('the previous hourly slot is the one below, anchored to local midnight', () => {
+  const hourly = { kind: 'hourly', interval_hours: 6, minute: 15, tz: BERLIN };
+  assert.equal(localOf(prevSlot(hourly, at('2026-07-23T13:00')), BERLIN), '2026-07-23 12:15');
+  // Across local midnight, which is where a naive "subtract the interval"
+  // walks off the anchor.
+  assert.equal(localOf(prevSlot(hourly, at('2026-07-23T00:10')), BERLIN), '2026-07-22 18:15');
+});
+
+test('the previous weekly slot is a week back, not a day', () => {
+  const weekly = { kind: 'weekly', weekday: 1, hour: 9, minute: 0, tz: BERLIN };
+  // Wednesday 22 July 2026 → the Monday before it.
+  assert.equal(localOf(prevSlot(weekly, at('2026-07-22T12:00')), BERLIN), '2026-07-20 09:00');
+});
+
+test('a previous daily slot keeps its wall-clock time across fall back', () => {
+  const daily = { kind: 'daily', hour: 2, minute: 0, tz: BERLIN };
+  // 25 October 2026 is the transition; the night before it is still 02:00.
+  const previous = prevSlot(daily, at('2026-10-25T12:00', '+01:00'));
+  assert.equal(localOf(previous, BERLIN), '2026-10-25 02:00');
+  assert.equal(localOf(prevSlot(daily, previous.getTime()), BERLIN), '2026-10-24 02:00');
+});
+
+test('nextSlot and prevSlot bracket the same instant', () => {
+  for (const schedule of [
+    { kind: 'daily', hour: 2, minute: 30, tz: BERLIN },
+    { kind: 'hourly', interval_hours: 4, minute: 0, tz: BERLIN },
+    { kind: 'weekly', weekday: 3, hour: 22, minute: 45, tz: 'America/New_York' },
+  ]) {
+    const from = at('2026-03-29T07:13'); // Berlin's spring-forward morning
+    const before = prevSlot(schedule, from);
+    const after = nextSlot(schedule, from);
+    assert.ok(before.getTime() < from, `${schedule.kind}: previous is behind`);
+    assert.ok(after.getTime() > from, `${schedule.kind}: next is ahead`);
+    // Nothing fires between them: the slot after the previous one is the next.
+    assert.equal(nextSlot(schedule, before).getTime(), after.getTime());
+  }
+});
+
+// The tag exists because a strip drawn over `runs` shows a schedule that has
+// been claiming slots and starting nothing as blank — which reads as "quiet",
+// not as "broken". Every case below is one where the strip is empty and the
+// truth differs.
+test('a schedule whose claimed slot started nothing is marked', () => {
+  const nightly = {
+    kind: 'daily',
+    hour: 2,
+    minute: 0,
+    tz: BERLIN,
+    enabled: true,
+    created_at: new Date(at('2026-07-01T09:00')),
+    next_run_at: new Date(at('2026-07-24T02:00')),
+  };
+  assert.equal(
+    firesIntoNothing({ ...nightly, last_run_at: new Date(at('2026-07-23T02:00:04')) }),
+    false,
+    'the slot the claim consumed did start something'
+  );
+  assert.equal(
+    firesIntoNothing({ ...nightly, last_run_at: new Date(at('2026-07-20T02:00:04')) }),
+    true,
+    'three nights of claims, and the last thing that started was on the 20th'
+  );
+  assert.equal(
+    firesIntoNothing({ ...nightly, last_run_at: null }),
+    true,
+    'claimed since the day it was made, and has never started anything'
+  );
+});
+
+test('a schedule that has never been due is not marked', () => {
+  const madeThisAfternoon = {
+    kind: 'daily',
+    hour: 2,
+    minute: 0,
+    tz: BERLIN,
+    enabled: true,
+    created_at: new Date(at('2026-07-23T15:00')),
+    next_run_at: new Date(at('2026-07-24T02:00')),
+    last_run_at: null,
+  };
+  // 02:00 this morning is behind next_run_at, but it is also behind the
+  // schedule — nobody missed it. This is the case the tag must not shout at,
+  // because it is every schedule on the day it is created.
+  assert.equal(firesIntoNothing(madeThisAfternoon), false);
+});
+
+test('a disabled or undated schedule is not marked', () => {
+  const base = {
+    kind: 'daily',
+    hour: 2,
+    minute: 0,
+    tz: BERLIN,
+    created_at: new Date(at('2026-07-01T09:00')),
+    last_run_at: null,
+  };
+  assert.equal(
+    firesIntoNothing({ ...base, enabled: false, next_run_at: new Date(at('2026-07-24T02:00')) }),
+    false,
+    'a schedule that was switched off is not failing'
+  );
+  assert.equal(
+    firesIntoNothing({ ...base, enabled: true, next_run_at: null }),
+    false,
+    'an undated one has claimed nothing yet'
+  );
 });

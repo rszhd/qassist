@@ -124,6 +124,29 @@ async function makeSchedule(target, fields = {}) {
 const runRows = async () =>
   (await pool.query('select id, test_id, trigger, status from runs order by created_at')).rows;
 
+/** What US-069's strip reads: who started each run, and for which firing. */
+const attributed = async () =>
+  (await pool.query('select test_id, schedule_id, scheduled_for from runs order by created_at'))
+    .rows;
+
+/**
+ * Wait until no run row is unfinished. `counts()` is the engine's in-memory
+ * view and drops to zero before the terminal UPDATE lands, so the busy check
+ * the next tick makes (`activeTestIds`, which reads the table) would still see
+ * the drained run.
+ */
+async function drainRuns() {
+  const deadline = Date.now() + 5000;
+  for (;;) {
+    const { rows } = await pool.query(
+      `select count(*)::int as n from runs where status in ('queued', 'running')`
+    );
+    if (!Number(rows[0].n)) return;
+    assert.ok(Date.now() < deadline, 'runs never reached a terminal status');
+    await new Promise((r) => setTimeout(r, 20));
+  }
+}
+
 /**
  * Give a test's secret declaration a stored value (US-064). Seeded through the
  * registered `decode` builtin with the hex inline, because pg-mem cannot
@@ -626,4 +649,134 @@ test('no scheduler log line carries a secret value', async () => {
   assert.equal(result.runs, 1);
   assert.ok(lines.length, 'the tick logs what it fired');
   assert.doesNotMatch(lines, new RegExp(CANARY));
+});
+
+// --- US-069: which schedule started this run, and which firing --------------
+//
+// `trigger='schedule'` and `test_id` were all a run carried, so two schedules
+// on one test were indistinguishable and a suite's members had nothing tying
+// them into one firing. The strip on the Schedules page is drawn off these two
+// columns, and every one of its bars is wrong if they are.
+
+test('a scheduled run records the schedule that started it and the slot it fired for', async () => {
+  const testId = await makeTest('nightly');
+  const scheduleId = await makeSchedule({ test_id: testId });
+
+  await tick(at('2026-07-23T02:00:30'));
+
+  const [run] = await attributed();
+  assert.equal(run.schedule_id, scheduleId);
+  assert.equal(
+    new Date(run.scheduled_for).getTime(),
+    at('2026-07-23T02:00'),
+    'the slot it was due at, not the half-minute later the tick got to it'
+  );
+});
+
+test('a slot a late tick fires is still labelled with the slot, not the tick', async () => {
+  // The downtime case: two days of missed nights fire once, and the bar for it
+  // belongs where the schedule was due. Reading `now` here would put the whole
+  // backlog under the morning the box came back.
+  const testId = await makeTest('nightly');
+  await makeSchedule({ test_id: testId }, { next_run_at: new Date(at('2026-07-21T02:00')) });
+
+  await tick(at('2026-07-23T09:00'));
+
+  const [run] = await attributed();
+  assert.equal(new Date(run.scheduled_for).getTime(), at('2026-07-21T02:00'));
+});
+
+test('every member of a suite slot carries the same firing', async () => {
+  const a = await makeTest('login');
+  const b = await makeTest('checkout');
+  const { rows: p } = await pool.query(
+    `insert into projects (user_id, name, slug) values ($1, 'P', 'p') returning id`,
+    [userId]
+  );
+  const { rows: s } = await pool.query(
+    `insert into suites (user_id, name, project_id) values ($1, 'regression', $2) returning id`,
+    [userId, p[0].id]
+  );
+  await pool.query(
+    'insert into suite_tests (suite_id, test_id, position) values ($1, $2, 0), ($1, $3, 1)',
+    [s[0].id, a, b]
+  );
+  const scheduleId = await makeSchedule({ suite_id: s[0].id });
+
+  await tick(at('2026-07-23T02:00:30'));
+
+  const runs = await attributed();
+  assert.equal(runs.length, 2);
+  // One bar, not two: the strip groups on this pair, so a suite must not
+  // out-weigh a one-test schedule in a strip of the same width.
+  assert.deepEqual(
+    [...new Set(runs.map((r) => `${r.schedule_id}@${new Date(r.scheduled_for).getTime()}`))],
+    [`${scheduleId}@${at('2026-07-23T02:00')}`]
+  );
+});
+
+test('two schedules on one test are told apart by what started each run', async () => {
+  const testId = await makeTest('checkout');
+  // Different slots, because the second schedule would otherwise find the test
+  // still in flight from the first and skip it — the strips this separates are
+  // an hourly smoke and a nightly regression, which is exactly this shape.
+  const hourly = await makeSchedule(
+    { test_id: testId },
+    { kind: 'hourly', interval_hours: 6, next_run_at: new Date(at('2026-07-23T01:00')) }
+  );
+  const nightly = await makeSchedule({ test_id: testId });
+
+  await tick(at('2026-07-23T01:00:10'));
+  await drainRuns();
+  await tick(at('2026-07-23T02:00:10'));
+
+  assert.deepEqual(
+    (await attributed()).map((r) => `${r.schedule_id}@${new Date(r.scheduled_for).getTime()}`),
+    [`${hourly}@${at('2026-07-23T01:00')}`, `${nightly}@${at('2026-07-23T02:00')}`]
+  );
+});
+
+test('a run nobody scheduled records neither column', async () => {
+  // The same insert every trigger reaches (`createRun` is the sole funnel), so
+  // this is what keeps a non-null schedule_id meaning "the tick started this"
+  // rather than "a caller passed the field".
+  const { createRun } = await import('../src/runs.js');
+  createRun({
+    goal: 'check it by hand',
+    start_url: 'https://example.com',
+    max_steps: 5,
+    trigger: 'ui',
+    user_id: userId,
+  });
+  await drainRuns();
+
+  const [run] = await attributed();
+  assert.equal(run.schedule_id, null);
+  assert.equal(run.scheduled_for, null);
+});
+
+test('a slot the tick consumed without starting anything shows up on the row', async () => {
+  // The gap the strip cannot draw: `empty` is one of five ways `tick()` spends
+  // a slot and writes no run row, so History and the strip both stay blank
+  // while the schedule looks healthy. This is the only signal that it isn't.
+  const { firesIntoNothing } = await import('../src/schedule.js');
+  const { rows: p } = await pool.query(
+    `insert into projects (user_id, name, slug) values ($1, 'Silent', 'silent') returning id`,
+    [userId]
+  );
+  const scheduleId = await makeSchedule({ project_id: p[0].id });
+  // Older than the slot it is about to miss — a schedule created after its
+  // last slot has missed nothing, which is the case the tag must not shout at.
+  await pool.query(`update schedules set created_at = $2 where id = $1`, [
+    scheduleId,
+    new Date(at('2026-07-01T09:00')),
+  ]);
+
+  const result = await tick(at('2026-07-23T02:00:30'));
+  assert.equal(result.empty, 1);
+  assert.equal((await runRows()).length, 0, 'nothing for a strip to draw');
+
+  const row = await scheduleRow(scheduleId);
+  assert.equal(row.last_run_at, null);
+  assert.equal(firesIntoNothing(row), true, 'the claim advanced and nothing came of it');
 });

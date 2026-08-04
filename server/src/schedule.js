@@ -115,6 +115,73 @@ export function nextSlot(schedule, from = Date.now()) {
   return null;
 }
 
+/**
+ * The last instant strictly before `from` at which the schedule fires —
+ * `nextSlot` walked the other way, and it is the same walk for the same
+ * reason: a DST day is 23 or 25 hours long, so days are stepped on the local
+ * calendar and never by adding 24 h.
+ *
+ * Read against the row's own `next_run_at` rather than against the clock
+ * (US-069): the claim moved `next_run_at` past the slot it consumed, so the
+ * slot before it is one the tick has definitely been through. Asking "what
+ * should have fired by now?" of the wall clock instead would call a schedule
+ * late during the seconds between its slot arriving and the tick reaching it.
+ * @param {Schedule} schedule
+ * @param {number|Date} [from]
+ * @returns {Date|null} null only for a schedule validateSchedule would reject
+ */
+export function prevSlot(schedule, from = Date.now()) {
+  const tz = zoneOf(schedule.tz);
+  const fromMs = from instanceof Date ? from.getTime() : from;
+  const start = partsIn(tz, new Date(fromMs));
+  const slots = slotsOfDay(schedule);
+
+  for (let dayOffset = 0; dayOffset <= 8; dayOffset++) {
+    const day = new Date(Date.UTC(start.year, start.month - 1, start.day) - dayOffset * DAY_MS);
+    if (schedule.kind === 'weekly' && day.getUTCDay() !== schedule.weekday) continue;
+    for (let i = slots.length - 1; i >= 0; i--) {
+      const ms = instantOf(
+        tz,
+        day.getUTCFullYear(),
+        day.getUTCMonth() + 1,
+        day.getUTCDate(),
+        slots[i].hour,
+        slots[i].minute
+      );
+      if (ms < fromMs) return new Date(ms);
+    }
+  }
+  return null;
+}
+
+/**
+ * Is this schedule consuming slots without starting anything (US-069)?
+ *
+ * `last_run_at` is written by `stampRun` only when a member actually started
+ * (BUG-006), and `next_run_at` is advanced by the claim whether or not one
+ * did. So a claim the tick made and nothing came of is exactly the gap between
+ * them, and it is the one thing the strip cannot draw: the five silent skips
+ * in `tick()` — empty target, unstartable member, lapsed subscription,
+ * activation window, no key — all write no run row at all, and a strip over
+ * `runs` shows them as absence.
+ *
+ * The distinction the tag has to keep is "firing into nothing" against "never
+ * been due", which is why a slot older than the schedule itself does not
+ * count: a schedule saved this afternoon has a previous slot this morning that
+ * nobody missed.
+ * @param {Schedule & { next_run_at?: Date|string|null, last_run_at?: Date|string|null,
+ *                      created_at?: Date|string|null, enabled?: boolean }} schedule
+ */
+export function firesIntoNothing(schedule) {
+  if (!schedule.enabled || !schedule.next_run_at) return false;
+  const previous = prevSlot(schedule, new Date(schedule.next_run_at));
+  if (!previous) return false;
+  const created = schedule.created_at ? new Date(schedule.created_at).getTime() : 0;
+  if (previous.getTime() <= created) return false;
+  if (!schedule.last_run_at) return true;
+  return new Date(schedule.last_run_at).getTime() < previous.getTime();
+}
+
 /** @param {unknown} value */
 function knownZone(value) {
   try {
