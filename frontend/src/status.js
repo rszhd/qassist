@@ -1,6 +1,6 @@
-// Run status → colour, shared by the history row dots and the pass/fail
-// timeline bars. One table so a verdict never reads as two different colours
-// depending on where you are looking at it.
+// Run status → colour, for the pass/fail timeline bars. One table so a verdict
+// never reads as two different colours depending on where you are looking at
+// it — the history rows carried these as dots until they took the pill.
 //
 // The values are `--fill-*` tokens rather than hexes: these are solid fills
 // and the surface under them changes with the theme, so the palette has to
@@ -16,8 +16,8 @@ export const STATUS_COLORS = {
   error: 'var(--fill-error)',
   completed: 'var(--fill-completed)',
   // US-047. Its own colour rather than `completed`'s grey: both ended without a
-  // verdict, but one ran out of goal and the other was stopped by hand, and the
-  // dot is the only thing telling them apart in a scan of History.
+  // verdict, but one ran out of goal and the other was stopped by hand, and on
+  // the timeline the colour is the only thing telling them apart.
   cancelled: 'var(--fill-cancelled)',
   idle: 'var(--fill-idle)',
 };

@@ -563,23 +563,26 @@ a.row-main { color: inherit; text-decoration: none; }
   font-family: var(--mono); font-size: var(--t-sm); line-height: 1.7; color: var(--muted);
 }
 
-/* A history row on a phone. The row is dot + name/goal + when, and at 390px the
-   `when` column held 107px of a 356px row, leaving the test name 187 — enough
-   to wrap "Returning customer pays with a saved card" onto three lines while a
-   date sat beside it. So `when` stops being a column and becomes a line: the
-   row wraps, the name gets the full width, and the timestamp and the
-   steps/duration read left to right underneath it, indented past the dot to
-   line up with the name above. */
+/* A history row on a phone. The row is verdict + name/goal + when, and at 390px
+   the `when` column held 107px of a 356px row, leaving the test name 187 —
+   enough to wrap "Returning customer pays with a saved card" onto three lines
+   while a date sat beside it. So `when` stops being a column and becomes a
+   line: the row wraps, the name gets the full width, and the timestamp and the
+   steps/duration read left to right underneath it. */
 @media (max-width: 600px) {
   .hist-list .list li { flex-wrap: wrap; }
   /* The trigger tag follows the name instead of floating to the right of it: a
      name long enough to wrap left the tag centred against two lines at the far
      edge, where it read as a column of its own rather than as part of the row. */
   .hist-list .row-name { flex-wrap: wrap; }
+  /* The pill sizes to its word again: a fixed 8em column is a quarter of a
+     356px row spent before the name starts, and the name is what a phone has
+     least of. Rows starting at slightly different x is the cheaper loss —
+     there are two verdicts in a phone-length list, not nine. */
+  .hist-list .list .badge { min-width: 0; }
   .hist-list .run-when {
     flex-basis: 100%; flex-direction: row; align-items: baseline;
     justify-content: flex-start; gap: var(--s2);
-    padding-left: calc(var(--dot) + var(--s2));
   }
   /* Nothing to pick yet is not worth a screen of its own above the list. */
   .hist-detail.is-empty { display: none; }
@@ -609,7 +612,14 @@ a.row-main { color: inherit; text-decoration: none; }
 .hist-scope { display: flex; align-items: center; justify-content: space-between; gap: var(--s2); margin-bottom: var(--s2); font-size: var(--t-sm); color: var(--muted); }
 .run-when { flex: 0 0 auto; display: flex; flex-direction: column; align-items: flex-end; gap: var(--s05); font-size: var(--t-sm); color: var(--muted); }
 .run-sub { font-size: var(--t-sm); color: var(--faint); }
-.run-dot { flex: 0 0 auto; width: var(--dot); height: var(--dot); border-radius: 50%; }
+/* History is the one list scanned for the verdict itself, so the row leads
+   with the pill rather than with a dot — a dot is a colour you have to have
+   learnt, and `stopped` and `completed` are two greys apart in it. Fixed
+   width because a pill is set from a word and the words run 5–9 characters:
+   left to size themselves, every row's name starts at a different x. 8em of
+   the badge's own `--t-xs` holds COMPLETED, the longest; anything longer
+   grows the pill rather than eliding. */
+.hist-list .list .badge { flex: 0 0 auto; min-width: 8em; justify-content: center; }
 
 /* US-069: a schedule's strip is a second line of its row at every width, not a
    fourth column. The row already carries a name, a type tag, a recurrence, a

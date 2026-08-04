@@ -13,16 +13,6 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import App from './App.jsx';
 
-// jsdom ships no matchMedia; App's theme effect reads it on mount. Report no
-// light preference — the app's default is dark anyway.
-beforeEach(() => {
-  vi.stubGlobal('matchMedia', () => ({
-    matches: false,
-    addEventListener() {},
-    removeEventListener() {},
-  }));
-});
-
 // Every view fetches on mount, so an unstubbed fetch would throw under each
 // render. Route by URL prefix and hand back the shapes the shell reads; an
 // unknown path 404s rather than hanging.
@@ -94,7 +84,7 @@ describe('App shell', () => {
     // …and Settings doesn't contradict that by asking for the same token behind
     // the gear, or reporting the deployment as token-gated.
     fireEvent.click(screen.getByRole('button', { name: /Settings/ }));
-    expect(await screen.findByText('Theme')).toBeTruthy();
+    expect(await screen.findByRole('dialog', { name: 'Settings' })).toBeTruthy();
     expect(screen.queryByText('API token')).toBeNull();
     expect(screen.queryByText('Token required')).toBeNull();
   });

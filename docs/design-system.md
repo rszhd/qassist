@@ -22,10 +22,14 @@ steps and radii always resolve to a token, so the theme is swappable from
 `:root` alone — the light theme lives in one `:root[data-theme='light']` block
 that overrides tokens and nothing else, and needing a colour there that `:root`
 doesn't already declare means some rule is reaching past the tokens. **Dark is
-the default and the app's identity**; light is opt-in via the theme select in
-Settings (Dark / Light / Match system, stored in `qassist_theme`), never
-inferred from `prefers-color-scheme` — App.jsx resolves "Match system" to a
-concrete `dark`/`light` so the palette stays written once. Each view opens with
+the app, and since 2026-08-04 it is the only theme that ships** — the Settings
+select, the state behind it and the pre-paint script in `index.html` are gone,
+nothing sets `data-theme`, and the light block is unreachable. It is kept in
+step anyway: a token added to `:root` gets its light counterpart, because
+switching back on should be restoring the attribute rather than remixing a
+palette. It will stay an attribute rather than `prefers-color-scheme` when it
+does — a light OS deciding what a console looks like is the thing that was
+being avoided. Each view opens with
 a `PageHeader` carrying its primary action; creating and editing happen in a
 `Modal`, and destructive/secondary row actions hide behind `.row-actions` until
 the row is hovered or focused.
@@ -214,7 +218,7 @@ token is a 1px drop plus `inset 0 1px 0 rgba(255,255,255,.03)` — a lit top
 edge, which is the cue that separates a surface from the page when the two are
 neutrals nine units apart with nothing drawn between them. The fill and that
 edge are the whole separation. In light there is no lit edge worth drawing
-(white on `#fffdfa` is nothing), so that half is dropped and a fainter drop
+(white on `#ffffff` is nothing), so that half is dropped and a fainter drop
 carries the card alone — which is why `--shadow-sm` is one of the few tokens
 whose two themes differ in *shape*, not just in value. `--shadow-lg` stays what
 it was: for things that genuinely float, which means modals and nothing else.
@@ -223,14 +227,20 @@ including `.rail-strip` and `.auth-card`. The `.browser` frame matches that
 corner, because it shares a row with cards, but keeps its hairline: it is chrome
 around a live page, and the drawn edge is what says so.
 
-**The ramp is warm, the accent is not.** Every neutral carries a low-saturation
-~36° cast; the accent stays blue against it, and that is the one part of the
-warmth worth defending. `--warn` is amber and `--fill-queued` gold, so a warm
-accent would put the primary button and the *running* dot in the same hue
-family as two verdicts that have to be told apart at `--dot`. It also costs
-nothing: a cool accent on warm neutrals is what leaves it the only saturated
-thing on the page. Verdict hues keep their own temperatures for the same
-reason — they are signal, not surface.
+**Both ramps are cool, and the accent is blue against them.** Every neutral in
+either theme carries a ~220° cast at low saturation — near enough to grey to
+read as unpainted. Both were warm until 2026-08-04, and against `--warn` amber
+and `--fill-queued` gold the surfaces read as brown rather than as neutral. The
+accent stays blue: a warm one would put the primary button and the *running*
+bar in the same hue family as two verdicts that have to be told apart at
+`--dot`, and blue on near-grey is what leaves it the only saturated thing on the
+page. Verdict hues keep their own temperatures for the same reason — they are
+signal, not surface.
+
+In light, `--card` is plain white and `--bg` a clear step below it. The warm
+palette had them three units apart, which is not a surface a card sits on;
+paper reads as paper by being the brightest thing on screen, so the page gives
+way rather than the card being tinted to make room.
 
 **No box is drawn; the fill does the separating.** At every level — a `.card`
 on the page, a `.modal` over the scrim, a field or a `.stat` inside a card — the
@@ -247,10 +257,15 @@ on a white card — the tinted banners are the same vocabulary. Chrome: the
 is reaching for you — `.btn-secondary`, `.btn-danger` — keeps its edge too,
 because a button has to read as pressable before it is hovered. So: a new box
 gets a fill, and gets a border only if the border is saying something the fill
-can't. A run status renders as a tinted `.badge-<status>`
-pill; `statusColor()` in `status.js` maps a status to a `--fill-*` token for the
-solid dots and timeline bars, so the two can't drift and a theme swap carries
-the dots with it.
+can't. **A run status renders as a tinted `.badge-<status>` pill wherever a
+person reads one status** — the run page, the top bar, the detail panel, and
+since 2026-08-04 the History rows, which carried a coloured dot instead. The
+dot was a legend to learn, and it had `completed` grey next to `cancelled`
+blue-grey to be told apart at 6px, in the one list whose whole purpose is
+scanning verdicts. `statusColor()` in `status.js` maps a status to a `--fill-*`
+token for the *timeline*, which is where a status still renders as a solid too
+small for a word — the two tables can't drift and a theme swap carries the bars
+with it.
 
 ## Token index
 
@@ -264,22 +279,22 @@ the system.** Colours are declared twice, in `:root` (dark, the default) and in
 
 | Token | Dark | Light | |
 | --- | --- | --- | --- |
-| `--bg` | `#17130f` | `#f7f4ef` | the page |
-| `--sunken` | `#181410` | `#efebe4` | inputs, wells — *below* `--bg` in dark |
-| `--card` | `#201c17` | `#fffdfa` | |
-| `--raised` | `#26211b` | `#fffdfa` | modals |
-| `--hover` | `#2b2620` | `#f5f1ea` | |
-| `--border` | `#302b25` | `#e8e3da` | dividers and rules inside a surface |
-| `--border-hi` | `#403a33` | `#d5cfc5` | emphasis / hover border |
-| `--stage` | `#100d0a` | `#ede8e0` | letterbox around the live frame |
+| `--bg` | `#121417` | `#eff1f5` | the page |
+| `--sunken` | `#131518` | `#e5e8ee` | inputs, wells — *below* `--bg` in dark |
+| `--card` | `#1a1d21` | `#ffffff` | |
+| `--raised` | `#202328` | `#ffffff` | modals |
+| `--hover` | `#25282e` | `#e9ecf2` | |
+| `--border` | `#2a2e34` | `#dfe3ea` | dividers and rules inside a surface |
+| `--border-hi` | `#363a41` | `#c7ccd6` | emphasis / hover border |
+| `--stage` | `#0a0c0e` | `#e2e6ed` | letterbox around the live frame |
 
 ### Text
 
 | Token | Dark | Light | |
 | --- | --- | --- | --- |
-| `--text` | `#f1ede7` | `#1f1a14` | |
-| `--muted` | `#a29b92` | `#625b52` | secondary |
-| `--faint` | `#8a837a` | `#787067` | tertiary |
+| `--text` | `#eceef2` | `#171a20` | |
+| `--muted` | `#989ea6` | `#545a64` | secondary |
+| `--faint` | `#838890` | `#6a707a` | tertiary |
 
 ### Accent
 
@@ -311,24 +326,24 @@ surface.
 
 ### Status fills
 
-Solid dots and timeline bars. `statusColor()` in `status.js` maps a status to
+The timeline's bars and slots. `statusColor()` in `status.js` maps a status to
 one of these by name — the two tables cannot drift.
 
 | Token | Dark | Light | | Token | Dark | Light |
 | --- | --- | --- | --- | --- | --- | --- |
 | `--fill-queued` | `#9c8039` | `#9a7315` | | `--fill-error` | `#d0666c` | `#c0434b` |
-| `--fill-running` | `#4d7cf6` | `#3563d6` | | `--fill-completed` | `#4b453e` | `#bcb4ab` |
+| `--fill-running` | `#4d7cf6` | `#3563d6` | | `--fill-completed` | `#43474e` | `#b0b6c0` |
 | `--fill-passed` | `#4cb98a` | `#1d8a5f` | | `--fill-cancelled` | `#7d93b5` | `#5c7699` |
-| `--fill-failed` | `#d0666c` | `#c0434b` | | `--fill-idle` | `#564f47` | `#cac2b9` |
+| `--fill-failed` | `#d0666c` | `#c0434b` | | `--fill-idle` | `#4c515a` | `#c3c8d1` |
 
 ### Overlays and shadow
 
 | Token | Dark | Light | |
 | --- | --- | --- | --- |
-| `--bar` | `rgba(23,19,15,.85)` | `rgba(247,244,239,.85)` | top bar |
-| `--scrim` | `rgba(10,8,6,.66)` | `rgba(32,26,20,.32)` | behind a modal |
-| `--shadow-sm` | `0 1px 2px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.03)` | `0 1px 2px rgba(30,24,19,.06)` | cards — the inset lit edge is the point, and light has none |
-| `--shadow-lg` | `0 24px 64px rgba(0,0,0,.55), 0 2px 6px rgba(0,0,0,.4)` | `0 24px 64px rgba(30,24,19,.14), 0 2px 6px rgba(30,24,19,.08)` | modals only |
+| `--bar` | `rgba(18,20,23,.85)` | `rgba(239,241,245,.85)` | top bar |
+| `--scrim` | `rgba(8,9,11,.66)` | `rgba(19,22,28,.32)` | behind a modal |
+| `--shadow-sm` | `0 1px 2px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.03)` | `0 1px 2px rgba(19,22,28,.07)` | cards — the inset lit edge is the point, and light has none |
+| `--shadow-lg` | `0 24px 64px rgba(0,0,0,.55), 0 2px 6px rgba(0,0,0,.4)` | `0 24px 64px rgba(19,22,28,.16), 0 2px 6px rgba(19,22,28,.08)` | modals only |
 
 ### Spacing and controls
 
