@@ -21,14 +21,6 @@ import { MemoryRouter } from 'react-router-dom';
 import App from './App.jsx';
 import Billing from './Billing.jsx';
 
-beforeEach(() => {
-  vi.stubGlobal('matchMedia', () => ({
-    matches: false,
-    addEventListener() {},
-    removeEventListener() {},
-  }));
-});
-
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();

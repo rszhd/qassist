@@ -13,36 +13,35 @@
    is its fill and a shadow, not a drawn edge. Hairlines are kept for dividers
    inside a surface and for the boxes whose border is signal.
 
-   The ramp is warm — every neutral carries a low-saturation ~36° cast rather
-   than sitting on true grey. The accent stays blue against it on purpose: warn
-   is amber and queued is gold, so a warm accent would put the primary button
-   and the running dot in the same hue family as two verdicts that have to be
-   told apart at `--dot`. Cool accent on warm neutrals is also what leaves the
-   accent the one saturated thing on the page.
+   Both ramps are cool — every neutral carries a ~220° cast at low saturation,
+   near enough to grey that it reads as unpainted. They were warm until
+   2026-08-04, and against the amber of warn and the gold of queued the
+   surfaces read as brown rather than as neutral. The accent stays blue, which
+   is also what leaves it the one saturated thing on the page.
    ========================================================================== */
 :root {
   color-scheme: dark;
 
   /* Surfaces, darkest to lightest: sunken (inputs, wells) → page → card →
-     raised (modals) → hover. The ramp sits at warm graphite rather than at
-     black — dark enough to be a dark theme, light enough that the surfaces
-     read as paper.
+     raised (modals) → hover. The ramp sits at graphite rather than at black —
+     dark enough to be a dark theme, light enough that the surfaces read as
+     paper.
      `--sunken` is the one that sits *below* the page rather than above it. No
      surface here separates with a border, and a well inside a card is the
      hardest case of that: at 4 units under the card it could not. Below `--bg`
      it clears the card by 8, which is what a recess needs to read as one. */
-  --bg: #17130f;
-  --sunken: #181410;
-  --card: #201c17;
-  --raised: #26211b;
-  --hover: #2b2620;
-  --border: #302b25;
-  --border-hi: #403a33;
-  --stage: #100d0a;
+  --bg: #121417;
+  --sunken: #131518;
+  --card: #1a1d21;
+  --raised: #202328;
+  --hover: #25282e;
+  --border: #2a2e34;
+  --border-hi: #363a41;
+  --stage: #0a0c0e;
 
-  --text: #f1ede7;
-  --muted: #a29b92;
-  --faint: #8a837a;
+  --text: #eceef2;
+  --muted: #989ea6;
+  --faint: #838890;
 
   --accent: #4d7cf6;
   --accent-hi: #6a92f8;
@@ -51,8 +50,8 @@
   --ring: rgba(77, 124, 246, .3);
 
   /* Verdicts. `-line` is border weight, `-bg` surface weight, the plain name
-     is text weight. Solid fills for dots and bars live in status.js — keep
-     the two in step. */
+     is text weight. Solid fills for the timeline live in status.js — keep the
+     two in step. */
   --ok: #4cb98a;
   --ok-line: #2a5843;
   --ok-bg: #17281f;
@@ -67,24 +66,24 @@
   --info-line: #34404f;
   --info-bg: #1b2029;
 
-  /* Solid verdict fills — history row dots and timeline bars. They run a
+  /* Solid verdict fills — the timeline's bars and slots. They run a
      shade brighter than the surface-weight verdicts above because they sit as
      a solid on the page rather than as a tint behind text. `status.js` maps a
      status to one of these by name, so the JS table and this block cannot
-     drift apart, and a theme swap carries the dots with it. */
+     drift apart, and a theme swap carries the bars with it. */
   --fill-queued: #9c8039;
   --fill-running: #4d7cf6;
   --fill-passed: #4cb98a;
   --fill-failed: #d0666c;
   --fill-error: #d0666c;
-  --fill-completed: #4b453e;
+  --fill-completed: #43474e;
   --fill-cancelled: #7d93b5;
-  --fill-idle: #564f47;
+  --fill-idle: #4c515a;
 
   /* The two translucent layers. They have to be tokens like everything else,
      or a theme swap leaves a dark bar and a dark scrim over a light page. */
-  --bar: rgba(23, 19, 15, .85);
-  --scrim: rgba(10, 8, 6, .66);
+  --bar: rgba(18, 20, 23, .85);
+  --scrim: rgba(8, 9, 11, .66);
 
   /* Spacing. Every value is N × 4px, including the two half-steps: component
      interiors kept inventing 5/6/7/9/10/11px because the scale started at 4,
@@ -220,38 +219,46 @@
    that list, the rule using it is reaching past the tokens and should be
    fixed rather than patched.
 
-   **Dark is the default and the app's identity** — this is a console you
-   leave open beside a terminal. Light is opt-in, and it is reached by an
-   attribute rather than by `prefers-color-scheme` so that a light OS does not
-   silently decide what QAssist looks like. The one place that preference
-   lives is the theme select in Settings; "Match system" is one of its
-   options, and App.jsx resolves it to a concrete `dark`/`light` before it
-   ever reaches CSS, which is what keeps this palette written once instead of
-   once per selector.
+   **Dark is the app, and as of 2026-08-04 it is the only theme that ships.**
+   Nothing sets `data-theme` any more — the select in Settings, the state
+   behind it and the pre-paint script in `index.html` are all gone, so this
+   block is unreachable and the app is what `:root` says. It is kept because
+   the light palette is not what was wrong with it: switching back on is
+   restoring the attribute, not remixing a palette. Anything added to `:root`
+   still gets its counterpart here.
 
-   Same constraints as the dark theme: one neutral ramp, one accent spent on
-   the primary button and focus, verdicts below full saturation. The ramp
-   inverts — page is the darkest surface in dark mode and the lightest here,
-   with cards sitting above it — so `--sunken` goes greyer than the card
-   rather than blacker, and `--accent-hi` darkens on hover instead of
-   lightening. `--stage` stops being near-black: it is the letterbox around a
+   Reaching it will stay an attribute rather than `prefers-color-scheme`, so
+   that a light OS does not silently decide what QAssist looks like, and so
+   that "match system" can be resolved to a concrete `dark`/`light` in JS —
+   which is what keeps this palette written once instead of once per
+   selector.
+
+   Same constraints as the dark theme, and the same cool cast: one neutral
+   ramp, one accent spent on the primary button and focus, verdicts below full
+   saturation. The ramp inverts — page is the darkest surface in dark mode and
+   the lightest here, with cards sitting above it — so `--sunken` goes greyer
+   than the card rather than blacker, and `--accent-hi` darkens on hover
+   instead of lightening. The card is plain `#ffffff` and the page a step
+   further below it than the warm palette had them: paper reads as paper by
+   being the brightest thing on screen, and at three units under an off-white
+   card the page was not a surface the card sat on. `--stage` stops being near-black: it is the letterbox around a
    screenshot of someone's page, and a black surround on a white console reads
    as a broken image rather than as a browser. */
 :root[data-theme='light'] {
   color-scheme: light;
 
-  --bg: #f7f4ef;
-  --sunken: #efebe4;
-  --card: #fffdfa;
-  --raised: #fffdfa;
-  --hover: #f5f1ea;
-  --border: #e8e3da;
-  --border-hi: #d5cfc5;
-  --stage: #ede8e0;
+  --bg: #eff1f5;
+  --sunken: #e5e8ee;
+  --card: #ffffff;
+  --raised: #ffffff;
+  --hover: #e9ecf2;
+  --border: #dfe3ea;
+  --border-hi: #c7ccd6;
+  --stage: #e2e6ed;
 
-  --text: #1f1a14;
-  --muted: #625b52;
-  --faint: #787067;
+  --text: #171a20;
+  --muted: #545a64;
+  --faint: #6a707a;
 
   --accent: #3563d6;
   --accent-hi: #2a4fb3;
@@ -280,20 +287,20 @@
   --fill-passed: #1d8a5f;
   --fill-failed: #c0434b;
   --fill-error: #c0434b;
-  --fill-completed: #bcb4ab;
+  --fill-completed: #b0b6c0;
   --fill-cancelled: #5c7699;
-  --fill-idle: #cac2b9;
+  --fill-idle: #c3c8d1;
 
-  --bar: rgba(247, 244, 239, .85);
-  --scrim: rgba(32, 26, 20, .32);
+  --bar: rgba(239, 241, 245, .85);
+  --scrim: rgba(19, 22, 28, .32);
 
   /* Shadow is the one thing that does not invert — it stays black, just
      far lighter, because a shadow on paper is an absence of light either
      way. `--shadow-sm` drops its lit edge here: a white inset on a card that
-     is already `#fffdfa` draws nothing, so the faint drop carries the card on
+     is already `#ffffff` draws nothing, so the faint drop carries the card on
      its own. */
-  --shadow-sm: 0 1px 2px rgba(30, 24, 19, .06);
-  --shadow-lg: 0 24px 64px rgba(30, 24, 19, .14), 0 2px 6px rgba(30, 24, 19, .08);
+  --shadow-sm: 0 1px 2px rgba(19, 22, 28, .07);
+  --shadow-lg: 0 24px 64px rgba(19, 22, 28, .16), 0 2px 6px rgba(19, 22, 28, .08);
 }
 
 /* ==========================================================================

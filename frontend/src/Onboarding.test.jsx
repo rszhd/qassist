@@ -14,14 +14,6 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { MemoryRouter } from 'react-router-dom';
 import App from './App.jsx';
 
-beforeEach(() => {
-  vi.stubGlobal('matchMedia', () => ({
-    matches: false,
-    addEventListener() {},
-    removeEventListener() {},
-  }));
-});
-
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();

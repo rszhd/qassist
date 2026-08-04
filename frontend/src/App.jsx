@@ -25,9 +25,6 @@ export default function App() {
     () => localStorage.getItem('qassist_token') || localStorage.getItem('qagent_token') || ''
   );
   const [health, setHealth] = useState(null);
-  // Dark unless the user says otherwise — a light OS should not decide what
-  // the console looks like. 'system' is the opt-in that hands that back.
-  const [theme, setTheme] = useState(() => localStorage.getItem('qassist_theme') || 'dark');
   // false, or the open dialog — `true` from the gear, a field name from a
   // banner that is asking for that one thing, which the dialog then opens on.
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -47,25 +44,6 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('qassist_token', token);
   }, [token]);
-
-  // 'system' is resolved to a concrete dark/light here rather than in CSS, so
-  // the light palette is written once (`:root[data-theme='light']`) instead of
-  // once per selector. Dark leaves the attribute off: the tokens in `:root`
-  // are already the dark theme, so the default costs nothing.
-  useEffect(() => {
-    localStorage.setItem('qassist_theme', theme);
-    const mq = window.matchMedia('(prefers-color-scheme: light)');
-    const apply = () => {
-      const resolved = theme === 'system' ? (mq.matches ? 'light' : 'dark') : theme;
-      document.documentElement.dataset.theme = resolved;
-    };
-    apply();
-    // Only worth watching while following the system — otherwise the choice
-    // is fixed and the OS flipping at sunset is none of our business.
-    if (theme !== 'system') return undefined;
-    mq.addEventListener('change', apply);
-    return () => mq.removeEventListener('change', apply);
-  }, [theme]);
 
   // /api/health is unauthenticated — it tells us whether a token is even
   // needed (auth) and whether the control plane is up (db).
@@ -324,13 +302,6 @@ export default function App() {
                 autoFocus={settingsOpen === 'openai-key'}
               />
             )}
-            <Field label="Theme" hint="Dark is the default. Match system follows your OS setting.">
-              <select value={theme} onChange={(e) => setTheme(e.target.value)}>
-                <option value="dark">Dark</option>
-                <option value="light">Light</option>
-                <option value="system">Match system</option>
-              </select>
-            </Field>
             {health && (
               <div className="settings-instance">
                 <div className="field-label">Instance</div>

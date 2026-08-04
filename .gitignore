@@ -1,10 +1,8 @@
 node_modules/
 dist/
 .venv/
-.env
 # .env.staging and any other per-stack env file (US-038) — same rule as .env,
 # and .env.staging.example is what is tracked instead.
-.env.*
 !.env*.example
 runs/
 # Anchored: server/test/fixtures/ is tracked and must not be swept up by this.
@@ -23,3 +21,4 @@ fixtures-*/
 __pycache__/
 .pytest_cache/
 mutants/
+config.bat

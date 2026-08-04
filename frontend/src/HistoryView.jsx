@@ -5,7 +5,7 @@ import { api } from './api.js';
 import RunDetail from './RunDetail.jsx';
 import Timeline, { runMarks } from './Timeline.jsx';
 import { Button, CardHead, EmptyState, PageHeader } from './ui.jsx';
-import { statusColor, formatWhen, formatDuration } from './status.js';
+import { statusLabel, formatWhen, formatDuration } from './status.js';
 
 // History (US-011): every run the control plane has kept, filtered and paged
 // off GET /api/runs. The list rows carry everything the detail panel shows
@@ -233,7 +233,7 @@ export default function HistoryView({ token }) {
             <ul className="list">
               {data.runs.map((run) => (
                 <li key={run.id} className={run.id === selectedId ? 'active' : ''}>
-                  <span className="run-dot" style={{ background: statusColor(run.status) }} />
+                  <span className={`badge badge-${run.status}`}>{statusLabel(run.status)}</span>
                   <button type="button" className="row-main" onClick={() => setSelectedId(run.id)}>
                     <span className="row-name">
                       {run.test_name || <em>Ad-hoc run</em>}
