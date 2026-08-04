@@ -573,14 +573,6 @@ export default function RunView({ token, health, keyStatus, visible, needsToken,
         {health?.db && (
           <Button icon={Plus} onClick={newTest} disabled={needsToken}>New test</Button>
         )}
-        {/* The stage shows this run; /runs/<id> is everything else about it —
-            the steps, the evidence, the report. It appears as soon as the run
-            has an id, not once it ends: the address is what you send to someone
-            else while it is still going. Navigating there keeps the run alive,
-            because the Run view hides rather than unmounts (see App). */}
-        {runId && (
-          <Button as={Link} icon={ExternalLink} to={`/runs/${runId}`}>Full report</Button>
-        )}
         {/* US-047. `danger` colours the click, not the outcome: this interrupts
             something, and while a run is healthy it is the only red on the page,
             which is what makes it findable at the moment you want it. The record
@@ -827,6 +819,15 @@ export default function RunView({ token, health, keyStatus, visible, needsToken,
                     <div className="verdict-actions">
                       <Button icon={Download} onClick={downloadReport} disabled={reportBusy}>
                         {reportBusy ? 'Preparing PDF…' : 'PDF report'}
+                      </Button>
+                      {/* The stage shows the run; /runs/<id> holds everything
+                          else about it — the steps, the evidence, the report.
+                          Beside the PDF because it is the same question asked
+                          of the same finished run, pass, fail or stopped.
+                          Navigating there keeps this run alive: the Run view
+                          hides rather than unmounts (see App). */}
+                      <Button as={Link} icon={ExternalLink} to={`/runs/${runId}`}>
+                        Full report
                       </Button>
                       {hasRecording && !isDemo && (
                         <Button
