@@ -1,0 +1,43 @@
+# Hot reload inside the compose stack, for developing without Node, npm or a
+# Python venv on the host. Use it as an overlay on the base file:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+#
+# Open http://localhost:5173 (Vite). Port 8080 still serves the frontend build
+# baked into the image at build time, which stops updating the moment you edit
+# anything — in this mode it is the API only.
+services:
+  qassist:
+    command: ["node", "--watch", "/app/server/src/server.js"]
+    # Source only, never a directory holding installed dependencies: mounting
+    # ./server would hide the image's /app/server/node_modules and force an
+    # `npm install` on the host, which is the whole thing this file avoids.
+    # agent/ is safe to mount whole — pip installed into /opt/venv, outside it.
+    volumes:
+      - ./server/src:/app/server/src
+      - ./agent:/app/agent
+      - ./db:/app/db
+
+  # Vite lives in the frontend build stage and never reaches the runtime image,
+  # which gets only the compiled dist/. So HMR needs the stage itself as a
+  # second service.
+  frontend:
+    build:
+      context: .
+      target: frontend
+    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+    environment:
+      # localhost inside a container is that container; the proxy has to name
+      # the service, on its in-network port rather than the published one.
+      API_HOST: qassist
+      API_PORT: 8080
+    # Overridable so this can run beside a host `npm run dev`, which takes 5173.
+    ports:
+      - "${VITE_PORT:-5173}:5173"
+    volumes:
+      - ./frontend/src:/fe/src
+      - ./frontend/public:/fe/public
+      - ./frontend/index.html:/fe/index.html
+      - ./frontend/vite.config.js:/fe/vite.config.js
+    depends_on:
+      - qassist

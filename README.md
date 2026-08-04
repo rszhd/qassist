@@ -260,6 +260,31 @@ refuses to boot and says so, rather than serving a half-app.
 - `npm test` needs none of this — the control-plane tests run the real
   migrations against an in-memory Postgres (pg-mem).
 
+### Hot reload
+
+`docker compose up` deliberately has none. The image `COPY`s the source at
+build time and serves a frontend compiled in an earlier stage, so a change
+there needs `docker compose up --build`. Iterate with the two dev servers
+above instead.
+
+To iterate with only Docker on the machine — no Node, no npm, no agent venv —
+layer the dev overlay on the same base file:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+```
+
+That runs Express under `node --watch`, mounts `server/src`, `agent/` and `db/`
+over the image's copies, and adds a Vite service on
+<http://localhost:5173> built from the frontend stage, which the runtime image
+does not carry. It mounts source directories only: mounting `server/` whole
+would hide the image's `node_modules` and put an `npm install` back on the
+host, which is the thing being avoided. Rebuild only when the `Dockerfile` or
+a dependency manifest changes.
+
+Set `VITE_PORT` if something already holds 5173, a host `npm run dev` above
+being the likely candidate.
+
 ## Deployment
 
 Runs as a single container (`docker compose up -d`) on any Linux host with
