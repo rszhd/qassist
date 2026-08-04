@@ -35,7 +35,7 @@ test('caller text is escaped, in every block that takes it', () => {
     button(HOSTILE, `https://qa.example.com/?q=${HOSTILE}`),
     rawLink(`https://qa.example.com/?q=${HOSTILE}`),
   ];
-  const html = renderEmail({ heading: HOSTILE, preheader: HOSTILE, blocks });
+  const { html } = renderEmail({ heading: HOSTILE, preheader: HOSTILE, blocks });
 
   assert.ok(!html.includes('<script'), 'a goal cannot open a tag');
   assert.ok(!html.includes('alert("x")'), 'nor smuggle one through an attribute quote');
@@ -54,20 +54,36 @@ test('esc leaves ordinary prose alone', () => {
 });
 
 test('the message loads nothing from the network', () => {
-  const html = renderEmail({
+  const { html } = renderEmail({
     heading: 'Anything',
     blocks: [paragraph('body'), button('Go', 'https://qa.example.com/runs/1')],
     unsubscribeUrl: 'https://qa.example.com/api/notifications/unsubscribe?x=1',
   });
-  assert.ok(!/<img\b/i.test(html), 'no images');
-  assert.ok(!/\bsrc\s*=/i.test(html), 'nothing sourced');
+  // Every source in the document is a cid: — a reference into this message's
+  // own attachments, which is the one kind that fetches nothing.
+  for (const [, src] of html.matchAll(/\bsrc\s*=\s*"([^"]*)"/gi)) {
+    assert.match(src, /^cid:/, `${src} is fetched from somewhere`);
+  }
   assert.ok(!/url\(/i.test(html), 'no CSS-fetched asset');
   // Links are the exception, and they are the point.
   assert.ok(html.includes('href="https://qa.example.com/runs/1"'));
 });
 
+test('the mark travels with the message the cid points at', () => {
+  const { html, attachments } = renderEmail({ heading: 'Anything', blocks: [] });
+  const cid = html.match(/src="cid:([^"]+)"/)?.[1];
+  assert.ok(cid, 'the lockup references an image');
+
+  const mark = attachments.find((a) => a.content_id === cid);
+  assert.ok(mark, 'and the attachment it names is in the same object as the body');
+  assert.ok(Buffer.from(mark.content, 'base64').length > 0, 'with bytes in it');
+  // PNG, not the SVG the app and the favicon use: Gmail strips <svg> outright.
+  assert.equal(mark.content_type, 'image/png');
+  assert.equal(Buffer.from(mark.content, 'base64').subarray(1, 4).toString(), 'PNG');
+});
+
 test('the document declares itself dark, so no client inverts it', () => {
-  const html = renderEmail({ heading: 'Anything', blocks: [paragraph('body')] });
+  const { html } = renderEmail({ heading: 'Anything', blocks: [paragraph('body')] });
   assert.match(html, /<meta name="color-scheme" content="dark"/);
   assert.match(html, /<meta name="supported-color-schemes" content="dark"/);
   assert.match(html, /color-scheme:dark/);
@@ -95,21 +111,21 @@ test('a fact with no value is dropped, not printed empty', () => {
 
 test('the unsubscribe link is in the HTML only when there is one', () => {
   const url = 'https://qa.example.com/api/notifications/unsubscribe?email=a%40b.c&t=abc';
-  const withLink = renderEmail({ heading: 'Report', blocks: [], unsubscribeUrl: url });
+  const { html: withLink } = renderEmail({ heading: 'Report', blocks: [], unsubscribeUrl: url });
   assert.ok(withLink.includes(`href="${esc(url)}"`));
   assert.match(withLink, />Unsubscribe</);
 
-  const without = renderEmail({ heading: 'Report', blocks: [] });
+  const { html: without } = renderEmail({ heading: 'Report', blocks: [] });
   assert.ok(!without.includes('Unsubscribe'), 'a sign-in link has nothing to unsubscribe from');
 });
 
 test('the wordmark and the heading are always there', () => {
-  const html = renderEmail({ heading: 'FAILED — checkout smoke', blocks: [] });
+  const { html } = renderEmail({ heading: 'FAILED — checkout smoke', blocks: [] });
   assert.match(html, />QAssist</);
   assert.match(html, /FAILED — checkout smoke/);
 });
 
 test('a falsy block is skipped rather than rendering an empty row', () => {
-  const html = renderEmail({ heading: 'x', blocks: [paragraph('kept'), '', null] });
+  const { html } = renderEmail({ heading: 'x', blocks: [paragraph('kept'), '', null] });
   assert.equal(html.match(/<tr><td style="padding:0 0 18px;">/g)?.length, 1);
 });

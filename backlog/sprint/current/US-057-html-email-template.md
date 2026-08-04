@@ -70,6 +70,24 @@ they outlive the story; the short version:
   the brand can't be a grey box behind "display images below" — and there is no
   pixel that reads as tracking.
 
+**The header carries the mark as well as the wordmark** (added 2026-08-04). The
+check from `TopBar.jsx` sits left of the word, and it gets there as an inline
+attachment the body references as `cid:qassist-mark` — the two mechanisms that
+need no attachment were both dead ends: Gmail strips `<svg>` from a body
+outright, and its web client strips `data:` image sources, which is precisely
+the missing-brand gap the no-network rule exists to avoid. So the rule holds
+unchanged (nothing is *fetched*) while the assertion that pinned it had to
+move: `mail-template.test.js` asserted no `<img>` and no `src=` at all, and now
+asserts every `src` is a `cid:`. That is the "behaviour was meant to change"
+case, and this paragraph is the reason it was.
+
+`renderEmail` returns `{ html, attachments }` rather than a string, and the four
+send sites spread it. The alternative — export the attachment beside the
+renderer and have each caller remember to pass it — fails silently: a body
+without its image is a broken picture in every inbox and a suite that stays
+green. `notify.js` concatenates the report PDF onto that list instead of
+replacing it.
+
 **Escaping is the load-bearing test, not a nicety.** A goal, a start URL and the
 judge's own prose all arrive at the template from outside and land in someone
 else's inbox. `mail-template.test.js` pins that every block escapes, that a
@@ -105,3 +123,9 @@ produced, so a preview cannot drift from what a recipient gets. Open the files
 in a browser for the layout, forward them to a Gmail and an Apple Mail account
 for the render — that last step is the criterion, and the sink exists so it
 costs a forward rather than a deploy.
+
+The sink writes each inline attachment beside the `.html` and points the
+reference at the file, because a browser resolves no `cid:` — without that the
+mark would be a broken image in every preview and read as a bug in the template.
+Only the preview copy is rewritten; forwarding it still exercises the real
+`cid:` path in a real client, which is the half a browser can't answer.

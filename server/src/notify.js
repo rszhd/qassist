@@ -187,7 +187,7 @@ function compose(run, name, recipient) {
   return {
     subject: `[QAssist] ${label} — ${title}`,
     text: lines.join('\n'),
-    html: renderEmail({
+    ...renderEmail({
       heading: title,
       badge: { label, tone: TONE[run.status] || 'neutral' },
       preheader: `${label} — ${verdict}`,
@@ -208,10 +208,11 @@ function compose(run, name, recipient) {
   };
 }
 
-/** The report PDF as a Resend attachment, when one was rendered. */
+/** The report PDF as a Resend attachment, when one was rendered — else none of
+ *  them, which is a list to concatenate rather than an absence to test for. */
 function attachmentFor(run) {
   const file = run.reportPath || path.join(ARTIFACTS_DIR, run.id, 'report.pdf');
-  if (run.reportStatus !== 'ready' || !fs.existsSync(file)) return undefined;
+  if (run.reportStatus !== 'ready' || !fs.existsSync(file)) return [];
   return [
     {
       filename: `qassist-report-${run.id.slice(0, 8)}.pdf`,
@@ -251,7 +252,7 @@ export async function notifyRunFinished(run) {
   const recipients = await allowed(emails);
   if (!recipients.length) return { ...none, reason: 'no recipients' };
 
-  const attachments = attachmentFor(run);
+  const report = attachmentFor(run);
   let sent = 0;
   let failed = 0;
 
@@ -272,7 +273,7 @@ export async function notifyRunFinished(run) {
 
     const msg = compose(run, name, recipient);
     try {
-      await sendMail({ to: recipient, ...msg, attachments });
+      await sendMail({ to: recipient, ...msg, attachments: [...msg.attachments, ...report] });
       await db().query("update notifications set status = 'sent', sent_at = now() where id = $1", [
         claim.rows[0].id,
       ]);

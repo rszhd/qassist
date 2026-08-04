@@ -22,9 +22,13 @@ export function mailEnabled() {
  * when it won't run the HTML, and it is the whole message on the dev console
  * transport. A caller that drops the text body to save the effort has made the
  * mail unreadable somewhere it used to be fine.
+ * `content_id` on an attachment is what a `cid:` reference in the html body
+ * resolves to — the template's brand mark travels that way. Without it the same
+ * bytes arrive as a file to download.
  * @param {{ to: string, subject: string, text: string, html?: string,
  *           unsubscribeUrl?: string | null,
- *           attachments?: { filename: string, content: string }[] }} msg
+ *           attachments?: { filename: string, content: string,
+ *                           content_type?: string, content_id?: string }[] }} msg
  * @returns {Promise<string>} the provider's message id
  */
 export async function sendMail(msg) {

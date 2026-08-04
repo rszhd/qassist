@@ -66,7 +66,7 @@ export function authRouter({ checkToken }) {
         to: email,
         subject: 'Your QAssist sign-in link',
         text: `Click to sign in to QAssist:\n\n${link}\n\n${caveat}`,
-        html: renderEmail({
+        ...renderEmail({
           heading: 'Sign in to QAssist',
           preheader: 'Your sign-in link — good once, for 15 minutes.',
           blocks: [

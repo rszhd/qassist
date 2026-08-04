@@ -370,12 +370,30 @@ Three rules make it a different medium from the app, not just a smaller one:
   accounts and Outlook lays out with Word. Blocks (`paragraph`, `facts`,
   `panel`, `pre`, `button`, `rawLink`, `note`) exist so a caller composes from a
   vocabulary rather than writing that plumbing again.
-- **Nothing loads from the network.** The wordmark is text, so there is no grey
-  box behind "display images below" where the brand should be, and no pixel
-  that reads as tracking. `mail-template.test.js` pins this, and pins that every
-  caller-supplied string — goals, URLs, the judge's own prose — is escaped. It
-  is also why mail is the one surface that can only *name* Ubuntu rather than
-  ship it (see "Type").
+- **Nothing loads from the network.** No `<img>` pointing at a host, so there is
+  no grey box behind "display images below" where the brand should be, and no
+  pixel that reads as tracking. `mail-template.test.js` pins that every `src` in
+  the document is a `cid:`, and pins that every caller-supplied string — goals,
+  URLs, the judge's own prose — is escaped. It is also why mail is the one
+  surface that can only *name* Ubuntu rather than ship it (see "Type").
+
+The header is the mark and the wordmark, the same lockup as `TopBar.jsx`, and
+the two halves reach the inbox differently. The wordmark is text. The mark
+**travels with the message**: `server/assets/qassist-mark.png` goes out as an
+inline attachment and the body references it as `cid:qassist-mark`, which
+fetches nothing. Three consequences worth knowing before touching it:
+
+- **PNG, not the SVG** the app and the favicon use — Gmail strips `<svg>` from a
+  message body outright. `assets/qassist-mark.svg` is the source it was drawn
+  from, cropped to the ink with the app's `currentColor` stroke resolved to the
+  one colour a dark-only medium has; re-raster it at 2× the 23×20 it displays at.
+- **`renderEmail` returns `{ html, attachments }`**, and a send site spreads it
+  into the `sendMail` call. It is not two exports a caller could take one of: a
+  body without the image it references is a broken image in every inbox and a
+  green suite.
+- **`alt` is empty on purpose.** The wordmark beside it already reads "QAssist",
+  so alt text would double it — and in the client that shows alt in place of a
+  missing image, put a broken-image label next to the word it repeats.
 
 Every message keeps a plain-text body: it is the fallback a client renders when
 it won't run the HTML, and it is the whole message under `MAIL_DEV_CONSOLE`.

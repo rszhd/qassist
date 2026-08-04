@@ -23,6 +23,23 @@ const OUT = process.env.MAIL_PREVIEW_DIR || path.join(os.tmpdir(), 'qassist-mail
 fs.mkdirSync(OUT, { recursive: true });
 
 let n = 0;
+
+// A browser resolves no `cid:` — that is a mail client's job — so the brand
+// mark would be a broken image in every preview. Each inline attachment is
+// written beside the html and its reference pointed at the file. Only the
+// preview copy is rewritten; what went over the wire is untouched, and
+// forwarding the file to a real inbox still tests the real cid path.
+function inlined(msg, stem) {
+  let html = msg.html;
+  for (const a of msg.attachments || []) {
+    if (!a.content_id) continue;
+    const file = `${stem}-${a.filename}`;
+    fs.writeFileSync(file, Buffer.from(a.content, 'base64'));
+    html = html.replaceAll(`cid:${a.content_id}`, path.basename(file));
+  }
+  return html;
+}
+
 const slug = (s) =>
   String(s || 'message')
     .toLowerCase()
@@ -45,7 +62,7 @@ http
       const stem = path.join(OUT, `${String(++n).padStart(3, '0')}-${slug(msg.subject)}`);
       const wrote = [];
       if (msg.html) {
-        fs.writeFileSync(`${stem}.html`, msg.html);
+        fs.writeFileSync(`${stem}.html`, inlined(msg, stem));
         wrote.push(`${stem}.html`);
       }
       if (msg.text) {

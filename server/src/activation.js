@@ -198,7 +198,7 @@ async function mailOperatorWaiting(userId, at, status) {
       `If the window cannot be met, the honest lever is Stripe — refund or\n` +
       `cancel. Activating an account on a box nobody upgraded is the failure\n` +
       `this window exists to prevent.\n`,
-    html: renderEmail({
+    ...renderEmail({
       heading: `${email} is waiting for capacity`,
       badge: { label: 'ACTIVATION DUE', tone: 'warn' },
       preheader: `Ready by ${deadline.toUTCString()} (${ACTIVATION_SLA_HOURS}h).`,
@@ -226,7 +226,7 @@ async function mailCustomerReady(email) {
       `Your account has capacity and your first run can start now.\n\n` +
       `${link}\n\n` +
       `Thanks for waiting.\n`,
-    html: renderEmail({
+    ...renderEmail({
       heading: 'Your workspace is ready',
       badge: { label: 'ACTIVATED', tone: 'ok' },
       preheader: 'Your account has capacity — your first run can start now.',

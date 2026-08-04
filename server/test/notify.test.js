@@ -205,12 +205,16 @@ test('a failed run mails the project recipients, with the report attached', asyn
   assert.match(mail.text, /Duration: 12s/);
   // The run's own page (US-030), not just the app root.
   assert.ok(mail.text.includes(`Open this run: ${BASE_URL}/runs/${run.id}`));
-  assert.equal(mail.attachments.length, 1);
+  const pdf = mail.attachments.find((a) => a.filename.endsWith('.pdf'));
   assert.equal(
-    Buffer.from(mail.attachments[0].content, 'base64').toString(),
+    Buffer.from(pdf.content, 'base64').toString(),
     '%PDF-1.4 fake\n',
     'the attachment is the run’s own PDF'
   );
+  // The other one is the brand mark the body's cid: points at, and it is
+  // inline — a recipient should see one file to download, not two.
+  assert.equal(mail.attachments.length, 2);
+  assert.equal(mail.attachments.filter((a) => a.content_id).length, 1);
   assert.match(mail.headers['List-Unsubscribe'], /^<https:\/\/qa\.example\.com\/api\/notifications\/unsubscribe\?/);
 
   // The HTML half (US-057). `text` above is the fallback and stays the same
@@ -334,7 +338,10 @@ test('a run without a report mails anyway, saying so', async () => {
   const testId = await makeTest('checkout smoke', project.id);
   const result = await notify.notifyRunFinished(await finishedRun(testId, { report: false }));
   assert.equal(result.sent, 1);
-  assert.equal(inbox[0].attachments, undefined);
+  assert.ok(
+    !inbox[0].attachments.some((a) => a.filename.endsWith('.pdf')),
+    'nothing to attach but the brand mark'
+  );
   assert.match(inbox[0].text, /No report was produced/);
 });
 
@@ -441,5 +448,8 @@ test('a failing run started through the API mails when it finishes', async () =>
 
   assert.equal(inbox.length, 1, 'the finished run mailed without anyone calling notify()');
   assert.match(inbox[0].subject, /FAILED — checkout smoke/);
-  assert.equal(inbox[0].attachments.length, 1, 'and waited for the report to attach it');
+  assert.ok(
+    inbox[0].attachments.some((a) => a.filename.endsWith('.pdf')),
+    'and waited for the report to attach it'
+  );
 });

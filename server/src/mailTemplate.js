@@ -13,11 +13,14 @@
 //
 // **Inline styles on tables**, because the Gmail app strips `<style>` for
 // non-Gmail accounts and Outlook lays out with Word. **Nothing loads from the
-// network**: the wordmark is text, so there is no blocked-image gap where the
-// brand should be, and no pixel that reads as tracking.
+// network**: the mark travels with the message as an inline attachment the
+// `cid:` reference resolves to, so there is no blocked-image gap where the
+// brand should be, and no pixel that reads as tracking. The wordmark stays
+// text beside it, which is what still says "QAssist" if a client draws neither.
 //
 // Every caller-supplied value goes through `esc()` — goals, URLs and the
 // judge's own prose all arrive here from outside.
+import fs from 'node:fs';
 
 const PAGE = '#17130f';
 const CARD = '#201c17';
@@ -126,6 +129,44 @@ export const rawLink = (href) =>
   `<div style="font-family:${MONO};font-size:12px;line-height:1.6;word-break:break-all;">` +
   `<a href="${esc(href)}" style="color:${ACCENT};text-decoration:none;">${esc(href)}</a></div>`;
 
+// --- the brand mark ----------------------------------------------------------
+
+// A PNG, not the SVG the app and the favicon use: Gmail strips `<svg>` from a
+// message body outright. `assets/qassist-mark.svg` is the source it was drawn
+// from — same paths as `TopBar.jsx`, cropped to the ink, with the app's
+// `currentColor` stroke resolved to the one colour this dark-only medium has.
+// Rendered at 2× the 23×20 it is displayed at, for the same reason the app
+// ships a 2× favicon.
+const MARK_CID = 'qassist-mark';
+const MARK_PNG = fs.readFileSync(new URL('../assets/qassist-mark.png', import.meta.url));
+
+/**
+ * The mark, as Resend wants an inline attachment: `content_id` is what makes a
+ * `cid:` reference in the body resolve to it instead of it landing as a file to
+ * download. It is returned by `renderEmail` rather than exported for a caller
+ * to remember, because a body and the image it references are one thing — a
+ * send site that could pass the html without it would be a broken image in
+ * every inbox and a green suite.
+ */
+const MARK_ATTACHMENT = {
+  filename: 'qassist-mark.png',
+  content: MARK_PNG.toString('base64'),
+  content_type: 'image/png',
+  content_id: MARK_CID,
+};
+
+// `alt` is empty on purpose: the wordmark beside it already reads "QAssist", so
+// alt text would either double it or, in the client that shows alt in place of
+// a missing image, put a broken-image label next to the word it repeats.
+const lockup =
+  `<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>` +
+  `<td valign="middle" style="padding:0 9px 0 0;line-height:1;">` +
+  `<img src="cid:${MARK_CID}" width="23" height="20" alt="" ` +
+  `style="display:block;width:23px;height:20px;border:0;" /></td>` +
+  `<td valign="middle" style="font-family:${FONT};font-size:16px;font-weight:600;` +
+  `letter-spacing:-.006em;color:${TEXT};">QAssist</td>` +
+  `</tr></table>`;
+
 // --- the layout every message is poured into ---------------------------------
 
 /** @param {string[]} blocks */
@@ -136,7 +177,10 @@ const stack = (blocks) =>
     .join('');
 
 /**
- * One message, as a complete HTML document.
+ * One message body: the complete HTML document, and the attachments it refers
+ * to. Spread it into the `sendMail` call — `{ to, subject, text,
+ * ...renderEmail({…}) }` — so the mark cannot be left behind by a caller that
+ * only wanted the html.
  *
  * `preheader` is the line the inbox list shows next to the subject; left unset,
  * clients grab whatever text comes first, which is usually the wordmark.
@@ -147,7 +191,7 @@ const stack = (blocks) =>
  *           blocks?: string[],
  *           footer?: string[],
  *           unsubscribeUrl?: string | null }} content
- * @returns {string}
+ * @returns {{ html: string, attachments: typeof MARK_ATTACHMENT[] }}
  */
 export function renderEmail({
   heading,
@@ -178,7 +222,7 @@ export function renderEmail({
     )
     .join('');
 
-  return `<!doctype html>
+  const html = `<!doctype html>
 <html lang="en" style="color-scheme:dark;">
 <head>
 <meta charset="utf-8" />
@@ -192,7 +236,7 @@ export function renderEmail({
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" bgcolor="${PAGE}" style="background-color:${PAGE};">
 <tr><td align="center" style="padding:32px 16px;">
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="width:100%;max-width:600px;">
-<tr><td style="padding:0 4px 18px;font-family:${FONT};font-size:16px;font-weight:600;letter-spacing:-.006em;color:${TEXT};">QAssist</td></tr>
+<tr><td style="padding:0 4px 18px;">${lockup}</td></tr>
 <tr><td bgcolor="${CARD}" style="background-color:${CARD};border:1px solid ${BORDER};border-radius:10px;padding:28px 28px 10px;">
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
 ${badgeHtml}<tr><td style="padding:0 0 18px;font-family:${FONT};font-size:20px;font-weight:600;line-height:1.35;letter-spacing:-.006em;color:${TEXT};">${esc(heading)}</td></tr>
@@ -204,4 +248,6 @@ ${stack(blocks)}</table>
 </table>
 </body>
 </html>`;
+
+  return { html, attachments: [MARK_ATTACHMENT] };
 }
