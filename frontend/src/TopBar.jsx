@@ -53,7 +53,7 @@ export default function TopBar({ showNav, runState, onOpenSettings }) {
               <span className={`badge badge-${status}`}>{statusLabel(status)}</span>
             </>
           )}
-          <IconButton icon={Settings} label="Settings" onClick={onOpenSettings} />
+          <IconButton icon={Settings} label="Settings" onClick={() => onOpenSettings()} />
         </div>
       </div>
     </header>

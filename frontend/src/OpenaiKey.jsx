@@ -13,7 +13,9 @@ import { formatWhen } from './status.js';
 // `bare` drops the label and hint for a caller that has already said both — the
 // onboarding step (US-053) is titled "Add your OpenAI key" and repeating it
 // inside the control reads as two different asks.
-export default function OpenaiKey({ token, status, onReload, bare }) {
+// `autoFocus` marks the field for the Modal to open on, for the caller that
+// came here from the setup banner rather than from the gear.
+export default function OpenaiKey({ token, status, onReload, bare, autoFocus }) {
   const [value, setValue] = useState('');
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -82,6 +84,7 @@ export default function OpenaiKey({ token, status, onReload, bare }) {
             value={value}
             placeholder="sk-…"
             autoComplete="off"
+            data-autofocus={autoFocus || undefined}
             onChange={(e) => setValue(e.target.value)}
           />
           <div className="openai-key-actions">

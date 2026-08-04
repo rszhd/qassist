@@ -175,8 +175,13 @@ export function Modal({ title, description, onClose, footer, wide, children }) {
     document.body.style.overflow = 'hidden';
     // The first field — never the close button, which is what a plain
     // document-order query finds first since it sits up in the head.
+    // `data-autofocus` overrides that order for a dialog opened *at* one of its
+    // fields ("Add key" lands on the OpenAI key, not on whatever sits above it);
+    // it has to be decided here, because this effect runs after the children's
+    // and would otherwise take the focus back off any field that claimed it.
     const panel = panelRef.current;
     const first =
+      panel?.querySelector('.modal-body [data-autofocus]') ||
       panel?.querySelector('.modal-body input, .modal-body textarea, .modal-body select') ||
       panel?.querySelector('.modal-foot button') ||
       panel?.querySelector('button');

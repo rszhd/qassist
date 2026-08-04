@@ -28,7 +28,10 @@ export default function App() {
   // Dark unless the user says otherwise — a light OS should not decide what
   // the console looks like. 'system' is the opt-in that hands that back.
   const [theme, setTheme] = useState(() => localStorage.getItem('qassist_theme') || 'dark');
+  // false, or the open dialog — `true` from the gear, a field name from a
+  // banner that is asking for that one thing, which the dialog then opens on.
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const openSettings = (field) => setSettingsOpen(field || true);
   // Mirrored up from RunView so the header can show it from either view.
   const [runState, setRunState] = useState({ status: 'idle', wsState: 'idle', runId: null });
   // The signed-in user in multi-user mode (US-021): undefined while we check the
@@ -217,7 +220,7 @@ export default function App() {
       <TopBar
         showNav={!!health?.db}
         runState={runState}
-        onOpenSettings={() => setSettingsOpen(true)}
+        onOpenSettings={openSettings}
       />
       {demo && (
         <DemoBanner
@@ -238,7 +241,7 @@ export default function App() {
             keyStatus={keyStatus}
             visible={atRun}
             needsToken={needsToken}
-            onOpenSettings={() => setSettingsOpen(true)}
+            onOpenSettings={openSettings}
             onRunState={setRunState}
           />
         </div>
@@ -258,7 +261,7 @@ export default function App() {
               <RunPage
                 token={token}
                 needsToken={needsToken}
-                onOpenSettings={() => setSettingsOpen(true)}
+                onOpenSettings={openSettings}
               />
             }
           />
@@ -312,7 +315,14 @@ export default function App() {
             {/* Every mode with an agent (US-039): runs are funded by the caller's
                 stored key, in a solo self-host exactly like a tenant. A demo runs
                 no agent, so it has no key to manage. */}
-            {!demo && <OpenaiKey token={token} status={keyStatus} onReload={loadKeyStatus} />}
+            {!demo && (
+              <OpenaiKey
+                token={token}
+                status={keyStatus}
+                onReload={loadKeyStatus}
+                autoFocus={settingsOpen === 'openai-key'}
+              />
+            )}
             <Field label="Theme" hint="Dark is the default. Match system follows your OS setting.">
               <select value={theme} onChange={(e) => setTheme(e.target.value)}>
                 <option value="dark">Dark</option>

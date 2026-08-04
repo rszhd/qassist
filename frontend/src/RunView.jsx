@@ -600,7 +600,7 @@ export default function RunView({ token, health, keyStatus, visible, needsToken,
             <strong>API token needed</strong>
             <span>This worker requires a token before it will accept runs.</span>
           </span>
-          <Button size="sm" className="spacer" onClick={onOpenSettings}>Add token</Button>
+          <Button size="sm" className="spacer" onClick={() => onOpenSettings()}>Add token</Button>
         </div>
       )}
 
@@ -614,7 +614,11 @@ export default function RunView({ token, health, keyStatus, visible, needsToken,
             <strong>Setup needed</strong>
             <span>No OpenAI key stored — runs will be rejected until you add yours.</span>
           </span>
-          <Button size="sm" className="spacer" onClick={onOpenSettings}>Add key</Button>
+          {/* Named field, not a bare open: this banner asks for one thing, so
+              the dialog opens with the cursor already in it. */}
+          <Button size="sm" className="spacer" onClick={() => onOpenSettings('openai-key')}>
+            Add key
+          </Button>
         </div>
       )}
 

@@ -128,6 +128,37 @@ describe('App shell', () => {
     expect(screen.queryByRole('button', { name: /New run/ })).toBeNull();
   });
 
+  // The setup banner asks for one thing, so its button opens the dialog *on*
+  // that field. Worth pinning because the dialog's own focus rule is "the first
+  // field", the API token sits above the key here, and Modal's effect runs
+  // after the child's — so the obvious ways to write this all lose the focus
+  // again, silently and only at runtime.
+  it('opens Settings on the OpenAI key field when the setup banner asks for it', async () => {
+    stubApi({
+      '/api/health': { auth: false, db: true, mail: false },
+      '/api/account/openai-key': { set: false, updated_at: null },
+      '/api/tests': { tests: [] },
+      '/api/projects': { projects: [] },
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <App />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: /Add key/ }));
+
+    const key = await screen.findByPlaceholderText('sk-…');
+    expect(document.activeElement).toBe(key);
+
+    // The gear opens the same dialog with nothing named, and there the first
+    // field still wins — the override is the banner's, not the dialog's.
+    fireEvent.click(screen.getByRole('button', { name: /Done/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Settings/ }));
+    expect(document.activeElement).toBe(await screen.findByPlaceholderText('WORKER_API_TOKEN'));
+  });
+
   it('mounts with no control plane and hides the nav', async () => {
     stubApi({ '/api/health': { auth: false, db: false, mail: false } });
 

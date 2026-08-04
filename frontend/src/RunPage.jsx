@@ -116,7 +116,7 @@ export default function RunPage({ token, needsToken, onOpenSettings }) {
               attached to the notification is the whole story.
             </span>
           </span>
-          <Button size="sm" className="spacer" onClick={onOpenSettings}>Add token</Button>
+          <Button size="sm" className="spacer" onClick={() => onOpenSettings()}>Add token</Button>
         </div>
       )}
 
