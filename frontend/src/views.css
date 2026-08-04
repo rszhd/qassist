@@ -512,10 +512,14 @@ a.row-main { color: inherit; text-decoration: none; }
    flanking-column width the token names; without it the three stats lose 32px
    and drop to a 2+1 grid. `.detail-main` and `.detail-side` are cards, so
    their column direction, gap and padding all come from `.card` — this only
-   places them. */
+   places them. The reading column is capped rather than free — across the full
+   1432 it is wider than anything in it wants to be — and the rail takes
+   whatever that cap leaves rather than holding its minimum and opening a gap
+   between the two. `--col-side` is now the rail's floor, not its width. */
 .run-detail-page {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) calc(var(--col-side) + var(--s4) * 2);
+  grid-template-columns:
+    minmax(0, 880px) minmax(calc(var(--col-side) + var(--s4) * 2), 1fr);
   gap: var(--s4); align-items: start;
 }
 /* The rail outlives the reading column: a long activity log scrolls for
@@ -527,6 +531,11 @@ a.row-main { color: inherit; text-decoration: none; }
    it. It still truncates to one line, and the `title` carries the whole thing. */
 .detail-side .detail-facts { grid-template-columns: 1fr; gap: var(--s05); }
 .detail-side .detail-facts dt { font-size: var(--t-sm); }
+/* `--scroll-cap` is sized for a list that shares a column with several other
+   cards. The run page's activity log has the reading column mostly to itself
+   and is the thing the page is read for, so it gets more than double before it
+   starts scrolling inside the page. */
+.run-detail-page .log { max-height: 560px; }
 /* One scroll, not two. `--scroll-cap` keeps a long list tidy where it shares a
    column with other cards; on a phone the page is already a single column, so
    the cap buys nothing and costs the thing the page exists for — a 240px window
@@ -681,10 +690,13 @@ a.row-main { color: inherit; text-decoration: none; }
 .run-detail-page .detail-goal:not(.open) { -webkit-line-clamp: 12; line-clamp: 12; }
 /* In the reading column every block carries its own head, so the divider that
    separates the goal from the facts in the panel is redundant here — and since
-   a shown recording can sit above it, a `:first-child` rule would make the
-   divider blink in and out as the recording is toggled. */
+   the recording sits above it on any run that has one, a `:first-child` rule
+   would apply to some runs and not others. */
 .detail-main > .goal-block { padding-top: 0; border-top: 0; }
-.detail-screen { margin: 0; }
+/* The player is sized, not stretched. `.screen video` is `width: 100%`, so
+   without a cap the recording is as wide as the column it opens in — which was
+   fine while it was behind a button and is not now that it leads the page. */
+.detail-screen { margin: 0; max-width: 720px; }
 
 /* Inline row editors (rename a project/module, edit a suite's membership). */
 .inline-edit { display: flex; flex-direction: column; gap: var(--s2); width: 100%; }

@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Activity, AlertTriangle, ChevronDown, ChevronUp, CircleStop, Download, ExternalLink, Play, Undo2,
+  Activity, AlertTriangle, ChevronDown, ChevronUp, CircleStop, Download, ExternalLink,
 } from 'lucide-react';
 import { api, openReport } from './api.js';
 import ActivityLog from './Activity.jsx';
@@ -32,7 +32,6 @@ import { formatWhen, formatDuration, statusLabel } from './status.js';
 // renders the row it was handed, so it cannot update the row itself.
 export default function RunDetail({ run, token, onError, liveSteps, liveDiagnostics, permalink, reports, layout = 'panel', onStopped }) {
   const [reportBusy, setReportBusy] = useState(false);
-  const [showRecording, setShowRecording] = useState(false);
   const [stopping, setStopping] = useState(false);
   // null until the fetch settles, so an empty list reads as "none recorded"
   // rather than flashing that message under every run while it loads.
@@ -139,7 +138,12 @@ export default function RunDetail({ run, token, onError, liveSteps, liveDiagnost
   );
 
 
-  const recording = showRecording && run.has_recording && (
+  // The page opens with the player already in place: the recording is what the
+  // run's own page is for, and a button that only revealed it was a click
+  // between the reader and the thing they came for. Not autoplaying, though —
+  // it loads its first frame and waits, which a page you may have opened to
+  // read the summary should do.
+  const recording = page && !pruned && run.has_recording && (
     <div className="browser detail-screen">
       <div className="browser-bar">
         <span className="browser-dots"><i /><i /><i /></span>
@@ -150,7 +154,7 @@ export default function RunDetail({ run, token, onError, liveSteps, liveDiagnost
           key={run.id}
           src={`/api/runs/${run.id}/recording${token ? `?token=${encodeURIComponent(token)}` : ''}`}
           controls
-          autoPlay
+          preload="metadata"
           onError={() => onError('Recording could not be loaded.')}
         />
       </div>
@@ -304,29 +308,22 @@ export default function RunDetail({ run, token, onError, liveSteps, liveDiagnost
     </Button>
   );
 
-  const recordingAction = page && run.has_recording && (
-    <Button icon={showRecording ? Undo2 : Play} onClick={() => setShowRecording((v) => !v)}>
-      {showRecording ? 'Hide recording' : 'Watch recording'}
-    </Button>
-  );
-
   const actions = pruned ? (
     <p className="hint">
       Artifacts were removed on {formatWhen(run.artifacts_deleted_at)} — the report and
       recording are gone, the verdict above is kept.
     </p>
-  ) : (stopAction || reportAction || recordingAction) ? (
+  ) : (stopAction || reportAction) ? (
     <div className="verdict-actions">
       {stopAction}
       {reportAction}
-      {recordingAction}
     </div>
   ) : null;
 
   // The page drops `verdictHead`: RunPage's own header already names the run
   // and carries its status, so repeating it here printed the title twice.
-  // The recording spans both columns — it is 16:9 and the rail's width would
-  // waste it — and everything narrow enough to read as a fact goes to the rail.
+  // The recording leads the reading column and everything narrow enough to read
+  // as a fact goes to the rail.
   if (page) {
     return (
       <div className="run-detail-page">
@@ -349,7 +346,6 @@ export default function RunDetail({ run, token, onError, liveSteps, liveDiagnost
   return (
     <div className="run-detail">
       {verdictHead}
-      {recording}
       {stats}
       {facts}
       {goal}

@@ -60,7 +60,7 @@ describe('RunDetail', () => {
     );
 
     expect(screen.queryByText('PDF report')).toBeNull();
-    expect(screen.queryByText('Watch recording')).toBeNull();
+    expect(screen.queryByText('Session recording')).toBeNull();
     expect(screen.queryByText('Activity')).toBeNull();
   });
 
@@ -82,6 +82,42 @@ describe('RunDetail', () => {
     expect(screen.getAllByText(run.goal)).toHaveLength(1);
     expect(screen.getByText('Pass')).toBeTruthy();
     expect(screen.getByText('PDF report')).toBeTruthy();
+  });
+
+  // The player is the page, not a thing behind a button: a run with a recording
+  // opens with it mounted, and a pruned run — whose file went with the rest of
+  // its artifacts — gets no player at all rather than one that 404s.
+  it('mounts the player on the page for a run that has a recording', () => {
+    const { container, rerender } = render(
+      <MemoryRouter>
+        <RunDetail
+          run={{ ...run, has_recording: true }}
+          token="t"
+          onError={() => {}}
+          liveSteps={[]}
+          layout="page"
+        />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText('Session recording')).toBeTruthy();
+    expect(container.querySelector('video')?.getAttribute('src')).toContain(
+      `/api/runs/${run.id}/recording`
+    );
+
+    rerender(
+      <MemoryRouter>
+        <RunDetail
+          run={{ ...run, has_recording: true, artifacts_deleted_at: '2026-08-01T10:00:00Z' }}
+          token="t"
+          onError={() => {}}
+          liveSteps={[]}
+          layout="page"
+        />
+      </MemoryRouter>
+    );
+
+    expect(container.querySelector('video')).toBeNull();
   });
 
   // REPORTS_ENABLED off (the default): /api/health says `reports: false` and no
