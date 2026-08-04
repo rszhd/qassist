@@ -249,7 +249,7 @@ the dots with it.
 
 Every token `App.css` declares, flat, with its value. The sections above are the
 *why*; this is the lookup, so a rule can be written without opening the
-stylesheet. **74 names — a value that isn't one of these is a rule reaching past
+stylesheet. **76 names — a value that isn't one of these is a rule reaching past
 the system.** Colours are declared twice, in `:root` (dark, the default) and in
 `:root[data-theme='light']`; everything from Spacing down is theme-invariant.
 
@@ -348,8 +348,9 @@ below the 600px breakpoint ·
 
 ### Motion and family
 
-`--fast` `110ms ease` · `--mono` `ui-monospace, SFMono-Regular, "SF Mono", Menlo,
-Consolas, monospace`
+`--fast` `110ms ease` · `--sans` `Ubuntu, ui-sans-serif, system-ui,
+-apple-system, "Segoe UI", Roboto, sans-serif` · `--mono` `ui-monospace,
+SFMono-Regular, "SF Mono", Menlo, Consolas, monospace`
 
 ## Email
 
