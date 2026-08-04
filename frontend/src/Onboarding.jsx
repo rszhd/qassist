@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Check } from 'lucide-react';
-import { Button } from './ui.jsx';
+import { BrandMark, Button } from './ui.jsx';
 import { api } from './api.js';
 import { formatDeadline } from './status.js';
 import { startCheckout } from './Billing.jsx';
@@ -16,6 +16,9 @@ import OpenaiKey from './OpenaiKey.jsx';
 // Nothing is persisted: every step reads server state, so "done" cannot drift
 // from true and there is no flag to reset. App decides when to render this at
 // all — self-hosted instances (no `health.billing`) never do.
+
+const DEMO_URL = 'https://demo.qassist.run';
+const SOURCE_URL = 'https://github.com/rszhd/qassist';
 
 const CONFIRM_TRIES = 15;
 const CONFIRM_INTERVAL_MS = 2000;
@@ -106,7 +109,10 @@ export default function Onboarding({ email, token, keyStatus, onReloadKey, billi
   return (
     <div className="auth">
       <div className="auth-card onboard-card">
-        <div className="auth-brand">QAssist</div>
+        <div className="auth-brand">
+          <BrandMark />
+          QAssist
+        </div>
         <div className="auth-body">
           <p className="auth-lead">Two things before your first run</p>
           <p className="auth-sub">
@@ -184,6 +190,25 @@ export default function Onboarding({ email, token, keyStatus, onReloadKey, billi
           </ol>
 
           {error && <p className="auth-error">{error}</p>}
+
+          {/* The wall is the first screen a signed-up account sees, and some of
+              them are not sold yet. Both ways to see the product without paying
+              belong here rather than back on the marketing site they already
+              left — and self-hosting is free forever, so pointing at it costs
+              nothing we were going to collect. */}
+          {!paid && (
+            <p className="onboard-alt">
+              Not ready to subscribe?{' '}
+              <a href={DEMO_URL} target="_blank" rel="noreferrer">
+                Watch a real run in the demo
+              </a>{' '}
+              — no signup, no key. Or{' '}
+              <a href={SOURCE_URL} target="_blank" rel="noreferrer">
+                self-host it from GitHub
+              </a>
+              , free on your own machine.
+            </p>
+          )}
 
           <div className="onboard-foot">
             <span>Signed in as {email}</span>

@@ -113,6 +113,40 @@ describe('Onboarding wall (US-053)', () => {
     await waitFor(() => expect(assign).toHaveBeenCalledWith('https://checkout.stripe.test/s1'));
   });
 
+  it('offers the demo and self-hosting to an account that has not paid', async () => {
+    stubApi();
+    renderApp();
+
+    await screen.findByText('Two things before your first run');
+    // Both are ways to see the product without paying, and the wall is the last
+    // screen where offering them can still change the outcome.
+    expect(screen.getByText(/Watch a real run in the demo/).getAttribute('href'))
+      .toBe('https://demo.qassist.run');
+    expect(screen.getByText(/self-host it from GitHub/).getAttribute('href'))
+      .toBe('https://github.com/rszhd/qassist');
+  });
+
+  it('stops offering them once the account has paid (US-054 wait)', async () => {
+    stubApi({
+      keySet: true,
+      billing: {
+        entitled: true,
+        exempt: false,
+        status: 'active',
+        current_period_end: null,
+        manageable: true,
+        activation_pending: true,
+        activation_deadline: null,
+      },
+    });
+    renderApp();
+
+    // They bought it. Pointing a paying customer at the free alternative on the
+    // screen where they wait for what they paid for is the failure.
+    await screen.findByText('Preparing your workspace');
+    expect(screen.queryByText(/Not ready to subscribe/)).toBeNull();
+  });
+
   it('offers a lapsed account both Resubscribe and the Portal', async () => {
     stubApi({
       keySet: true,

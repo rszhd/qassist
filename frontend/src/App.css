@@ -462,12 +462,22 @@ code { font-family: var(--mono); font-size: .92em; }
 .onboard-step.is-locked .onboard-step-title { color: var(--muted); }
 .onboard-step-note { font-size: var(--t-sm); line-height: 1.5; color: var(--faint); }
 .onboard-actions { display: flex; gap: var(--s2); }
+/* The escape hatch for an unconvinced account. Same divider as the foot below
+   it, so the two read as one closing block rather than a second card. */
+.onboard-alt {
+  align-self: stretch; padding-top: var(--s3); border-top: 1px solid var(--border);
+  font-size: var(--t-sm); line-height: 1.5; color: var(--faint);
+}
+.onboard-alt a { color: var(--accent-hi); text-decoration: none; }
+.onboard-alt a:hover { text-decoration: underline; }
 .onboard-foot {
   display: flex; align-items: center; gap: var(--s3); align-self: stretch;
   padding-top: var(--s3); border-top: 1px solid var(--border);
   font-size: var(--t-sm); color: var(--faint);
 }
 .onboard-foot span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* One rule closes the card: when the alt block drew it, the foot doesn't. */
+.onboard-alt + .onboard-foot { padding-top: 0; border-top: 0; }
 
 /* Settings is a stack of unrelated sections, not one form, and every one of
    them opens with a `--t-base` label — at a card's gap alone the account, the
