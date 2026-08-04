@@ -27,7 +27,7 @@ streams the session live, decides pass/fail, and produces a shareable PDF report
 | Frontend | React + Vite (live viewer) |
 | API | Express — REST + WebSocket relay |
 | Agent | Python + [browser-use](https://github.com/browser-use/browser-use) driving Playwright Chromium |
-| Report | HTML → PDF rendered by the same Chromium (embedded Bricolage Grotesque + IBM Plex Mono) |
+| Report | HTML → PDF rendered by the same Chromium (embedded Ubuntu + IBM Plex Mono) |
 | Model | OpenAI (default `gpt-4.1`) |
 | Packaging | Single Docker image — [`ghcr.io/rszhd/qassist`](https://github.com/rszhd/qassist/pkgs/container/qassist), `docker compose up` |
 

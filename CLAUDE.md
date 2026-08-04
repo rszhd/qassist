@@ -114,7 +114,12 @@ keep it that way when adding features.
   `curl` a new endpoint against :8081 before wiring it into a view. For visual
   changes, **ask before screenshotting — often quicker for me to look myself.**
 - Report iteration: render against `sample-report.pdf` locally; don't burn real
-  runs to tweak the report.
+  runs to tweak the report. What produced it is
+  `agent/tests/fixtures/sample_report_data.json` — `python make_report.py
+  <that> sample-report.pdf`. It is the cover alone (`steps: []`) on purpose: with
+  no screenshot files on disk every step draws a grey `SCREENSHOT` placeholder,
+  which makes the sample look broken rather than empty. For the multi-page
+  shape, render `broken_page_report_data.json` beside it.
 
 ## Workflow rules
 

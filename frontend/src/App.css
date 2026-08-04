@@ -208,6 +208,7 @@
   --shadow-lg: 0 24px 64px rgba(0, 0, 0, .55), 0 2px 6px rgba(0, 0, 0, .4);
 
   --fast: 110ms ease;
+  --sans: Ubuntu, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 }
 
@@ -302,7 +303,7 @@
 
 body {
   margin: 0;
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--sans);
   font-size: var(--t-base);
   line-height: 1.5;
   background: var(--bg);

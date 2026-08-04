@@ -31,7 +31,11 @@ const ACCENT = '#4d7cf6';
 // theme (App.css says the same thing above its own palette).
 const ON_ACCENT = '#ffffff';
 
-const FONT = `-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif`;
+// Ubuntu first to match the app and the report, but it renders only for a
+// recipient who already has it installed: a mail client can't be sent a webfont
+// (no stylesheet, and nothing here loads from the network), so the stack behind
+// it is what most inboxes will actually draw.
+const FONT = `Ubuntu,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif`;
 const MONO = `ui-monospace,SFMono-Regular,Menlo,Consolas,monospace`;
 
 /** Verdict tones: text weight, border weight, surface weight — App.css's trio. */

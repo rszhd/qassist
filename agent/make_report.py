@@ -44,9 +44,8 @@ FONTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fonts")
 
 # (family, weight, filename)
 FONT_FILES = [
-    ("Bricolage Grotesque", 400, "bricolage-400.woff2"),
-    ("Bricolage Grotesque", 700, "bricolage-700.woff2"),
-    ("Bricolage Grotesque", 800, "bricolage-800.woff2"),
+    ("Ubuntu", 400, "ubuntu-400.woff2"),
+    ("Ubuntu", 700, "ubuntu-700.woff2"),
     ("IBM Plex Mono", 400, "plexmono-400.woff2"),
     ("IBM Plex Mono", 500, "plexmono-500.woff2"),
     ("IBM Plex Mono", 600, "plexmono-600.woff2"),
@@ -339,7 +338,7 @@ def build_html(data: dict, base_dir: str) -> str:
   * {{ box-sizing: border-box; }}
   html, body {{ margin: 0; padding: 0; }}
   body {{
-    font-family: 'Bricolage Grotesque', system-ui, sans-serif;
+    font-family: 'Ubuntu', system-ui, sans-serif;
     color: #14161A; font-size: 15px; line-height: 1.55; background: #fff;
     -webkit-print-color-adjust: exact; print-color-adjust: exact;
   }}
@@ -378,7 +377,7 @@ def build_html(data: dict, base_dir: str) -> str:
     display: flex; align-items: center; justify-content: center;
     font-size: 21px; font-weight: 700; flex: 0 0 auto;
   }}
-  .verdict-word {{ font-size: 56px; font-weight: 800; letter-spacing: -.025em; line-height: 1; }}
+  .verdict-word {{ font-size: 56px; font-weight: 700; letter-spacing: -.025em; line-height: 1; }}
   .band-goal {{
     font-size: 21px; font-weight: 400; line-height: 1.45; margin: 20px 0 0;
     max-width: 46ch; color: rgba(255,255,255,.92);

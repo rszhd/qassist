@@ -41,6 +41,36 @@ not hidden, so anything live has to sit outside the strip (`frontend/CLAUDE.md`)
 
 ## Type
 
+The face is **Ubuntu**, on all three surfaces, and each carries it as far as its
+medium allows:
+
+- **App** — `--sans`, self-hosted from `@fontsource/ubuntu` and imported in
+  `main.jsx` (latin subset, 400/500/700 plus a 400 italic). Self-hosted rather
+  than linked from Google's CDN, because a self-hosted install has to render on
+  a box with no route to the public internet, and because a CDN link is a
+  request per visitor to a third party the app gets nothing for.
+- **Report** — embedded as base64 woff2 in the PDF itself (`agent/fonts/`,
+  `FONT_FILES` in `make_report.py`), 400 and 700 only. A PDF is read where
+  nothing can be fetched, so embedding is the only option that renders.
+- **Email** — first in the stack in `mailTemplate.js`, and *only* for a
+  recipient who already has Ubuntu installed. A message can't carry a webfont —
+  no stylesheet, and nothing loads from the network — so the system stack behind
+  it is what most inboxes draw. That is the ceiling for the medium, not a
+  compromise to fix later.
+
+Everywhere the fallback is the old system-font list, so a surface that fails to
+ship the woff2 degrades rather than breaks. Mono is untouched on all three:
+`--mono` and the report's IBM Plex Mono stay as they were, because the mono
+carries machine text, where a reader is best served by the face they already
+read machine text in.
+
+**Ubuntu has no 600, and no 800.** Its weights are 300/400/500/700, so in the
+app every `font-weight: 600` and the lone `550` resolve to 700 — the semibold
+step in this file is a bold step in practice. Reach for 500 where a label only
+needs to be *not body text*; keep 600 where it is meant to be the heaviest thing
+in its row. The report's one 800 (`.verdict-word`, the 56px verdict on the
+cover) was written down to 700 rather than left to resolve there silently.
+
 Five steps, and each is a role rather than a nudge: `--t-xs` (12px) the smallest
 readable line — status tokens, step numbers, mono asides, `--t-sm` (13px) a card
 title and anything else secondary to the line above it,
@@ -342,7 +372,9 @@ Three rules make it a different medium from the app, not just a smaller one:
 - **Nothing loads from the network.** The wordmark is text, so there is no grey
   box behind "display images below" where the brand should be, and no pixel
   that reads as tracking. `mail-template.test.js` pins this, and pins that every
-  caller-supplied string — goals, URLs, the judge's own prose — is escaped.
+  caller-supplied string — goals, URLs, the judge's own prose — is escaped. It
+  is also why mail is the one surface that can only *name* Ubuntu rather than
+  ship it (see "Type").
 
 Every message keeps a plain-text body: it is the fallback a client renders when
 it won't run the HTML, and it is the whole message under `MAIL_DEV_CONSOLE`.
