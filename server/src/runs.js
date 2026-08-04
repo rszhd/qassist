@@ -45,6 +45,7 @@ import {
   instancePolicy,
 } from './config.js';
 import { checkStartUrl, agentEnvFor } from './navigationPolicy.js';
+import { processTree } from './procMemory.js';
 
 // --- in-memory run registry (live relay; DB holds the durable copy) ---
 /** @type {Map<string, any>} */
@@ -497,44 +498,10 @@ export function runTests(tests, opts = {}) {
   });
 }
 
-// A run is one Python parent plus a dozen-odd Chromium processes, so memory
-// accounting must cover the whole tree. Walk /proc (Linux-only, like our
-// Docker base image) and sum RSS over the root pid's descendants; the pid
-// list doubles as the kill list.
-function processTree(rootPid) {
-  const procs = new Map(); // pid -> { ppid, rssPages }
-  let names;
-  try {
-    names = fs.readdirSync('/proc');
-  } catch {
-    return { rssBytes: 0, pids: [] };
-  }
-  for (const name of names) {
-    if (!/^\d+$/.test(name)) continue;
-    try {
-      const stat = fs.readFileSync(`/proc/${name}/stat`, 'utf8');
-      // comm (field 2) may contain spaces/parens; parse after the last ')'.
-      const rest = stat.slice(stat.lastIndexOf(')') + 2).split(' ');
-      procs.set(Number(name), { ppid: Number(rest[1]), rssPages: Number(rest[21]) });
-    } catch {
-      /* process exited mid-scan */
-    }
-  }
-  const pids = [];
-  let rssPages = 0;
-  const stack = [rootPid];
-  while (stack.length) {
-    const pid = stack.pop();
-    const p = procs.get(pid);
-    if (!p) continue;
-    pids.push(pid);
-    rssPages += p.rssPages;
-    for (const [childPid, c] of procs) {
-      if (c.ppid === pid) stack.push(childPid);
-    }
-  }
-  return { rssBytes: rssPages * 4096, pids };
-}
+// Whether this box can report PSS at all is a property of its kernel and its
+// permissions, not of any one run, so the warning belongs to the process and
+// is said once — a per-poll log would repeat every 3 s for the life of the box.
+let warnedRssFallback = false;
 
 function killRunTree(child, pids) {
   // Group kill first (child is its own group leader via detached), then each
@@ -725,8 +692,16 @@ function startRun(runId) {
   // box. Over the cap => kill the tree; the normal 'close' path then emits
   // 'end' and starts the next queued run.
   run.memWatch = setInterval(() => {
-    const { rssBytes, pids } = processTree(child.pid);
-    const mb = Math.round(rssBytes / (1024 * 1024));
+    const { bytes, pids, fellBack } = processTree(child.pid);
+    if (fellBack.length && !warnedRssFallback) {
+      warnedRssFallback = true;
+      console.warn(
+        `[watchdog] /proc/<pid>/smaps_rollup unreadable — measuring RSS for ` +
+          `${fellBack.length} of ${pids.length} processes, which over-reports ` +
+          `Chromium's shared pages. MAX_RUN_MEMORY_MB is sized in PSS terms.`
+      );
+    }
+    const mb = Math.round(bytes / (1024 * 1024));
     if (mb <= MAX_RUN_MEMORY_MB) return;
     clearInterval(run.memWatch);
     const msg = `resource limit exceeded: run used ${mb} MB (limit ${MAX_RUN_MEMORY_MB} MB)`;

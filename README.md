@@ -79,7 +79,9 @@ docker-compose.yml
 ## Run it
 
 **Docker is the only thing you need installed** — Node, Python and Chromium all
-live inside the image.
+live inside the image. For a step-by-step walk to a first passing test, plus
+what to set before exposing the instance and what to back up, see
+[docs/quickstart.md](docs/quickstart.md).
 
 ### Run a release (no clone, no build)
 
@@ -140,7 +142,7 @@ Set in `.env` (see `.env.example`):
 | `BROWSER_USE_MODEL` | `gpt-4.1` | OpenAI model |
 | `MAX_CONCURRENT_SESSIONS` | `4` | Concurrent browser cap — the real throttle. Rule: `floor((RAM_GB − 1.5) / 1)`. Runs over the cap wait in an in-memory FIFO and are told their position live; the queue is not durable, so a restart marks everything still waiting `error` |
 | `MAX_STEPS` | `60` | Safety ceiling on agent steps per run |
-| `MAX_RUN_MEMORY_MB` | `1600` | Per-run process-tree RSS cap; over it the run is killed and marked failed. Summed RSS double-counts Chromium's shared pages — a recording run measures ~1177 MB here but only ~660 MB PSS (US-024) |
+| `MAX_RUN_MEMORY_MB` | `1000` | Per-run **PSS** cap over the run's process tree; over it the run is killed and marked failed. PSS divides Chromium's shared pages among the processes sharing them, so this is what the machine pays: a recording run peaks at ~700 MB. Sizing rule it implies: budget ~700 MB per concurrent run. **The unit changed** (US-024) — it was summed RSS, which measured that same run at ~1190 MB, so a value you set yourself before then needs dividing by ~1.7. Re-measure with `agent/measure_memory.py` |
 | `STOP_GRACE_SECONDS` | `10` | How long a stopped run (US-047) has to end itself gracefully — finalizing its recording and report — before the process tree is killed anyway. A run stopped either way ends `cancelled` |
 | `PORT` | `8080` | Express listen port |
 | `QA_RECORD` | `1` | Record every session to `runs/<runId>/recording.mp4`. `0` disables it — frame capture is then skipped entirely while nobody is watching the run |

@@ -20,11 +20,13 @@ export const MAX_CONCURRENT_PER_USER = process.env.MAX_CONCURRENT_PER_USER
   : null;
 export const DEFAULT_MAX_STEPS = parseInt(process.env.MAX_STEPS || '60', 10);
 export const RUN_TTL_MS = parseInt(process.env.RUN_TTL_SECONDS || '3600', 10) * 1000;
-// Summed RSS over the run's process tree, so it double-counts Chromium's
-// shared pages (~1.8x the real PSS footprint — US-024 fixes the metric).
-// 1600 because US-006's recording adds ~100 MB: measured peak 1177 MB with
-// recording vs 1076 MB without, which left only 23 MB under the old 1200.
-export const MAX_RUN_MEMORY_MB = parseInt(process.env.MAX_RUN_MEMORY_MB || '1600', 10);
+// PSS over the run's process tree — what the machine actually pays, after
+// Chromium's shared pages are divided among the processes sharing them
+// (US-024). 1000 is ~1.4x the measured 704 MB peak of a recording run; it is
+// also marginally MORE permissive than the 1600 MB of summed RSS it replaces,
+// which measured the same run at 1187 MB. Sizing rule this implies: ~700 MB
+// per concurrent run. Re-measure with `agent/measure_memory.py`.
+export const MAX_RUN_MEMORY_MB = parseInt(process.env.MAX_RUN_MEMORY_MB || '1000', 10);
 export const MEM_POLL_MS = 3000;
 // Hard wall-clock ceiling per run (US-005). MAX_STEPS bounds steps, not time —
 // a slow or rate-limited (429-retrying) BYOK key would otherwise squat a browser

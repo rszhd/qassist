@@ -46,9 +46,16 @@ run. Env: `MAX_RUN_MEMORY_MB` (default raised 1200 → 1600 on 2026-07-22).
 **Amendment (2026-07-22):** summing RSS double-counts Chromium's shared pages
 — a recording run measures 1177 MB by this metric but only 663 MB PSS. US-006
 added ~100 MB and started tripping the 1200 MB limit on healthy runs, so the
-default was raised to 1600 as a stopgap;
-[US-024](../../unscheduled/US-024-memory-watchdog-pss-metric.md) replaces the
-metric with PSS and re-baselines the limit.
+default was raised to 1600 as a stopgap.
+
+**Amendment (2026-08-05, [US-024](../../sprint/current/done/US-024-memory-watchdog-pss-metric.md)):**
+the metric is now PSS, read from `/proc/<pid>/smaps_rollup`, and the walk moved
+out of `runs.js` into `server/src/procMemory.js`. Default `MAX_RUN_MEMORY_MB`
+1600 → **1000**, and the unit it is expressed in changed with it. Corrected
+numbers for a recording run: **704 MB PSS**, against 1187 MB by the old summed
+RSS — the ratio is 1.69x, not the 1.8x estimated in 2026-07-22. The
+`≤1 GB peak` in the acceptance criteria above was written in the old unit and
+reads as ~590 MB in this one.
 
 Verified locally with a stub agent (300 MB cap): single-process hog killed
 in ~4 s at 310 MB; multi-process hog (parent + 2 allocating grandchildren)

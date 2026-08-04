@@ -197,6 +197,24 @@ the suite covers *our* half, and the claim is not proven until it has run
 somewhere real. Budget that step into the story rather than treating green as
 the finish line.
 
+### A measured constant needs a committed instrument, not more tests
+
+`MAX_RUN_MEMORY_MB` is the case that names the pattern (US-024). A test can pin
+what the code does with a memory reading; nothing in the suite can say the
+default is the right number, because that answer lives in a real Chromium.
+
+Split it in two, and each half gets the treatment it can actually take. The
+*reader* becomes assertable by taking a `procRoot` parameter: a fake `/proc`
+in a tmpdir gives you every case that matters — the kB unit, the fallback, a
+pid vanishing mid-scan — with no root, no leaky browser and no flake. The
+*number* gets a committed probe instead, run by hand when it needs re-deriving.
+US-024's had been rebuilt from scratch twice before anyone kept it, which is
+why its numbers could not be reproduced or trusted between measurements.
+
+The wider rule: any constant in `config.js` justified by a measurement owes the
+repo the command that produced it. Otherwise the next person to touch it has
+only a comment, and a comment cannot be re-run.
+
 ## Working with an AI pair changes one thing
 
 With two humans, the person who writes the test and the person who writes the

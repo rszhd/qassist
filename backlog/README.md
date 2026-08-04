@@ -72,6 +72,7 @@ Sprints aren't split along a self-host/hosted-tier line — `sprint/current/` an
 
 | ID | Story | Status | Depends on |
 |---|---|---|---|
+| [US-024](sprint/current/done/US-024-memory-watchdog-pss-metric.md) | Memory watchdog: measure PSS, not summed RSS | ✅ **Done** 2026-08-05, 4/4 — measured without US-020, by decision | — |
 | [US-069](sprint/current/done/US-069-schedule-health-strip.md) | The last few nights, at a glance (pass/fail strip on the Schedules row) | ✅ **Done** 2026-08-04, 11/12 — the twelfth met server-side, not where it was written | US-010, US-011 |
 | [US-057](sprint/current/done/US-057-html-email-template.md) | An HTML template for outgoing email | ✅ **Done** 2026-08-04, 5/5 — render closed in Gmail; Apple Mail untested | — |
 | [US-067](sprint/current/done/US-067-mobile-app-view.md) | The app on a phone | ✅ **Done** 2026-08-03, 8/8 | US-025, US-030 |
@@ -181,7 +182,6 @@ live in [`docs/repo-model.md`](../docs/repo-model.md). Email provider: **Resend*
 | [US-041](unscheduled/US-041-judge-verdict-and-ground-truth.md) | The judge decides the verdict, and a test can state what it must prove | 📋 Planned | P1 | — |
 | [US-029](unscheduled/US-029-cicd-action-and-github-app.md) | CI/CD: reusable Action + GitHub App | 📋 Planned | P2 | US-008 |
 | [US-065](unscheduled/US-065-retire-pg-mem.md) | Retire pg-mem: every test runs against the database we ship | 📋 Planned | P2 | — |
-| [US-024](unscheduled/US-024-memory-watchdog-pss-metric.md) | Memory watchdog: measure PSS, not summed RSS | 📋 Planned | P2 | — |
 | [US-037](unscheduled/US-037-enterprise-stack-and-readiness.md) | Enterprise stack & readiness: what to adopt, what to refuse | 📋 Planned (tiered) | P2 | US-021, US-007 |
 | [US-045](unscheduled/US-045-model-provider-choice.md) | Bring your own key, to your own provider (incl. local) | 📋 Planned | P2 | US-005, US-039 |
 | [US-062](unscheduled/US-062-live-browser-test-tier.md) | A test tier that drives a real browser | 📋 Planned | P2 | US-034, US-042, US-043, US-048 |
