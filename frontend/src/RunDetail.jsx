@@ -244,7 +244,7 @@ export default function RunDetail({ run, token, onError, liveSteps, liveDiagnost
   );
 
   const activity = !pruned && steps !== null && (
-    <>
+    <section className="detail-block">
       <CardHead title="Activity" count={steps.length || undefined} />
       {steps.length > 0 ? (
         <ActivityLog steps={steps} />
@@ -259,7 +259,7 @@ export default function RunDetail({ run, token, onError, liveSteps, liveDiagnost
           This run ended before its steps were written to disk.
         </EmptyState>
       )}
-    </>
+    </section>
   );
 
   // US-044. Above the activity list rather than below it: on a failed run this
@@ -268,10 +268,10 @@ export default function RunDetail({ run, token, onError, liveSteps, liveDiagnost
   // nothing to say, which is most runs — an empty "Diagnostics" heading under
   // every passing run would be a permanent question mark.
   const evidenceBlock = !pruned && diagnostics.length > 0 && (
-    <>
+    <section className="detail-block">
       <CardHead title="Diagnostics" count={diagnostics.length} />
       <Diagnostics diagnostics={diagnostics} dropped={dropped} />
-    </>
+    </section>
   );
 
   // Leads the row while the run is still going: it is the only action there
@@ -350,10 +350,11 @@ export default function RunDetail({ run, token, onError, liveSteps, liveDiagnost
       {facts}
       {goal}
       {outcome}
-      {/* Direct child of `.run-detail`, so the header and the list take the
-          card's own gap — the same rhythm the live panel reads at. The step
-          log is not here for the same reason the artifacts are not: the panel
-          answers what happened, the run's own page is where you read it. */}
+      {/* `.detail-block` carries the card's own gap, so wrapping the header
+          and the list on the page's account doesn't change the rhythm the live
+          panel reads at. The step log is not here for the same reason the
+          artifacts are not: the panel answers what happened, the run's own page
+          is where you read it. */}
       {evidenceBlock}
       {actions}
     </div>

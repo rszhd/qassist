@@ -31,13 +31,14 @@ a `PageHeader` carrying its primary action; creating and editing happen in a
 the row is hovered or focused.
 
 **Two kinds of tab, and they must not look alike.** The top bar's `.views` is a
-segmented control and switches *views*; `.tabs` is an underlined strip and
-switches sections *inside* one, as on Projects. Reading them as two levels is
-the whole reason the second exists, so a new strip takes the underlined form
-rather than a second segmented group. Both are links — a tab that changes what
-the URL says is navigation, and gets `aria-current="page"` rather than a
-`role="tab"` it doesn't behave like. What hides behind such a tab is unmounted,
-not hidden, so anything live has to sit outside the strip (`frontend/CLAUDE.md`).
+row of tabs sitting on the bar itself — no well around them, the active one
+filled — and switches *views*; `.tabs` is an underlined strip and switches
+sections *inside* one, as on Projects. Reading them as two levels is the whole
+reason the second exists, so a new strip takes the underlined form rather than
+a second filled row. Both are links — a tab that changes what the URL says is
+navigation, and gets `aria-current="page"` rather than a `role="tab"` it doesn't
+behave like. What hides behind such a tab is unmounted, not hidden, so anything
+live has to sit outside the strip (`frontend/CLAUDE.md`).
 
 ## Type
 

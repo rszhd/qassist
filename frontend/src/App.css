@@ -347,17 +347,16 @@ code { font-family: var(--mono); font-size: .92em; }
    zero — the app lost its mark before the nav gave up a single pixel. */
 .brand { flex: 0 0 auto; display: block; height: 22px; width: auto; }
 
-/* Segmented control rather than loose tabs: the group reads as one object,
-   which is what keeps a three-view app from looking like a toolbar. */
-.views {
-  display: flex; gap: var(--s05); padding: var(--s05);
-  background: var(--sunken); border: 1px solid var(--border); border-radius: var(--r-md);
-}
-/* The tab is sized so the group — tab + its 2px padding + its border — comes
-   out exactly `--ctl` tall, level with the buttons sharing the bar with it. */
+/* Tabs on the bar itself, with no well around them: the bar already has an
+   edge of its own, and a second box inside it was a border drawn a few pixels
+   in from a border. The active tab keeps its `--hover` fill, which is what
+   carried the selection inside the well anyway. */
+.views { display: flex; gap: var(--s05); }
+/* Level with the buttons sharing the bar with it — the tab is now the whole
+   control, so it takes `--ctl` outright. */
 .views a {
   display: inline-flex; align-items: center; gap: var(--s15);
-  height: calc(var(--ctl) - var(--s05) * 2 - 2px);
+  height: var(--ctl);
   padding: 0 var(--s3); border: 0; border-radius: var(--r-sm);
   background: transparent; color: var(--muted); text-decoration: none;
   font: inherit; font-size: var(--t-base); font-weight: 500; cursor: pointer;
@@ -760,8 +759,10 @@ select {
 
 /* A rule inside a card. The card's gap supplies the space above it and this
    supplies the space below, so every divider in the app — this, the run
-   detail's goal — has the same air on both sides. */
-.card > .hint, .goal-block { padding-top: var(--s3); border-top: 1px solid var(--border); }
+   detail's goal and summary — has the same air on both sides. */
+.card > .hint, .goal-block, .run-detail > .result-block {
+  padding-top: var(--s3); border-top: 1px solid var(--border);
+}
 
 /* ==========================================================================
    6. Narrow — the stacked bar (900px) and the phone (600px)
@@ -780,8 +781,8 @@ select {
    than shrink any of it the nav takes a line of its own and the row keeps only
    what a run is doing. Everything downstream reads `--topbar-h`, so it is
    restated for the taller bar: 32 (row one, held at `--ctl` so the mark and the
-   settings button share a height) + 8 row gap + 32 (the segmented control) + 8
-   of block padding = 80. */
+   settings button share a height) + 8 row gap + 32 (the tab row) + 8 of block
+   padding = 80. */
 @media (max-width: 900px) {
   :root { --topbar-h: 80px; }
   .topbar-inner {
@@ -799,11 +800,10 @@ select {
 }
 
 /* 600px: the phone. Same construction as above, one size up — 44 (row one, now
-   a touch target) + 8 + 50 (the control: a 44px tab, its 2px padding and its
-   border) + 8 = 110. */
+   a touch target) + 8 + 44 (the tab row) + 8 = 104. */
 @media (max-width: 600px) {
   :root {
-    --topbar-h: 110px;
+    --topbar-h: 104px;
     --gutter: var(--s4);
     /* Every control becomes a touch target. `--ctl-sm` stops being the compact
        pair and meets `--ctl`: 44px is a finger either way, and a 28px icon
@@ -812,10 +812,10 @@ select {
   }
 
   /* The tabs fill the row and drop to their icons — four labels do not fit
-     288px, and a segmented control that scrolls sideways is not one object any
-     more. The label stays in the DOM for `aria-label` to have shadowed; see
+     288px, and a tab row that scrolls sideways is not one control any more.
+     The label stays in the DOM for `aria-label` to have shadowed; see
      TopBar.jsx. */
-  .views a { flex: 1; height: var(--ctl); padding: 0; justify-content: center; }
+  .views a { flex: 1; padding: 0; justify-content: center; }
   .views a span { display: none; }
 
   /* iOS Safari zooms the viewport on focus for any control under 16px and
