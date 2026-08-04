@@ -67,6 +67,7 @@ Sprints aren't split along a self-host/hosted-tier line — `sprint/current/` an
 | [US-056](sprint/current/US-056-production-deployment.md) | Production deployment: `app.qassist.run` goes live | 🔨 **Live** 2026-07-29 on `v0.3.0`, 4/10 — the rest need a sign-in, live Stripe keys, or a decision | US-007, US-038, US-052 |
 | [US-020](sprint/current/US-020-report-v2-screenshots-recording.md) | Report v2: step screenshots + recording | 📋 Planned — P2 | US-006 |
 | [US-066](sprint/current/US-066-chrome-web-store-listing.md) | List the session-capture extension on the Chrome Web Store | ⏳ **Submitted** 2026-08-03, 5/6 — `0.1.1` in review; the last criterion is Google's answer | US-063 |
+| [US-069](sprint/current/US-069-schedule-health-strip.md) | The last few nights, at a glance (pass/fail strip on the Schedules row) | 📋 Planned — P3 | US-010, US-011 |
 
 ### Done
 
