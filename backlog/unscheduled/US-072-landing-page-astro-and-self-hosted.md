@@ -4,13 +4,15 @@
 rendering framework it does not use — and, as the maintainer, so that the apex
 stops being the one hostname deployed somewhere else, by someone else's build.
 
-- **Status:** 📋 Planned
-- **Priority:** P2 (current sprint)
+- **Status:** ⏸️ Unscheduled 2026-08-05 — moved out of `sprint/current/`. The
+  plan below is unchanged and still costed; only its place in the queue moved.
+- **Priority:** P2
 - **Estimate:** ~2 h for the rewrite, plus one stand-up on the box
-- **Depends on:** [US-007](done/US-007-https-reverse-proxy.md) (Traefik,
+- **Depends on:**
+  [US-007](../sprint/current/done/US-007-https-reverse-proxy.md) (Traefik,
   hostname routing and ACME) and
-  [US-070](US-070-user-manual-site.md) (the builder-loop stack this copies
-  wholesale)
+  [US-070](../sprint/current/US-070-user-manual-site.md) (the builder-loop
+  stack this copies wholesale)
 
 ## The problem: two problems, and only one of them is real
 
@@ -122,9 +124,9 @@ site in the other repo — the same split the docs stack has, where
 
 Three places assert the apex is hosted elsewhere and become wrong on tier 2:
 `DEPLOY.md` (the "subdomain, not the apex" paragraph and the stack table),
-[`docs/deploy/production.md`](../../../docs/deploy/production.md) line 12, and
-[US-007](done/US-007-https-reverse-proxy.md) line 21. US-007 is closed, so its
-line is history and stays; the two live docs get corrected.
+[`docs/deploy/production.md`](../../docs/deploy/production.md) line 12, and
+[US-007](../sprint/current/done/US-007-https-reverse-proxy.md) line 21. US-007
+is closed, so its line is history and stays; the two live docs get corrected.
 
 **Do not touch the MX, SPF or DKIM records.** Only the apex `A` record moves.
 `DEPLOY.md` already notes that the mail records belong to the domain rather than
@@ -132,8 +134,9 @@ to any stack, and Resend's sender domain rides on them.
 
 ## This closes US-070's last marketing criterion
 
-[US-070](US-070-user-manual-site.md) is 9/11, and one of the two open criteria
-is "the marketing site links to the manual — marketing is a second repo".
+[US-070](../sprint/current/US-070-user-manual-site.md) is 9/11, and one of the
+two open criteria is "the marketing site links to the manual — marketing is a
+second repo".
 `lib/links.ts` currently reads:
 
 ```ts
@@ -173,7 +176,7 @@ another repo.
       the apex" paragraph is corrected, `docs/deploy/production.md` line 12 with
       it, and a `docs/deploy/landing-site.md` runbook says how to publish by hand
 - [ ] `lib/links.ts` points `DOCS` at `docs.qassist.run`, closing
-      [US-070](US-070-user-manual-site.md)'s marketing-link criterion
+      [US-070](../sprint/current/US-070-user-manual-site.md)'s marketing-link criterion
 - [ ] `node scripts/check-doc-links.mjs` passes over the new and edited docs
 
 ## Out of scope
@@ -184,4 +187,4 @@ another repo.
   Astro's weakness is shared client state across islands, and that is exactly
   what the app has — this story does not go near it.
 - **Merging the two repos.** The landing site stays separate, per
-  [`docs/repo-model.md`](../../../docs/repo-model.md); only its hosting moves.
+  [`docs/repo-model.md`](../../docs/repo-model.md); only its hosting moves.

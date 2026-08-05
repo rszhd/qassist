@@ -69,7 +69,6 @@ Sprints aren't split along a self-host/hosted-tier line — `sprint/current/` an
 | [US-066](sprint/current/US-066-chrome-web-store-listing.md) | List the session-capture extension on the Chrome Web Store | ⏳ **Submitted** 2026-08-03, 5/6 — `0.1.1` in review; the last criterion is Google's answer | US-063 |
 | [US-070](sprint/current/US-070-user-manual-site.md) | A user manual, deployed off the chain (`docs.qassist.run`) | 🔨 **Live** 2026-08-05, 9/11 — one closes on the first page edit, one is a line in the marketing repo | US-007, US-055 |
 | [US-071](sprint/current/US-071-one-command-deploy.md) | One command deploys a stack, and proves which one it deployed | 📋 Planned — P1 | US-052, US-055, US-056 |
-| [US-072](sprint/current/US-072-landing-page-astro-and-self-hosted.md) | The landing page, onto the box and off React | 📋 Planned — P2 | US-007, US-070 |
 
 ### Done
 
@@ -188,6 +187,7 @@ live in [`docs/repo-model.md`](../docs/repo-model.md). Email provider: **Resend*
 | [US-037](unscheduled/US-037-enterprise-stack-and-readiness.md) | Enterprise stack & readiness: what to adopt, what to refuse | 📋 Planned (tiered) | P2 | US-021, US-007 |
 | [US-045](unscheduled/US-045-model-provider-choice.md) | Bring your own key, to your own provider (incl. local) | 📋 Planned | P2 | US-005, US-039 |
 | [US-062](unscheduled/US-062-live-browser-test-tier.md) | A test tier that drives a real browser | 📋 Planned | P2 | US-034, US-042, US-043, US-048 |
+| [US-072](unscheduled/US-072-landing-page-astro-and-self-hosted.md) | The landing page, onto the box and off React | ⏸️ Unscheduled 2026-08-05 | P2 | US-007, US-070 |
 | [US-015](unscheduled/US-015-horizontal-scaling-100-concurrent.md) | Horizontal scaling to ~100 concurrent | 📋 Planned | P3 | US-005, US-009 |
 | [US-014](unscheduled/US-014-block-heavy-resources.md) | Block heavy page resources | 📋 Planned | P3 | — |
 | [US-046](unscheduled/US-046-token-usage-and-cost.md) | What did that run cost? (token usage + cost) | 📋 Planned | P3 | US-039 |
