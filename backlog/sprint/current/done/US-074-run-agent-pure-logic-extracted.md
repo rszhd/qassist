@@ -4,10 +4,12 @@
 into stdlib-importable modules, **so that** the agent suite covers the
 orchestrator's decisions and not only its helpers.
 
-- **Status:** 🚧 Three extractions done 2026-08-05; open on one assertion (below)
-- **Priority:** P3 (unscheduled — the code works; a regression here surfaces as
-  a broken run, quickly. The incremental policy below is the substance)
-- **Estimate:** incremental — extract when touched, US-065's pattern
+- **Status:** ✅ **Done** 2026-08-05, 6/6 — three extractions, then the
+  step-boundary assertion, reviewed and closed the same day. The extraction
+  policy below outlives the story
+- **Priority:** P3 (the code works; a regression here surfaces as a broken run,
+  quickly. The incremental policy below is the substance)
+- **Estimate:** spent — three extractions plus one reviewed assertion
 - **Depends on:** —
 
 ## Problem
@@ -91,15 +93,46 @@ both were written down rather than left implicit:
   encoded and the recording is one still image — which reads as a broken page,
   not a broken sampler. `test_a_dropped_frame_does_not_reset_the_interval`.
 
-**Open: the step-boundary ordering.** Report blocks → flush → advance is an
-assertion-first surface and now has a row in
-[`correctness-critical.md`](../correctness-critical.md). The maintainer
-writes that assertion; `step_events.callback` is built to receive it and
-`test_step_events.py` says so at the top and covers assembly only. Advancing
-before flushing files a step's findings against the following step; not
-refreshing the cap budget lets a chatty first step spend the run's evidence
-allowance, so the step that actually fails reports nothing — a failed run with a
-clean evidence section, which is the loud failure wearing quiet clothes.
+## The step-boundary assertion (2026-08-05)
 
-The story stays open on that one assertion. The policy above does not wait for
-it.
+`TestStepBoundary` in `agent/tests/test_step_events.py`, 10 cases, suite 274 →
+284. Written as a candidate under the assertion-first rule and reviewed before
+the story closed.
+
+**Writing it disproved the failure this story stated.** "Advance the
+attribution before flushing and a step's findings are filed against the next
+step" cannot happen against the current `Diagnostics`. `_add` stamps `step` and
+charges the per-step cap when a finding is **captured**, and there is no `await`
+between `flush_diagnostics()` and `set_step()`, so the two calls commute:
+swapping them produces byte-identical NDJSON over a three-step scenario with a
+chatty step 1. The claim was in the `callback` docstring and in the register row,
+and both said it with confidence.
+
+So the assertion pins the property the order exists to protect, not the order:
+
+- A finding is filed against the step that was in flight when it happened, and
+  one that predates step 1 is filed against no step. Both fail if the stamp
+  moves to drain time.
+- A chatty step cannot spend the next step's evidence budget — the case fails if
+  `set_step` stops being called at every boundary, which is the *real* route to
+  a failed run with a clean evidence section.
+- What one boundary hands over, the next does not repeat, and a boundary with
+  nothing to say emits no batch.
+- The fence's blocks reach the feed above the step heading that follows them.
+- No collaborator can raise past the callback: each of the three costs one
+  `warn` and the run continues.
+
+Mutation-checked by hand, not assumed: dropping `set_step` fails 3 cases,
+stamping the step at drain time fails 2, and swapping flush with advance fails
+none — which is the finding, stated at the top of the test file and in the
+`callback` docstring rather than left for the next reader to rediscover.
+
+**One trade-off, surfaced and accepted.** The callback's body is a single `try`,
+so a collaborator that raises takes that step's event with it and the live feed
+skips a heading. Per-call guards would keep the event; the single wrapper is
+simpler and a reporting bug that costs one heading still costs no run. Pinned by
+the case rather than left implicit, so the day it matters the assertion is
+already there to change deliberately.
+
+The policy above does not close with this. It runs for as long as `run_agent.py`
+has pure logic left in it.

@@ -77,17 +77,26 @@ def callback(
     run_started,
     clock=time.monotonic,
 ):
-    """browser-use's `register_new_step_callback`, with the ordering it depends on.
+    """browser-use's `register_new_step_callback`, and the boundary it draws.
 
     Report the fence's refusals, hand over what the PREVIOUS step turned up,
-    then move the attribution on. Flush before advance, because this callback
-    announces the goal the agent is *about* to pursue: everything the browser
-    said up to now belongs to the step that is ending, and `set_step` also
-    refreshes the per-step cap budget — which is what stops a chatty first step
-    spending the run's diagnostics budget and silencing the step that fails.
+    then move the attribution on. This callback announces the goal the agent is
+    *about* to pursue, so everything above belongs to the step that is ending
+    and `set_step` goes last because it belongs to the one starting.
+
+    That `set_step` runs at every boundary is the load-bearing part: it refreshes
+    the per-step cap budget, which is what stops a chatty first step spending the
+    run's diagnostics allowance and silencing the step that fails. Its position
+    is not — `flush_diagnostics` and `set_step` commute as `Diagnostics` stands,
+    because a finding is stamped and charged when it is CAPTURED and nothing is
+    captured between these two lines. Kept in this order because an attribution
+    read at drain time would make it matter, and this is the order that survives
+    that. `tests/test_step_events.py::TestStepBoundary` pins the properties, not
+    the sequence.
 
     Never allowed to raise. A reporting bug here would take the run down at a
-    step boundary, so the whole body is wrapped and a failure costs one warning.
+    step boundary, so the whole body is wrapped and a failure costs one warning
+    — and, because it is one wrapper, that step's event.
     """
 
     async def on_step(browser_state, agent_output, step_number):

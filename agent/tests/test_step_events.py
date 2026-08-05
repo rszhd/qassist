@@ -7,21 +7,22 @@ the assembled event and the durable screenshot beside it: the shape
 model authored, and a screenshot failure resolving to a null rather than to a
 lost step.
 
-**The ORDERING inside `step_events.callback` is deliberately not asserted here.**
-Report the fence's blocks, flush the previous step's diagnostics, then advance
-the attribution — flush-before-advance is what stops a chatty first step
-spending the run's diagnostics budget and silencing the step that fails. That
-is an assertion-first surface (`backlog/correctness-critical.md`), so the
-assertion is the maintainer's to write and this file leaves it room. The seam
-is already there: `callback` takes `report_blocks`, `flush_diagnostics` and
-`set_step` as plain callables, plus `emit` and a `clock`, so a recorder of the
-call order is the whole fixture it needs.
+`TestStepBoundary` pins what the boundary is FOR: a finding says which step it
+belongs to, a chatty step cannot spend the next one's evidence budget, nothing
+is handed over twice, and no collaborator can take the run down at a boundary.
+It asserts those against a real `Diagnostics`, not against the call order —
+`flush_diagnostics` and `set_step` commute today, because `Diagnostics` stamps
+the step and reads the budget when a finding is CAPTURED and there is no await
+between the two calls. The order is still the right one to write, and the cases
+below fail if a later change makes it load-bearing in the wrong direction.
 """
+import asyncio
 import base64
 import os
 
 import pytest
 
+import diagnostics
 import step_events
 
 
@@ -42,6 +43,46 @@ def event(state=None, output=None, step_number=1, elapsed=0.0, screenshot_file=N
     return step_events.step_event(
         state or State(), output or Output(), step_number, elapsed, screenshot_file, sensitive
     )
+
+
+def wiring(*, report_blocks=None, run_dir=None):
+    """`run_agent.main`'s wiring of the callback, minus the browser.
+
+    The `flush_diagnostics` closure is `run_agent.py`'s, and `diag` is a real
+    `Diagnostics`: what the boundary has to get right is what a finding ends up
+    SAYING, which a recorder of the call order cannot see.
+    """
+    emitted = []
+    diag = diagnostics.Diagnostics()
+
+    def flush_diagnostics():
+        entries = diag.drain()
+        if entries:
+            emitted.append(
+                {"type": "diagnostics", "entries": entries, "dropped": diag.dropped}
+            )
+
+    on_step = step_events.callback(
+        emit=emitted.append,
+        report_blocks=report_blocks or (lambda step_number=None: []),
+        flush_diagnostics=flush_diagnostics,
+        set_step=diag.set_step,
+        run_dir=run_dir,
+        sensitive=None,
+        run_started=0.0,
+        clock=lambda: 0.0,
+    )
+    return diag, on_step, emitted
+
+
+def boundary(on_step, step_number, url=None):
+    """browser-use awaits the callback once per step, before that step acts."""
+    asyncio.run(on_step(State(url=url), Output(), step_number))
+
+
+def findings(emitted):
+    """Every diagnostic handed over, batches flattened, in arrival order."""
+    return [e for batch in emitted if batch["type"] == "diagnostics" for e in batch["entries"]]
 
 
 class TestEventShape:
@@ -157,3 +198,105 @@ class TestScreenshot:
         blocked = tmp_path / "blocked"
         blocked.write_text("i am a file, not a directory")
         assert step_events.save_screenshot(str(blocked), 1, base64.b64encode(b"x").decode()) is None
+
+
+class TestStepBoundary:
+    def test_a_finding_is_filed_against_the_step_it_happened_in(self):
+        # The callback announcing step 2 is what hands over step 1's findings,
+        # so "which step" cannot be read off the batch it arrives in. A finding
+        # filed against the following step points the reader at a page that was
+        # fine, and both renderers group by this field.
+        diag, on_step, emitted = wiring()
+        boundary(on_step, 1)
+        diag.console("error", "the submit handler died")
+        boundary(on_step, 2)
+        assert [(f["step"], f["text"]) for f in findings(emitted)] == [
+            (1, "the submit handler died")
+        ]
+
+    def test_a_finding_before_the_first_step_belongs_to_no_step(self):
+        # A page's own assets fail before the agent has taken a step. Attributing
+        # those to step 1 blames the agent's first action for the page's load.
+        diag, on_step, emitted = wiring()
+        diag.console("error", "favicon 404")
+        boundary(on_step, 1)
+        assert [f["step"] for f in findings(emitted)] == [None]
+
+    def test_a_chatty_step_does_not_silence_the_step_that_fails(self):
+        # The per-kind cap is per STEP, and only `set_step` refreshes it. Skip
+        # the refresh and step 1's noise spends the whole run's allowance, so
+        # the step that actually failed reports nothing — a failed run with a
+        # clean evidence section, which reads as a page that had nothing to say.
+        diag, on_step, emitted = wiring()
+        boundary(on_step, 1)
+        for i in range(diagnostics.MAX_PER_KIND_PER_STEP * 3):
+            diag.console("error", f"step one noise {i}")
+        boundary(on_step, 2)
+        diag.console("error", "the 500 that explains the failure")
+        boundary(on_step, 3)
+
+        kept = findings(emitted)
+        assert sum(1 for f in kept if f["step"] == 1) == diagnostics.MAX_PER_KIND_PER_STEP
+        assert [f["text"] for f in kept if f["step"] == 2] == [
+            "the 500 that explains the failure"
+        ]
+        assert diag.dropped == diagnostics.MAX_PER_KIND_PER_STEP * 2
+
+    def test_what_one_boundary_hands_over_the_next_does_not_repeat(self):
+        diag, on_step, emitted = wiring()
+        boundary(on_step, 1)
+        diag.console("error", "once")
+        boundary(on_step, 2)
+        boundary(on_step, 3)
+        assert [f["text"] for f in findings(emitted)] == ["once"]
+
+    def test_a_boundary_with_nothing_to_hand_over_emits_no_batch(self):
+        # An empty batch per step is noise on the pipe the screencast shares.
+        _, on_step, emitted = wiring()
+        boundary(on_step, 1)
+        assert [e["type"] for e in emitted] == ["step"]
+
+    def test_the_blocks_reach_the_feed_before_the_step_that_follows_them(self):
+        # `report_blocks` reads the errors of the step that is ENDING (US-042),
+        # so a viewer appending in arrival order has to see the refusal above
+        # the next step's heading, not below it.
+        def report_blocks(step_number=None):
+            emitted.append({"type": "blocked", "url": "https://evil.example", "step": step_number})
+            return ["https://evil.example"]
+
+        _, on_step, emitted = wiring(report_blocks=report_blocks)
+        boundary(on_step, 2)
+        assert [e["type"] for e in emitted] == ["blocked", "step"]
+
+    @pytest.mark.parametrize("collaborator", ["report_blocks", "flush_diagnostics", "set_step"])
+    def test_a_collaborator_that_raises_costs_one_warning_not_the_run(self, collaborator):
+        # browser-use awaits this callback; an exception escaping it ends the run
+        # at a step boundary. A reporting bug must cost the report, never the run.
+        def boom(*args, **kwargs):
+            raise RuntimeError("reporting bug")
+
+        emitted = []
+        collaborators = {
+            "report_blocks": lambda step_number=None: [],
+            "flush_diagnostics": lambda: None,
+            "set_step": lambda step: None,
+        }
+        collaborators[collaborator] = boom
+        on_step = step_events.callback(
+            emit=emitted.append, run_dir=None, sensitive=None, run_started=0.0, **collaborators
+        )
+        boundary(on_step, 1)
+
+        assert [e["type"] for e in emitted] == ["warn"]
+        assert "reporting bug" in emitted[0]["message"]
+        # And the step event goes with it: the whole body is one try, so a
+        # failure before the emit costs the viewer that step's heading. Pinned
+        # as the price of the single wrapper, not as the desirable outcome —
+        # per-call guards would keep the step event.
+
+    def test_the_step_event_carries_the_screenshot_the_boundary_wrote(self, tmp_path):
+        _, on_step, emitted = wiring(run_dir=str(tmp_path))
+        frame = base64.b64encode(b"\x89PNG\r\n\x1a\n").decode()
+        asyncio.run(on_step(State(url="https://a", screenshot=frame), Output(), 4))
+        assert emitted[-1]["screenshot_file"] == "step_4.png"
+        assert (tmp_path / "step_4.png").exists()

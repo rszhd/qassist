@@ -125,7 +125,7 @@ wrong promotion inside the same timeout the busy box produces.
   needs a browser to exercise.
 
   **The boundary moves by extraction, not by mocking a browser**
-  ([US-074](../backlog/unscheduled/US-074-run-agent-pure-logic-extracted.md)).
+  ([US-074](../backlog/sprint/current/done/US-074-run-agent-pure-logic-extracted.md)).
   `run_agent.py` imports `browser_use` at module top, so the host can never
   import it and nothing defined inside it is reachable by an assertion. The
   policy is therefore: when a change touches logic in that file that does not
