@@ -230,9 +230,20 @@ git tag v1.4.0 && git push origin v1.4.0
 
 # 4. production pins the version the tag published
 #    .env: QASSIST_IMAGE=ghcr.io/<owner>/qassist:1.4.0
+unset ENV_FILE          # this shell exported it for staging — see below
 docker compose -p qassist -f docker-compose.yml -f docker-compose.prod.yml pull
 docker compose -p qassist -f docker-compose.yml -f docker-compose.prod.yml up -d
 ```
+
+**Step 4 begins by undoing step 1's export**, and it is this page's job to say
+so because this page is where the two stacks meet. Updating staging exports
+`ENV_FILE=.env.staging`; production relies on that variable being *unset* so
+`${ENV_FILE:-.env}` falls back. Follow the chain top to bottom in one shell and
+production gets staging's secrets, its hostname and its test-mode Stripe keys
+against production's database — a stack that pulls the right image and reports
+healthy while serving the wrong configuration. Caught on the box 2026-08-05.
+What it costs to recover, and the one-line check that catches it:
+[Deploying a new version](production.md#deploying-a-new-version).
 
 **Step 2 is `--ff-only` on purpose.** A fast-forward is the mechanical proof
 that `main` is nothing but staging's history — the moment it needs a merge

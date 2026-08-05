@@ -104,7 +104,12 @@ curl -sS https://app.qassist.run/api/health                     # {"ok":true,...
 curl -sSo /dev/null -w '%{http_code}\n' https://app.qassist.run/api/runs   # 401
 curl -sSI http://app.qassist.run | head -1                      # 308 → https
 docker compose -p qassist ps                                    # app healthy
+docker compose -p qassist exec qassist printenv PUBLIC_BASE_URL # app.qassist.run
 ```
+
+The last one is not redundant with the first: a stack that loaded the wrong env
+file answers `/api/health` with `{"ok":true}` all the same, because health
+reports on the process, not on whose configuration it read.
 
 Then, by hand, the three things a curl does not cover:
 
@@ -125,11 +130,39 @@ survived [staging](staging.md), because `main` is only reachable through it
 
 ```sh
 # .env: QASSIST_IMAGE=ghcr.io/<owner>/qassist:1.4.0
+unset ENV_FILE          # load-bearing after a staging deploy — see below
 docker compose -p qassist -f docker-compose.yml -f docker-compose.prod.yml up -d
 ```
 
 Compose recreates the app container and leaves `db` alone. Rolling back is the
 previous tag through the same command.
+
+**`unset ENV_FILE` is what stops production booting staging's configuration.**
+Production names no env file because `docker-compose.prod.yml` reads
+`${ENV_FILE:-.env}` and the default is already right — but a default only
+applies to a variable that is unset, and [staging's stand-up](staging.md#standing-it-up)
+*exports* `ENV_FILE=.env.staging`. So the one shell that follows the whole chain,
+staging first and production second, is exactly the shell where production
+inherits staging's env file: its hostname, its `SESSION_SECRET`, its
+`KEY_ENCRYPTION_SECRET` and its test-mode Stripe keys, loaded against
+production's own database. Seen on the box 2026-08-05 promoting 0.5.1, one
+command after the staging deploy in the same session.
+
+This is the mirror of the `--env-file` trap in staging's runbook, and it fails
+the same way: the stack pulls the right image, boots, reports healthy, and
+serves the wrong configuration. So confirm it from the container rather than by
+reading the command back:
+
+```sh
+docker compose -p qassist exec qassist printenv PUBLIC_BASE_URL
+# https://app.qassist.run — if this says staging's URL, every secret above is
+# staging's too. Fix with `unset ENV_FILE` and `up -d --force-recreate qassist`.
+```
+
+Recovering costs more than the recreate. A session cookie or an API key written
+while the wrong secret was loaded was signed or encrypted with it, so **a BYOK
+key saved during the window never decrypts again** and has to be re-entered.
+Nothing else survives the recreate.
 
 **Migrations run at boot**, from `db/migrations/*.sql`, against whatever schema
 is already there. There is no separate migrate step and no down-migration — so a
