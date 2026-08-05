@@ -736,11 +736,6 @@ select {
    is never the button you reach for by muscle memory, so it sits at the far
    end, away from both. */
 .modal-foot .btn-danger { margin-right: auto; }
-/* Same far-end slot for the opposite reason: a link out of the app is not part
-   of the cancel/confirm pair either, and it must not sit under the thumb that
-   is reaching for Done. Its own class rather than `.btn-ghost`, which a footer
-   also uses for a real action ("Save as test"). */
-.modal-foot .foot-link { margin-right: auto; }
 
 @keyframes fade { from { opacity: 0; } }
 @keyframes rise { from { opacity: 0; transform: translateY(4px); } }

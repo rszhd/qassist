@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
-import { BookOpen } from 'lucide-react';
 import ApiKeys from './ApiKeys.jsx';
 import Billing from './Billing.jsx';
 import OpenaiKey from './OpenaiKey.jsx';
@@ -15,11 +14,6 @@ import SchedulesView from './SchedulesView.jsx';
 import TopBar from './TopBar.jsx';
 import { api } from './api.js';
 import { Button, Field, Modal } from './ui.jsx';
-
-// The user manual (US-070). Absolute and the same on every instance, including
-// a self-hosted one: it is published off `dev` rather than built into the
-// image, so a per-instance copy would be as old as the release it shipped with.
-const MANUAL_URL = 'https://docs.qassist.run';
 
 // Shell: owns only what every view needs (the API token, server health, which
 // view is open). Each view owns its own data and fetches it when it mounts.
@@ -263,22 +257,7 @@ export default function App() {
           title="Settings"
           description="Stored in this browser only — nothing is sent anywhere but your worker."
           onClose={() => setSettingsOpen(false)}
-          footer={
-            <>
-              <Button
-                as="a"
-                variant="ghost"
-                icon={BookOpen}
-                className="foot-link"
-                href={MANUAL_URL}
-                target="_blank"
-                rel="noreferrer"
-              >
-                Manual
-              </Button>
-              <Button variant="primary" onClick={() => setSettingsOpen(false)}>Done</Button>
-            </>
-          }
+          footer={<Button variant="primary" onClick={() => setSettingsOpen(false)}>Done</Button>}
         >
           <div className="settings">
             {multi && (

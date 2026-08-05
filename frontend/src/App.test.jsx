@@ -81,20 +81,22 @@ describe('App shell', () => {
     expect(runButtons.length).toBeGreaterThan(0);
     expect(runButtons.every((b) => !b.disabled)).toBe(true);
 
-    // …and Settings doesn't contradict that by asking for the same token behind
-    // the gear, or reporting the deployment as token-gated.
-    fireEvent.click(screen.getByRole('button', { name: /Settings/ }));
-    expect(await screen.findByRole('dialog', { name: 'Settings' })).toBeTruthy();
-    expect(screen.queryByText('API token')).toBeNull();
-    expect(screen.queryByText('Token required')).toBeNull();
-
-    // The manual is the app's one way out to the docs (US-070), and it is
+    // The manual is the app's one way out to the docs (US-070), and it is on
+    // the bar rather than behind the gear: a reader looking for help does not
+    // open Settings to find it, so it is asserted before that click. The URL is
     // absolute on every instance including a self-hosted one — the site
     // publishes off `dev`, so a per-instance copy would be as old as the
     // release it shipped with.
     expect(screen.getByRole('link', { name: /Manual/ }).getAttribute('href')).toBe(
       'https://docs.qassist.run'
     );
+
+    // …and Settings doesn't contradict that by asking for the same token behind
+    // the gear, or reporting the deployment as token-gated.
+    fireEvent.click(screen.getByRole('button', { name: /Settings/ }));
+    expect(await screen.findByRole('dialog', { name: 'Settings' })).toBeTruthy();
+    expect(screen.queryByText('API token')).toBeNull();
+    expect(screen.queryByText('Token required')).toBeNull();
   });
 
   // The gates that decide what a visitor may see — multi, demo, the onboarding
