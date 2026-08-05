@@ -41,7 +41,7 @@ Six compose projects, deliberately separate:
 | `qassist-staging` | `staging.qassist.run` | the same two files | [Staging](docs/deploy/staging.md): the same stack, production's data swapped out. |
 | `qassist-demo` | `demo.qassist.run` | the same two files | [The demo sandbox](docs/deploy/demo.md): the same stack, `AUTH_MODE=demo`. |
 | `qassist-preview` | `preview.qassist.run` | the same two files | [Preview](docs/deploy/preview.md): the same stack, built on the box from a force-pushable branch. |
-| `qassist-docs` | `docs.qassist.run` | `docker-compose.docs.yml` | [The docs site](docs/deploy/docs-site.md): nginx plus a builder that follows `manual/` on `dev`. Not the app at all. |
+| `qassist-docs` | `docs.qassist.run` | `docker-compose.docs.yml` | [The docs site](docs/deploy/docs-site.md): nginx plus a builder that follows `manual/` on `main`. Not the app at all. |
 
 Four of the six are the same two compose files with a different `-p` and
 `--env-file`. That is the design, not a coincidence: an environment is a project

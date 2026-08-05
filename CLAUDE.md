@@ -69,12 +69,14 @@ keep it that way when adding features.
   index: rows are verdict + date, and *why a story moved sprint* is that story's
   Status, not a running commentary here.
 - `manual/` — **the user manual**, a VitePress site published to
-  `docs.qassist.run` off `dev` (US-070). `docs/` is contributor material and
+  `docs.qassist.run` off `main` (US-070). `docs/` is contributor material and
   `manual/` is user material, and the split is the point: a page useful to both
   is written for the user in `manual/` and **linked** from `docs/`, never copied.
-  It publishes without a promotion — a push to `dev` touching `manual/**` is
-  live within one poll, so prose is not behind a gate that exists for code.
-  Stack and runbook: `docs/deploy/docs-site.md`. Check a change with
+  It publishes without an image build — a push to `main` touching `manual/**` is
+  live within one poll, so a page costs the promotion and nothing after it.
+  Anything not on `main` yet is published by hand from the box, and holds only
+  until the next poll. Stack and runbook: `docs/deploy/docs-site.md`. Check a
+  change with
   `cd manual && npm run build`, which fails on a dead internal link;
   `scripts/check-doc-links.mjs` is a different check and both run.
 - `docs/api.md` — the HTTP surface. A new endpoint is documented **here**, not

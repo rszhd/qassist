@@ -85,8 +85,8 @@ describe('App shell', () => {
     // the bar rather than behind the gear: a reader looking for help does not
     // open Settings to find it, so it is asserted before that click. The URL is
     // absolute on every instance including a self-hosted one — the site
-    // publishes off `dev`, so a per-instance copy would be as old as the
-    // release it shipped with.
+    // publishes from its own stack, so a per-instance copy would be as old as
+    // the release it shipped with.
     expect(screen.getByRole('link', { name: /Manual/ }).getAttribute('href')).toBe(
       'https://docs.qassist.run'
     );

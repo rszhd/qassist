@@ -11,8 +11,9 @@ const VIEWS = [
 ];
 
 // The user manual (US-070). Absolute and the same on every instance, including
-// a self-hosted one: it is published off `dev` rather than built into the
-// image, so a per-instance copy would be as old as the release it shipped with.
+// a self-hosted one: it is published from its own stack rather than built into
+// the image, so a per-instance copy would be as old as the release it shipped
+// with.
 const MANUAL_URL = 'https://docs.qassist.run';
 
 // Shared header. It carries the run indicators even while another view is

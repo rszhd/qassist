@@ -1,18 +1,22 @@
 # The docs site — `docs.qassist.run`
 
-The user manual, built from `manual/` on `dev` and served as static files.
+The user manual, built from `manual/` on `main` and served as static files.
 Orientation and the other stacks: [`DEPLOY.md`](../../DEPLOY.md).
 
 It is a **spur off the promotion chain, like preview** — nothing merges out of
-it and nothing waits on it — but for a different reason. Preview exists because
-staging's bill is the wrong price for a live look. This exists because the
-promotion chain is a gate on *code*, and prose does not need gating: putting a
-typo fix behind `dev → staging → main` and an image rebuild is how the writing
-stops getting done.
+it and nothing waits on it. Preview exists because staging's bill is the wrong
+price for a live look; this exists because prose should not also cost an image.
 
-So the cadence is the whole feature. A push to `dev` touching `manual/**` is
-live within one poll interval, with **no workflow run, no image build and no
-registry round trip**.
+**A push to `main` touching `manual/**` is live within one poll interval**, with
+no image build and no registry round trip: the promotion is the whole cost, and
+nothing after it. Everything else — a page still on `dev`, an urgent fix, a look
+at what a branch renders as — is [published by hand](#publishing-by-hand).
+
+The trade, stated: a page goes public when it is promoted rather than when it is
+written, so `main` and the site are the same thing and a half-written page on
+`dev` is not a public page. If the promotion ever becomes the reason the writing
+does not get done, `DOCS_BRANCH` at a `docs` ref you force-push to — preview's
+shape — buys the fast cadence back and costs no other change.
 
 ## What it is
 
@@ -31,8 +35,8 @@ image is pulled, and `web` never restarts.
 
 The loop body is [`manual/publish.sh`](../../manual/publish.sh) **in the repo**,
 not in the compose `command`, and it is re-read from the clone every iteration.
-So improving what a publish does is a commit to `dev` that takes effect on the
-next poll — not a compose edit and not a `docker compose up -d`.
+So improving what a publish does is a commit that takes effect on the next poll
+— not a compose edit and not a `docker compose up -d`.
 
 ### Why a build loop is allowed here when staging's deploy is hand-run
 
@@ -49,11 +53,10 @@ automation.**
    MB and a builder that is idle between pushes. No app, no Postgres, so
    `DEPLOY.md`'s RAM budget is untouched.
 2. **A DNS `A` record**, and a certificate Traefik issues and renews on its own.
-3. **The builder publishes unattended.** It builds whatever is on `dev`, so a
-   half-written page on `dev` is a public page. That is acceptable for prose and
-   it is the point of the cadence. The escape hatch, if it ever bites, is to
-   point `DOCS_BRANCH` at a `docs` ref and force-push to it exactly as preview
-   does — no other change.
+3. **The builder publishes unattended, and it follows `main`.** So a page is
+   public once it is promoted, and a page that is only on `dev` is not published
+   until it is — that is the gate, and the hand publish below is the way past it
+   when something cannot wait for one.
 4. **Disk.** Small, and bounded rather than trusted: the clone is `--depth 1`,
    `npm ci` runs only when the lockfile moved, and its cache is dropped after
    each install. Production shares this disk.
@@ -99,10 +102,18 @@ Watch it land:
 
 ```sh
 docker compose -p qassist-docs logs -f builder
-# publishing manual <tree sha> from dev
+# publishing manual <tree sha> from main
 # installing dependencies
 # published 17 pages
 ```
+
+### Changing the branch it follows
+
+An edit to `DOCS_BRANCH` in `.env.docs` and one `up -d`, which recreates
+`builder` alone. **The clone does not have to be rebuilt**: it was made with
+`--branch`, but every publish resolves the tree through `FETCH_HEAD`, so it
+follows whatever the variable now says. `node_modules` and the stamp survive,
+and the first publish on the new branch is a normal incremental one.
 
 ## Verifying it
 
@@ -151,7 +162,10 @@ docker compose -p qassist ps             # production untouched by a publish
 
 ## Publishing by hand
 
-When the poll is not enough — you pushed thirty seconds ago and want it now, or
+This is the other half of following `main`: the poll covers promoted prose, and
+everything else is published from here.
+
+When the poll is not enough — you merged thirty seconds ago and want it now, or
 you want to see the build output:
 
 ```sh
@@ -160,6 +174,21 @@ docker compose -p qassist-docs exec builder sh /src/manual/publish.sh
 
 It is the same script the loop runs and it is idempotent: with nothing new it
 prints nothing and exits 0.
+
+**To publish a ref that is not `main`** — a page still on `dev`, or a branch you
+want to read as rendered pages:
+
+```sh
+docker compose -p qassist-docs exec -e DOCS_BRANCH=dev builder \
+  sh /src/manual/publish.sh
+```
+
+**This holds until the next poll and no longer.** The loop fetches `main` again,
+finds a tree that does not match the stamp, and puts `main` back — so the site
+self-corrects within one interval rather than sitting on a branch nobody
+remembers publishing. If you want it to stay, promote it. If you want a longer
+look, stop the builder (`docker compose -p qassist-docs stop builder`) and start
+it again when you are done; `web` serves the `dist` volume either way.
 
 **To force a rebuild of an unchanged tree** — after changing something the stamp
 cannot see, such as a dependency pinned by a range:
@@ -196,7 +225,7 @@ builder thinks it has:
 
 ```sh
 docker compose -p qassist-docs exec builder cat /src/.publish-stamp
-git rev-parse origin/dev:manual        # locally — the two should differ if you pushed
+git rev-parse origin/main:manual       # locally — the two should differ if you promoted
 ```
 
 **The build itself fails.** Reproduce it where the output is readable rather

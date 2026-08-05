@@ -4,10 +4,12 @@
 #   docker compose -p qassist-docs -f docker-compose.docs.yml \
 #     --env-file .env.docs up -d
 #
-# Why it is not the app image: prose does not need the promotion chain. Shipping
-# the manual inside the image would make a typo fix cost dev -> staging -> main
-# and a rebuild, so this stack builds straight off `dev` and publishes by
-# writing files into a volume. Nothing here is recreated to publish.
+# Why it is not the app image: shipping the manual inside the image would make a
+# typo fix cost an image rebuild and a registry round trip on top of the merge.
+# This stack follows `main` instead and publishes by writing files into a
+# volume, so what a page costs is the promotion and nothing after it. Nothing
+# here is recreated to publish, and anything not on `main` yet is published by
+# hand — manual/publish.sh, see docs/deploy/docs-site.md.
 #
 # Nothing is configured on the host: no cron, no script in a home directory, no
 # nginx.conf, and no change to docker-compose.proxy.yml — which already states
@@ -71,7 +73,7 @@ services:
     image: node:22-alpine
     environment:
       DOCS_REPO: ${DOCS_REPO:-https://github.com/rszhd/qassist.git}
-      DOCS_BRANCH: ${DOCS_BRANCH:-dev}
+      DOCS_BRANCH: ${DOCS_BRANCH:-main}
       DOCS_POLL_SECONDS: ${DOCS_POLL_SECONDS:-120}
       DOCS_SRC_DIR: /src
       DOCS_OUT_DIR: /dist

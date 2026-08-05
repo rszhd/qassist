@@ -96,7 +96,7 @@ and — on a demo deployment only — the tenant reaper.
 | `frontend/src/` | React + Vite viewer. |
 | `db/migrations/` | Numbered SQL. The schema's source of truth. |
 | `extension/` | Chrome MV3 extension for capturing a signed-in session. |
-| `manual/` | VitePress user manual, published to `docs.qassist.run` off `dev`. |
+| `manual/` | VitePress user manual, published to `docs.qassist.run` off `main`. |
 | `docs/` | Contributor material — this file, `api.md`, `testing.md`, deploy runbooks. |
 | `backlog/` | One file per user story, by sprint folder. Results live in the story. |
 | `demo/` | Checked-in replay fixtures for the demo sandbox. |

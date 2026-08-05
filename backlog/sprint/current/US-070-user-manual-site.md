@@ -1,13 +1,14 @@
-# US-070 — A user manual, deployed off the chain
+# US-070 — A user manual, published without an image build
 
 **As a** user, **I want** the QAssist manual at `docs.qassist.run`, **so that**
 there is one link to send someone — and, as the maintainer, so that fixing a
-typo in it costs a push rather than a promotion through `dev → staging → main`
-and an image rebuild.
+typo in it costs a merge rather than a merge *plus* an image rebuild, a registry
+round trip and a redeploy of the app.
 
 - **Status:** 🔨 **Live** 2026-08-05 at `docs.qassist.run`, 9/11 — one closes on
-  the first incremental page edit, one is a line in the marketing repo, which is
-  not this repo. See [Results](#results).
+  the first incremental publish (re-opened 2026-08-06 when the site moved from
+  `dev` to `main`, see [The branch](#the-branch-dev-then-main)), one is a line in
+  the marketing repo, which is not this repo. See [Results](#results).
 - **Priority:** P2 (current sprint)
 - **Estimate:** ~1 h repo-side, plus one stand-up on the box
 - **Depends on:** [US-007](done/US-007-https-reverse-proxy.md) (Traefik,
@@ -46,9 +47,10 @@ catch-all at 175. Drop the build into the frontend's output directory as
 the manual offline, and it would always match the build they run.
 
 It fails on **cadence**. The image is built by the promotion chain, so
-correcting a sentence means `dev → staging → main` and a rebuild. That chain
-exists to gate code; prose does not need gating, and putting writing behind a
-code gate means the writing does not get done.
+correcting a sentence means `dev → staging → main` *and* a rebuild, a registry
+push and a redeploy of the running app. The site as built keeps the promotion —
+[The branch](#the-branch-dev-then-main) — and drops everything after it, which
+is the part that costs minutes and touches production.
 
 A second, smaller failure: every install would serve its own copy at its own
 address, so there would be no canonical URL to put in a support reply, a GitHub
@@ -113,11 +115,9 @@ carrying `DOCS_HOST`.
    app, no Postgres, so `DEPLOY.md`'s RAM budget is untouched.
 2. **A DNS `A` record** for `docs.qassist.run`, and a certificate Traefik issues
    and renews on its own.
-3. **The builder publishes unattended.** It builds whatever is on `dev`, so a
-   half-written page on `dev` is a public page. That is acceptable for prose and
-   it is the whole point of the cadence; the escape hatch, if it ever bites, is
-   to point `DOCS_BRANCH` at a `docs` ref and force-push to it exactly as
-   preview does.
+3. **The builder publishes unattended**, off whatever `DOCS_BRANCH` names. Which
+   branch that is, and what it costs, is [The branch](#the-branch-dev-then-main)
+   below — it started as `dev` and is now `main`.
 4. **Disk.** Small — a static site, a clone and an npm cache in two volumes —
    but the cache still needs a bound, since production shares the disk.
 
@@ -135,11 +135,13 @@ carrying `DOCS_HOST`.
 
 - [x] `docs.qassist.run` serves the manual over HTTPS on its own Let's Encrypt
       certificate
-- [ ] A push to `dev` touching `manual/**` is live within one poll interval,
-      with no workflow run, no image build and no registry round trip — **half
-      proven**: no workflow ran and no image was built for the first publish,
-      but no *incremental* page edit has been pushed yet. Closes on the first
-      real one
+- [ ] A push to **`main`** touching `manual/**` is live within one poll
+      interval, with no image build and no registry round trip; anything not on
+      `main` yet publishes by hand — **half proven**: no image was built for the
+      first publish, but the branch changed to `main` on 2026-08-06 (see
+      [The branch](#the-branch-dev-then-main)) and no incremental publish has
+      run since. Closes on the first `main` push touching `manual/`, with the
+      hand publish exercised off another ref
 - [x] A push touching nothing under `manual/` rebuilds nothing — **measured on
       the box**: two poll intervals after a push touching only `docs/` and
       `backlog/`, the stamp was unchanged, the builder logged nothing, and its
@@ -179,10 +181,10 @@ one `up -d`. First publish — a cold clone, `npm ci` and a build — landed in
 about a minute. All seventeen emitted pages and every asset answer 200 over
 HTTP/2, `X-Robots-Tag: all`, and `:80` 301s to `:443`.
 
-`origin/dev` rather than the branch `~/qassist` sits on (`staging`), because the
-manual publishes off `dev` and never needed a promotion to work — which is the
-story's whole point arriving one layer earlier than expected. `checkout <ref> --
-<paths>` writes those paths only, so the four running stacks saw nothing.
+`origin/dev` rather than the branch `~/qassist` sits on (`staging`), because
+that is where the two files were and a stand-up does not need them promoted
+first. `checkout <ref> -- <paths>` writes those paths only, so the four running
+stacks saw nothing.
 
 **`cleanUrls: false` had one cost, and it was paid at the proxy.** A URL typed
 without `.html` got nginx's own 404 page, so the styled `404.html` VitePress
@@ -239,6 +241,44 @@ which is the same shape it already used for the API section, and is what "stop
 growing" means in practice. Everything that referenced either file by name,
 including two load-bearing comments in `server/src/routes/runs.js` and
 `control-plane-tests.test.js` about fields CI polls, now names `manual/ci.md`.
+
+## The branch: dev, then main
+
+**Decided 2026-08-06: the poll follows `main`, and everything else is published
+by hand.** It stood up on `dev`, which is what the story was written around —
+prose out of the code gate entirely — and one day of it was enough to see the
+other side: `dev` is where a page is *drafted*, and the site is the one link you
+send someone, so the two should not be the same ref. A page is now public when
+it is promoted.
+
+What this does **not** give back is the thing the design rejected. The image
+plan cost the chain plus a rebuild, a registry push and a redeploy; this costs
+the chain and stops there. Publishing is still writing files into a volume, no
+container is recreated, no workflow builds anything, and the app is untouched.
+
+**The hand publish is what keeps the gate from being a wall**, and it takes a
+ref:
+
+```sh
+docker compose -p qassist-docs exec -e DOCS_BRANCH=dev builder \
+  sh /src/manual/publish.sh
+```
+
+It holds until the next poll and no longer — the loop fetches `main`, the stamp
+does not match, `main` goes back up. That is a property worth having rather than
+a limitation: the site cannot quietly stay on a branch nobody remembers
+publishing, and the way to make a page stay is to promote it.
+
+**On the box this is an `.env.docs` edit and one `up -d`**, recreating `builder`
+alone. The clone was made with `--branch dev` and does not need rebuilding:
+every publish resolves the tree through `FETCH_HEAD`, so it follows the variable,
+and `node_modules` and the stamp survive. Runbook:
+[`docs/deploy/docs-site.md`](../../../docs/deploy/docs-site.md#changing-the-branch-it-follows).
+
+**The escape hatch is unchanged and is now the interesting one.** If the
+promotion turns out to be why a typo goes unfixed, `DOCS_BRANCH` at a `docs` ref
+that any branch can force-push to — preview's shape — buys the old cadence back
+with no other change to the stack.
 
 **`cleanUrls: false` is load-bearing and is worth not "fixing" later.** It is the
 single reason no `nginx.conf` is mounted: the emitted links carry `.html`, so

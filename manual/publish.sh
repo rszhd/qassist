@@ -4,15 +4,21 @@
 #
 # The loop and the sleep are in docker-compose.docs.yml; this is the body, and
 # it is re-read from the clone on every iteration. So improving a publish is a
-# commit to `dev` — no container is recreated and no compose file is edited.
+# commit — no container is recreated and no compose file is edited.
 #
 # Run it by hand to publish without waiting for the poll:
 #   docker compose -p qassist-docs exec builder sh /src/manual/publish.sh
+#
+# Or off a ref that is not DOCS_BRANCH, which is how anything not yet on `main`
+# reaches the site. It holds until the next poll and no longer, because the loop
+# fetches DOCS_BRANCH again and the stamp will not match:
+#   docker compose -p qassist-docs exec -e DOCS_BRANCH=dev builder \
+#     sh /src/manual/publish.sh
 set -eu
 
 SRC="${DOCS_SRC_DIR:-/src}"
 OUT="${DOCS_OUT_DIR:-/dist}"
-BRANCH="${DOCS_BRANCH:-dev}"
+BRANCH="${DOCS_BRANCH:-main}"
 # Outside OUT, so nothing nginx serves is a state file of ours. Untracked, so
 # `git checkout --force` below leaves it alone.
 STAMP="$SRC/.publish-stamp"
