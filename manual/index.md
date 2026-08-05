@@ -3,49 +3,65 @@ layout: home
 
 hero:
   name: QAssist
-  text: Write instructions. Read a verdict.
-  tagline: Browser testing with no selectors and no scripts. Describe what should happen in plain English; an AI agent drives a real Chromium, streams it live, and decides whether it happened.
-  image:
-    src: /qassist-mark.svg
-    alt: QAssist
+  text: User manual
+  tagline: Learn how to run browser tests, write effective instructions, read verdicts, and configure QAssist.
   actions:
     - theme: brand
-      text: Your first run
+      text: Start with your first run
       link: /first-run
     - theme: alt
-      text: Watch a real run
-      link: https://demo.qassist.run
-    - theme: alt
-      text: Run it yourself
-      link: /self-hosting
+      text: Open QAssist
+      link: https://app.qassist.run
 
 features:
-  - title: No selectors to maintain
-    details: A test is a sentence, not a script. When a button moves or a class name changes, the agent can still find it without a selector rewrite.
-  - title: You watch it happen
-    details: The browser session streams to the page while the run works and, when recording is enabled, can be watched again later.
-  - title: A verdict with reasons
-    details: A finished run records its status, a written summary, the agent's activity, and any failed requests or console errors the page produced.
-  - title: Yours to run
-    details: Self-hosting is free, for anything, forever. Model tokens are bring-your-own on every tier, so you keep control of model spend.
+  - title: Getting started
+    details: Run a browser test and understand the result.
+    link: /first-run
+    linkText: Run your first test
+  - title: Building a test suite
+    details: Save tests, organize coverage, and provide variables or files.
+    link: /saved-tests
+    linkText: Save a test
+  - title: Running automatically
+    details: Use schedules, CI triggers, and email notifications.
+    link: /schedules
+    linkText: Set up a schedule
 ---
 
-## What this manual covers
+## Browse the manual
 
-This is the manual for **using** QAssist. It follows the path a test usually
-takes: write one set of instructions, save it, group it, give it credentials,
-schedule it, and
-eventually use it to gate a deploy.
+### Start here
 
-- **New here?** [Your first run](./first-run.md) gets you from a ready instance
-  to a verdict in about five minutes.
-- **A run keeps failing and you think it shouldn't?**
-  [Writing instructions](./writing-instructions.md) is almost always the answer, and
-  [When a run goes wrong](./troubleshooting.md) covers the rest.
-- **Running your own instance?** [Self-hosting](./self-hosting.md) and
-  [Settings](./settings.md).
+- [Your first run](./first-run.md) — go from a ready instance to a verdict.
+- [Writing instructions](./writing-instructions.md) — describe an outcome the
+  agent can check reliably.
+- [Reading a verdict](./reading-a-verdict.md) — understand statuses, evidence,
+  errors, recordings, and reports.
 
-Notes on the internals — schema rules, the deployment chain, the design system,
-the test philosophy — are not here. They live in
-[`docs/`](https://github.com/rszhd/qassist/tree/main/docs) in the repository and
-are written for someone editing the code.
+### Create reusable tests
+
+- [Saving a test](./saved-tests.md)
+- [Projects, modules, and suites](./organizing.md)
+- [Variables and secrets](./variables.md)
+- [Files a run can upload](./files.md)
+
+### Run tests without opening QAssist
+
+- [Schedules](./schedules.md)
+- [Triggering from CI](./ci.md)
+- [Email notifications](./notifications.md)
+
+### Test real applications
+
+- [Testing behind a login](./saved-sessions.md)
+- [Controlling where a run may go](./navigation-fence.md)
+- [Troubleshooting a run](./troubleshooting.md)
+
+### Run your own instance
+
+- [Self-hosting](./self-hosting.md)
+- [Instance settings](./settings.md)
+
+Contributor documentation, including architecture and deployment, lives in the
+[`docs/` directory](https://github.com/rszhd/qassist/tree/main/docs) in the
+project repository.
