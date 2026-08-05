@@ -1,4 +1,4 @@
-# Publish the staging image on every push to `staging` (US-052).
+# Publish the staging image on every push to `staging` that changes it (US-052).
 #
 # The promotion chain is dev → staging → main. This workflow is the middle
 # link: `staging` is a branch you push, not a version you cut, so proving a
@@ -23,6 +23,23 @@ name: Staging
 on:
   push:
     branches: [staging]
+    # A docs-only push cannot change the image: the Dockerfile copies `agent/`,
+    # `db/`, `demo/`, `server/` and the built frontend, and nothing at runtime
+    # reads a `.md`. Building Chromium for twenty minutes to republish an
+    # identical image is the whole cost of promoting a README fix, so skip it.
+    #
+    # GitHub runs the workflow when *any* changed file falls outside this list,
+    # so a push mixing docs with code still builds. `:staging` simply stays on
+    # the last commit that changed the image, which is what it already means.
+    #
+    # The tradeoff, stated rather than discovered: no image build also means no
+    # `test` job, so `check-doc-links.mjs` does not run on these pushes. It
+    # still runs on the PR into `dev` where the docs were reviewed, and again on
+    # the push to `main` — the two places that already gate a broken link.
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'backlog/**'
 
 # A second push supersedes the first — cancelling matters more here than in CI,
 # because two builds racing to move a *mutable* tag can leave `:staging`
