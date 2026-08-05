@@ -26,7 +26,7 @@ stack has actually hit — so a question about one costs reading one.
 | [Staging](docs/deploy/staging.md) | Standing staging up, seeding it, verifying the isolation, and promoting `dev → staging → main`. |
 | [Preview](docs/deploy/preview.md) | The force-push spur: what it costs, standing it up, and what it must never become. |
 | [The demo sandbox](docs/deploy/demo.md) | `AUTH_MODE=demo`, per-visitor tenants, the reaper, and keeping mail silent. |
-| [The docs site](docs/deploy/docs-site.md) | The manual, built off `dev` and published without a promotion: standing it up, publishing by hand, and what it must not become. |
+| [The docs site](docs/deploy/docs-site.md) | The manual, published without an image build: standing it up, publishing by hand, and what it must not become. |
 
 Certificates are shared by all five hostnames and are below.
 

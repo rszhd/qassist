@@ -269,8 +269,22 @@ does not match, `main` goes back up. That is a property worth having rather than
 a limitation: the site cannot quietly stay on a branch nobody remembers
 publishing, and the way to make a page stay is to promote it.
 
-**On the box this is an `.env.docs` edit and one `up -d`**, recreating `builder`
-alone. The clone was made with `--branch dev` and does not need rebuilding:
+**The flip is pending on the box, and the reason is worth writing down:
+`main` has no `manual/` at all.** The manual has only ever lived on `dev`, so a
+builder pointed at `main` today would fail `git rev-parse FETCH_HEAD:manual`
+every poll. It would not take the site down — a failed publish leaves the
+previous build up, which is the property the rehearsal proved — but it would
+publish nothing until the tree is promoted. So the box stays on `DOCS_BRANCH=dev`
+until `manual/` reaches `main`, and the config leads the deployment by one
+promotion. **The first `main` push carrying `manual/` is what closes both the
+flip and the open criterion.**
+
+Published by hand off `dev` on 2026-08-06 (tree `1976831`, 17 pages) to get the
+goal → instructions rename live without waiting: `web` was not recreated,
+production was untouched, and the styled 404 still answers 404.
+
+**On the box the flip is an `.env.docs` edit and one `up -d`**, recreating
+`builder` alone. The clone was made with `--branch dev` and does not need rebuilding:
 every publish resolves the tree through `FETCH_HEAD`, so it follows the variable,
 and `node_modules` and the stamp survive. Runbook:
 [`docs/deploy/docs-site.md`](../../../docs/deploy/docs-site.md#changing-the-branch-it-follows).
