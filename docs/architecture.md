@@ -109,7 +109,12 @@ Engines (`server/src/`):
 | Module | Owns |
 |---|---|
 | [`server.js`](../server/src/server.js) | Wiring: the auth gate, router mounts, the WS upgrade, boot refusals. ~300 lines and meant to stay there. |
-| [`runs.js`](../server/src/runs.js) | The run engine. Spawn, relay, watchdogs, queue, report trigger, demo replay. |
+| [`runs.js`](../server/src/runs.js) | The run engine's entry: admission, the queue, one agent process (spawn, watchdogs, NDJSON loop, stop). Re-exports the surface the routes import. |
+| [`runState.js`](../server/src/runState.js) | The in-memory registry and the derived views — `verdictOf`, `stepsOf`, `diagnosticsOf`. Talks to nothing. |
+| [`runRelay.js`](../server/src/runRelay.js) | What WS subscribers are sent, what a late viewer replays, the screencast toggle. |
+| [`runPersistence.js`](../server/src/runPersistence.js) | The runs row, a login run's captured session, the one mail per finished run — ordered on `run.persisted`. |
+| [`runReport.js`](../server/src/runReport.js) | `report_data.json` and the PDF render. |
+| [`runReplay.js`](../server/src/runReplay.js) | Demo replay: a fixture driven over the same relay a real run uses. |
 | [`config.js`](../server/src/config.js) | Every environment variable, read once at import. |
 | [`db.js`](../server/src/db.js) | Pool, migrations, operator seed, crash recovery, the per-request user scope. |
 | [`auth.js`](../server/src/auth.js) | Session cookies, login links, per-user API keys; `authEnabled()` / `demoMode()`. |

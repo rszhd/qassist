@@ -75,6 +75,7 @@ Sprints aren't split along a self-host/hosted-tier line — `sprint/current/` an
 
 | ID | Story | Status | Depends on |
 |---|---|---|---|
+| [US-075](sprint/current/done/US-075-orchestrators-split-along-seams.md) | The two run orchestrators shrink to their subject | ✅ **Done** 2026-08-05, 4/4 | US-073 (shipped without it) |
 | [US-024](sprint/current/done/US-024-memory-watchdog-pss-metric.md) | Memory watchdog: measure PSS, not summed RSS | ✅ **Done** 2026-08-05, 4/4 | — |
 | [US-069](sprint/current/done/US-069-schedule-health-strip.md) | The last few nights, at a glance (pass/fail strip on the Schedules row) | ✅ **Done** 2026-08-04, 11/12 | US-010, US-011 |
 | [US-057](sprint/current/done/US-057-html-email-template.md) | An HTML template for outgoing email | ✅ **Done** 2026-08-04, 5/5 | — |
@@ -173,7 +174,6 @@ live in [`docs/repo-model.md`](../docs/repo-model.md). Email provider: **Resend*
 | [US-061](unscheduled/US-061-evidence-in-the-judges-context.md) | The judge sees the 500 (was US-044's deferred tier 2) | 📋 Planned | P3 | US-041, US-044, US-046 |
 | [US-059](unscheduled/US-059-otp-and-social-login-in-tested-flows.md) | OTP and social login in a tested flow (was US-013 tiers 2–3) | ⏸️ Unscheduled 2026-08-04 — TOTP and SMS code removed, needs replanning | P3 | US-013 tier 1, US-043, US-035 |
 | [US-074](unscheduled/US-074-run-agent-pure-logic-extracted.md) | `run_agent.py`: move the pure logic where the tests can reach it | 📋 Planned | P3 | — |
-| [US-075](unscheduled/US-075-orchestrators-split-along-seams.md) | The two run orchestrators shrink to their subject | 📋 Planned | P3 | US-073 |
 | [US-016](unscheduled/US-016-desktop-shell.md) | Desktop shell (Electron) | 📋 Planned | TBD | — |
 | [US-017](unscheduled/US-017-frozen-python-agent.md) | Frozen Python agent (no system Python) | 📋 Planned | TBD | US-016 |
 | [US-018](unscheduled/US-018-first-run-setup.md) | First-run setup: Chromium download + BYOK settings | 📋 Planned | TBD | US-016 |

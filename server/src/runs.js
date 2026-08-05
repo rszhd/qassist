@@ -1,18 +1,17 @@
 // @ts-check
-// Run engine: spawns agent/run_agent.py per run, relays its NDJSON events to
-// WebSocket subscribers, enforces the memory watchdog, renders the PDF
-// report. The in-memory Map is the live relay; when the control plane is
-// configured (db.js) every run is also persisted to the runs table, which is
-// the source of truth for finished runs.
+// Run engine: admission, the queue, and the life of one agent process — spawn,
+// the two watchdogs, the NDJSON stdout loop, stop and teardown. This file is
+// the engine's entry point and re-exports the surface the routes import.
+//
+// The concerns it used to also hold live beside it, one seam per file, and the
+// imports only ever point this way: `runState.js` (the registry and how a run
+// is read), `runRelay.js` (what subscribers are sent), `runPersistence.js` (the
+// row, the session, the mail), `runReport.js`, `runReplay.js` (US-036 demo).
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import fs from 'node:fs';
-import path from 'node:path';
-import { db, currentUserId } from './db.js';
+import { currentUserId } from './db.js';
 import { getUserConcurrencyCap, anyCapInForce } from './concurrency.js';
 import { demoMode } from './auth.js';
-import { loadDemo, fixtureForRun, recordingPath, reportPath } from './demo.js';
-import { notifyRunFinished } from './notify.js';
 import { resolveForRun } from './variables.js';
 import { fixturePathsFor } from './fixtures.js';
 import {
@@ -20,61 +19,38 @@ import {
   removeSessionFiles,
   exportPathFor,
   readExportedState,
-  refreshCapturedSession,
   preambleForRun,
 } from './browserSession.js';
 import {
   MAX_CONCURRENT,
   DEFAULT_MAX_STEPS,
-  RUN_TTL_MS,
   MAX_RUN_MEMORY_MB,
   MEM_POLL_MS,
   RUN_TIMEOUT_MS,
   STOP_GRACE_MS,
   PYTHON_BIN,
   AGENT_SCRIPT,
-  REPORT_SCRIPT,
-  REPORTS_ENABLED,
   ARTIFACTS_DIR,
   MODEL,
-  PUBLIC_BASE_URL,
-  RECORDING_FILENAME,
-  REPORT_DATA_FILENAME,
   CAPTURE_HAR,
-  DEMO_SPEED,
   instancePolicy,
 } from './config.js';
 import { checkStartUrl, agentEnvFor } from './navigationPolicy.js';
 import { processTree } from './procMemory.js';
+import { addRun, allRuns, evictLater, getRun, TERMINAL } from './runState.js';
+import { broadcast, setQueuePosition, setScreencast } from './runRelay.js';
+import { captureSession, maybeNotify, persistInsert, persistUpdate } from './runPersistence.js';
+import { generateReport } from './runReport.js';
+import { startReplay } from './runReplay.js';
 
-// --- in-memory run registry (live relay; DB holds the durable copy) ---
-/** @type {Map<string, any>} */
-const runs = new Map();
+// The engine's public surface: every caller outside it imports from here, so a
+// seam moving between the modules above stays invisible to the routes.
+export { diagnosticsOf, getRun, stepsOf, TERMINAL, verdictOf } from './runState.js';
+export { attachViewer } from './runRelay.js';
+
 let active = 0;
 /** @type {string[]} */
 const queue = [];
-
-export const TERMINAL = new Set(['passed', 'failed', 'completed', 'error', 'cancelled']);
-
-/**
- * A run's verdict as anything outside the engine should read it — the row, the
- * report JSON, the HTTP shape (US-047).
- *
- * A stopped run has none. browser-use returns history normally out of
- * `Agent.stop()`, so a cancelled run still carries a `done` event with the
- * agent's self-report on it; passing that on is how a run somebody aborted
- * shows up as a pass in History, in the PDF, and in CI's exit code. One
- * function rather than the same ternary in three files, because the three would
- * drift and only two of them are visible from a test.
- */
-export function verdictOf(run) {
-  if (run.status === 'cancelled') return null;
-  return run.result?.success ?? null;
-}
-
-export function getRun(runId) {
-  return runs.get(runId);
-}
 
 export function counts() {
   return { active, queued: queue.length };
@@ -91,7 +67,7 @@ export { getUserConcurrencyCap };
 /** How many of a user's runs are running OR queued — what admission counts. */
 function inFlightForUser(uid) {
   let n = 0;
-  for (const run of runs.values()) {
+  for (const run of allRuns()) {
     if (run.user_id === uid && (run.status === 'running' || run.status === 'queued')) n++;
   }
   return n;
@@ -100,7 +76,7 @@ function inFlightForUser(uid) {
 /** How many of a user's runs are running — what the start-gate and dequeue count. */
 function runningForUser(uid) {
   let n = 0;
-  for (const run of runs.values()) {
+  for (const run of allRuns()) {
     if (run.user_id === uid && run.status === 'running') n++;
   }
   return n;
@@ -113,186 +89,6 @@ function canStart(run) {
   if (active >= MAX_CONCURRENT) return false;
   const cap = getUserConcurrencyCap(run.user_id);
   return cap == null || runningForUser(run.user_id) < cap;
-}
-
-/**
- * A run's activity in the one shape everything reads it in: the report file,
- * the PDF renderer and `GET /api/runs/:id/steps` (US-026), whether it comes
- * from the live buffer or from report_data.json. `progress` events are left
- * out — they carry no step number, and the report's step section is keyed on
- * one, so they stay live-only in the Run view's stream.
- */
-export function stepsOf(run) {
-  return run.events
-    .filter((e) => e.type === 'step')
-    .map((e) => ({
-      step: e.step,
-      elapsed: e.elapsed,
-      next_goal: e.next_goal,
-      evaluation: e.evaluation,
-      url: e.url,
-      screenshot_file: e.screenshot_file,
-    }));
-}
-
-/**
- * Why the run failed, in the one shape everything reads it in (US-044): the
- * failed requests, console errors and uncaught exceptions the agent captured,
- * each already scrubbed, capped, deduplicated and stamped with the step it
- * happened during.
- *
- * Flat rather than nested under `stepsOf`, because a finding can arrive before
- * the first step (a page's own load errors do) and would have no step object to
- * hang off. Both renderers group by `step` themselves.
- *
- * `dropped` is the agent's run total, not a sum: each event carries the tally so
- * far, so the last one to arrive is the whole answer. Reading it as a sum would
- * multiply it by the number of steps.
- */
-export function diagnosticsOf(run) {
-  const events = run.events.filter((e) => e.type === 'diagnostics');
-  return {
-    diagnostics: events.flatMap((e) => e.entries || []),
-    diagnostics_dropped: events.reduce((most, e) => Math.max(most, e.dropped || 0), 0),
-  };
-}
-
-function send(run, evt) {
-  const data = JSON.stringify(evt);
-  for (const ws of run.subscribers) {
-    if (ws.readyState === ws.OPEN) ws.send(data);
-  }
-}
-
-// Durable events are buffered for replay; screencast frames are live-only
-// (we keep just the most recent one so a late viewer sees something immediately).
-function broadcast(run, evt) {
-  if (evt.type === 'frame') {
-    run.lastFrame = evt;
-    send(run, evt);
-    return;
-  }
-  run.events.push(evt);
-  send(run, evt);
-}
-
-// A waiting run's place in the FIFO (0 = next to start). Live-only, like
-// frames: it changes every time the queue drains, so replaying it out of
-// `run.events` would make a late viewer watch a countdown that already
-// happened. Each waiting run keeps just its current one and `attachViewer`
-// sends that.
-function setQueuePosition(run, position) {
-  run.queueEvent = { type: 'status', status: 'queued', position, concurrency: MAX_CONCURRENT };
-  send(run, run.queueEvent);
-}
-
-// Tell the agent whether anyone is watching: it only captures screencast
-// frames while a viewer is attached (saves Chromium encode CPU otherwise).
-function setScreencast(run, on) {
-  const stdin = run.child?.stdin;
-  if (stdin && stdin.writable) {
-    stdin.write(JSON.stringify({ cmd: 'screencast', on }) + '\n');
-  }
-}
-
-// --- persistence (fire-and-forget: the live relay never waits on the DB) ---
-
-// Writes for one run are chained on `run.persisted` so they reach the DB in
-// program order. They are still fire-and-forget from the request's point of
-// view — nothing awaits the chain — but each query only issues once the
-// previous one has resolved. Without this, `persistInsert` and the `running`
-// `persistUpdate` fired back-to-back in `createRun`/`startRun` are two
-// independent pool queries: the UPDATE can reach a connection before the
-// INSERT commits, match zero rows, and leave the row stuck at `queued`.
-function persistInsert(run) {
-  if (!db()) return;
-  run.persisted = db()
-    .query(
-      `insert into runs (id, test_id, user_id, trigger, goal, start_url, max_steps, model, status, variables,
-                        schedule_id, scheduled_for)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
-      [
-        run.id,
-        run.test_id,
-        run.user_id,
-        run.trigger,
-        run.goal,
-        run.start_url,
-        run.max_steps,
-        run.model,
-        run.status,
-        JSON.stringify(run.variables || {}),
-        run.schedule_id,
-        run.scheduled_for,
-      ]
-    )
-    .catch((err) => console.error(`db: insert run ${run.id.slice(0, 8)} failed:`, err.message));
-}
-
-function persistUpdate(run) {
-  if (!db()) return;
-  const res = run.result || {};
-  const failedOrError = run.status === 'error' || run.status === 'failed';
-  const update = () =>
-    db()
-      .query(
-        `update runs
-            set status        = $2,
-                success       = $3,
-                final_result  = $4,
-                error         = $5,
-                steps_count   = $6,
-                started_at    = $7,
-                finished_at   = $8,
-                report_status = $9,
-                has_recording = $10,
-                failure_reason = $11
-          where id = $1`,
-        [
-          run.id,
-          run.status,
-          verdictOf(run),
-          res.final_result ?? res.message ?? null,
-          failedOrError ? res.message ?? null : null,
-          res.steps ?? run.events.filter((e) => e.type === 'step').length,
-          run.startedAt ? new Date(run.startedAt) : null,
-          run.finishedAt ? new Date(run.finishedAt) : null,
-          run.reportStatus || 'none',
-          !!run.recordingFile,
-          // Null on every ordinary run, which is what keeps a value here
-          // meaning "the fence fired" rather than "something went wrong".
-          res.failure_reason ?? null,
-        ]
-      )
-      .catch((err) => console.error(`db: update run ${run.id.slice(0, 8)} failed:`, err.message));
-  run.persisted = (run.persisted || Promise.resolve()).then(update);
-}
-
-// Store what a passing login run captured (US-043). Chained on `run.persisted`
-// for persistInsert's reason — it must not race the run's own row — and
-// fire-and-forget from the agent's point of view, which is why a failure here
-// is logged rather than thrown: the run itself passed, and the session simply
-// did not refresh.
-function captureSession(run, exported) {
-  if (!db()) return;
-  run.persisted = (run.persisted || Promise.resolve()).then(() =>
-    refreshCapturedSession(run.capture_session_id, exported).catch((err) =>
-      console.error(`db: refresh session for run ${run.id.slice(0, 8)} failed:`, err.message)
-    )
-  );
-}
-
-// A run is mailable (US-012) once it has finished *and* the report it would
-// attach has stopped changing. Those two arrive in either order — the renderer
-// usually outlives the agent process, but a watchdog kill doesn't wait for it —
-// so both paths call this and whichever completes the pair wins. The flag is
-// belt and braces over the notifications table's own (run_id, recipient) key.
-function maybeNotify(run) {
-  if (run.notified || !run.finishedAt || run.reportStatus === 'generating') return;
-  run.notified = true;
-  notifyRunFinished(run).catch((err) =>
-    console.error(`notify ${run.id.slice(0, 8)} failed:`, err.message)
-  );
 }
 
 // --- run lifecycle ---
@@ -405,7 +201,7 @@ export function createRun(fields) {
     result: null,
     createdAt: Date.now(),
   };
-  runs.set(runId, run);
+  addRun(run);
   persistInsert(run);
   // US-036: on a demo deployment every run is a replay. The interceptor sits
   // here, before the concurrency branch, so NO trigger path (this fn is the sole
@@ -593,11 +389,11 @@ function finishCancelled(run) {
   persistUpdate(run);
   broadcast(run, { type: 'end', status: 'cancelled' });
   maybeNotify(run);
-  setTimeout(() => runs.delete(run.id), RUN_TTL_MS).unref();
+  evictLater(run.id);
 }
 
 function startRun(runId) {
-  const run = runs.get(runId);
+  const run = getRun(runId);
   if (!run) return;
   active++;
   run.status = 'running';
@@ -672,7 +468,7 @@ function startRun(runId) {
       removeSessionFiles(run.id);
       maybeNotify(run);
       startNext();
-      setTimeout(() => runs.delete(runId), RUN_TTL_MS).unref();
+      evictLater(runId);
       return;
     }
   }
@@ -815,105 +611,8 @@ function startRun(runId) {
     broadcast(run, { type: 'end', status: run.status, code });
     maybeNotify(run);
     startNext();
-    // unref: an expiry timer must never hold the process open (e.g. in tests)
-    setTimeout(() => runs.delete(runId), RUN_TTL_MS).unref();
+    evictLater(runId);
   });
-}
-
-// --- demo replay (US-036): the no-cost stand-in for startRun ---
-
-// Drive a run from a checked-in fixture instead of a Python agent: no spawn, no
-// `active++`, no queue. Events replay over the same relay a real run uses, so
-// the Run stage and history need no second code path. The fixture is chosen to
-// match the test; its recording/PDF are symlinked (not copied) into the run dir
-// so the normal media routes serve them and the reaper's rm -rf reclaims them.
-function startReplay(run) {
-  const slug = fixtureForRun(run);
-  const demo = loadDemo(slug);
-  run.startedAt = Date.now();
-  run.status = 'running';
-  broadcast(run, { type: 'status', status: 'running' });
-  persistUpdate(run);
-
-  if (!demo) {
-    // No usable fixture at all — finish clean so the row still reaches terminal
-    // rather than hanging at 'running'.
-    finishReplay(run);
-    return;
-  }
-  run.demoSlug = slug;
-  linkFixtureArtifacts(run, slug);
-
-  // A demo run has no live screencast — the fixture's recording *is* the stage
-  // feed. Announce it up front (durable, so a viewer connecting mid-replay still
-  // gets it) so the frontend plays the video from the start instead of waiting
-  // on frames that never arrive. `demo: true` tells it to show the video live
-  // rather than only offering it as a post-run button.
-  if (run.recordingFile) broadcast(run, { type: 'recording', demo: true });
-
-  let last = 0;
-  for (const { offset_ms, ...evt } of demo.events) {
-    const at = Math.max(0, Number(offset_ms) || 0) / DEMO_SPEED;
-    last = Math.max(last, at);
-    setTimeout(() => applyReplayEvent(run, evt), at).unref();
-  }
-  setTimeout(() => finishReplay(run), last).unref();
-}
-
-// Same event handling as startRun's stdout loop: a fixture's `done`/`error`
-// carries the verdict that sets the terminal status; everything else is relayed.
-function applyReplayEvent(run, evt) {
-  if (TERMINAL.has(run.status)) return; // a later timer after finishReplay: ignore
-  if (evt.type === 'done') {
-    run.result = evt;
-    run.status = evt.success === true ? 'passed' : evt.success === false ? 'failed' : 'completed';
-  } else if (evt.type === 'error') {
-    run.result = evt;
-    run.status = 'error';
-  }
-  broadcast(run, evt);
-}
-
-function finishReplay(run) {
-  if (run.finishedAt) return; // already ended — a stop (US-047) beat this timer
-  if (!TERMINAL.has(run.status)) run.status = 'completed';
-  run.finishedAt = Date.now();
-  run.reportStatus = run.reportReady ? 'ready' : 'none';
-  persistUpdate(run);
-  broadcast(run, { type: 'end', status: run.status, demo: true });
-  maybeNotify(run);
-  setTimeout(() => runs.delete(run.id), RUN_TTL_MS).unref();
-}
-
-// Symlink the fixture's shared recording/PDF into runs/<id>/ so /api/runs/:id/
-// {recording,report.pdf} serve them unchanged. Symlink, not copy: the fixture
-// stays the single shared source, and the reaper's rm -rf runs/<id> removes only
-// the links. Best-effort — a run row is honest about what actually linked.
-function linkFixtureArtifacts(run, slug) {
-  const runDir = path.join(ARTIFACTS_DIR, run.id);
-  try {
-    fs.mkdirSync(runDir, { recursive: true });
-  } catch {
-    /* dir may already exist */
-  }
-  const rec = recordingPath(slug);
-  if (rec) {
-    try {
-      fs.symlinkSync(rec, path.join(runDir, RECORDING_FILENAME));
-      run.recordingFile = path.join(runDir, RECORDING_FILENAME);
-    } catch {
-      /* leaves has_recording false */
-    }
-  }
-  const rep = reportPath(slug);
-  if (rep) {
-    try {
-      fs.symlinkSync(rep, path.join(runDir, 'report.pdf'));
-      run.reportReady = true;
-    } catch {
-      /* leaves report_status none */
-    }
-  }
 }
 
 function startNext() {
@@ -931,7 +630,7 @@ function startNext() {
     // the only waiters are users already at their cap.
     while (active < MAX_CONCURRENT) {
       const i = queue.findIndex((id) => {
-        const run = runs.get(id);
+        const run = getRun(id);
         return run && canStart(run);
       });
       if (i === -1) break;
@@ -941,95 +640,7 @@ function startNext() {
   // Everyone still waiting moved up — tell them, so "2 ahead of you" counts
   // down in place rather than only on reload.
   queue.forEach((id, position) => {
-    const run = runs.get(id);
+    const run = getRun(id);
     if (run) setQueuePosition(run, position);
-  });
-}
-
-// Build the run's data JSON and render it to a PDF via the Python renderer
-// (which reuses the installed Chromium). Runs once per finished run.
-//
-// With REPORTS_ENABLED off the JSON is still written and only the render is
-// skipped: `report_data.json` is where the steps endpoint and US-044's
-// diagnostics come from, so dropping it would empty the run page as well.
-function generateReport(run) {
-  if (run.reportStatus === 'generating' || run.reportStatus === 'ready') return;
-  run.reportStatus = 'generating';
-  const runDir = path.join(ARTIFACTS_DIR, run.id);
-  try {
-    fs.mkdirSync(runDir, { recursive: true });
-  } catch {
-    /* dir may already exist from screenshots */
-  }
-  const res = run.result || {};
-  const data = {
-    runId: run.id,
-    goal: run.goal,
-    start_url: run.start_url,
-    model: run.model || MODEL,
-    status: run.status,
-    success: verdictOf(run),
-    duration_seconds: res.duration_seconds ?? null,
-    steps_count: res.steps ?? run.events.filter((e) => e.type === 'step').length,
-    final_result: res.final_result ?? res.message ?? null,
-    errors: res.errors ?? (res.message ? [res.message] : []),
-    // US-042: a run the navigation fence stopped says so on the report, so the
-    // reader is not left reading a timeout and guessing. Null on every ordinary
-    // run, which is what keeps a value here meaning the fence fired.
-    failure_reason: res.failure_reason ?? null,
-    blocked_url: res.blocked_url ?? null,
-    has_recording: !!run.recordingFile,
-    // A PDF can only link a recording that has a public address; without one
-    // the report says "recorded" and the app serves the video itself.
-    recording_url:
-      run.recordingFile && PUBLIC_BASE_URL
-        ? `${PUBLIC_BASE_URL}/api/runs/${run.id}/recording`
-        : null,
-    generated_at: new Date().toISOString(),
-    steps: stepsOf(run),
-    // US-044: what the browser said while this run was failing. Bounded by the
-    // agent's per-step cap, so this stays a section and not an archive — the
-    // archive is the opt-in HAR beside it.
-    ...diagnosticsOf(run),
-  };
-  const dataPath = path.join(runDir, REPORT_DATA_FILENAME);
-  const pdfPath = path.join(runDir, 'report.pdf');
-  fs.writeFileSync(dataPath, JSON.stringify(data, null, 2));
-
-  // 'none' rather than 'error': no report was asked for, so nothing failed.
-  // The notify call is the one the renderer's `close` would have made — without
-  // it a mail that waits on the report waits for a process that never spawns.
-  if (!REPORTS_ENABLED) {
-    run.reportStatus = 'none';
-    persistUpdate(run);
-    maybeNotify(run);
-    return;
-  }
-
-  const child = spawn(PYTHON_BIN, [REPORT_SCRIPT, dataPath, pdfPath]);
-  child.stderr.on('data', (d) => process.stderr.write(`[report ${run.id.slice(0, 8)}] ${d}`));
-  child.on('close', (code) => {
-    run.reportStatus = code === 0 && fs.existsSync(pdfPath) ? 'ready' : 'error';
-    run.reportPath = pdfPath;
-    persistUpdate(run);
-    console.log(`report ${run.id.slice(0, 8)}: ${run.reportStatus}`);
-    maybeNotify(run);
-  });
-}
-
-/**
- * Subscribe a WebSocket to a run's live feed: replay durable events, then the
- * live-only state (queue position, latest frame), then live updates follow.
- */
-export function attachViewer(run, ws) {
-  run.subscribers.add(ws);
-  if (run.subscribers.size === 1) setScreencast(run, true);
-  for (const evt of run.events) ws.send(JSON.stringify(evt));
-  if (run.queueEvent) ws.send(JSON.stringify(run.queueEvent));
-  if (run.lastFrame) ws.send(JSON.stringify(run.lastFrame));
-  if (TERMINAL.has(run.status)) ws.send(JSON.stringify({ type: 'end', status: run.status }));
-  ws.on('close', () => {
-    run.subscribers.delete(ws);
-    if (run.subscribers.size === 0) setScreencast(run, false);
   });
 }

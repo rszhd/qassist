@@ -3,7 +3,7 @@
 // A checked-in fixture is a recorded run the interceptor replays over the same
 // event stream a real run uses, so a demo tenant's run plays out for real with
 // no Python process, no queue slot and no LLM call. This module only reads and
-// matches fixtures; `runs.js` (`startReplay`) does the replaying over the relay.
+// matches fixtures; `runReplay.js` does the replaying over the relay.
 //
 // Fixtures are checked-in source under DEMO_DIR (`demo/<slug>/`), never
 // artifacts: meta.json (card copy + verdict), events.ndjson (one event per
