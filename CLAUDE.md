@@ -81,6 +81,10 @@ keep it that way when adding features.
   in `README.md`; the README keeps only the four calls that get a first run out
   of the box and links here for the rest. What a *user* does with those
   endpoints (the CI trigger, variables, sessions) is `manual/`.
+- `docs/architecture.md` — the whole system in one file: processes, code map,
+  the run lifecycle and its protocols, concurrency, secrets, disk, invariants.
+  Shape and reasons only; it links to the file that owns each subject rather
+  than restating it.
 - `docs/auth-in-tested-flows.md` — reaching what is behind the *tested app's*
   login: saved sessions, email codes, social login, and what is out of reach.
   Not US-021, which is QAssist's own login.

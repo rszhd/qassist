@@ -66,6 +66,10 @@ runs (e.g. CI-triggered) skip the encode cost entirely. On completion the server
 calls `agent/make_report.py` to render the PDF. The worker holds no durable
 state between runs.
 
+The same system in full — processes, code map, the event protocols on that
+pipe, concurrency and scheduling, where every secret lives, and the invariants
+worth not breaking — is [`docs/architecture.md`](docs/architecture.md).
+
 ## Project layout
 
 ```
