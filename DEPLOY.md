@@ -7,9 +7,9 @@ the box, so a rebuilt server is this document plus `.env`.
 The app is on a **subdomain, not the apex** (decided 2026-07-25): `qassist.run`
 is a landing page built and served outside this repo, so the only hostnames that
 resolve to this box are `app.qassist.run`, `staging.qassist.run`,
-`demo.qassist.run` and `preview.qassist.run`. That is why nothing here ever
-mentions the apex except for the mail records, which belong to the domain rather
-than to any one stack.
+`demo.qassist.run`, `preview.qassist.run` and `docs.qassist.run`. That is why
+nothing here ever mentions the apex except for the mail records, which belong to
+the domain rather than to any one stack.
 
 Self-hosting does **not** need any of this: `cp .env.example .env && docker
 compose up` still serves the app on :8080 with no proxy and no certificate. This
@@ -26,12 +26,13 @@ stack has actually hit — so a question about one costs reading one.
 | [Staging](docs/deploy/staging.md) | Standing staging up, seeding it, verifying the isolation, and promoting `dev → staging → main`. |
 | [Preview](docs/deploy/preview.md) | The force-push spur: what it costs, standing it up, and what it must never become. |
 | [The demo sandbox](docs/deploy/demo.md) | `AUTH_MODE=demo`, per-visitor tenants, the reaper, and keeping mail silent. |
+| [The docs site](docs/deploy/docs-site.md) | The manual, built off `dev` and published without a promotion: standing it up, publishing by hand, and what it must not become. |
 
-Certificates are shared by all four and are below.
+Certificates are shared by all five and are below.
 
 ## What runs on the box
 
-Five compose projects, deliberately separate:
+Six compose projects, deliberately separate:
 
 | Project | Hostname | Files | What it is |
 |---|---|---|---|
@@ -40,10 +41,17 @@ Five compose projects, deliberately separate:
 | `qassist-staging` | `staging.qassist.run` | the same two files | [Staging](docs/deploy/staging.md): the same stack, production's data swapped out. |
 | `qassist-demo` | `demo.qassist.run` | the same two files | [The demo sandbox](docs/deploy/demo.md): the same stack, `AUTH_MODE=demo`. |
 | `qassist-preview` | `preview.qassist.run` | the same two files | [Preview](docs/deploy/preview.md): the same stack, built on the box from a force-pushable branch. |
+| `qassist-docs` | `docs.qassist.run` | `docker-compose.docs.yml` | [The docs site](docs/deploy/docs-site.md): nginx plus a builder that follows `manual/` on `dev`. Not the app at all. |
 
-Four of the five are the same two compose files with a different `-p` and
+Four of the six are the same two compose files with a different `-p` and
 `--env-file`. That is the design, not a coincidence: an environment is a project
 name and an env file, and the overlay never learns which one it is serving.
+
+The two that are not are the two that are not the app: the proxy, and the docs
+site. **Docs gets a file of its own precisely because it is a different
+workload** — that is not a reopening of US-055's ban on a
+`docker-compose.preview.yml`, which was about the same app *parameterized*, and
+an overlay that knew which environment it served would still be wrong.
 
 What differs besides the env file is where each one's image comes from.
 `qassist` pins an immutable `:x.y.z` cut from `main`; `qassist-staging` tracks
@@ -51,7 +59,9 @@ the mutable `:staging`, rebuilt on every push to the `staging` branch; and
 `qassist-preview` runs a `qassist:preview` tag built on the box itself, with no
 registry in the loop at all. That spread is the point — production moves at the
 speed of a release, staging at the speed of a merge, preview at the speed of a
-force-push.
+force-push. `qassist-docs` runs no image of ours at all: it is stock nginx over
+a volume a builder fills from `dev`, so the manual moves at the speed of a push
+and a publish recreates nothing.
 
 **There is no separate API hostname**, and adding one would be a mistake. One
 Express process serves the built frontend and mounts the API under `/api` on the

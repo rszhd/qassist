@@ -188,7 +188,7 @@ in the suite could distinguish a playable file from a truncated one; that whole
 chain had only ever been *read out of browser-use's source*. What closed the
 story was watching a real stopped run play back. Same shape elsewhere: staging
 found four defects (a Traefik/Docker version clash, a NULL Stripe column) that
-no fixture here could have; running `docs/ci.md`'s snippet from a real GitHub
+no fixture here could have; running the CI snippet (now `manual/ci.md`) from a real GitHub
 runner found Actions redacting the URL the doc told readers to keep secret.
 
 The practical rule: when a change's reason-for-existing rests on third-party

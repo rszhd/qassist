@@ -67,7 +67,7 @@ Sprints aren't split along a self-host/hosted-tier line — `sprint/current/` an
 | [US-056](sprint/current/US-056-production-deployment.md) | Production deployment: `app.qassist.run` goes live | 🔨 **Live** 2026-07-29 on `v0.3.0`, 4/10 — the rest need a sign-in, live Stripe keys, or a decision | US-007, US-038, US-052 |
 | [US-020](sprint/current/US-020-report-v2-screenshots-recording.md) | Report v2: step screenshots + recording | 📋 Planned — P2 | US-006 |
 | [US-066](sprint/current/US-066-chrome-web-store-listing.md) | List the session-capture extension on the Chrome Web Store | ⏳ **Submitted** 2026-08-03, 5/6 — `0.1.1` in review; the last criterion is Google's answer | US-063 |
-| [US-070](sprint/current/US-070-user-manual-site.md) | A user manual, deployed off the chain (`docs.qassist.run`) | 📋 Planned — P2 | US-007, US-055 |
+| [US-070](sprint/current/US-070-user-manual-site.md) | A user manual, deployed off the chain (`docs.qassist.run`) | 🔨 **Repo-side done** 2026-08-05, 8/11 — the three open need the box, plus a line in the marketing repo | US-007, US-055 |
 | [US-071](sprint/current/US-071-one-command-deploy.md) | One command deploys a stack, and proves which one it deployed | 📋 Planned — P1 | US-052, US-055, US-056 |
 
 ### Done

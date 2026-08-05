@@ -5,7 +5,9 @@ there is one link to send someone — and, as the maintainer, so that fixing a
 typo in it costs a push rather than a promotion through `dev → staging → main`
 and an image rebuild.
 
-- **Status:** 📋 Planned
+- **Status:** 🔨 **Repo-side done** 2026-08-05, 8/11 — the three open criteria all
+  need the box (DNS, the certificate, the stand-up), plus one line in the
+  marketing repo. See [Results](#results).
 - **Priority:** P2 (current sprint)
 - **Estimate:** ~1 h repo-side, plus one stand-up on the box
 - **Depends on:** [US-007](done/US-007-https-reverse-proxy.md) (Traefik,
@@ -135,23 +137,77 @@ carrying `DOCS_HOST`.
       certificate
 - [ ] A push to `dev` touching `manual/**` is live within one poll interval,
       with no workflow run, no image build and no registry round trip
-- [ ] A push touching nothing under `manual/` rebuilds nothing
-- [ ] The whole stack is `docker-compose.docs.yml` plus `.env.docs`: no cron, no
+- [x] A push touching nothing under `manual/` rebuilds nothing
+- [x] The whole stack is `docker-compose.docs.yml` plus `.env.docs`: no cron, no
       host script, no `nginx.conf`, and `docker-compose.proxy.yml` is unchanged
 - [ ] Standing it up touches no other stack: `~/qassist` is only checked out,
       the builder's clone is a volume of its own, and demo, staging, production
       and the proxy see no change from a docs publish
-- [ ] The manual covers the path a user actually walks — writing a goal, reading
+- [x] The manual covers the path a user actually walks — writing a goal, reading
       a verdict, saving a test, projects/modules/suites, schedules, variables and
       secrets, saved sessions, the CI trigger — enough that `README.md` can stop
       growing and link instead
-- [ ] `docs/` gains no user-facing page and `manual/` gains no contributor page
-- [ ] `node scripts/check-doc-links.mjs` passes over the new tree, and every
+- [x] `docs/` gains no user-facing page and `manual/` gains no contributor page
+- [x] `node scripts/check-doc-links.mjs` passes over the new tree, and every
       internal manual link resolves in the built site
 - [ ] The app and the marketing site both link to the manual, and the manual
-      links back to the app
-- [ ] `DEPLOY.md` carries the docs stack in its table, and a
+      links back to the app — **app half done**, marketing is a second repo
+- [x] `DEPLOY.md` carries the docs stack in its table, and a
       `docs/deploy/docs-site.md` runbook says how to publish by hand when the
       cron is not enough
-- [ ] The app image is unchanged: no VitePress in the `Dockerfile`, no `/manual`
+- [x] The app image is unchanged: no VitePress in the `Dockerfile`, no `/manual`
       route, no new dependency in `frontend/package.json`
+
+## Results
+
+**Repo-side complete, 2026-08-05.** Sixteen pages under `manual/`, the stack in
+[`docker-compose.docs.yml`](../../../docker-compose.docs.yml) +
+[`.env.docs.example`](../../../.env.docs.example), the loop body in
+[`manual/publish.sh`](../../../manual/publish.sh), and the runbook at
+[`docs/deploy/docs-site.md`](../../../docs/deploy/docs-site.md). What is left is
+the box: an `A` record, a `git checkout` in `~/qassist`, one `up -d`, and one
+line in the marketing repo.
+
+**The builder was rehearsed end to end before anything was written about it**,
+in a throwaway container against a throwaway ref carrying the working tree — a
+cold clone plus `npm ci`, then four more publishes. Four things it settled, none
+of which the compose file alone would have:
+
+- A commit **outside `manual/`** publishes nothing and prints nothing. This is
+  what `git rev-parse FETCH_HEAD:manual` buys: comparing the *tree* hash rather
+  than diffing against a parent, which a `--depth 1` clone may not have at all.
+- A commit **inside `manual/`** rebuilds in ~5 s and installs nothing, because
+  `node_modules` lives in the `src` volume and the install is keyed on the
+  lockfile's own blob hash. Only the cold start pays for npm.
+- **A broken build leaves the previous site up and says so.** The rehearsal
+  deleted a page four others link to; VitePress failed the build on the dead
+  links, the loop logged `publish failed` and the stamp was left untouched, so
+  the next poll retries. This is the failure mode that matters — the manual must
+  not go down because someone pushed a bad link — and it is a property of the
+  stamp being written *after* the rsync, not before.
+- **A page removed upstream stops being served** (`rsync --delete`), and a
+  publish never leaves the site half there, because rsync replaces each file by
+  rename.
+
+**VitePress's own dead-link check is the second half of `check-doc-links.mjs`,
+not a duplicate of it.** The repo checker resolves relative Markdown links on
+disk; VitePress resolves them against the *rendered site*, where `./x.md`
+becomes `x.html`. Two of this story's links passed the first and failed the
+second — one an `<http://localhost:8080>` autolink, one an anchor whose slug
+turned an apostrophe into `-s-`. Both fail the build rather than shipping, which
+is what the criterion asked for.
+
+**Two `docs/` pages left for `manual/` rather than being copied.**
+`docs/quickstart.md` and `docs/ci.md` are now pointers: both were written for
+someone *using* QAssist, which is the audience `docs/` is explicitly not for,
+and a second copy is the copy that drifts. The README's configuration table went
+the same way — six rows a fresh install actually turns, and the rest linked —
+which is the same shape it already used for the API section, and is what "stop
+growing" means in practice. Everything that referenced either file by name,
+including two load-bearing comments in `server/src/routes/runs.js` and
+`control-plane-tests.test.js` about fields CI polls, now names `manual/ci.md`.
+
+**`cleanUrls: false` is load-bearing and is worth not "fixing" later.** It is the
+single reason no `nginx.conf` is mounted: the emitted links carry `.html`, so
+stock nginx serves the site with no `try_files` rule. Turning it on for prettier
+URLs puts a config file back on the host and re-opens the thing this story closed.

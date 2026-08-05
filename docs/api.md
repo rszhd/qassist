@@ -116,7 +116,8 @@ Ungrouped. Deleting a project does take its suites with it.
 ### Variables, and the secret ones
 
 A test declares `variables`; the goal and `start_url` reference them as
-`{{name}}`, and a run overrides any of them (`docs/ci.md` covers the CI body).
+`{{name}}`, and a run overrides any of them
+([`manual/ci.md`](../manual/ci.md) covers the CI body).
 
 ```bash
 curl -X POST http://<host>:8080/api/tests \
@@ -226,8 +227,9 @@ is never marked.
 A pipeline triggers a **module or a suite** — the set of tests that covers a
 change — passing the fresh preview URL as `start_url`, then polls each run and
 fails the job unless every one comes back `passed`. That's `curl` plus a poll
-loop, no Action and no plugin: **[ci.md](ci.md)** has the script and
-ready-made GitHub Actions and GitLab CI jobs.
+loop, no Action and no plugin: **[the manual's CI
+page](https://docs.qassist.run/ci.html)** ([`manual/ci.md`](../manual/ci.md))
+has the script and ready-made GitHub Actions and GitLab CI jobs.
 
 ## Run history
 

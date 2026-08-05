@@ -1,5 +1,12 @@
 node_modules/
 dist/
+# VitePress's build cache for manual/ (its dist/ is covered above). Anchored,
+# because a pattern with a slash in it is — an unanchored `cache/` would sweep
+# up anything anyone ever names that.
+manual/.vitepress/cache/
+# The builder's publish stamp, if manual/publish.sh is ever run against a
+# working tree rather than the container's clone.
+.publish-stamp
 .venv/
 .env
 # .env.staging and any other per-stack env file (US-038) — same rule as .env,

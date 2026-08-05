@@ -1,0 +1,99 @@
+/* The app's palette, mapped onto VitePress's variables.
+ *
+ * Values come from the dark column of docs/design-system.md's token index and
+ * are copied rather than imported — the app's App.css is a Vite entry in a
+ * different build, and this site is deliberately not a dependency of it. When a
+ * surface or accent value moves there, it moves here.
+ *
+ * Only the tokens are set. Nothing below reaches past them to a raw colour,
+ * which is the same rule the app's stylesheet keeps. */
+
+:root {
+  --qa-bg: #121417;
+  --qa-sunken: #131518;
+  --qa-card: #1a1d21;
+  --qa-raised: #202328;
+  --qa-hover: #25282e;
+  --qa-border: #2a2e34;
+  --qa-border-hi: #363a41;
+
+  --qa-text: #eceef2;
+  --qa-muted: #989ea6;
+  --qa-faint: #838890;
+
+  --qa-accent: #4d7cf6;
+  --qa-accent-hi: #6a92f8;
+  --qa-accent-line: #2f3d6b;
+  --qa-accent-bg: #1a2033;
+
+  --qa-ok: #4cb98a;
+  --qa-bad: #e5787e;
+  --qa-warn: #d9ad55;
+  --qa-info: #9db2d2;
+}
+
+:root {
+  --vp-font-family-base: Ubuntu, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
+    sans-serif;
+  --vp-font-family-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+
+  /* Surfaces. VitePress names its ramp after grey shades; the mapping runs
+     page → card → raised so a code block sits on the card step and a custom
+     block on the one above it, which is the app's own ordering. */
+  --vp-c-bg: var(--qa-bg);
+  --vp-c-bg-alt: var(--qa-sunken);
+  --vp-c-bg-soft: var(--qa-card);
+  --vp-c-bg-elv: var(--qa-raised);
+  --vp-c-gutter: var(--qa-border);
+  --vp-c-divider: var(--qa-border);
+  --vp-c-border: var(--qa-border);
+  --vp-c-bg-mute: var(--qa-hover);
+
+  --vp-c-text-1: var(--qa-text);
+  --vp-c-text-2: var(--qa-muted);
+  --vp-c-text-3: var(--qa-faint);
+
+  /* One accent, spent on links, the brand and focus — the same budget the app
+     holds it to. `brand-1` is what VitePress draws text links in, so it is the
+     hover value: the resting link is `brand-2`. */
+  --vp-c-brand-1: var(--qa-accent-hi);
+  --vp-c-brand-2: var(--qa-accent);
+  --vp-c-brand-3: var(--qa-accent);
+  --vp-c-brand-soft: var(--qa-accent-bg);
+
+  --vp-c-tip-1: var(--qa-accent-hi);
+  --vp-c-tip-soft: var(--qa-accent-bg);
+  --vp-c-note-1: var(--qa-info);
+  --vp-c-warning-1: var(--qa-warn);
+  --vp-c-warning-soft: rgba(217, 173, 85, 0.14);
+  --vp-c-danger-1: var(--qa-bad);
+  --vp-c-danger-soft: rgba(229, 120, 126, 0.14);
+
+  --vp-button-brand-bg: var(--qa-accent);
+  --vp-button-brand-hover-bg: var(--qa-accent-hi);
+  --vp-button-brand-active-bg: var(--qa-accent-hi);
+  --vp-button-brand-border: transparent;
+  --vp-button-brand-text: #fff;
+
+  --vp-code-block-bg: var(--qa-sunken);
+  --vp-custom-block-code-bg: var(--qa-sunken);
+
+  --vp-nav-bg-color: var(--qa-bg);
+  --vp-sidebar-bg-color: var(--qa-bg);
+
+  --vp-home-hero-name-color: var(--qa-text);
+}
+
+/* No box is drawn; the fill does the separating (docs/design-system.md). The
+   default theme puts a hairline under the nav bar as well as a background, and
+   two neutrals nine units apart do not need both. */
+.VPNav .VPNavBar {
+  border-bottom: none;
+}
+
+/* The app's card corner, so a code block and a custom block read as the same
+   family of surface the app draws. */
+.vp-doc div[class*='language-'],
+.vp-doc .custom-block {
+  border-radius: 10px;
+}

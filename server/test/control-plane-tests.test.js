@@ -208,7 +208,7 @@ test('a single run answers in the list shape, and keeps the keys CI polls', asyn
   assert.ok(body.created_at);
   assert.equal(typeof body.steps_count, 'number');
 
-  // …on top of what docs/ci.md polls for, which must not move.
+  // …on top of what manual/ci.md's poll loop reads, which must not move.
   assert.equal(body.status, 'passed');
   assert.equal(body.runId, started.runId);
   assert.equal(body.testId, t.id);

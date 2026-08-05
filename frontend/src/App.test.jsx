@@ -87,6 +87,14 @@ describe('App shell', () => {
     expect(await screen.findByRole('dialog', { name: 'Settings' })).toBeTruthy();
     expect(screen.queryByText('API token')).toBeNull();
     expect(screen.queryByText('Token required')).toBeNull();
+
+    // The manual is the app's one way out to the docs (US-070), and it is
+    // absolute on every instance including a self-hosted one — the site
+    // publishes off `dev`, so a per-instance copy would be as old as the
+    // release it shipped with.
+    expect(screen.getByRole('link', { name: /Manual/ }).getAttribute('href')).toBe(
+      'https://docs.qassist.run'
+    );
   });
 
   // The gates that decide what a visitor may see — multi, demo, the onboarding

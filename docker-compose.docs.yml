@@ -1,0 +1,98 @@
+# The manual at docs.qassist.run (US-070). Its own compose project, and the
+# whole stack — there is no base file under it:
+#
+#   docker compose -p qassist-docs -f docker-compose.docs.yml \
+#     --env-file .env.docs up -d
+#
+# Why it is not the app image: prose does not need the promotion chain. Shipping
+# the manual inside the image would make a typo fix cost dev -> staging -> main
+# and a rebuild, so this stack builds straight off `dev` and publishes by
+# writing files into a volume. Nothing here is recreated to publish.
+#
+# Nothing is configured on the host: no cron, no script in a home directory, no
+# nginx.conf, and no change to docker-compose.proxy.yml — which already states
+# the contract a new stack meets by joining qassist-edge and carrying router
+# labels. Requires that proxy to be up. Runbook: docs/deploy/docs-site.md.
+
+services:
+  # Stock nginx, no config file mounted. That is bought by VitePress's
+  # `cleanUrls: false` (manual/.vitepress/config.mjs): emitted links carry
+  # `.html`, so the default server block serves every page with no `try_files`
+  # rule. Turning cleanUrls on would put an nginx.conf back on the host.
+  web:
+    image: nginx:alpine
+    volumes:
+      - dist:/usr/share/nginx/html:ro
+    networks:
+      - edge
+    healthcheck:
+      # busybox wget — the nginx image carries no curl.
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost/index.html || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    # List form for the same reason docker-compose.prod.yml uses it: compose
+    # interpolates label values but not label keys, so ${COMPOSE_PROJECT_NAME}
+    # in a map key would come out literal.
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=qassist-edge
+      - traefik.http.routers.${COMPOSE_PROJECT_NAME}.rule=Host(`${DOCS_HOST:?set DOCS_HOST}`)
+      - traefik.http.routers.${COMPOSE_PROJECT_NAME}.entrypoints=websecure
+      - traefik.http.routers.${COMPOSE_PROJECT_NAME}.tls.certresolver=le
+      - traefik.http.routers.${COMPOSE_PROJECT_NAME}.middlewares=${COMPOSE_PROJECT_NAME}-robots@docker
+      - traefik.http.services.${COMPOSE_PROJECT_NAME}.loadbalancer.server.port=80
+      # The manual exists to be the one link you send someone, so unlike staging
+      # it is meant to be indexed. Still a value rather than a constant: a fork
+      # serving its own copy sets "noindex, nofollow" here.
+      - traefik.http.middlewares.${COMPOSE_PROJECT_NAME}-robots.headers.customresponseheaders.X-Robots-Tag=${ROBOTS_TAG:-all}
+    restart: unless-stopped
+
+  # Long-lived rather than a cron: the clone and node_modules are what make a
+  # publish seconds instead of a cold npm install, and they live in the `src`
+  # volume no other stack reads. (staging's runbook bans `git pull` in a cron
+  # because ~/qassist is SHARED — moving it changes what demo and the proxy get
+  # on their next `up -d`. That rule is about the shared checkout, not about
+  # automation.)
+  builder:
+    image: node:22-alpine
+    environment:
+      DOCS_REPO: ${DOCS_REPO:-https://github.com/rszhd/qassist.git}
+      DOCS_BRANCH: ${DOCS_BRANCH:-dev}
+      DOCS_POLL_SECONDS: ${DOCS_POLL_SECONDS:-120}
+      DOCS_SRC_DIR: /src
+      DOCS_OUT_DIR: /dist
+    volumes:
+      - src:/src
+      - dist:/dist
+    # The loop lives here; its *body* is manual/publish.sh in the repo, so
+    # improving what a publish does is a commit rather than a compose edit and
+    # takes effect on the next poll with nothing recreated. The clone has to
+    # happen before the script exists, which is the one thing that cannot.
+    command:
+      - sh
+      - -euc
+      - |
+        apk add --no-cache git rsync >/dev/null
+        if [ ! -d "$$DOCS_SRC_DIR/.git" ]; then
+          git clone --depth 1 --branch "$$DOCS_BRANCH" "$$DOCS_REPO" "$$DOCS_SRC_DIR"
+        fi
+        while :; do
+          sh "$$DOCS_SRC_DIR/manual/publish.sh" || echo "publish failed; retrying next poll"
+          sleep "$$DOCS_POLL_SECONDS"
+        done
+    restart: unless-stopped
+
+volumes:
+  # The clone, node_modules and the publish stamp. Rebuilding this volume costs
+  # one cold npm install and nothing else.
+  src:
+  # The built site. This is the published artifact: `web` reads it read-only and
+  # nothing but the builder writes it.
+  dist:
+
+networks:
+  edge:
+    external: true
+    name: qassist-edge

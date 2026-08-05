@@ -1,0 +1,15 @@
+{
+  "name": "qassist-manual",
+  "private": true,
+  "type": "module",
+  "description": "The QAssist user manual, published to docs.qassist.run (US-070)",
+  "scripts": {
+    "dev": "vitepress dev",
+    "build": "vitepress build",
+    "preview": "vitepress preview"
+  },
+  "devDependencies": {
+    "@fontsource/ubuntu": "^5.3.0",
+    "vitepress": "^1.6.4"
+  }
+}

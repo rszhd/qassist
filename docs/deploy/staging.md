@@ -132,7 +132,7 @@ the lifecycle is `stripe trigger customer.subscription.deleted`, after which
 starting a run returns 402. See [Billing](../api.md#billing) for what each
 subscription status is allowed to do.
 
-**The CI snippet (US-008).** Run [`docs/ci.md`](../ci.md)'s pipeline step for
+**The CI snippet (US-008).** Run [`manual/ci.md`](../../manual/ci.md)'s pipeline step for
 real against `https://staging.qassist.run`, with a staging API key, over the
 tests the seed created. Against production it would compete for
 `MAX_CONCURRENT_SESSIONS` with whoever else is there — which is the reason the

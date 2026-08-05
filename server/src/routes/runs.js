@@ -261,7 +261,7 @@ export function runsRouter({ checkToken, checkTokenOrQuery }) {
   // One run, in the list shape (US-030: /runs/<id> renders it through the same
   // RunDetail the history panel uses, so the two can't drift). The camelCase
   // keys are kept on top of those columns because CI polls this endpoint —
-  // docs/ci.md reads `status`, `result.final_result` and `error`.
+  // manual/ci.md reads `status`, `result.final_result` and `error`.
   r.get(
     '/:id',
     checkToken,

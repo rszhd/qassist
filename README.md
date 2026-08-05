@@ -7,6 +7,12 @@ streams the session live, decides pass/fail, and produces a shareable PDF report
 > Status: **actively developed.** Runs end-to-end and is deployed. See
 > [Roadmap](#roadmap) for what's intentionally left for later.
 
+📖 **The user manual is at [docs.qassist.run](https://docs.qassist.run)** —
+writing a goal, reading a verdict, suites, schedules, variables and secrets,
+saved sessions, and the CI trigger. This README is the orientation and the
+self-host setup; everything about *using* QAssist is there. Source:
+[`manual/`](manual/).
+
 ## What it does
 
 - **Goal-based testing** — no selectors or scripts. Describe the goal in English;
@@ -81,7 +87,7 @@ docker-compose.yml
 **Docker is the only thing you need installed** — Node, Python and Chromium all
 live inside the image. For a step-by-step walk to a first passing test, plus
 what to set before exposing the instance and what to back up, see
-[docs/quickstart.md](docs/quickstart.md).
+[the manual's Self-hosting page](https://docs.qassist.run/self-hosting.html).
 
 ### Run a release (no clone, no build)
 
@@ -134,32 +140,23 @@ Everything else, including the Postgres control plane, is wired up by
 
 ## Configuration
 
-Set in `.env` (see `.env.example`):
+Set in `.env` (see [`.env.example`](.env.example), which carries the reasoning
+for every value). These are the ones a fresh install actually turns:
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `WORKER_API_TOKEN` | — | Bearer token required on every API/WS call |
-| `BROWSER_USE_MODEL` | `gpt-4.1` | OpenAI model |
-| `MAX_CONCURRENT_SESSIONS` | `4` | Concurrent browser cap — the real throttle. Rule: `floor((RAM_GB − 1.5) / 0.7)`, from the ~700 MB a run peaks at (US-024) and a 1.5 GB reserve for Postgres, Node and the OS. It assumes the box is yours alone; subtract anything else on it. Runs over the cap wait in an in-memory FIFO and are told their position live; the queue is not durable, so a restart marks everything still waiting `error` |
-| `MAX_STEPS` | `60` | Safety ceiling on agent steps per run |
-| `MAX_RUN_MEMORY_MB` | `1000` | Per-run **PSS** cap over the run's process tree; over it the run is killed and marked failed. PSS divides Chromium's shared pages among the processes sharing them, so this is what the machine pays: a recording run peaks at ~700 MB. Sizing rule it implies: budget ~700 MB per concurrent run. **The unit changed** (US-024) — it was summed RSS, which measured that same run at ~1190 MB, so a value you set yourself before then needs dividing by ~1.7. Re-measure with `agent/measure_memory.py` |
-| `STOP_GRACE_SECONDS` | `10` | How long a stopped run (US-047) has to end itself gracefully — finalizing its recording and report — before the process tree is killed anyway. A run stopped either way ends `cancelled` |
-| `PORT` | `8080` | Express listen port |
-| `QA_RECORD` | `1` | Record every session to `runs/<runId>/recording.mp4`. `0` disables it — frame capture is then skipped entirely while nobody is watching the run |
-| `REPORTS_ENABLED` | — | Render a PDF for every finished run. Off while the report is being reworked: no renderer runs, `report.pdf` 404s, no download is offered and mail carries no attachment. `1`/`true`/`yes`/`on` turns it back on. Step lists and diagnostics are unaffected — they come from `report_data.json`, still written either way. `/api/health` reports this as `reports` |
-| `ARTIFACT_RETENTION_DAYS` | `7` | How long `runs/<runId>/` (report PDF + mp4 recording) is kept. Swept at startup and every 6 h; the history row and its verdict are kept forever regardless. `0` = never prune |
-| `PUBLIC_BASE_URL` | — | Public address of this instance (`https://qa.example.com`). Only used to make the PDF report's "View recording" link resolvable; the recording is served either way |
-| `KEY_ENCRYPTION_SECRET` | — | **Required.** Encrypts stored OpenAI keys at rest. Generate once (`openssl rand -hex 32`) and keep it — losing it makes every stored key undecryptable |
+| `KEY_ENCRYPTION_SECRET` | — | **Required.** Encrypts stored OpenAI keys and saved browser sessions at rest. Generate once (`openssl rand -hex 32`) and keep it — losing it makes every stored key and session undecryptable |
 | `DATABASE_URL` | — | **Required** — Postgres control plane (saved tests, run history, and the users row a stored key lives on). Set for you in both paths — `docker compose` points it at its own `db` service, `npm run dev` at the same container on `localhost:5433`. Without it the server refuses to boot |
-| `RESEND_API_KEY` | — | Resend key for result email. Unset (or `MAIL_FROM` unset) = notifications off: prefs still save, nothing sends. `/api/health` reports this as `mail` |
-| `MAIL_FROM` | — | Sender address, on a domain verified with Resend (`QAssist <qa@example.com>`) |
-| `NOTIFY_EMAILS` | — | Comma-separated fallback recipients, used when a project names none |
-| `NOTIFY_MODE` | `failure` | Default for tests in no project — one of `failure`, `always`, `never`. `failure` covers anything that is not a pass, including a run that ended unjudged. Projects carry their own mode |
-| `NOTIFY_SECRET` | `WORKER_API_TOKEN` | Signs unsubscribe links. Falls back to a per-boot random value if the token is blank too, which invalidates links already mailed |
-| `OPERATOR_EMAIL` | `operator@qassist.local` | Seeds the single account row, and is the last-resort recipient after `NOTIFY_EMAILS`. The default is not a deliverable address |
-| `STRIPE_SECRET_KEY`<br>`STRIPE_WEBHOOK_SECRET`<br>`STRIPE_PRICE_ID` | — | Subscription billing (see [Billing](docs/api.md#billing)). All blank = billing off, every run free — the self-host default. Also needs `PUBLIC_BASE_URL`, the control plane and `AUTH_ENABLED`; missing any one leaves the instance free. `/api/health` reports this as `billing` |
-| `BILLING_EXEMPT_EMAILS` | `OPERATOR_EMAIL` | Comma-separated accounts that run without subscribing |
-| `ACTIVATION_SLA_HOURS` | — | Hours a paid account waits while the operator adds capacity for it (see [the activation window](docs/api.md#the-activation-window)). Unset or `0` = off: accounts run the moment they are entitled. Turning it off releases anyone already waiting. Needs billing on |
+| `WORKER_API_TOKEN` | — | Bearer token required on every API/WS call. Blank = no token required, which is fine on localhost and nowhere else |
+| `MAX_CONCURRENT_SESSIONS` | `4` | Concurrent browser cap — the real throttle. Rule: `floor((RAM_GB − 1.5) / 0.7)`, from the ~700 MB a run peaks at (US-024) and a 1.5 GB reserve for Postgres, Node and the OS. It assumes the box is yours alone; subtract anything else on it. Runs over the cap wait in an in-memory FIFO and are told their position live; the queue is not durable, so a restart marks everything still waiting `error` |
+| `REPORTS_ENABLED` | — | Render a PDF for every finished run. Off while the report is being reworked: no renderer runs, `report.pdf` 404s, no download is offered and mail carries no attachment. `1`/`true`/`yes`/`on` turns it back on. Step lists and diagnostics are unaffected — they come from `report_data.json`, still written either way |
+| `PUBLIC_BASE_URL` | — | Public address of this instance (`https://qa.example.com`). Makes the report's recording link and notification mail resolvable, and with auth on it is what sign-in links redirect to and what makes the session cookie `Secure` |
+
+**Everything else — run limits, the navigation floor, artifact retention, mail,
+auth, billing — is [the manual's Settings
+page](https://docs.qassist.run/settings.html).** It lives outside the image and
+publishes off `dev` (US-070), so it is the copy that is current rather than the
+one your release shipped with, and this table has no reason to grow again.
 
 Per-run artifacts (screenshots, `recording.mp4`, `report_data.json`,
 `report.pdf`) are written to
@@ -204,9 +201,11 @@ curl -L http://<host>:8080/api/runs/<runId>/report.pdf \
 The rest — saved tests, projects and modules, suites, schedules, run history,
 email notifications, recordings and billing — is
 **[docs/api.md](docs/api.md)**. Wiring a pipeline to it is
-[docs/ci.md](docs/ci.md). Testing the part of your product that is behind a
-login — saved sessions, email codes, social login — is
-[docs/auth-in-tested-flows.md](docs/auth-in-tested-flows.md).
+[the manual's CI page](https://docs.qassist.run/ci.html). Testing the part of
+your product that is behind a login — saved sessions, email codes, social
+login — is [docs/auth-in-tested-flows.md](docs/auth-in-tested-flows.md), whose
+user-facing half is
+[Behind your login](https://docs.qassist.run/saved-sessions.html).
 
 ## Local development
 

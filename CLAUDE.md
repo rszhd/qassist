@@ -68,9 +68,19 @@ keep it that way when adding features.
   held, and one had merged two rows of a table into one line unnoticed. It is the
   index: rows are verdict + date, and *why a story moved sprint* is that story's
   Status, not a running commentary here.
+- `manual/` — **the user manual**, a VitePress site published to
+  `docs.qassist.run` off `dev` (US-070). `docs/` is contributor material and
+  `manual/` is user material, and the split is the point: a page useful to both
+  is written for the user in `manual/` and **linked** from `docs/`, never copied.
+  It publishes without a promotion — a push to `dev` touching `manual/**` is
+  live within one poll, so prose is not behind a gate that exists for code.
+  Stack and runbook: `docs/deploy/docs-site.md`. Check a change with
+  `cd manual && npm run build`, which fails on a dead internal link;
+  `scripts/check-doc-links.mjs` is a different check and both run.
 - `docs/api.md` — the HTTP surface. A new endpoint is documented **here**, not
   in `README.md`; the README keeps only the four calls that get a first run out
-  of the box and links here for the rest.
+  of the box and links here for the rest. What a *user* does with those
+  endpoints (the CI trigger, variables, sessions) is `manual/`.
 - `docs/auth-in-tested-flows.md` — reaching what is behind the *tested app's*
   login: saved sessions, email codes, social login, and what is out of reach.
   Not US-021, which is QAssist's own login.
