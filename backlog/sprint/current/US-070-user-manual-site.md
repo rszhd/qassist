@@ -5,9 +5,9 @@ there is one link to send someone — and, as the maintainer, so that fixing a
 typo in it costs a push rather than a promotion through `dev → staging → main`
 and an image rebuild.
 
-- **Status:** 🔨 **Live** 2026-08-05 at `docs.qassist.run`, 10/11 — the last one
-  is a line in the marketing repo, which is not this repo. See
-  [Results](#results).
+- **Status:** 🔨 **Live** 2026-08-05 at `docs.qassist.run`, 9/11 — one closes on
+  the first incremental page edit, one is a line in the marketing repo, which is
+  not this repo. See [Results](#results).
 - **Priority:** P2 (current sprint)
 - **Estimate:** ~1 h repo-side, plus one stand-up on the box
 - **Depends on:** [US-007](done/US-007-https-reverse-proxy.md) (Traefik,
@@ -135,9 +135,15 @@ carrying `DOCS_HOST`.
 
 - [x] `docs.qassist.run` serves the manual over HTTPS on its own Let's Encrypt
       certificate
-- [x] A push to `dev` touching `manual/**` is live within one poll interval,
-      with no workflow run, no image build and no registry round trip
-- [x] A push touching nothing under `manual/` rebuilds nothing
+- [ ] A push to `dev` touching `manual/**` is live within one poll interval,
+      with no workflow run, no image build and no registry round trip — **half
+      proven**: no workflow ran and no image was built for the first publish,
+      but no *incremental* page edit has been pushed yet. Closes on the first
+      real one
+- [x] A push touching nothing under `manual/` rebuilds nothing — **measured on
+      the box**: two poll intervals after a push touching only `docs/` and
+      `backlog/`, the stamp was unchanged, the builder logged nothing, and its
+      clone was still at the previous commit
 - [x] The whole stack is `docker-compose.docs.yml` plus `.env.docs`: no cron, no
       host script, no `nginx.conf`, and `docker-compose.proxy.yml` is unchanged
 - [x] Standing it up touches no other stack: `~/qassist` is only checked out,
