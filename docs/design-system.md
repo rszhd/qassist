@@ -7,7 +7,8 @@ changing `frontend/src/App.css`, `frontend/src/views.css` or
 flat under [Token index](#token-index) — reach for that rather than reading the
 `:root` block, and keep it in step when a token is added, renamed or retuned
 (`node scripts/check-design-tokens.mjs`, which CI runs too).
-Structural/routing rules and the general architecture stay in `CLAUDE.md`.
+Structural/routing rules are `frontend/CLAUDE.md`; the general architecture is
+`docs/architecture.md`.
 
 ## UI conventions
 
@@ -22,9 +23,8 @@ steps and radii always resolve to a token, so the theme is swappable from
 `:root` alone — the light theme lives in one `:root[data-theme='light']` block
 that overrides tokens and nothing else, and needing a colour there that `:root`
 doesn't already declare means some rule is reaching past the tokens. **Dark is
-the app, and since 2026-08-04 it is the only theme that ships** — the Settings
-select, the state behind it and the pre-paint script in `index.html` are gone,
-nothing sets `data-theme`, and the light block is unreachable. It is kept in
+the app, and it is the only theme that ships** (since 2026-08-04) — nothing
+sets `data-theme`, so the light block is unreachable. It is kept in
 step anyway: a token added to `:root` gets its light counterpart, because
 switching back on should be restoring the attribute rather than remixing a
 palette. It will stay an attribute rather than `prefers-color-scheme` when it
@@ -88,10 +88,9 @@ whole scale with it.
 
 **The top step carries the scale's whole contrast, so it steps hard.** The
 bottom three sit a pixel apart because weight, case and colour already separate
-them; `--t-xl` has none of that help, and at its old 20px the page title was
-four pixels off a row label and read as one. A scale that spans 12–20px cannot
-say *what you are looking at* before it says what is in it, which is most of
-what made the app read as a dense admin panel rather than as a product. 28px is
+them; `--t-xl` has none of that help — a scale whose top step sits four pixels
+off a row label cannot say *what you are looking at* before it says what is in
+it, which reads as a dense admin panel rather than a product. 28px is
 twice `--t-xs`, and it is the one place tracking is tightened
 (`letter-spacing: -.022em`) — default letterfit is drawn for text and reads
 loose at that size.
@@ -229,18 +228,17 @@ around a live page, and the drawn edge is what says so.
 
 **Both ramps are cool, and the accent is blue against them.** Every neutral in
 either theme carries a ~220° cast at low saturation — near enough to grey to
-read as unpainted. Both were warm until 2026-08-04, and against `--warn` amber
-and `--fill-queued` gold the surfaces read as brown rather than as neutral. The
+read as unpainted; a warm cast puts the surfaces in `--warn` amber's and
+`--fill-queued` gold's family and they read as brown rather than neutral. The
 accent stays blue: a warm one would put the primary button and the *running*
 bar in the same hue family as two verdicts that have to be told apart at
 `--dot`, and blue on near-grey is what leaves it the only saturated thing on the
 page. Verdict hues keep their own temperatures for the same reason — they are
 signal, not surface.
 
-In light, `--card` is plain white and `--bg` a clear step below it. The warm
-palette had them three units apart, which is not a surface a card sits on;
-paper reads as paper by being the brightest thing on screen, so the page gives
-way rather than the card being tinted to make room.
+In light, `--card` is plain white and `--bg` a clear step below it: paper reads
+as paper by being the brightest thing on screen, so the page gives way rather
+than the card being tinted to make room.
 
 **No box is drawn; the fill does the separating.** At every level — a `.card`
 on the page, a `.modal` over the scrim, a field or a `.stat` inside a card — the
@@ -258,11 +256,10 @@ is reaching for you — `.btn-secondary`, `.btn-danger` — keeps its edge too,
 because a button has to read as pressable before it is hovered. So: a new box
 gets a fill, and gets a border only if the border is saying something the fill
 can't. **A run status renders as a tinted `.badge-<status>` pill wherever a
-person reads one status** — the run page, the top bar, the detail panel, and
-since 2026-08-04 the History rows, which carried a coloured dot instead. The
-dot was a legend to learn, and it had `completed` grey next to `cancelled`
-blue-grey to be told apart at 6px, in the one list whose whole purpose is
-scanning verdicts. `statusColor()` in `status.js` maps a status to a `--fill-*`
+person reads one status** — the run page, the top bar, the detail panel, the
+History rows. A coloured dot is not that: it is a legend to learn, told apart
+at 6px, in lists whose whole purpose is scanning verdicts.
+`statusColor()` in `status.js` maps a status to a `--fill-*`
 token for the *timeline*, which is where a status still renders as a solid too
 small for a word — the two tables can't drift and a theme swap carries the bars
 with it.

@@ -41,31 +41,24 @@ there's no TypeScript step. Both server commands after any change under
 
 The server tests need no database — the control-plane tests run the real
 migrations from `db/migrations/` against an in-memory Postgres (pg-mem).
-
-**But pg-mem is not Postgres**, and the difference has bitten this repo: it
-passes broken SQL, returns wrong rows from partial indexes, doesn't bind array
-params, and loses timestamp precision. SQL whose correctness depends on real
-database semantics gets a real server instead —
-`server/test/scheduler-postgres.test.js` is the pattern to copy, and it skips
-with a reason when no server answers. The reasoning, and the mutation-testing
-audit behind it, are in [`docs/testing.md`](docs/testing.md).
+**But pg-mem is not Postgres**: SQL whose correctness depends on real database
+semantics gets a real server instead, and
+`server/test/scheduler-postgres.test.js` is the pattern to copy. What pg-mem
+gets wrong, and the reasoning, are in [`docs/testing.md`](docs/testing.md).
 
 ### What a change owes in tests
 
 - A new endpoint gets a test.
 - A pure helper you touched gets a case.
-- **A red test is fixed in the code, not the assertion.** A failure caught
-  something. Editing the expected value is legitimate only when the behaviour
-  was *meant* to change, and then the commit message says which and why.
-  Loosening, deleting or skipping an assertion to reach green is never the fix.
+- **A red test is fixed in the code, not the assertion.** Editing the expected
+  value is legitimate only when the behaviour was *meant* to change, and then
+  the commit message says which and why.
 - Some surfaces are **assertion-first**: correctness-critical and easy to get
-  subtly wrong (the scheduler claim, slot math, redaction, the billing gates).
-  There the assertion is written and reviewed *before* the implementation. The
-  running register is
+  subtly wrong. The running register is
   [`backlog/correctness-critical.md`](backlog/correctness-critical.md), and it
   is explicitly non-exhaustive — if your change looks like it belongs in that
   class, say so in the PR rather than assuming it's ordinary. CRUD and wiring
-  stay test-alongside.
+  stay test-alongside; the reasoning is [`docs/testing.md`](docs/testing.md).
 
 ## House style
 
@@ -91,19 +84,12 @@ Two rules that come up most often:
 concern; if you found two things, that's two PRs.
 
 From there the change is promoted rather than merged straight out: **dev →
-staging → main**. Merging into `staging` publishes an image that
-`staging.qassist.run` runs, so a change is exercised on a real deployment with a
-real database before `main` sees it; `main` then only ever receives what staging
-survived, and a version tag is cut from there. Nothing pushes to `main`
-directly. The mechanics are in
-[`docs/deploy/staging.md`](docs/deploy/staging.md#promoting-staging-to-production);
-as a contributor you only need `dev`.
-
-There is a fourth branch, `preview`, and it is **a spur off that chain rather
-than a stage in it**: force-pushing any branch to it rebuilds
-`preview.qassist.run` on the box for a quick live look, and nothing is ever
-merged back out of it. It is a maintainer's tool, not a step in the path a
-contribution takes — see [`docs/deploy/preview.md`](docs/deploy/preview.md).
+staging → main**, with `preview` a force-pushable spur off the side — a
+maintainer's tool for a quick live look, never a step in the path a
+contribution takes. The mechanics are
+[`docs/deploy/staging.md`](docs/deploy/staging.md#promoting-staging-to-production)
+and [`docs/deploy/preview.md`](docs/deploy/preview.md); as a contributor you
+only need `dev`.
 
 Note that CI runs on your **pull request**, not on pushes to `dev`. Run the
 suites yourself before opening one — which ones, for what, is

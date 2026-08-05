@@ -29,7 +29,7 @@ The purpose is fidelity of the deploy, not capacity.
 ## Standing it up
 
 **1. DNS.** An `A` record for `staging.qassist.run` → the same IP. (Added
-alongside production's in step 1 above.)
+alongside production's in [its first-time setup](production.md#first-time-setup).)
 
 **2. Configure.** `cp .env .env.staging`, then work through
 [`.env.staging.example`](../../.env.staging.example) — it is the diff from
@@ -192,8 +192,7 @@ command prints `Skipped - Image is already present locally` and exits 0, and the
 box stays on the previous build having reported success twice. The flag
 overrides the policy for one invocation, which is the right shape here: the
 setting belongs to preview and is correct there, so this is staging opting out
-rather than the file being wrong. Seen on this box 2026-07-27, Compose v5.3.1 /
-Engine 29.6.1, one deploy after `:staging` started tracking the branch.
+rather than the file being wrong (seen on this box 2026-07-27).
 
 So confirm what you actually got, by digest and not by tag:
 
@@ -238,11 +237,9 @@ docker compose -p qassist -f docker-compose.yml -f docker-compose.prod.yml up -d
 **Step 4 begins by undoing step 1's export**, and it is this page's job to say
 so because this page is where the two stacks meet. Updating staging exports
 `ENV_FILE=.env.staging`; production relies on that variable being *unset* so
-`${ENV_FILE:-.env}` falls back. Follow the chain top to bottom in one shell and
-production gets staging's secrets, its hostname and its test-mode Stripe keys
-against production's database — a stack that pulls the right image and reports
-healthy while serving the wrong configuration. Caught on the box 2026-08-05.
-What it costs to recover, and the one-line check that catches it:
+`${ENV_FILE:-.env}` falls back — follow the chain top to bottom in one shell
+and production boots staging's configuration. The mechanism, what it costs to
+recover, and the one-line check that catches it:
 [Deploying a new version](production.md#deploying-a-new-version).
 
 **Step 2 is `--ff-only` on purpose.** A fast-forward is the mechanical proof

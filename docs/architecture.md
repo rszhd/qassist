@@ -366,11 +366,9 @@ Postgres, raw SQL through `pg`, no ORM. Migrations are numbered files in
 [`db/migrations/`](../db/migrations/), applied in filename order at boot inside
 a transaction each, tracked in `schema_migrations`.
 
-**A migration that has been applied anywhere is never edited.** The tracking
-table records a filename, so an edited file does not re-run: the change then
-exists only in the repo, every database that already ran it stays silently on
-the old shape, and every fresh install is correct. The test suite always builds
-from zero, so it cannot see the divergence — it surfaces as a 500 on one box.
+**A migration that has been applied anywhere is never edited** — fix forward
+with the next number. Why, and how the divergence bites, is
+[`db/README.md`](../db/README.md).
 
 The full entity model, the key decisions, and what each table owns are in
 [`db/README.md`](../db/README.md). The three that shape the code most:
@@ -498,22 +496,10 @@ boot for anything a `kill -9` left behind.
 
 ## 11. Frontend
 
-React 18 + Vite, JSX, no TypeScript. Conventions are
-[`frontend/CLAUDE.md`](../frontend/CLAUDE.md) and the vocabulary is
+React 18 + Vite, JSX, no TypeScript. The structural rules — the URL picks the
+view, `RunView` lives outside `<Routes>`, selection is URL state — are
+[`frontend/CLAUDE.md`](../frontend/CLAUDE.md); the vocabulary is
 [`design-system.md`](design-system.md).
-
-**The URL picks the view** (react-router): `/`, `/history`, `/schedules`,
-`/projects/<slug>/<section>`, `/runs/<id>`, else redirect. Express serves
-`index.html` for any non-`/api` path, so a new route needs no server change.
-
-**`RunView` sits outside `<Routes>` and is hidden, not unmounted.** Unmounting
-would drop the live WebSocket and the finished run's result; routed views
-remount, which is how they refresh. New *live* state that must survive
-navigation goes outside `<Routes>` the same way.
-
-**Selection inside a view is URL state too.** Which project is open is
-`useParams`, never `useState` — a second source of truth is how the URL and the
-pane drift apart.
 
 `GET /api/health` drives feature presence: `billing`, `mail`, `reports`,
 `auth_mode` and `cta_url` decide whether an instance renders billing UI, offers
@@ -577,55 +563,28 @@ host — a credential that outlived the container would be one nothing collects.
 **Compose overlays** layer on the same base file: `dev` (hot reload, a Vite
 service, source mounted over the image's copies), `prod` (Traefik, ACME, no
 published port), `proxy`, `release` (a pinned published image, no build), and
-`docs` (nginx plus a builder that follows `manual/` on `dev`). Four of the six
-deployments on the box are the same two files with a different project name and
-env file — that is the design, and the overlay never learns which one it is
-serving.
+`docs` (nginx plus a builder that follows `manual/` on `dev`). The overlay
+never learns which deployment it is serving — [`DEPLOY.md`](../DEPLOY.md) owns
+the box layout and why.
 
-**Promotion is `dev → staging → main`.** A push to `staging` builds
-`ghcr.io/<owner>/qassist:staging`, which is what `staging.qassist.run` runs, so
-proving a change on a real box costs a merge rather than a version tag. `main`
-only receives what staging survived; releases are tagged from `main` and publish
-`:1.2.3`, `:1.2` and `:latest`.
-
-**`preview` is a spur, not a stage.** Force-push any branch to it and
-`preview.qassist.run` rebuilds on the box in seconds — no CI, no registry. It
-runs real mail and Stripe in test mode. Nothing ever merges *out* of it, which
-is what keeps `main` a fast-forward of what staging proved.
-
-**CI does not run on a push to `dev`** — only on a PR into `dev`, a push to
-`staging` or `main`, and inside the release workflow. Local `npm test` after
-touching `server/src/` is therefore load-bearing, not a courtesy.
-
-The full box layout and per-stack runbooks are [`DEPLOY.md`](../DEPLOY.md).
+**Promotion is `dev → staging → main`**, with `preview` a force-pushable spur
+off the side — nothing merges out of it. CI runs on a PR into `dev` and on
+pushes to `staging`/`main`, not on a push to `dev`, so a local `npm test`
+after touching `server/src/` is load-bearing. The chain, its reasons and the
+per-stack runbooks: [`DEPLOY.md`](../DEPLOY.md) and
+[`deploy/staging.md`](deploy/staging.md).
 
 ---
 
 ## 15. Testing architecture
 
-Philosophy and the details behind each line here: [`testing.md`](testing.md).
-
-| Suite | Command | Shape |
-|---|---|---|
-| Server | `cd server && npm test` | `node --test` + supertest, in-process, with stub agent and report binaries. Plus `npm run check` — tsc over JSDoc, no build step |
-| Server, real DB | part of the same suite | Anything whose correctness needs real Postgres semantics; `scheduler-postgres.test.js` is the pattern |
-| Agent | `cd agent && .venv/bin/python -m pytest` | Pure stdlib units — no browser, no IMAP, no network |
-| Frontend | `cd frontend && npm test` | Vitest + jsdom. jsdom does no layout, so it cannot see a stylesheet |
-| Repo | `node scripts/check-doc-links.mjs`, `scripts/check-design-tokens.mjs` | Every relative link resolves; tokens over raw pixels |
-
-**pg-mem is not Postgres.** It passes broken SQL: partial indexes return wrong
-rows, array parameters do not bind, timestamps lose precision, and named check
-constraints are neither parsed nor enforced. The test harness strips indexes for
-that reason, and anything whose correctness depends on real semantics gets a
-real server.
-
-**Correctness-critical pieces are assertion-first**: the maintainer writes or
-reviews the assertion before the implementation exists. The current surfaces —
-the scheduler claim, slot math, redaction, billing gates, the demo reaper, both
-auth crypto surfaces — are indexed in
+Four suites — server (`node --test` + supertest, in-process, stub agent),
+agent (pure-stdlib pytest), frontend (Vitest + jsdom), and the repo checks
+(`scripts/check-doc-links.mjs`, `scripts/check-design-tokens.mjs`). The
+commands are `CLAUDE.md` → Run / develop; the philosophy, pg-mem's limits and
+the real-Postgres pattern are [`testing.md`](testing.md); the assertion-first
+register is
 [`backlog/correctness-critical.md`](../backlog/correctness-critical.md).
-
-**A red test is fixed in the code, not the assertion.**
 
 ---
 

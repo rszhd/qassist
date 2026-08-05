@@ -8,7 +8,7 @@ Developer mode, which is its own small terminal.
 
 - **Status:** ⏳ **Submitted** 2026-08-03, 5/6 — `0.1.1` uploaded with every
   listing field, permission justification and disclosure answer from
-  [`docs/chrome-web-store-listing.md`](../../../docs/chrome-web-store-listing.md).
+  [`extension/chrome-web-store-listing.md`](../../../extension/chrome-web-store-listing.md).
   Only Google's review is left, and its outcome is the last criterion. Icons,
   the privacy policy page, the package script, the developer account and the
   five rendered screenshots all landed the same day. Packaging the build for
@@ -147,7 +147,7 @@ declares `minimum_chrome_version: "102"` for `chrome.storage.session`. The
 store honours that field, so older browsers are never offered a build whose
 popup cannot open.
 
-**Listing copy.** [`docs/chrome-web-store-listing.md`](../../../docs/chrome-web-store-listing.md)
+**Listing copy.** [`extension/chrome-web-store-listing.md`](../../../extension/chrome-web-store-listing.md)
 — name, short description (122 of 132 chars), detailed description, category
 (Developer Tools), single-purpose statement, a justification per permission,
 the data-collection table, and the screenshot plan. It lives in the repo

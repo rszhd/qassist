@@ -44,10 +44,8 @@ justify a second repo.
 
 ## Tenancy: the hosted tier is one shared instance
 
-Settled 2026-07-25, because rule 4 used to say the cloud "provisions/manages
-instances", which read as one instance per customer. It does not.
-
-**qassist.run is a single shared deployment** — one app process, one Postgres,
+**qassist.run is a single shared deployment** (settled 2026-07-25) — one app
+process, one Postgres,
 `AUTH_ENABLED=1` — and customers are `users` rows. **The only way to get your
 own instance is to self-host**; the cloud never provisions a container per
 signup, so there is no per-tenant proxy, no tenant DNS, no per-tenant database.
@@ -80,18 +78,11 @@ Before building anything, ask: **"would a self-hoster want this?"**
 - Only meaningful with our infrastructure or our billing → private repo
   (or env-gated here, while the private repo doesn't exist).
 
-## Before flipping this repo public
+## Going public — done
 
-Owned by [US-031](../backlog/sprint/current/done/US-031-license-and-public-repo.md); two
-of the three are already answered.
-
-- gitleaks/trufflehog scan of full git history; if anything is found,
-  prefer a fresh squashed initial commit over history scrubbing. **Still to
-  do** — a by-hand check on 2026-07-23 found no key in `git log --all -p`, no
-  committed `.env`, and no host IP in any tracked markdown, but a grep is not
-  a scanner.
-- ~~Decide whether README/backlog keep the deployment host's IP.~~ Moot: no
-  tracked file names it.
-- ~~Decide CLA/DCO~~ **DCO** (2026-07-23) — `Signed-off-by`, copyright stays
-  with the author. A CLA is what you need to relicense unilaterally later; the
-  repo has one author, so that is not a problem it has yet.
+The repo is public. The pre-flip checklist that lived here is closed:
+licensing is DCO not CLA, no tracked file names the deployment host, and the
+full git history is scanned by gitleaks — the config and the command to run it
+yourself are in [CONTRIBUTING.md](../CONTRIBUTING.md). The decisions are
+recorded in
+[US-031](../backlog/sprint/current/done/US-031-license-and-public-repo.md).

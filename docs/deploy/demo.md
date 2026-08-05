@@ -40,7 +40,7 @@ docker compose -p qassist-demo exec qassist ls /app/demo
 ```
 
 **1. DNS.** An `A` record for `demo.qassist.run` → the same IP. (Added alongside
-production's in step 1 above.)
+production's in [its first-time setup](production.md#first-time-setup).)
 
 **2. Configure.** Copy a *complete app* env and work through
 [`.env.demo.example`](../../.env.demo.example) — the diff from that, not a second copy.

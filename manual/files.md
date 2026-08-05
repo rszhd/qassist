@@ -19,7 +19,9 @@ There is nothing to configure per test.
 ## What is allowed
 
 - **Filenames** start with a letter or a digit, and contain only letters,
-  digits, spaces, dots, dashes and underscores. Anything else is refused.
+  digits, spaces, dots, dashes and underscores — in any alphabet, `简历.pdf`
+  is fine. They must not end with a dot or a space, and must fit in 255 bytes.
+  Anything else is refused.
 - **A duplicate name is refused**, not overwritten. Delete the old one first —
   silently replacing a file would change what a saved test uploads with nothing
   in the history to say so.

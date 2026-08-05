@@ -34,7 +34,7 @@ a change there is what should regenerate them.
 The zip carries `manifest.json`, `popup.html`, `popup.js`, `lib/` and `icons/`
 — not this README and not the unit tests. Everything the Chrome Web Store
 listing asks for is written down in
-[`docs/chrome-web-store-listing.md`](../docs/chrome-web-store-listing.md).
+[`extension/chrome-web-store-listing.md`](chrome-web-store-listing.md).
 
 ## Use it
 

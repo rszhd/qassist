@@ -145,8 +145,7 @@ applies to a variable that is unset, and [staging's stand-up](staging.md#standin
 staging first and production second, is exactly the shell where production
 inherits staging's env file: its hostname, its `SESSION_SECRET`, its
 `KEY_ENCRYPTION_SECRET` and its test-mode Stripe keys, loaded against
-production's own database. Seen on the box 2026-08-05 promoting 0.5.1, one
-command after the staging deploy in the same session.
+production's own database (seen on the box 2026-08-05).
 
 This is the mirror of the `--env-file` trap in staging's runbook, and it fails
 the same way: the stack pulls the right image, boots, reports healthy, and
@@ -249,21 +248,11 @@ subscription change never moves a number you set by hand.
 Same exact-match rule as `activate`: no fuzzy matching, because throttling the
 wrong account is not something the script can undo.
 
-## Cutting over from the pre-US-007 stack
+## Standing this overlay up beside an older stack
 
-The original deployment ran the base compose file alone under the project name
-`qagent`, published 8080, and was reached over an SSH tunnel (`ssh -L
-8090:localhost:8080`). **On our box there is nothing left to cut over from**
-(checked 2026-07-25): it had no `pgdata` volume at all — only an empty
-`qagent_default` network, a stale `qagent:latest` image and some `/tmp`
-scratch, all since removed. So the first `up` here starts from an empty
-database by design, and no migration step is owed.
-
-The check is still worth keeping, because the trap it describes is real for
-anyone standing this overlay up beside an older stack of their own. A project
-name is what the `pgdata` volume is named after, so adding `-p qassist` to a
-stack that used to run without it points at an **empty** database rather than
-the old one:
+A project name is what the `pgdata` volume is named after, so adding `-p
+qassist` to a stack that used to run without it points at an **empty** database
+rather than the old one:
 
 ```sh
 docker volume ls | grep pgdata

@@ -41,6 +41,9 @@ erDiagram
   suites   ||--o{ suite_tests : contains
   tests    ||--o{ suite_tests : "member of"
   tests    ||--o{ runs : "produced (nullable — ad-hoc runs have no test)"
+  users    ||--o{ schedules : "owns (each targets one test/module/suite/project)"
+  schedules ||--o{ runs : "attributed to a firing (nullable)"
+  browser_sessions ||--o{ session_capture_tokens : "one-time capture handshake"
   runs     ||--o{ notifications : "emailed as"
   projects ||--o{ fixtures : "files its tests may attach"
   projects ||--o{ browser_sessions : "signed-in state its tests may start from"
@@ -52,11 +55,14 @@ erDiagram
 |---|---|---|
 | `users` | identity + encrypted OpenAI key (BYOK) | US-005/009 |
 | `api_keys` | hashed bearer tokens, revocable — replaces the single `WORKER_API_TOKEN` | US-009 |
-| `tests` | saved goal+URL+settings, per-test schedule | US-009/010 |
+| `tests` | saved goal+URL+settings | US-009 |
+| `schedules` | recurring run presets — each row targets exactly one test, module, suite or project | US-010 |
 | `projects` | top-level container: name + slug, and the notify prefs for everything inside it | US-023/012 |
 | `modules` | grouping inside a project; a test belongs to at most one | US-023 |
 | `suites` + `suite_tests` | named test groups for one-shot triggering (US-008 CI), scoped to a project | US-009/023 |
-| `runs` | durable run history — replaces the in-memory Map for finished runs | US-009/011 |
+| `runs` | durable run history — replaces the in-memory Map for finished runs; `schedule_id`/`scheduled_for` tie a scheduled run to its firing | US-009/011/069 |
+| `login_tokens` | hashed one-time magic-link tokens; keyed on email, not user, because signup == login | US-021 |
+| `session_capture_tokens` | one-time tokens the browser extension trades for the right to post one session | US-063 |
 | `fixtures` | metadata for the files a project's tests may attach — never the bytes | US-048 |
 | `browser_sessions` | a project's saved, signed-in browser state, encrypted; never read back | US-043 |
 | `test_secrets` | the value behind a test's `secret` variable, encrypted; never read back | US-064 |
@@ -65,7 +71,8 @@ erDiagram
 | `subscriptions` | one row per paying user: Stripe ids, status, period end, scheduled cancellation | US-022/051 |
 | `stripe_events` | idempotency ledger — a conflicting insert means "already applied" | US-022 |
 
-The diagram above is the deployed schema through `002_projects_modules.sql`.
+The source of truth is [`migrations/`](migrations/) applied in order; the
+diagram and table above are kept current as migrations land.
 
 `browser_sessions.storage_state_ciphertext` is one of three credentials in this
 schema, beside `users.openai_key_ciphertext` and
@@ -128,11 +135,17 @@ entitlement gate; `cancel_at` exists so Settings can say when access ends.
   `/api/projects/checkout/modules/auth/run` rather than a UUID. Unique per
   parent, generated once at create time, and *not* re-derived on rename — a
   rename silently breaking a CI config is the worse failure.
-- **Schedule is columns on `tests`, not a table.** US-010 is one schedule per
-  test; a join table adds nothing. `next_run_at` is precomputed so the
-  scheduler is a cheap poll (`tests_due_idx` is a partial index over enabled
-  schedules only), and it survives restarts. Overlap-skip = "does this test
-  have a row in `runs` with status queued/running" (`runs_active_idx`).
+- **A schedule is a row in `schedules`, targeting exactly one runnable thing**
+  (`003_schedules.sql`, which dropped 001's unused `schedule_cron` columns on
+  `tests`). Four nullable FKs — test, module, suite, project — with a check
+  that exactly one is set: the set column *is* the target type, and real
+  references make delete-cascade work. Presets (`hourly`/`daily`/`weekly`),
+  not cron strings. `next_run_at` is precomputed so the tick is a cheap poll
+  (`schedules_due_idx`, partial over enabled rows) and doubles as the claim
+  marker — advanced in the same statement that claims the row, so a crash
+  mid-fire skips a slot rather than double-firing. The claim discipline is
+  `server/src/scheduler.js` and its row in
+  [`backlog/correctness-critical.md`](../backlog/correctness-critical.md).
 - **Notification prefs on `projects`, not `tests`** (`notify` mode +
   `notify_emails[]`). 001 put them on `tests`, written before projects existed
   and never read; `004_notifications.sql` drops them and adds them a level up.
@@ -162,27 +175,12 @@ entitlement gate; `cancel_at` exists so Settings can say when access ends.
   can't silently no-op on one engine (US-047's lesson). Note that **pg-mem can
   neither parse the inline-check form nor enforce the named one**, so that
   constraint is only ever provable against a real server.
-- **Retention (US-011, shipped)**: rows are kept forever, artifacts are not.
-  After `ARTIFACT_RETENTION_DAYS` (default 7) the sweep stamps
-  `artifacts_deleted_at` and *then* removes `runs/<id>/` — that order means a
-  crash between the two leaves a stale directory the next sweep collects,
-  rather than a row advertising a report that no longer exists. History stays
-  browsable with its verdict; only the links go dead.
-  **Row-level retention is deferred, not rejected**: rows are cheap next to
-  artifacts and a pass/fail timeline is worth more the older it gets, so
-  nothing deletes them today. Revisit when scheduled runs (US-010) or scaling
-  (US-015) push volume up — `final_result` is a paragraph per run, and
-  `GET /api/runs` computes an exact `count(*)` — or when the hosted tier makes
-  deletion a compliance requirement rather than a housekeeping choice.
+- **Retention (US-011)**: rows are kept forever, artifacts are not. The sweep
+  stamps `artifacts_deleted_at` and *then* removes `runs/<id>/` — that order
+  means a crash between the two leaves a stale directory the next sweep
+  collects, rather than a row advertising a report that no longer exists.
+  Row-level retention is deferred, not rejected — revisit when volume or
+  compliance demands it. The lifetimes rationale is
+  [`docs/architecture.md`](../docs/architecture.md).
 - **Crash recovery**: on boot, any row still `queued`/`running` is stale (the
   worker died with it) — mark it `error`. The partial index makes this free.
-
-## Implementation notes (for US-009)
-
-- Driver: plain `pg` + these SQL files run in order at startup (tracked in a
-  tiny `schema_migrations` table). No ORM — the server is small, hand-written
-  SQL keeps it that way. Revisit only if query count balloons.
-- `docker-compose.yml` gains a `postgres:16` service + volume; server gets
-  `DATABASE_URL`. Local dev without Docker: any local Postgres works.
-- v1 seeds one user (operator email) and one api_key hashed from
-  `WORKER_API_TOKEN`, so existing clients/CI keep working unchanged.

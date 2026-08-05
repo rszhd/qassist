@@ -1,7 +1,7 @@
 # Settings
 
-Every setting an instance reads, with its default. These go in `.env` beside the
-compose file; a restart applies them.
+The settings a self-hosted instance turns, with defaults. These go in `.env`
+beside the compose file; a restart applies them.
 
 **This page is for someone running their own instance.** On a hosted account
 none of it is yours to set — the things you configure there are per project and
@@ -80,6 +80,8 @@ Covered by [Email notifications](./notifications.md).
 | `PORT` | `8080` | What the app listens on **inside** the container. Change the compose port mapping instead. |
 | `PUBLIC_BASE_URL` | — | Where this instance is reachable from outside. Makes the report's recording link and the mail's run link resolvable, and with auth on it is what sign-in links redirect to and what makes the session cookie secure — so on a real deployment it must be the `https://` URL. |
 | `BROWSER_USE_MODEL` | `gpt-4.1` | The OpenAI model runs use. |
+| `RUN_TTL_SECONDS` | `3600` | How long a finished run stays in the worker's live in-memory registry after it ends. The durable history row and its artifacts are unaffected. |
+| `SESSION_MAX_BYTES` | 1 MB | Cap on a pasted [saved session](./saved-sessions.md) blob; a bigger one is refused with the limit in the message. |
 | `DATABASE_URL` | — | **Required** — the Postgres control plane. Set for you by both shipped compose paths. Without it the server refuses to boot. |
 
 ## Billing, if you are running a paid instance
@@ -108,6 +110,8 @@ to the app, and a plain `docker compose up` ignores them entirely. They are in
 [`DEPLOY.md`](https://github.com/rszhd/qassist/blob/main/DEPLOY.md).
 
 The demo sandbox's settings (`AUTH_MODE=demo` and friends) are for running a
-public try-it deployment, and are documented in
+public try-it deployment, and path or developer overrides (`PYTHON_BIN`,
+`FIXTURES_DIR`, `MAIL_DEV_CONSOLE` and kin) are for working on the code. Both
+are documented in
 [`.env.example`](https://github.com/rszhd/qassist/blob/main/.env.example) itself,
 which carries the reasoning for every value on this page.

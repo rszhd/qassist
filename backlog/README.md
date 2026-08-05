@@ -7,14 +7,12 @@ what, and why the sprint is shaped the way it is. Keep it in sync when a story
 changes state or moves folder, but don't restate a story's results here; that
 copy goes stale, and the story file is one click away.
 
-**A finished row is a verdict and a date.** Not a paragraph. This file was cut
-from 7,400 words to 3,285 on 2026-07-27 and was back to 6,063 the next day,
-because every append was locally reasonable and none could see the file it was
-landing in — the same failure that broke
-[`correctness-critical.md`](correctness-critical.md). Re-read the whole file
-before appending to it, and check the tables still render: one such append had
-already merged two rows of the Unscheduled table into one line, where they sat
-unnoticed.
+**A finished row is a verdict and a date.** Not a paragraph. This file has
+regrown after every cut (`CLAUDE.md` holds the history), because every append
+is locally reasonable and none can see the file it is landing in — the same
+failure that broke [`correctness-critical.md`](correctness-critical.md).
+Re-read the whole file before appending to it, and check the tables still
+render.
 
 Two root-level files are **not** stories but living reference docs that sit
 here because they track the backlog as a whole: this README, and
@@ -25,7 +23,9 @@ Workflow rule (`CLAUDE.md`) applies to.
 ## Folder layout
 
 - `sprint/current/` — stories scoped to the sprint being worked on now.
-- `sprint/next/` — stories queued for the sprint after this one.
+- `sprint/next/` — stories queued for the sprint after this one. Created when
+  the next sprint is planned; none exists right now (git does not track an
+  empty folder).
 - `sprint/<name>/done/` — stories in that sprint that are finished. **What sits
   in the sprint folder itself is exactly the work left to do**, so a glance
   at `ls sprint/current/` answers "what's still open?". Move a story here (`git mv`
@@ -41,7 +41,8 @@ Workflow rule (`CLAUDE.md`) applies to.
   table below — that table is the register, and a fixed defect is worth finding
   from it — so only the row's link changes.
 - `released/<name>/` — shipped releases, moved here wholesale when the release
-  goes out (e.g. `released/prototype/`), `done/` subfolder and all. Anything
+  goes out, `done/` subfolder and all (`released/prototype/` predates the
+  `done/` convention and is flat). Anything
   still sitting in the sprint folder root at that point never shipped: move
   it into `sprint/next/` (or `unscheduled/`) before the `git mv`, so
   a released folder only ever contains finished work. A story with follow-up
@@ -67,33 +68,33 @@ Sprints aren't split along a self-host/hosted-tier line — `sprint/current/` an
 | [US-056](sprint/current/US-056-production-deployment.md) | Production deployment: `app.qassist.run` goes live | 🔨 **Live** 2026-07-29 on `v0.3.0`, 4/10 — the rest need a sign-in, live Stripe keys, or a decision | US-007, US-038, US-052 |
 | [US-020](sprint/current/US-020-report-v2-screenshots-recording.md) | Report v2: step screenshots + recording | 📋 Planned — P2 | US-006 |
 | [US-066](sprint/current/US-066-chrome-web-store-listing.md) | List the session-capture extension on the Chrome Web Store | ⏳ **Submitted** 2026-08-03, 5/6 — `0.1.1` in review; the last criterion is Google's answer | US-063 |
-| [US-070](sprint/current/US-070-user-manual-site.md) | A user manual, deployed off the chain (`docs.qassist.run`) | 🔨 **Live** 2026-08-05, 9/11 — one closes on the first page edit, one is a line in the marketing repo | US-007, US-055 |
+| [US-070](sprint/current/US-070-user-manual-site.md) | A user manual, deployed off the chain (`docs.qassist.run`) | 🔨 **Live** 2026-08-05, 9/11 | US-007, US-055 |
 | [US-071](sprint/current/US-071-one-command-deploy.md) | One command deploys a stack, and proves which one it deployed | 📋 Planned — P1 | US-052, US-055, US-056 |
 
 ### Done
 
 | ID | Story | Status | Depends on |
 |---|---|---|---|
-| [US-024](sprint/current/done/US-024-memory-watchdog-pss-metric.md) | Memory watchdog: measure PSS, not summed RSS | ✅ **Done** 2026-08-05, 4/4 — measured without US-020, by decision | — |
-| [US-069](sprint/current/done/US-069-schedule-health-strip.md) | The last few nights, at a glance (pass/fail strip on the Schedules row) | ✅ **Done** 2026-08-04, 11/12 — the twelfth met server-side, not where it was written | US-010, US-011 |
-| [US-057](sprint/current/done/US-057-html-email-template.md) | An HTML template for outgoing email | ✅ **Done** 2026-08-04, 5/5 — render closed in Gmail; Apple Mail untested | — |
+| [US-024](sprint/current/done/US-024-memory-watchdog-pss-metric.md) | Memory watchdog: measure PSS, not summed RSS | ✅ **Done** 2026-08-05, 4/4 | — |
+| [US-069](sprint/current/done/US-069-schedule-health-strip.md) | The last few nights, at a glance (pass/fail strip on the Schedules row) | ✅ **Done** 2026-08-04, 11/12 | US-010, US-011 |
+| [US-057](sprint/current/done/US-057-html-email-template.md) | An HTML template for outgoing email | ✅ **Done** 2026-08-04, 5/5 | — |
 | [US-067](sprint/current/done/US-067-mobile-app-view.md) | The app on a phone | ✅ **Done** 2026-08-03, 8/8 | US-025, US-030 |
-| [US-063](sprint/current/done/US-063-capture-a-session-without-a-terminal.md) | Capture a session without a terminal (browser extension) | ✅ **Shipped and hand-verified** 2026-07-31 — store listing out of scope | US-043, US-021 |
+| [US-063](sprint/current/done/US-063-capture-a-session-without-a-terminal.md) | Capture a session without a terminal (browser extension) | ✅ **Shipped** 2026-07-31 | US-043, US-021 |
 | [US-064](sprint/current/done/US-064-secret-variables-in-a-scheduled-run.md) | Secret variables in a scheduled run | ✅ **Done** 2026-07-28, 8/8 | US-035, US-010, US-043 |
 | [US-042](sprint/current/done/US-042-agent-navigation-confinement.md) | Confine where the agent may navigate | ✅ **Done** 2026-07-27, 5/6 | US-021 |
 | [US-058](sprint/current/done/US-058-per-user-concurrency-override.md) | Raise one user's concurrency cap without raising everyone's | ✅ **Done** 2026-07-27, 9/9 | US-028, US-021 |
 | [US-048](sprint/current/done/US-048-file-upload-in-test-flows.md) | Test a flow that uploads a file | ✅ **Done** 2026-07-27, 5/5 | US-035, US-023 |
-| [US-043](sprint/current/done/US-043-reusable-authenticated-sessions.md) | Test what is behind the login (reusable sessions) | ✅ **Done** 2026-07-27, 6/6 | US-035, US-021 (**not** US-041, which it wanted) |
-| [US-044](sprint/current/done/US-044-network-and-console-evidence.md) | Say *why* it failed: network and console evidence | ✅ **Done** 2026-07-27, 6/6 | US-026 (US-020 not needed) |
+| [US-043](sprint/current/done/US-043-reusable-authenticated-sessions.md) | Test what is behind the login (reusable sessions) | ✅ **Done** 2026-07-27, 6/6 | US-035, US-021 |
+| [US-044](sprint/current/done/US-044-network-and-console-evidence.md) | Say *why* it failed: network and console evidence | ✅ **Done** 2026-07-27, 6/6 | US-026 |
 | [US-047](sprint/current/done/US-047-stop-a-run.md) | Stop a run | ✅ **Done** 2026-07-27, 6/6 | — |
 | [US-040](sprint/current/done/US-040-demo-deployment.md) | Deploy the demo sandbox at `demo.qassist.run` | ✅ **Done** 2026-07-26, 11/11 — live on `0.3.0` | US-036, US-007, US-038 |
-| [US-007](sprint/current/done/US-007-https-reverse-proxy.md) | Public HTTPS via reverse proxy (and the Resend sender domain) | ✅ **Closed** 2026-07-26 — five production-only criteria moved to US-056 | domain (owned) |
-| [US-038](sprint/current/done/US-038-staging-environment.md) | Staging environment (`staging.qassist.run`) | ✅ **Closed** 2026-07-26, 6/8 — the rest moved to US-056 | US-007 |
+| [US-007](sprint/current/done/US-007-https-reverse-proxy.md) | Public HTTPS via reverse proxy (and the Resend sender domain) | ✅ **Closed** 2026-07-26 | domain (owned) |
+| [US-038](sprint/current/done/US-038-staging-environment.md) | Staging environment (`staging.qassist.run`) | ✅ **Closed** 2026-07-26, 6/8 | US-007 |
 | [US-051](sprint/current/done/US-051-subscription-dates-from-stripe.md) | The subscription dates Stripe sends and we don't read | ✅ **Done** 2026-07-26, 9/9, shipped in `v0.2.3` | US-022 |
 | [US-052](sprint/current/done/US-052-staging-branch-continuous-deploy.md) | Staging deploys from a branch, not a release | ✅ **Done** 2026-07-26 | US-032, US-038 |
 | [US-053](sprint/current/done/US-053-onboarding-key-then-subscribe.md) | Onboarding: key, then subscribe, before the app | ✅ **Done** 2026-07-26 | US-021, US-022, US-039, US-036 |
 | [US-054](sprint/current/done/US-054-activation-window-after-subscribe.md) | The activation window: capacity before the first run | ✅ **Done** 2026-07-26 | US-022, US-053 |
-| [US-055](sprint/current/done/US-055-preview-environment.md) | A preview environment, off to the side of the chain | ✅ **Done** 2026-07-26 — its `billing:false` rule was reversed the same day | US-038, US-052 |
+| [US-055](sprint/current/done/US-055-preview-environment.md) | A preview environment, off to the side of the chain | ✅ **Done** 2026-07-26 | US-038, US-052 |
 | [US-039](sprint/current/done/US-039-byok-only-no-server-key.md) | BYOK only: remove the server `OPENAI_API_KEY` | ✅ Shipped 2026-07-26 | US-005, US-021 |
 | [US-008](sprint/current/done/US-008-cicd-integration.md) | CI/CD trigger: the documented pipeline step | ✅ **Done** 2026-07-26 | US-007, US-009 |
 | [US-031](sprint/current/done/US-031-license-and-public-repo.md) | License the code and open the repo | ✅ Shipped 2026-07-25 | — |
@@ -104,7 +105,7 @@ Sprints aren't split along a self-host/hosted-tier line — `sprint/current/` an
 | [US-036](sprint/current/done/US-036-demo-sandbox.md) | Demo sandbox: the whole app, per-visitor, on fake data | ✅ Shipped 2026-07-24 | US-021, US-033 engine |
 | [US-033](sprint/current/done/US-033-live-demo-replay.md) | Live demo: a canned run that replays as if it were live | ⛔ Superseded by US-036 (2026-07-24) — shell removed | US-006, US-026 |
 | [US-021](sprint/current/done/US-021-signup-auth.md) | Signup & login (magic-link auth + per-user API keys) | ✅ Done 2026-07-24 | US-009, US-007 |
-| [US-035](sprint/current/done/US-035-run-variables.md) | Per-run variables (environment overrides) | ✅ Shipped 2026-07-24 — PDF display carved to US-020 | US-009 |
+| [US-035](sprint/current/done/US-035-run-variables.md) | Per-run variables (environment overrides) | ✅ Shipped 2026-07-24 | US-009 |
 | [US-034](sprint/current/done/US-034-testing-practice-and-coverage.md) | Testing practice: selective TDD, owed coverage, mutmut audit | ✅ Done 2026-07-24 | — |
 | [US-010](sprint/current/done/US-010-scheduled-runs.md) | Scheduled runs | ✅ Done 2026-07-23 | US-009 |
 | [US-012](sprint/current/done/US-012-email-reports.md) | Failure email notifications | ✅ Done 2026-07-23 | US-009 |
@@ -115,58 +116,31 @@ Sprints aren't split along a self-host/hosted-tier line — `sprint/current/` an
 | [US-013](sprint/current/done/US-013-registration-flow-verification.md) | Registration-flow verification — email tier | ✅ Tier 1 done — tiers 2–3 spun out as US-059 | — |
 | [US-009](sprint/current/done/US-009-control-plane-saved-tests.md) | Control plane: save & reuse tests | ✅ Done 2026-07-22 | — |
 | [US-023](sprint/current/done/US-023-projects-and-modules.md) | Projects & modules (organize saved tests) | ✅ Done 2026-07-22 | US-009 |
-| [US-006](sprint/current/done/US-006-session-recording.md) | Session recording (record by default) | ✅ Done 2026-07-22 — CPU overhead unmeasured | — |
+| [US-006](sprint/current/done/US-006-session-recording.md) | Session recording (record by default) | ✅ Done 2026-07-22 | — |
 | [US-011](sprint/current/done/US-011-run-history.md) | Run history | ✅ Done 2026-07-22 | US-009 |
 
 ### How the order was decided
 
-Worth keeping because it is precedent for how the next ordering call gets made.
+Worth keeping because it is precedent for how the next ordering call gets
+made. Each story's own file records why *it* moved; these are the principles:
 
-**The release-plumbing circle, resolved 2026-07-25.** Five stories referenced
-each other in a loop. US-038 (staging) needs an image to run, because US-007's
-prod overlay deliberately cannot build — so it needs US-032. US-032 needs
-Actions and ghcr on a public repo, so it needs US-031. And US-031 said "do it
-last, after US-007/US-008 have finished editing the docs the public will read"
-— but US-008's criterion closes *on staging*. The cut: **US-031 and US-032 go
-first**, accepting that `docs/ci.md` may still gain a line after the repo is
-public, because a public repo is not a frozen one. That accepted risk came due
-on 2026-07-26 and cost exactly one edit, as budgeted.
-
-**US-025 went first of all**, ahead of every other frontend story: it settles
-the type and size tokens the rest would otherwise each invent.
-
-**A story that makes something *possible* outranks one that makes something
-*better*.** US-020 gates nothing, so it kept losing its place — US-011, US-026
-and US-010 were each pulled ahead of it, and it is still open.
-
-**A "depends on" that is really "would look nicer alongside" costs a sprint if
-nobody checks which it is.** US-044 was scheduled behind US-020 on the belief
-that report v2 owned the layout its evidence lands in. It didn't, and US-044
-shipped the day it was scheduled. Check before scheduling around it.
-
-**US-007 → US-038 → US-008.** Public HTTPS, then staging, then the documented
-CI snippet run for real against *staging* rather than against the instance
-people are using. US-007 and US-038's repo halves shipped in one sitting and in
-that order, because US-038's premise — staging is the prod overlay
-*parameterized*, not a second one — is a constraint on how US-007's overlay is
-written, and cheaper to honour than to retrofit.
-
-**US-022 went last, and specifically after US-007**: Stripe posts webhooks to a
-public HTTPS URL, so it cannot be verified end to end before the domain is up.
-
-**US-027 sat outside the order entirely** — it depended on nothing, and every
-story above it made the queue busier.
-
-**Urgency and cheapness are both reasons to pull a story up, and they look
-nothing alike.** US-042 came forward because waiting had a cost that was not a
-delayed feature — staging is publicly registrable and the fence did not exist.
-US-048 came forward because it was the folder's smallest story. Each story's own
-file records why it moved; that is not repeated here.
-
-## Next sprint — `sprint/next/`
-
-**Empty as of 2026-07-27.** Created 2026-07-23, emptied into `sprint/current/`,
-refilled from `unscheduled/` on 2026-07-27 and emptied again the same day.
+- **A dependency loop is cut by accepting the cheapest re-edit.** The
+  release-plumbing circle (resolved 2026-07-25) put US-031 and US-032 first,
+  accepting that a public repo is not a frozen one; the full loop is in those
+  stories' files.
+- **A story that settles shared vocabulary goes first** — US-025 settled the
+  type and size tokens every later frontend story would otherwise invent.
+- **A story that makes something *possible* outranks one that makes something
+  *better*.** US-020 gates nothing, so it kept losing its place, and it is
+  still open.
+- **A "depends on" that is really "would look nicer alongside" costs a sprint
+  if nobody checks which it is** (US-044). Check before scheduling around it.
+- **Verification order follows infrastructure**: US-007 (public HTTPS) →
+  US-038 (staging) → US-008 (the CI snippet, run against staging); US-022
+  after US-007, because Stripe posts webhooks to a public HTTPS URL.
+- **Urgency and cheapness are both reasons to pull a story up, and they look
+  nothing alike** — a cost to waiting that is not a delayed feature (US-042),
+  or simply the folder's smallest story (US-048).
 
 ## Standing decisions
 
@@ -202,45 +176,21 @@ live in [`docs/repo-model.md`](../docs/repo-model.md). Email provider: **Resend*
 | [US-018](unscheduled/US-018-first-run-setup.md) | First-run setup: Chromium download + BYOK settings | 📋 Planned | TBD | US-016 |
 | [US-019](unscheduled/US-019-installers-signing-autoupdate.md) | Installers, code signing, auto-update | 📋 Planned | TBD | US-016..018 |
 
-**US-041 is the pull-forward candidate, and the strongest one.** It is closer to
-a defect than a feature: `Agent(use_judge=…)` defaults to `True` and we never
-override it, so every run already buys a judge call and then reports
-`history.is_successful()` — the *agent's self-report*. The product's leading
-claim ("judges pass/fail") is currently the agent grading its own homework, and
-US-043 has since shipped without it, which widened what that verdict covers
-rather than narrowing it. US-049 builds on it too.
+**US-041 is the pull-forward candidate, and the strongest one** — closer to a
+defect than a feature; its file makes the case, and US-049 builds on it.
 
-**Where the unscheduled stories came from.** US-041..US-050 (2026-07-26) came
-out of reading the installed browser-use 0.13.6 against `agent/run_agent.py` —
-*what is it already capable of that we do not use?* — and four of them have since
-been scheduled and shipped. US-060..US-062 (2026-07-28) came out of reading every
-story in `done/` for tiered scope that closed at tier 1 and left the rest with no
-owner; the pattern worth keeping is that **each was deferred against a condition
-that has since been met**, which is exactly what a closed file cannot notice.
-US-062 is the exception and the odd one: not a leftover tier but a *missing*
-one — US-042, US-043 and US-048 each closed with a claim resting on someone
-watching it work, in the same words, because no tier of ours reaches a live
-browser. Nothing else in `done/` is carrying unowned tiered scope.
+**Where the blocks came from:** US-041..US-050 (2026-07-26) out of reading the
+installed browser-use against `agent/run_agent.py` for capability we do not
+use; US-060..US-062 (2026-07-28) out of reading every story in `done/` for
+tiered scope that closed at tier 1 and left the rest with no owner — each was
+deferred against a condition that has since been met, which is exactly what a
+closed file cannot notice. Nothing else in `done/` carries unowned tiered
+scope. The desktop track (US-016..019) is on hold; its strategy is in US-016.
 
-**US-037** is a decision as much as a story: which "enterprise standard" stack
-pieces we adopt and — more usefully — which we refuse, on the premise that what
-blocks an enterprise deal is SSO, an audit log, RBAC and a security
-questionnaire, none of which are framework choices. Its tier 4 (TypeScript) is
-the only one that would rewrite a **Stack decisions (settled)** line in
-`CLAUDE.md`.
-
-**Desktop track (US-016..019, sketched 2026-07-21, on hold):** candidate
-strategy — free version runs entirely on the user's machine (their CPU/RAM,
-their OpenAI key), hosted features become the paid tier. Not prioritized yet;
-decision deferred. If picked up: US-016 → US-017 → US-018 → US-019, Windows
-before macOS, and `server.js` stays dual-mode (container + Electron) — never
-fork it. US-018 would realize US-005 (BYOK) on desktop.
-
-US-041 and US-049 will both owe rows in
-[`correctness-critical.md`](correctness-critical.md) — both define what "pass"
-means. Rows are deliberately *not* added yet: the register's own rule is that a
-row is added as part of doing the work, and a table of speculative rows is what
-makes it stop being read.
+US-041 and US-049 will owe rows in
+[`correctness-critical.md`](correctness-critical.md) when the work happens —
+the register's own rule is that a row is added as part of doing the work, not
+speculatively.
 
 ## Bugs — `bugs/`
 

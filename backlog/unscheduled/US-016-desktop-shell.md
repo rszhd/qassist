@@ -9,6 +9,13 @@
 
 ## Details
 
+**Track strategy (sketched 2026-07-21, on hold):** candidate model is that the
+free version runs entirely on the user's machine — their CPU/RAM, their OpenAI
+key — and hosted features become the paid tier. Not prioritized; decision
+deferred. If picked up: US-016 → US-017 → US-018 → US-019, Windows before
+macOS, and `server.js` stays dual-mode (container + Electron) — never fork it.
+US-018 would realize US-005 (BYOK) on desktop.
+
 First step of the desktop track (US-016 → US-017 → US-018 → US-019). Goal of
 this story is the smallest runnable desktop app: an Electron shell that hosts
 the existing server and frontend unchanged. Python agent still runs via system

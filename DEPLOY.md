@@ -28,7 +28,7 @@ stack has actually hit — so a question about one costs reading one.
 | [The demo sandbox](docs/deploy/demo.md) | `AUTH_MODE=demo`, per-visitor tenants, the reaper, and keeping mail silent. |
 | [The docs site](docs/deploy/docs-site.md) | The manual, built off `dev` and published without a promotion: standing it up, publishing by hand, and what it must not become. |
 
-Certificates are shared by all five and are below.
+Certificates are shared by all five hostnames and are below.
 
 ## What runs on the box
 

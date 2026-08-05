@@ -22,7 +22,8 @@ self-host setup; everything about *using* QAssist is there. Source:
 - **Pass/fail verdict** — browser-use's built-in judge decides whether the goal
   was actually met, with a written rationale.
 - **PDF report** — a polished one-page report (verdict, stats, summary, session
-  recording link) is generated automatically when a run finishes.
+  recording link) per finished run, when `REPORTS_ENABLED` is set (off by
+  default while the report is reworked).
 - **Trigger from anywhere** — token-authed REST API to start runs and fetch
   results from your own tools or pipelines.
 
@@ -44,7 +45,7 @@ self-host setup; everything about *using* QAssist is there. Source:
 │ React viewer │ ──────────────────▶ │ Express (server/)            │
 │ (frontend/)  │ ◀── WS /ws ──────── │  • spawns the Python agent   │
 └──────────────┘   frames + events   │  • relays NDJSON → WebSocket │
-                                      │  • renders PDF on completion │
+                                      │  • renders PDF (if enabled)  │
                                       └───────────────┬──────────────┘
                                           spawn (1 per run) │ stdout: NDJSON
                                                             ▼
@@ -62,9 +63,9 @@ newline-delimited JSON to stdout — `frame` events (JPEG screencast, ~6 fps) pl
 `step`/`done` events — which Express relays over the WebSocket. The screencast is
 viewer-gated: Express tells the agent over stdin when the first viewer attaches
 and the last one leaves, and frames are only captured in between, so unwatched
-runs (e.g. CI-triggered) skip the encode cost entirely. On completion the server
-calls `agent/make_report.py` to render the PDF. The worker holds no durable
-state between runs.
+runs (e.g. CI-triggered) skip the encode cost entirely. On completion, if
+`REPORTS_ENABLED` is set, the server calls `agent/make_report.py` to render the
+PDF. The worker holds no durable state between runs.
 
 The same system in full — processes, code map, the event protocols on that
 pipe, concurrency and scheduling, where every secret lives, and the invariants
@@ -123,8 +124,8 @@ docker compose up --build
 ```
 
 The first build takes a few minutes (it downloads Chromium). Either way, open
-`http://localhost:8080`, enter a URL + goal, and watch it run. Finished runs
-expose a **Download PDF report** button.
+`http://localhost:8080`, enter a URL + goal, and watch it run. With
+`REPORTS_ENABLED` set, finished runs expose a **Download PDF report** button.
 
 Two things worth knowing on a fresh clone:
 
@@ -149,12 +150,12 @@ for every value). These are the ones a fresh install actually turns:
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `KEY_ENCRYPTION_SECRET` | — | **Required.** Encrypts stored OpenAI keys and saved browser sessions at rest. Generate once (`openssl rand -hex 32`) and keep it — losing it makes every stored key and session undecryptable |
-| `DATABASE_URL` | — | **Required** — Postgres control plane (saved tests, run history, and the users row a stored key lives on). Set for you in both paths — `docker compose` points it at its own `db` service, `npm run dev` at the same container on `localhost:5433`. Without it the server refuses to boot |
+| `KEY_ENCRYPTION_SECRET` | — | **Required.** Encrypts stored OpenAI keys and saved sessions at rest. Generate once (`openssl rand -hex 32`) and never lose it |
+| `DATABASE_URL` | — | **Required** — Postgres control plane. Set for you in both paths: `docker compose` points it at its own `db` service, `npm run dev` at the same container on `localhost:5433` |
 | `WORKER_API_TOKEN` | — | Bearer token required on every API/WS call. Blank = no token required, which is fine on localhost and nowhere else |
-| `MAX_CONCURRENT_SESSIONS` | `4` | Concurrent browser cap — the real throttle. Rule: `floor((RAM_GB − 1.5) / 0.7)`, from the ~700 MB a run peaks at (US-024) and a 1.5 GB reserve for Postgres, Node and the OS. It assumes the box is yours alone; subtract anything else on it. Runs over the cap wait in an in-memory FIFO and are told their position live; the queue is not durable, so a restart marks everything still waiting `error` |
-| `REPORTS_ENABLED` | — | Render a PDF for every finished run. Off while the report is being reworked: no renderer runs, `report.pdf` 404s, no download is offered and mail carries no attachment. `1`/`true`/`yes`/`on` turns it back on. Step lists and diagnostics are unaffected — they come from `report_data.json`, still written either way |
-| `PUBLIC_BASE_URL` | — | Public address of this instance (`https://qa.example.com`). Makes the report's recording link and notification mail resolvable, and with auth on it is what sign-in links redirect to and what makes the session cookie `Secure` |
+| `MAX_CONCURRENT_SESSIONS` | `4` | Concurrent browser cap — the real throttle. Sizing rule and queue behaviour: [the manual's Self-hosting page](https://docs.qassist.run/self-hosting.html) |
+| `REPORTS_ENABLED` | — | Render a PDF for every finished run; off by default while the report is reworked |
+| `PUBLIC_BASE_URL` | — | Public address of this instance (`https://qa.example.com`) — makes report and mail links resolvable, and sign-in redirects with auth on |
 
 **Everything else — run limits, the navigation floor, artifact retention, mail,
 auth, billing — is [the manual's Settings
@@ -168,10 +169,9 @@ Per-run artifacts (screenshots, `recording.mp4`, `report_data.json`,
 saved tests, suites, run verdicts — lives in Postgres (`pgdata` volume);
 schema and rationale in [`db/README.md`](db/README.md).
 
-The two have different lifetimes on purpose: a history row is a few hundred
-bytes and is kept forever, while the directory beside it is tens of MB and is
-deleted after `ARTIFACT_RETENTION_DAYS`. A pruned run keeps its verdict,
-timings and step count, and simply stops offering the report and recording.
+The two have different lifetimes on purpose — a row is kept forever, the
+directory beside it is deleted after `ARTIFACT_RETENTION_DAYS`; the reasoning
+is in [`docs/architecture.md`](docs/architecture.md).
 
 A handful of further variables — `APP_HOST`, `ACME_EMAIL`, `QASSIST_IMAGE`,
 `RUNS_DIR`, `ROBOTS_TAG` — are read *only* by the production overlay and are
@@ -313,9 +313,8 @@ WebSocket, deploying a new tag, and the certificate store — is
 [`DEPLOY.md`](DEPLOY.md). It also covers the hosted deployments this repo drives,
 each of which is those same two compose files with a different project name and
 env file: production, staging, the demo sandbox, and a preview environment. The
-promotion chain is **dev → staging → main**, with `preview` a force-pushable
-*spur* off the side of it rather than a stage in it — nothing merges out of
-preview, which is what keeps `main` a fast-forward of what staging proved.
+promotion chain (**dev → staging → main**) and preview's place beside it are
+[`docs/deploy/staging.md`](docs/deploy/staging.md).
 
 ## Roadmap
 

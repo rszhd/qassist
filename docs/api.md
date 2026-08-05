@@ -137,15 +137,13 @@ run's goal, its history row, or a report.
 
 On a write, the secret's box is therefore three-state: **blank (or absent)
 keeps** what is stored, a **non-empty value replaces** it, and
-`{"name":"pw","secret":true,"clear":true}` **removes** it. Blank has to mean
-keep, because a client that GETs a test and PUTs it back is sending back a
-value it was never allowed to read. Dropping the declaration, or unticking
-`secret`, removes the stored value too.
+`{"name":"pw","secret":true,"clear":true}` **removes** it. Dropping the
+declaration, or unticking `secret`, removes the stored value too.
 
 At run time the order is **override > stored > declared default**, except that
-an empty override never displaces a stored secret — a blank password box means
-"I didn't type one", not "run without it". A required secret with none of the
-three rejects the run with a 400.
+an empty override never displaces a stored secret. A required secret with none
+of the three rejects the run with a 400. Why the states are shaped this way is
+argued on [the manual's Variables page](https://docs.qassist.run/variables.html).
 
 ## Schedules
 
@@ -378,18 +376,18 @@ curl -X DELETE http://<host>:8080/api/projects/careers/fixtures/cv.pdf \
   -H "Authorization: Bearer $WORKER_API_TOKEN"
 ```
 
-**A run can only ever attach its own project's fixtures.** That whitelist is a
-security boundary, not a convenience: it is what browser-use gates both
-`upload_file` and `read_file` on, so without it an agent that could be argued
-into calling either would be a file-read primitive pointed at the container.
-The project comes off the saved test's row and is never read from a request
+**A run can only ever attach its own project's fixtures.** The whitelist is a
+security boundary ([architecture.md §9](architecture.md#9-secrets-and-containment)):
+the project comes off the saved test's row and is never read from a request
 body — an ad-hoc `POST /api/runs` has no project and so may attach nothing.
 
 Filenames must start with a letter or digit and contain only letters, digits,
-spaces, dots, dashes and underscores; anything else is **400**. A duplicate
-name is **409** (delete it first — silently replacing would change what a saved
-test attaches with nothing in the history to say so), and either cap is **413**.
-Caps are `FIXTURE_MAX_BYTES` and `FIXTURE_PROJECT_QUOTA_BYTES`.
+spaces, dots, dashes and underscores (any alphabet), must not end with a dot
+or a space, and must fit in 255 bytes; anything else is **400**. A duplicate
+name is **409** — delete it first, replacing is deliberately not offered — and
+either cap is **413**. Caps are `FIXTURE_MAX_BYTES` and
+`FIXTURE_PROJECT_QUOTA_BYTES`; the reasoning is
+[the manual's Files page](https://docs.qassist.run/files.html).
 
 Fixtures live under `FIXTURES_DIR`, **not** under `ARTIFACTS_DIR`, so
 `ARTIFACT_RETENTION_DAYS` never removes them; the app refuses to boot if the two
@@ -431,11 +429,10 @@ curl -X PUT http://<host>:8080/api/tests/<id> \
 signed out.
 
 **No read ever returns the stored session.** A `storageState` *is* the
-credential — holding one is being logged in — so it is encrypted at rest with
-the same key `KEY_ENCRYPTION_SECRET` protects stored OpenAI keys with, decrypted
-only to write one spawn's temp file, and that file's directory is removed when
-the run ends. The counts and `captured_at` are there so you can tell a live
-session from a stale one without being able to read it back.
+credential, so it is encrypted at rest and decrypted only to write one spawn's
+temp file; the counts and `captured_at` exist so a session can be described
+without being readable. The full handling discipline is
+[auth-in-tested-flows.md](auth-in-tested-flows.md).
 
 **Three ways to produce one, and you need no Playwright for any of them.** Set
 `login_test_id` to a test whose job is to log in and leave `storage_state` out:
@@ -448,8 +445,7 @@ shortcut. A failing login run never touches the stored session.
 
 Until it has been captured, a session reads `"captured_at": null`, and a test
 that opts into it is **refused at run start** (400, nothing enqueued) rather
-than run signed out — a test that quietly runs signed out passes nothing and
-fails everything. A session with none of a blob, a login test or
+than run signed out. A session with none of a blob, a login test or
 `capture_method: "extension"` is refused at creation, since nothing could ever
 fill it.
 
@@ -537,8 +533,8 @@ view never mails, having no test and no project.
 
 Every mail carries a signed unsubscribe link — the one route in the app that
 takes no bearer token, because the person clicking it was mailed a report and
-does not have the instance's token. Suppression is by address and instance-
-wide, so being added to a second project cannot quietly re-subscribe someone:
+does not have the instance's token. Suppression is by address and
+instance-wide:
 
 ```bash
 # who has opted out, and putting one back
@@ -558,9 +554,9 @@ this feature did not ship. `GET /api/health` answers `billing` either way.
 Turning it on gates **starting a run** and nothing else: an account without an
 active subscription gets `402` from every run trigger, and its schedules stop
 firing (they are never deleted, and resume on resubscribe). Reading stays open
-— history, run detail, steps, reports and recordings all keep working, so
-cancelling is never a data-loss event. LLM tokens remain BYOK on every tier: a
-subscription pays for hosting, not for the model.
+— history, run detail, steps, reports and recordings all keep working. LLM
+tokens remain BYOK on every tier; the user-facing account is
+[the manual's Settings page](https://docs.qassist.run/settings.html#billing-if-you-are-running-a-paid-instance).
 
 It also requires `AUTH_ENABLED` and `PUBLIC_BASE_URL`. Billing charges *users*,
 so an instance with no real users — single-token or open — is never gated, and

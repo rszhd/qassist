@@ -35,83 +35,42 @@ rule that decides which of the four test shapes a given check gets:
   microsecond value real Postgres wrote. When the property under test is the
   fake's blind spot, you need the real thing.
 
-  Another blind spot, found by US-039: **pg-mem corrupts a `bytea`
-  parameter.** The adapter squeezes the buffer through a UTF-8 string, so
-  AES-GCM ciphertext (high bytes) comes back with replacement characters and
-  never decrypts — an encrypted-at-rest write path simply cannot be exercised
-  there (`byok-postgres.test.js` is the real-server counterpart). The escape
-  hatch for tests whose subject is *not* key storage: a **registered function
-  returns a Buffer that pg-mem stores intact**, so
-  `test/helpers/stored-key.js` seeds a decryptable stored key by registering
-  `decode` and inlining the ciphertext as hex in the SQL text. `byteaPool` in
-  the same file does that rewrite for the parameters *product* code passes,
-  which is what lets an encrypted-at-rest write path be exercised there at all.
+  pg-mem's **known lies**, each learned the expensive way — the story or bug
+  named is where the full account lives:
 
-  BUG-007 added the sting in the tail: **that corruption is not always
-  silent.** The escaped string the adapter builds is sometimes SQL pg-mem's own
-  parser rejects — 1.6% of AES-GCM ciphertexts at 213 bytes — and whether it is
-  depends on nothing but the random IV. So the same write is fine ninety-eight
-  times and throws the ninety-ninth, which reads as a flaky suite rather than as
-  a fake being a fake. Worse, pg-mem's parse error enumerates the tokens it
-  expected, one of which is `kw_unique`, so a route with a
-  `/unique|duplicate/i` fallback on the message answers **409 Conflict** for a
-  name nothing has ever used. A fake's blind spot can present as any error the
-  product knows how to make.
+  - **A `bytea` parameter is corrupted** through a UTF-8 round trip, so AES-GCM
+    ciphertext never decrypts — and intermittently (on nothing but the random
+    IV) the escaped string is SQL pg-mem's own parser rejects, so the
+    corruption presents as a flaky suite, or even as a **409** from a
+    `/unique|duplicate/i` fallback matching the parser's `kw_unique` token
+    (US-039, BUG-007). `test/helpers/stored-key.js` is the in-fake workaround;
+    `byok-postgres.test.js` the real-server counterpart.
+  - **node-pg's type parsers never run**: `count(*)` arrives as `0` where
+    production gets the string `"0"`, so an uncast bigint check can never fail
+    under pg-mem (BUG-006). Same class: an uncast `text[]` default arrives as
+    the *string* `"{}"` — an allowlist that matches nothing (US-042). Anything
+    whose correctness depends on the type a column arrives as is here.
+  - **`on conflict do nothing` reports `rowCount: 1` for a conflicting
+    insert** (US-022), so an idempotency claim proves nothing.
+  - **Check constraints don't hold**: the inline form does not parse, the named
+    form parses without being enforced (US-058) — and the two engines auto-name
+    an inline check differently, so a migration dropping one name no-ops on the
+    other; drop both, as `004` and `011` do (US-047).
+  - **`count(*) filter (where …)` answers with the unfiltered count**,
+    silently (US-069) — green on a surface whose failures are the point.
+    `row_number() over (…)` and correlated subqueries are rejected loudly,
+    which is the harmless kind; it is why the schedules strip trims a
+    time-bounded window in JS and `LIST_QUERY` in `routes/schedules.js` uses
+    grouped derived tables. That one is loud, which makes it the harmless kind.
 
-  A third blind spot is not the database at all, found by BUG-006: **pg-mem
-  never runs node-pg's type parsers.** `count(*)` is bigint, and node-pg hands
-  bigint back as a *string* — so an uncast count is `0` under pg-mem and `"0"`
-  in production, and a `=== 0` check downstream silently never matches. The fix
-  is `::int` in the SQL; the point is that no pg-mem test can ever fail on it,
-  because the value never passes through the driver that makes it a string.
-  Anything whose correctness depends on the *type* a column arrives as — bigint
-  counts, numerics, dates as strings — is in this class.
-
-  Six more. The first four were found the same way — by writing the assertion
-  first and watching it pass against code that could not possibly be right; the
-  last two turned up while writing the query they break:
-
-  - **An uncast `text[]` default comes back as the *string* `"{}"`** (US-042).
-    An allowlist that arrives as a string matches nothing, which is precisely
-    the failure the feature exists to prevent: a fence that is believed and
-    absent. Same class as the bigint above — the column's *type* on arrival.
-  - **`on conflict do nothing` reports `rowCount: 1` for a conflicting insert**
-    (US-022). That is the whole of a webhook ledger's idempotency claim, so
-    pg-mem passes an implementation with no idempotency in it at all; the
-    duplicate charge is what would have found it otherwise.
-  - **An inline `check` in `alter table add column` does not parse, and the
-    named form parses without being enforced** (US-058). A `> 0` constraint is
-    only ever provable against a real server — pg-mem cannot hold it up in
-    either direction.
-  - **The two engines auto-name an inline column check differently** —
-    `runs_status_check` versus `runs_constraint_2` (US-047). A migration that
-    drops one name no-ops on the other engine, leaving the old constraint
-    standing and rejecting every new value on exactly one of them. Drop both,
-    as `004` and `011` do.
-  - **`row_number() over (…)` is rejected outright** (US-069). Loud, so
-    harmless in the same way the correlated subquery below is — but it takes
-    the per-row top-N with it, which is why the schedules strip fetches a
-    time-bounded window for the whole page and trims it in JS.
-  - **`count(*) filter (where …)` answers with the *unfiltered* count**
-    (US-069), silently. A per-slot failure tally written that way reports zero
-    failures on a slot that failed — green, which is the direction every wrong
-    answer on that surface fails in.
-
-  It also can't run every query shape: a correlated subquery cannot see the
-  outer alias, so `LIST_QUERY` in `routes/schedules.js` uses grouped derived
-  tables. That one is loud, which makes it the harmless kind.
-
-That last pair is the whole philosophy in miniature: **same feature, two
-tests, because the shortcut one layer takes lies about the thing the other
-must verify.** Use the fake by default; drop to reality only for the specific
-property the fake gets wrong.
+That is the philosophy in miniature: **same feature, two tests, because the
+shortcut one layer takes lies about the thing the other must verify.** Use the
+fake by default; drop to reality only for the specific property the fake gets
+wrong.
 
 **For the database, that default has been withdrawn** (2026-07-28, after
-BUG-007). Eight known lies is enough, and the eighth cost a day precisely
-because it was *documented* — the note said the bytea corruption was silent, it
-is intermittently fatal instead, and the fake's parse error then impersonated a
-business-logic conflict. The tax is not the eight; it is the ninth, which by
-definition is not on the list yet. So:
+BUG-007). The tax is not the lies on the list; it is the next one, which by
+definition is not on it yet. So:
 
 - **A new test file uses real Postgres.** `session-postgres.test.js` is the
   pattern — a uniquely-named database, migrations, dropped after. It costs
@@ -275,14 +234,12 @@ correlation.
 
 ### What a mutation sweep does and doesn't tell you
 
-On 2026-07-24 a manual red-first sweep over the two new suites seeded ten
-one-line defects (widen a digit cap, drop a guard, mis-map a token, …) and
-confirmed all ten were caught. That proves *sensitivity*: no test passes no
-matter what, no assertion is silently weak — exactly the AI-pair failure mode
-above. It does **not** prove the expected values are the ones we want: a test
-can kill every mutant and still pin the wrong intended behaviour if the author
-misread the spec. Mutation testing checks "does a test react to change,"
-correctness of the target answer is still on the human and the story.
+A sweep proves *sensitivity* — no test passes no matter what, no assertion is
+silently weak, which is exactly the AI-pair failure mode above (a manual
+red-first sweep on 2026-07-24 confirmed ten seeded defects, ten caught). It
+does **not** prove the expected values are the ones we want: a test can kill
+every mutant and still pin a misread spec. Correctness of the target answer is
+still on the human and the story.
 
 The throwaway driver is now a repeatable tool: from `agent/`, `.venv/bin/mutmut
 run` then `mutmut results` (config and scope in `agent/setup.cfg`). It mutates
@@ -295,17 +252,5 @@ natively, and `generate_address`'s `partition`→`rpartition` is identical for a
 single-`@` address — unkillable without contorting the code, so they stay.
 Others are honest gaps worth a case (`extract_code`'s `4 <= len` lower bound has
 no 4-char-code test). `redact.py` — the security-critical one — leaves no
-survivors.
-
-## Where this should go next
-
-Tracked in [US-034](../backlog/sprint/current/done/US-034-testing-practice-and-coverage.md):
-the owed agent coverage (redaction, report formatters, judge fixture) and the
-frontend mount-smoke test have landed. Selective TDD is now a standing CLAUDE.md
-rule (Workflow rules) rather than only a mitigation here — written as a *forward*
-rule, not a claim that the habit already ran, with one addition: spotting which
-work is correctness-critical is Claude's job to raise, since it won't reliably
-be flagged otherwise. The `mutmut` audit is wired up (see above). With that,
-US-034's build items are all done; what stays open is judgement, not code —
-keeping the correctness-critical register current and exercising the
-assertion-first habit on the next hard piece.
+survivors. The practice's origin story is
+[US-034](../backlog/sprint/current/done/US-034-testing-practice-and-coverage.md).

@@ -5,7 +5,7 @@ plain-English goal; a Python agent drives real Chromium via browser-use,
 streams the session live over WebSocket, judges pass/fail, renders a PDF
 report. Self-hosted via Docker. Hosted paid tier planned at qassist.run.
 
-## Architecture (full details: README.md)
+## Architecture (full details: docs/architecture.md)
 
 React viewer (`frontend/`) → Express REST + WS relay (`server/src/server.js`)
 → spawns `agent/run_agent.py` per run (NDJSON on stdout: `frame`/`step`/`done`

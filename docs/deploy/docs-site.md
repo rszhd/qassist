@@ -73,12 +73,9 @@ cd ~/qassist
 git fetch origin && git checkout main -- docker-compose.docs.yml .env.docs.example
 ```
 
-**Take the ref that actually carries the files.** The box's checkout sits on
-`staging`, and on the first stand-up (2026-08-05) neither branch had them yet —
-US-070 was on `dev`, since the manual publishes off `dev` and never needed a
-promotion to work. So it was `git checkout origin/dev -- …`, and the two files
-stayed at that revision until the story promoted. Byte-identical content, so the
-later `checkout` of `staging` reconciled it with no conflict.
+**Take the ref that actually carries the files.** If a change to either file is
+only on `dev` so far, `git checkout origin/dev -- …` works the same way — a
+path checkout writes those paths and moves no branch.
 
 **3. Configure.**
 
@@ -121,13 +118,12 @@ expected, not a misconfiguration. Every link the site emits carries the
 extension, so this is only ever reached by a URL somebody typed or truncated.
 
 **That 404 is the site's own page, and it is the proxy that makes it so.** Stock
-nginx has no `error_page 404` rule, so it answered with its own page and the
-styled `404.html` VitePress builds — the one carrying the nav and the search
-box, which is the way back — was never served. Fixed 2026-08-05 with three
-`errors` labels on `web` rather than an `nginx.conf`, which is the one thing
-this stack exists without: Traefik re-fetches the body from the same service and
-keeps the 404 status. `docker-compose.proxy.yml` is untouched, because reading
-labels off a container is exactly the contract it states.
+nginx has no `error_page 404` rule, so three `errors` labels on `web` — rather
+than an `nginx.conf`, the one thing this stack exists without — have Traefik
+re-fetch the styled `404.html` VitePress builds (the one carrying the nav and
+the search box, which is the way back) while keeping the 404 status.
+`docker-compose.proxy.yml` is untouched, because reading labels off a container
+is exactly the contract it states.
 
 ```sh
 curl -sSI https://docs.qassist.run/settings | head -1        # HTTP/2 404

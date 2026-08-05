@@ -39,14 +39,14 @@ Three things, and none of them are free. Read them before standing it up:
    Docker daemon as production. (The box already had a checkout before this:
    `~/qassist` holds the compose files and every stack's env file. What is new
    is building from one.)
-2. **Disk — and the obvious prune is the wrong one.** Measured on the box,
-   2026-07-26: `docker image prune -f` reclaims **nothing** across a rebuild.
-   BuildKit moves the tag and drops the old manifest itself, so no dangling
-   image is ever left. What grows is the **build cache** — two rebuilds took it
-   from 5.05 GB to 7.81 GB, none of which `image prune` can see. Production
-   shares that disk, and a full disk takes production down, so the bounded
-   `buildx prune` below is part of the deploy. `--max-used-space` rather than a
-   plain prune, because the cache is also what keeps a rebuild at seconds.
+2. **Disk — and the obvious prune is the wrong one.** `docker image prune -f`
+   reclaims **nothing** across a rebuild: BuildKit moves the tag and drops the
+   old manifest itself, so no dangling image is ever left. What grows is the
+   **build cache**, which `image prune` cannot see (measured on the box,
+   2026-07-26). Production shares that disk, and a full disk takes production
+   down, so the bounded `buildx prune` below is part of the deploy.
+   `--max-used-space` rather than a plain prune, because the cache is also what
+   keeps a rebuild at seconds.
 3. **RAM.** A fourth app container *and* a fourth Postgres.
    `MAX_CONCURRENT_SESSIONS=1`, and production's own budget may have to come
    down to pay for it — the worked example in
@@ -56,7 +56,7 @@ Three things, and none of them are free. Read them before standing it up:
 ## Standing it up
 
 **1. DNS.** An `A` record for `preview.qassist.run` → the same IP. (Added
-alongside production's in step 1 above.)
+alongside production's in [its first-time setup](production.md#first-time-setup).)
 
 **2. A clone, in its own directory.** The box already has a checkout at
 `~/qassist` — it is where the other stacks' compose files and env files live,
@@ -198,26 +198,18 @@ docker system df
 df -h /
 ```
 
-With the bounded `buildx prune` in each cycle this is flat: three cycles on
-2026-07-26 left Images at 19.48 GB, Build Cache at 5.75 GB and the filesystem at
-31 G used, unchanged from the cycle before. Without it, two cycles alone added
-2.8 GB that `docker image prune` could not reclaim.
+With the bounded `buildx prune` in each cycle this stays flat; without it,
+rebuild cycles add gigabytes that `docker image prune` cannot reclaim.
 
 ## What preview must not become
 
-**Revised 2026-07-26.** US-055 drew this line at "console mail, no Stripe keys",
-reasoning that the day preview had both there would be two staging environments
-and no preview. That turned out to bundle two unlike things, and the bundle cost
-more than it saved.
-
 The bill preview exists to skip is a CI run, an image push and a `pull`.
-Environment variables cost none of it — preview still rebuilds in seconds with
-Stripe and Resend configured. What the rule actually did was put every billing
-and entitlement change (US-053, US-054, and everything after them) permanently
-on the slow loop, which is the class of change where a live look is worth most.
-So preview now runs Stripe in **test** mode and a real Resend key.
-
-What still separates it from staging is the part that was always doing the work:
+Environment variables cost none of it, so preview runs Stripe in **test** mode
+and a real Resend key (revised 2026-07-26 —
+[US-055](../../backlog/sprint/current/done/US-055-preview-environment.md)
+shipped it stricter, which put every billing change on the slow loop for no
+saving). What separates it from staging is the part that was always doing the
+work:
 
 - **A populated database.** Staging is seeded (`seed-staging.mjs`); preview
   starts empty and must stay that way. A migration meeting data it did not
