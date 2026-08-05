@@ -47,7 +47,7 @@ The check is not only at the start:
 2. **The same policy arms the browser**, so a **redirect** into a blocked host
    mid-run is stopped where it happens. The run ends failed with
    `navigation_blocked` and a named section in the report — it does not wander
-   off and blame the goal.
+   off and blame the instructions.
 
 ## The reasons a URL is refused
 

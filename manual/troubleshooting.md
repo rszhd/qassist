@@ -9,7 +9,7 @@ funded by the key you store, and the instance holds none of its own. Settings �
 OpenAI key.
 
 **A variable was required and had no value.** A non-optional
-[variable](./variables.md) that the goal references needs a default, stored
+[variable](./variables.md) that the instructions reference needs a default, stored
 secret, or run-time override. The error names it.
 
 **The session has never been captured.** A test that opts into a [saved
@@ -25,9 +25,9 @@ already have stays open — cancelling is never a data-loss event.
 
 ## The run passed and should not have
 
-Almost always the goal. A goal that describes *clicking* is true the moment the
-click happens, whatever it produced. [Writing a goal](./writing-goals.md) is the
-fix, and it is one page.
+Almost always the instructions. Instructions that describe *clicking* are
+complete the moment the click happens, whatever it produced. [Writing
+instructions](./writing-instructions.md) is the fix, and it is one page.
 
 The second cause is a [one-shot identity](./saved-sessions.md#social-login): a
 signup test whose account already exists lands on "welcome back" and passes,
@@ -36,8 +36,8 @@ while no longer testing what its name says.
 ## The run ended `completed` — neither pass nor fail
 
 The agent finished and the judge produced no verdict. Treat it as a failure. It
-usually means the goal gave the judge nothing checkable, and occasionally that
-the run ran out of steps before reaching the point the goal is about.
+usually means the instructions gave the judge nothing checkable, and occasionally
+that the run ran out of steps before reaching the requested outcome.
 
 ## The site works in your browser and fails from QAssist
 
@@ -57,9 +57,9 @@ five steps were spent on. Two very common answers:
 - **Logging in.** Capture the signed-in state once and start past it —
   [Behind your login](./saved-sessions.md).
 
-Both are settings, not goal rewrites.
+Both are settings, not instruction rewrites.
 
-## The run failed and the goal looks right
+## The run failed and the instructions look right
 
 Look at the [evidence](./reading-a-verdict.md#the-evidence-what-the-page-itself-reported)
 before rewriting anything. A `500` on the request the button fired, or an

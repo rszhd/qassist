@@ -6,7 +6,7 @@ const REPO_URL = 'https://github.com/rszhd/qassist';
 
 export default defineConfig({
   title: 'QAssist',
-  description: 'Goal-based browser testing: write a goal, read a verdict.',
+  description: 'Instruction-based browser testing: write instructions, read a verdict.',
   lang: 'en-US',
   srcDir: '.',
   outDir: '.vitepress/dist',
@@ -45,7 +45,7 @@ export default defineConfig({
         items: [
           { text: 'What QAssist is', link: '/' },
           { text: 'Your first run', link: '/first-run' },
-          { text: 'Writing a goal', link: '/writing-goals' },
+          { text: 'Writing instructions', link: '/writing-instructions' },
           { text: 'Reading a verdict', link: '/reading-a-verdict' },
         ],
       },

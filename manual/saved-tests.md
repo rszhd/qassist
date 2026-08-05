@@ -1,8 +1,8 @@
 # Saving a test
 
 An ad-hoc run is kept in History, but its definition is not reusable. A **saved
-test** gives that URL and goal a name so you can run it again, group it, schedule
-it, or trigger it from a pipeline.
+test** gives that URL and those instructions a name so you can run it again,
+group it, schedule it, or trigger it from a pipeline.
 
 ## Making one
 
@@ -12,10 +12,10 @@ it, or trigger it from a pipeline.
 |---|---|
 | **Name** | What it is called in the list, in History, and in a failing CI log. Make it the thing being checked — `checkout with a saved card`, not `test 4`. |
 | **Start URL** | Where the browser opens. Overridable per run. |
-| **Instructions** | The goal. A sentence, a list of steps, or a pasted ticket — [Writing a goal](./writing-goals.md). |
+| **Instructions** | A sentence, a list of steps, or a pasted ticket — [Writing instructions](./writing-instructions.md). |
 | **Project** and **Module** | Optional, and hidden until you have a project. [Organizing](./organizing.md). |
 | **Start signed in** | Optional. A [saved session](./saved-sessions.md) from the same project. |
-| **Variables** | Optional. Named values the goal and the URL can reference — [Variables and secrets](./variables.md). |
+| **Variables** | Optional. Named values the instructions and the Start URL can reference — [Variables and secrets](./variables.md). |
 
 Only the name, the URL and the instructions are required. A test that is nothing
 but those three is a perfectly good test.
@@ -43,9 +43,10 @@ part of what is being tested.
 ## Editing one
 
 Edit a test and the change applies from the next run. **Past runs are not
-rewritten**: a history row keeps the goal and the URL it actually ran with,
-copied at the moment it was enqueued. So a run from last Tuesday still tells you
-what was asked of it last Tuesday, even after the test has been rewritten twice.
+rewritten**: a history row keeps the instructions and the URL it actually ran
+with, copied at the moment it was enqueued. So a run from last Tuesday still
+tells you what was asked of it last Tuesday, even after the test has been
+rewritten twice.
 
 ## Deleting one
 

@@ -12,9 +12,9 @@ loop, because the API is already the interface.
 - **QAssist reachable from the runner**, normally over HTTPS, with an API key or
   token. A self-hosted runner may instead reach it over a private network.
 - **The tests already exist**, made in the app and grouped into a
-  [module or a suite](./organizing.md). CI never describes a test — no goal
-  strings in pipeline YAML. The definitions stay server-side and can be
-  rewritten without anyone touching the pipeline.
+  [module or a suite](./organizing.md). CI never describes a test — no
+  instruction text in pipeline YAML. The definitions stay server-side and can
+  be rewritten without anyone touching the pipeline.
 - `curl` and `jq` on the runner.
 
 ## Trigger a module or a suite — nothing else
@@ -63,7 +63,8 @@ the terminal statuses.
 
 **Gate only on `passed`. Treat every other terminal status as a failure.** That
 includes `completed`, which means the agent finished without a verdict, and
-`cancelled`, which means somebody stopped the run before it verified the goal.
+`cancelled`, which means somebody stopped the run before it verified the
+requested outcome.
 
 ## The script
 

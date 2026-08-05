@@ -9,16 +9,16 @@ recording, and diagnostics from the page. They answer different questions.
 |---|---|
 | **queued** | Waiting for a browser slot. The instance runs a fixed number of sessions at once; you are told your position. |
 | **running** | In flight. |
-| **passed** | The judge read the goal and the run, and says the goal was met. |
+| **passed** | The judge read the instructions and the run, and says the requested outcome was met. |
 | **failed** | The judge says it was not. |
 | **completed** | The agent finished without producing a verdict at all. |
 | **error** | The run broke — the browser died, the key was rejected, the memory ceiling was hit. |
 | **stopped** | Somebody pressed Stop. (`cancelled` in the API.) |
 
 **`completed` is the one to look at twice.** It is not a soft pass. It means the
-run ended without answering, which is usually a goal the judge could not check
-against — see [Writing a goal](./writing-goals.md). Treat it as a failure
-everywhere it matters, and [CI does exactly that](./ci.md).
+run ended without answering, which usually means the judge could not check the
+instructions — see [Writing instructions](./writing-instructions.md). Treat it as a
+failure everywhere it matters, and [CI does exactly that](./ci.md).
 
 **`stopped` verified nothing.** A run only reaches it because a person ended it
 by hand, so it is not a verdict about your app either way.
@@ -28,9 +28,9 @@ by hand, so it is not a verdict about your app either way.
 Under the status, **Summary** describes what happened and why the run reached
 its verdict. This is where a `failed` becomes actionable: it often names the
 missing outcome ("the cart still showed 0 items after the click"), helping you
-separate an application failure from a poorly scoped goal.
+separate an application failure from poorly scoped instructions.
 
-Read it before you re-run. A goal that fails for the same stated reason twice is
+Read it before you re-run. A test that fails for the same stated reason twice is
 not flaky.
 
 ## The steps
@@ -62,7 +62,7 @@ in History.**
 
 ## The evidence: what the page itself reported
 
-A verdict says the goal was not reached. The diagnostics say what broke. Every
+A verdict says the requested outcome was not reached. The diagnostics say what broke. Every
 run captures, stamped with the step it happened during:
 
 - **Failed requests** — anything that came back 400 or worse, plus the ones that
@@ -76,11 +76,11 @@ Identical findings are counted rather than repeated, and the list is a summary
 rather than an archive: at most five distinct findings per kind per step. A page
 emitting thousands of console lines cannot drown the run.
 
-This is very often where the real answer is. A goal that failed at step 4 with a
-`500` on `/api/order` at step 4 is not a testing problem.
+This is very often where the real answer is. A test that failed at step 4 with a
+`500` on `/api/order` at step 4 does not have an instruction problem.
 
 ::: tip Structured evidence is scrubbed
-QAssist scrubs secret-variable values from the goal, Activity, diagnostics,
+QAssist scrubs secret-variable values from the instructions, Activity, diagnostics,
 report text, and notification email before they leave the agent. Images are
 pixels rather than text, so do not design a test that deliberately renders a
 secret visibly on the page.
@@ -101,8 +101,8 @@ download rather than something the report embeds or an email attaches.
 ## Two failures that name themselves
 
 Most failures are a verdict. Two are the run telling you the setup was wrong
-before the goal ever got a chance, and both say so on the run rather than
-blaming the goal:
+before the instructions ever got a chance, and both say so on the run rather
+than blaming the instructions:
 
 - **`session_expired`** — the [saved session](./saved-sessions.md) this test
   starts from is no longer signed in. Checked before the first model step, so it

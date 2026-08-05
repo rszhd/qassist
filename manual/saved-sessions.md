@@ -65,7 +65,8 @@ enough on their own.
 
 Set **verify URL contains** and/or **verify text** on the session. They are
 checked *before the agent's first model step*, so an expired session costs one
-verdict instead of a wandering twenty-step failure whose report blames your goal.
+verdict instead of a wandering twenty-step failure whose report blames your
+instructions.
 The run ends failed with `session_expired`, which CI, the mail and the PDF all
 read.
 
@@ -114,7 +115,8 @@ instance, the operator owns this configuration.
 
 The fetched code goes through the same structured-output redaction as a
 [secret](./variables.md#secrets): the model uses a placeholder, and QAssist
-strips the real value from the goal, Activity, diagnostics, and report text.
+strips the real value from the instructions, Activity, diagnostics, and report
+text.
 
 ::: warning The mailbox is instance-wide
 There is one slot: no per-project mailbox and no way to give two projects
@@ -134,8 +136,8 @@ provider's OTP test mode, and no code needs fetching. Twilio Verify has test
 credentials that always verify without sending a message; Firebase Auth registers
 test phone numbers with fixed codes; most providers have an equivalent. The
 fictional number is then an ordinary [variable](./variables.md), the fixed code
-is a secret one — so a schedule can fire it unattended — and the goal types it
-like any other secret. This is also the only shape that repeats daily.
+is a secret one — so a schedule can fire it unattended — and the instructions
+type it like any other secret. This is also the only shape that repeats daily.
 
 ## Social login
 
@@ -160,7 +162,7 @@ run and a browser signed in to a real account.
 
 **A provider identity is one-shot against your app.** The first run signs up;
 later runs may land on "welcome back" instead of the registration funnel and
-still satisfy a loosely written goal. To test signup repeatedly, you need a pool
+still satisfy loosely written instructions. To test signup repeatedly, you need a pool
 of provider accounts or your own reset hook; QAssist supplies neither.
 
 **Plus-addressing does not multiply identities.** It gives one mailbox many

@@ -36,20 +36,20 @@ you add the key. The subscription pays for browser capacity; model usage still
 goes to your own OpenAI account.
 :::
 
-## 3. Type a URL and a goal
+## 3. Type a start URL and instructions
 
 In the **Run** view, choose **New run**. The dialog asks for two things:
 
 | Field | What goes in it |
 |---|---|
-| **URL** | Where the browser opens. `https://example.com` |
-| **Goal** | What should be true when it is done, in plain English |
+| **Start URL** | Where the browser opens. `https://example.com` |
+| **Instructions** | What the agent should do and what should be true when it is done, in plain English. |
 
 For a first run, pick something with an unambiguous answer:
 
 ```
-URL   https://example.com
-Goal  Confirm the page shows the heading "Example Domain"
+Start URL     https://example.com
+Instructions Confirm the page shows the heading "Example Domain"
 ```
 
 Choose **Run test**.
@@ -79,9 +79,9 @@ including a `completed` run that is neither a pass nor a fail.
 That is the whole loop. Everything else in this manual is what you do once it
 works:
 
-- The goal is what decides whether a run is worth anything —
-  [Writing a goal](./writing-goals.md) is the shortest page here and the one
-  most worth reading.
+- The instructions decide whether a run is worth anything — [Writing
+  instructions](./writing-instructions.md) is the shortest page here and the one most
+  worth reading.
 - [Save the test](./saved-tests.md) so it can run again without being retyped.
 - [Group your tests](./organizing.md) once there are more than a handful.
 - [Schedule them](./schedules.md), or [trigger them from CI](./ci.md).

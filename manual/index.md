@@ -3,7 +3,7 @@ layout: home
 
 hero:
   name: QAssist
-  text: Write a goal. Read a verdict.
+  text: Write instructions. Read a verdict.
   tagline: Browser testing with no selectors and no scripts. Describe what should happen in plain English; an AI agent drives a real Chromium, streams it live, and decides whether it happened.
   image:
     src: /qassist-mark.svg
@@ -33,13 +33,14 @@ features:
 ## What this manual covers
 
 This is the manual for **using** QAssist. It follows the path a test usually
-takes: write one goal, save it, group it, give it credentials, schedule it, and
+takes: write one set of instructions, save it, group it, give it credentials,
+schedule it, and
 eventually use it to gate a deploy.
 
 - **New here?** [Your first run](./first-run.md) gets you from a ready instance
   to a verdict in about five minutes.
 - **A run keeps failing and you think it shouldn't?**
-  [Writing a goal](./writing-goals.md) is almost always the answer, and
+  [Writing instructions](./writing-instructions.md) is almost always the answer, and
   [When a run goes wrong](./troubleshooting.md) covers the rest.
 - **Running your own instance?** [Self-hosting](./self-hosting.md) and
   [Settings](./settings.md).

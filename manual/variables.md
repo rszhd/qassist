@@ -1,19 +1,19 @@
 # Variables and secrets
 
-A variable is a named value the goal and the start URL can reference, so that
-one saved test covers every environment instead of being cloned per
+A variable is a named value the instructions and the start URL can reference,
+so that one saved test covers every environment instead of being cloned per
 environment.
 
 ## Declaring one
 
 A test declares its variables by name. A plain variable may have a default, and
-any variable may be marked **Optional**. The goal and URL reference them with
+any variable may be marked **Optional**. The instructions and URL reference them with
 double braces:
 
 ```
 Name       admin login
 Start URL  https://{{env}}.example.com/login
-Goal       Log in as {{user}} with {{pw}} and confirm the dashboard loads
+Instructions Log in as {{user}} with {{pw}} and confirm the dashboard loads
 Variables  env  = staging
            user = admin
            pw   = ●●●●●●  (secret)
@@ -33,7 +33,7 @@ At run time, QAssist resolves each variable in this order:
 
 By default, a referenced variable is required. If nothing resolves it, the run
 is refused with an error naming the variable instead of starting with a hole in
-the goal. Mark it **Optional** only when an empty value is meaningful; QAssist
+the instructions. Mark it **Optional** only when an empty value is meaningful; QAssist
 then substitutes an empty string.
 
 ::: warning An empty override never displaces a stored secret
@@ -50,7 +50,7 @@ returned by the app or API**. A read tells you only whether a value is set.
 It reaches the browser through the agent's sensitive-data channel. QAssist
 scrubs it from structured output, including:
 
-- the run's goal, as stored or as shown,
+- the run's instructions, as stored or as shown,
 - the history row,
 - the step list or the diagnostics,
 - the PDF report or the notification email.
