@@ -1,8 +1,7 @@
 # Files a run can upload
 
-A goal like "upload cv.pdf and submit the application" needs a `cv.pdf` to
-exist. A **project** holds those files — uploaded once, reused by every test in
-it.
+A goal like "upload cv.pdf and submit the application" needs that file to
+exist. A **project** holds reusable files for its tests.
 
 ## Adding one
 
@@ -22,7 +21,7 @@ There is nothing to configure per test.
   digits, spaces, dots, dashes and underscores — in any alphabet, `简历.pdf`
   is fine. They must not end with a dot or a space, and must fit in 255 bytes.
   Anything else is refused.
-- **A duplicate name is refused**, not overwritten. Delete the old one first —
+- **A duplicate name is refused**, not overwritten. Delete the old one first;
   silently replacing a file would change what a saved test uploads with nothing
   in the history to say so.
 - **Two size caps**: one per file, one per project. Both are [instance
@@ -30,8 +29,7 @@ There is nothing to configure per test.
 
 ## A run may only touch its own project's files
 
-This is a security boundary rather than a convenience, and it is worth
-understanding if you run a shared instance.
+This is a security boundary, especially on a shared instance.
 
 The agent's ability to read a file and its ability to upload one are gated on
 the same list — the fixtures of the project the run's **saved test** belongs to.

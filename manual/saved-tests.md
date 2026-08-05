@@ -1,8 +1,8 @@
 # Saving a test
 
-A run typed into the Run view happens once and is gone. A **saved test** is the
-same goal given a name, so it can be run again, grouped, scheduled and triggered
-from a pipeline — everything else in this manual is built on it.
+An ad-hoc run is kept in History, but its definition is not reusable. A **saved
+test** gives that URL and goal a name so you can run it again, group it, schedule
+it, or trigger it from a pipeline.
 
 ## Making one
 
@@ -22,10 +22,9 @@ but those three is a perfectly good test.
 
 ## Running one
 
-Click it and press **Run**, and it goes exactly as an ad-hoc run does — same
-live view, same verdict. The difference is what happens afterwards: the run is
-attributed to the test, so History can show you this test's last twenty runs and
-whether the failure is new.
+Run it from the Tests list and it behaves exactly like an ad-hoc run: same live
+view, same verdict. The difference is attribution. History can collect this
+test's runs so you can tell whether a failure is new or recurring.
 
 **The start URL is overridable at run time.** This is what makes one saved test
 cover every environment: the test is saved against production, and CI runs the
@@ -50,19 +49,19 @@ what was asked of it last Tuesday, even after the test has been rewritten twice.
 
 ## Deleting one
 
-Deleting a test does not delete its history. The runs keep their verdicts,
-timings and step counts — what they lose is the ability to be filtered by
-project or module, since that link went with the test.
+Deleting a test does not delete its history. Its runs keep their verdicts,
+timings, and step counts. They can no longer be filtered through the deleted
+test or its grouping because that relationship is gone.
 
 Deleting a **module** or a **project** never deletes tests either: they fall back
 to Ungrouped. The one thing a project takes with it is its suites.
 
 ## Where they live
 
-The Tests list sits beside the Run view. With no projects it is a flat list with
-a filter box — which is the whole UI, and is deliberately all there is until you
-need more. Once you have projects, the same list gains a project selector, plus
-**Ungrouped** for the tests you never filed.
+The Tests list sits beside the Run view. With no projects it is a flat list; a
+search box appears once the list is long enough to need one. Once you have
+projects, the same list gains a project selector, plus **Ungrouped** for tests
+you have not filed.
 
 That progression is the design: nothing about grouping appears before you have
 made a group. If you only ever want a dozen tests in one list, QAssist never

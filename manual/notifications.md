@@ -21,19 +21,20 @@ it. Open the project's settings and set:
 
 | Mode | Mails on |
 |---|---|
-| **failure** (default) | Anything that is not a pass — including an errored run and one that ended unjudged. |
+| **failure** (default) | Failed, errored, or unjudged runs. A run stopped by hand is not treated as a failure. |
 | **always** | Every finished run. |
 | **never** | Nothing. |
 
-Each finished run decides for itself, and one mail goes per recipient.
+Each finished run decides for itself, and each recipient gets one message.
 
-**A run started from the Run view never mails.** It has no saved test and
-therefore no project, so there is nothing to read a preference from.
+**An ad-hoc run never mails.** It has no saved test and therefore no project, so
+there is no notification preference to read. A saved test launched from the Run
+view still follows its project's preference.
 
 An empty recipient list on a project falls back to the instance's default list,
-and then to the operator's address. So a self-hosted instance with one address
-in its configuration mails that address about everything, and you never have to
-fill the field in per project.
+and then to the operator's address. A self-hosted instance can therefore set one
+fallback address without repeating it on every project; the project's delivery
+mode still decides which runs produce mail.
 
 ## Unsubscribing
 

@@ -1,12 +1,12 @@
 # Self-hosting
 
 From nothing to a passing test on your own box, in about ten minutes. **Docker
-is the only thing you install** — Node, Python and Chromium all live inside the
-image.
+is the only application runtime you install** — Node, Python, and Chromium all
+live inside the image.
 
-Self-hosting is free for anything, forever: no seat count, no feature gate, no
-key to buy. The only bill is the one you already have with OpenAI, because every
-run is funded by the key you paste in, on every tier.
+QAssist charges no licence or seat fee for self-hosting and applies no feature
+gate. You still pay for your own infrastructure and OpenAI usage; every real run
+uses the key its owner stores.
 
 ## Before you start
 
@@ -36,9 +36,9 @@ is running, and it is standalone — it references no other file in the reposito
 sed -i "s/^KEY_ENCRYPTION_SECRET=$/KEY_ENCRYPTION_SECRET=$(openssl rand -hex 32)/" .env
 ```
 
-`KEY_ENCRYPTION_SECRET` encrypts your stored OpenAI key, and your [saved
-sessions](./saved-sessions.md), at rest. **Generate it once and keep it** —
-losing it makes every stored key and session undecryptable.
+`KEY_ENCRYPTION_SECRET` encrypts stored OpenAI keys, [secret
+variables](./variables.md), and [saved sessions](./saved-sessions.md) at rest.
+**Generate it once and keep it** — losing it makes all of them undecryptable.
 
 Everything else in `.env` has a working default. Leave the rest alone for now.
 
@@ -116,13 +116,14 @@ Three things, with deliberately different lifetimes:
 
 | What | Where | Why |
 |---|---|---|
-| `.env` | beside the compose file | Holds `KEY_ENCRYPTION_SECRET`. Lose it and every stored key and session is unreadable. |
+| `.env` | beside the compose file | Holds `KEY_ENCRYPTION_SECRET`. Lose it and every encrypted key, secret variable and session is unreadable. |
 | The `pgdata` volume | Docker named volume | Saved tests, suites, schedules and run verdicts. Kept forever. |
-| `./runs` | bind mount | Per-run PDFs and recordings. Swept after `ARTIFACT_RETENTION_DAYS` (default 7) anyway. |
+| `./fixtures` | bind mount | Project files that saved tests may upload. They are not covered by artifact retention. |
+| `./runs` | bind mount | Per-run recordings, reports, screenshots and HAR files. Swept after `ARTIFACT_RETENTION_DAYS` (default 7) anyway. |
 
-A swept run keeps its verdict, timings and step count — it simply stops offering
-the report and the recording. **The database is the thing worth a real backup;
-`runs/` is a cache with a deadline.**
+A swept run keeps its verdict, summary, timings, and step count, but loses its
+detailed Activity and artifacts. **The database and project files deserve real
+backups; `runs/` is a cache with a deadline.**
 
 ## Upgrading
 

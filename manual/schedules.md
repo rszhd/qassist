@@ -1,8 +1,8 @@
 # Schedules
 
-A schedule runs a test, a module, a suite or a whole project on a repeating
-slot. It fires exactly the way pressing Run on that thing does — one run per
-member test, queued behind the instance's concurrency cap like any other run.
+A schedule runs a test, module, suite, or whole project on a repeating slot. It
+behaves like running that target by hand: one run per member test, subject to
+the same concurrency cap.
 
 ## Making one
 
@@ -56,8 +56,8 @@ test and the variable — see [Variables and secrets](./variables.md#schedules-a
 
 ## Reading a schedule's history
 
-Each schedule lists its recent slots, newest first, with the verdict of each.
-Two things about that list are worth knowing:
+Each schedule shows its recent slots, newest first, with one mark per firing.
+Two details matter:
 
 **A slot is one firing, not one run.** A suite schedule starts one run per
 member, and they are a single entry whose result is the worst of them. Green
@@ -70,15 +70,14 @@ so there is nothing for the list to show.
 
 ## The failure this page exists to warn you about
 
-A schedule can keep firing forever while testing nothing, and it looks healthy
-from a distance. The target was emptied — the last test moved out of the module,
-the suite's members were deleted — and the schedule was never touched.
+A schedule can keep consuming slots while testing nothing. This happens when
+its target is emptied — for example, the last test moves out of a module or all
+suite members are deleted — while the schedule remains enabled.
 
-Two things on the row catch it:
+Two labels on the row catch it:
 
-- **A count of the tests the target holds right now.** `0` there is a schedule
-  firing into nothing.
-- **A "firing into nothing" flag**, set when a slot has certainly come round
+- **`no tests`** means the target is empty now.
+- **A `not running` flag**, set when a slot has certainly come round
   since the last time a run actually started. It is not raised on a schedule
   made this afternoon that is not due until 02:00, and never on a disabled one.
 

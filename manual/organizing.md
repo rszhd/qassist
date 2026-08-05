@@ -6,14 +6,14 @@ set of tests can ignore this page entirely.
 
 ## The shapes
 
-**A project** is the outer box: one app, one environment, one team. It is the
-thing that owns everything else on this page, and it is also where the settings
-that apply to *all* its tests live — who gets emailed, where runs may navigate,
-which files they may upload, which signed-in sessions they may start from.
+**A project** is the outer box: usually one application or product boundary. It
+owns everything else on this page, along with settings shared by its tests —
+who gets emailed, where runs may navigate, which files they may upload, and
+which signed-in sessions they may use.
 
 **A module** is a part of that app: `auth`, `checkout`, `search`. A test sits in
-**at most one** module, and it is a strict hierarchy — a test's project comes
-from its module, never set separately.
+**at most one** module. Selecting a module also fixes the test's project; a test
+may belong to a project without belonging to any module.
 
 **A suite** is the cross-cutting alternative: an arbitrary selection of tests
 inside one project, and a test can be in as many as you like. `smoke`,
@@ -73,10 +73,9 @@ send_keys: Escape
 wait: 2 seconds
 ```
 
-Only four actions are available — `navigate`, `wait`, `send_keys` and `scroll` —
-and that is a limit rather than an oversight. Everything else the agent can do
-needs to know which element it is acting on, and no element has been looked at
-yet when the preamble runs.
+Only four actions are available: `navigate`, `wait`, `send_keys`, and `scroll`.
+Everything else the agent can do needs to know which element it is acting on,
+and no element has been inspected yet when the preamble runs.
 
 A `navigate` in a preamble is checked against the same [navigation
 fence](./navigation-fence.md) a start URL is, at the moment you save it rather
@@ -98,5 +97,5 @@ be the worse failure. So renaming `Checkout` to `Checkout (v2)` costs nothing,
 and if you do want the URL to follow, change the slug in the same edit and fix
 the pipeline with it.
 
-Suites do not have slugs yet, so a suite target carries its id. Copy it from the
-URL in the app.
+Suites do not have slugs, so a suite target carries its ID. In the suite's row,
+choose **Run from CI** to copy a command containing the correct endpoint.

@@ -8,9 +8,9 @@ The failures people actually hit, and what each one means.
 funded by the key you store, and the instance holds none of its own. Settings →
 OpenAI key.
 
-**A variable was required and had no value.** A [variable](./variables.md) the
-goal references, with no default and no override, is a hole in the goal. The
-error names it. Give it a default on the test, or pass it with the run.
+**A variable was required and had no value.** A non-optional
+[variable](./variables.md) that the goal references needs a default, stored
+secret, or run-time override. The error names it.
 
 **The session has never been captured.** A test that opts into a [saved
 session](./saved-sessions.md) which is still empty is refused rather than run
@@ -41,9 +41,8 @@ the run ran out of steps before reaching the point the goal is about.
 
 ## The site works in your browser and fails from QAssist
 
-**Some sites block datacenter IP addresses.** Reddit and Cloudflare-heavy pages
-are the usual ones. This is expected rather than a bug: your laptop's address
-looks residential and a server's does not.
+**Some sites block datacenter IP addresses or automated browsers.** A site may
+therefore work from your laptop and refuse the same flow from a QAssist server.
 
 When the site is *yours*, allowlist the instance's address at your WAF or CDN.
 When it is not, there is no setting that fixes it.
@@ -96,11 +95,11 @@ that matters.
 ## The recording and the report are gone
 
 Per-run artifacts are swept after a retention window — a week by default on a
-self-hosted instance. **The verdict, the timings and the step count are kept
-forever.** A run past that point simply stops offering the recording and the
-PDF.
+self-hosted instance. The recording, PDF, HAR, screenshots, and detailed
+Activity disappear. **The verdict, summary, timings, and step count remain in
+History.**
 
-## There is no Download PDF button at all
+## There is no PDF report button
 
 Report rendering is off by default on a fresh self-hosted install, while the
 renderer is being reworked. It is [one setting](./settings.md). Nothing else

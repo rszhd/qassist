@@ -11,7 +11,7 @@ per test, and they are covered by the pages this one links to.
 
 | | |
 |---|---|
-| **`KEY_ENCRYPTION_SECRET`** | **Required.** Encrypts stored OpenAI keys and [saved sessions](./saved-sessions.md) at rest. Generate once (`openssl rand -hex 32`) and keep it — losing it makes every stored key and session undecryptable. |
+| **`KEY_ENCRYPTION_SECRET`** | **Required.** Encrypts stored OpenAI keys, [secret variables](./variables.md), and [saved sessions](./saved-sessions.md) at rest. Generate once (`openssl rand -hex 32`) and keep it — losing it makes all of them undecryptable. |
 | **`MAX_CONCURRENT_SESSIONS`** (`4`) | The real throttle. Runs over the cap queue and are told their position. [How to size it](./self-hosting.md#sizing-it-for-your-box). |
 
 There is deliberately **no server-wide OpenAI key setting**. Every run is funded
@@ -57,7 +57,7 @@ Per-project confinement is not a setting here — it is
 | `QA_RECORD` | `1` | Record every session to mp4. `0` turns it off and skips frame capture entirely while nobody is watching. |
 | `REPORTS_ENABLED` | off | Render a PDF for every finished run. Off while the renderer is being reworked: no download is offered and mail carries no attachment. Step lists and diagnostics are unaffected. |
 | `CAPTURE_HAR` | off | Write a full HAR for every run. Large, and [the one artifact redaction does not reach](./reading-a-verdict.md#when-the-summary-is-not-enough). A caller can also ask per run. |
-| `ARTIFACT_RETENTION_DAYS` | `7` | How long `runs/<id>/` is kept. The history row and its verdict are kept forever regardless. `0` = never sweep. |
+| `ARTIFACT_RETENTION_DAYS` | `7` | How long `runs/<id>/` is kept, including recordings, reports, screenshots, detailed Activity, and HAR files. The History row remains. `0` = never sweep. |
 | `FIXTURE_MAX_BYTES` | 10 MB | Per-[file](./files.md) cap. |
 | `FIXTURE_PROJECT_QUOTA_BYTES` | 50 MB | Per-project total. |
 
@@ -70,7 +70,7 @@ Covered by [Email notifications](./notifications.md).
 | `RESEND_API_KEY` | — | Both this and `MAIL_FROM` must be set or the feature is off: preferences still save, nothing sends. |
 | `MAIL_FROM` | — | Sender address, on a domain verified with Resend. |
 | `NOTIFY_EMAILS` | — | Comma-separated fallback recipients, used when a project names none. |
-| `NOTIFY_MODE` | `failure` | Default for tests in no project. `failure` covers anything that is not a pass. Projects carry their own. |
+| `NOTIFY_MODE` | `failure` | Default for tests in no project. `failure` covers failed, errored and unjudged runs, but not runs stopped by hand. Projects carry their own mode. |
 | `NOTIFY_SECRET` | `WORKER_API_TOKEN` | Signs unsubscribe links. Falls back to a per-boot random value if the token is blank too, which invalidates links already mailed. |
 
 ## The rest

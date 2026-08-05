@@ -1,8 +1,8 @@
 # Where a run may go
 
-A run is a real browser pointed at a URL somebody typed, so where it may
-navigate is a setting rather than an assumption. There are two layers: a floor
-the instance sets, and an optional allowlist per project.
+A run is a real browser pointed at user-supplied URLs, so its navigation needs
+an explicit boundary. QAssist applies two layers: an instance-wide floor and an
+optional allowlist per project.
 
 ## The instance floor
 

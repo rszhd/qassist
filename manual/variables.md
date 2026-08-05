@@ -6,8 +6,9 @@ environment.
 
 ## Declaring one
 
-A test declares its variables by name, optionally with a default. The goal and
-the URL reference them with double braces:
+A test declares its variables by name. A plain variable may have a default, and
+any variable may be marked **Optional**. The goal and URL reference them with
+double braces:
 
 ```
 Name       admin login
@@ -23,16 +24,17 @@ saved test changes.
 
 ## Where a value comes from
 
-At run time, three sources, in this order:
+At run time, QAssist resolves each variable in this order:
 
 1. **The override** given for this run — typed in the run dialog, or sent by
    [CI](./ci.md).
-2. **The value stored on the test** (this is where a secret's value lives).
-3. **The declared default.**
+2. **A value stored on the test** for a secret variable.
+3. **The saved default** for a plain variable.
 
-A variable that a goal references, has no default, and gets no override is
-**required**. A run that would leave a hole in the goal is refused with an error
-naming the variable, rather than run with a blank in it.
+By default, a referenced variable is required. If nothing resolves it, the run
+is refused with an error naming the variable instead of starting with a hole in
+the goal. Mark it **Optional** only when an empty value is meaningful; QAssist
+then substitutes an empty string.
 
 ::: warning An empty override never displaces a stored secret
 Blank means "I didn't type one", not "run without it". This matters most in a
@@ -42,21 +44,25 @@ running signed out.
 
 ## Secrets
 
-Tick **secret** on a variable and its value is stored encrypted and is **never
-returned by anything**. Not by the app, not by the API, not to you. What a read
-tells you is whether a value is set, and nothing more.
+Tick **Secret** on a variable and its value is stored encrypted and is **never
+returned by the app or API**. A read tells you only whether a value is set.
 
-It reaches the browser as sensitive data, so it never appears in:
+It reaches the browser through the agent's sensitive-data channel. QAssist
+scrubs it from structured output, including:
 
 - the run's goal, as stored or as shown,
 - the history row,
 - the step list or the diagnostics,
 - the PDF report or the notification email.
 
+Screenshots and recordings are pixels, not structured text. Password fields
+normally mask their contents, but QAssist cannot redact a page that deliberately
+renders the secret visibly.
+
 ### The three-state box
 
-Because you can never read a secret back, editing a test needs blank to mean
-something safe. So:
+Because you can never read a secret back, a blank field needs a safe meaning
+when you edit a test:
 
 | What you do to the box | What happens |
 |---|---|
@@ -77,10 +83,9 @@ else does not reach it. It is off by default for exactly this reason.
 
 ## Why this beats cloning the test
 
-The alternative to variables is one saved test per environment, which means the
-same goal written four times and drifting three ways. With variables there is
-one test and one pipeline snippet, and a staging job is the production job with
-different values:
+Without variables, teams often clone a test per environment, then let the copies
+drift. Variables keep one definition and let each pipeline provide the values
+that differ:
 
 ```jsonc
 // the production pipeline
@@ -90,10 +95,9 @@ different values:
 {"variables": {"env": "staging", "user": "staging-bot"}}
 ```
 
-When a batch runs — a module, a suite, a project — the overrides are sprayed
-across **every** test in it. Each test substitutes the names it declares and
-fills the rest from its own defaults, so a name a given test does not declare is
-simply ignored. You do not have to know which member wants which variable.
+When a module, suite, or project runs, its overrides are offered to **every**
+member test. Each test uses the names it declares and ignores the rest. One
+batch payload can therefore serve tests with different variable sets.
 
 ## Schedules and secrets
 

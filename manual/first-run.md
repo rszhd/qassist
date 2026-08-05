@@ -16,27 +16,29 @@ Whichever you have:
 - **Your own instance**, which is [one compose file and one
   secret](./self-hosting.md).
 
-## 2. Add your OpenAI key
+## 2. Add your OpenAI key (unless you are in the demo)
 
-Open **Settings → OpenAI key** and paste yours.
+The demo replays prepared runs, so it needs no key. On a hosted account, follow
+the onboarding checklist. On your own instance, open **Settings**, find
+**OpenAI key**, and paste yours.
 
-This is not optional and it is not a formality. Every run is funded by the key
-you store, on every tier — QAssist holds no key of its own, so an instance you
-share with your team can never spend your tokens on someone else's runs. Until a
-key is stored, starting a run answers *no OpenAI key: add yours in Settings*.
+For a real run, this is required. Every run is funded by the key its owner
+stores, on every tier. QAssist holds no shared model key, so one user cannot
+spend another user's tokens. Until your key is stored, a run is refused with
+*no OpenAI key: add yours in Settings*.
 
-The key is stored encrypted and never shown again. Settings tells you a key is
-set; it will not show you which one.
+The key is stored encrypted and never shown again. QAssist tells you whether a
+key is set, but never returns the key itself.
 
-::: tip A hosted account has a third step
-On an instance that bills, a subscription is the step after the key. It pays for
-the browser time on the box — the model spend stays on your own OpenAI account
-either way.
+::: tip Hosted accounts include a subscription step
+On an instance that bills, the onboarding checklist asks you to subscribe after
+you add the key. The subscription pays for browser capacity; model usage still
+goes to your own OpenAI account.
 :::
 
 ## 3. Type a URL and a goal
 
-The **Run** view is two fields and a button.
+In the **Run** view, choose **New run**. The dialog asks for two things:
 
 | Field | What goes in it |
 |---|---|
@@ -50,27 +52,27 @@ URL   https://example.com
 Goal  Confirm the page shows the heading "Example Domain"
 ```
 
-Press **Run**.
+Choose **Run test**.
 
 ## 4. Watch it
 
-The browser session appears on the page within a few seconds and streams while
-the agent works. Under it, each step arrives as the agent takes it: what it was
-looking at, what it decided, what it did.
+The browser session appears within a few seconds and streams while the agent
+works. Beside it, the Activity list updates with the agent's current step.
 
 You can leave. The run does not depend on you watching it — closing the tab does
-not stop it, and reopening the run picks the stream back up. The one thing
-watching changes is cost: frames are only captured while somebody is looking, so
-a run nobody is watching skips the encoding entirely.
+not stop it, and reopening the run picks the stream back up. QAssist sends live
+frames only while someone is watching. When recording is enabled, the instance
+still captures the frames needed for the recording.
 
-If you decide it is going nowhere, **Stop** ends it. A stopped run finishes what
-it can — its recording and its report — and ends as `cancelled`.
+If you decide it is going nowhere, **Stop run** ends it. A stopped run finishes
+what it can — including its recording and report — and ends as `cancelled`.
 
 ## 5. Read the verdict
 
-When it finishes you get a verdict, a written rationale, the step list, and the
-session recording. What each of those is worth, and how to read a `completed`
-that is neither a pass nor a fail, is [Reading a verdict](./reading-a-verdict.md).
+When it finishes you get a verdict, a written summary, and the recorded
+activity. A recording and PDF are also available when the instance enables
+them. [Reading a verdict](./reading-a-verdict.md) explains what each part means,
+including a `completed` run that is neither a pass nor a fail.
 
 ## What to do next
 

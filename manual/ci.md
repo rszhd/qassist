@@ -9,8 +9,8 @@ loop, because the API is already the interface.
 
 ## Before you start
 
-- **QAssist reachable over HTTPS from the runner**, with a token. A runner can
-  only reach a publicly routable address.
+- **QAssist reachable from the runner**, normally over HTTPS, with an API key or
+  token. A self-hosted runner may instead reach it over a private network.
 - **The tests already exist**, made in the app and grouped into a
   [module or a suite](./organizing.md). CI never describes a test — no goal
   strings in pipeline YAML. The definitions stay server-side and can be
@@ -28,11 +28,11 @@ POST /api/projects/<project>/modules/<module>/run    # by slug: checkout/modules
 POST /api/suites/<suiteId>/run                       # by id
 ```
 
-The other two targets exist and are deliberately not documented here:
+The API also supports the other two target sizes, but they are usually weaker
+defaults for a deploy gate:
 
-- **A single test is not a gate.** A deploy check that runs one goal and calls
-  the build green is a false signal — and pipelines that want it end up listing
-  ten ids by hand, which is a suite spelled badly.
+- **A single test is usually too narrow.** Pipelines that accumulate a list of
+  test IDs are better represented by a named suite.
 - **A whole project is every test there is** — minutes of browser time and model
   spend on every push. That is a nightly [schedule](./schedules.md).
 
@@ -61,24 +61,9 @@ run" separately from what a human clicked.
 `GET /api/runs/<runId>` answers `queued` or `running` (keep waiting), or one of
 the terminal statuses.
 
-**Gate on `passed`. Treat everything else as a failure**, including `completed`
-— the agent finished its steps and produced no verdict, so the run answered
-nothing, and a build that goes green on "answered nothing" is the false signal
-this step exists to prevent.
-
-**`cancelled` is the one exception, and it is a deliberate tradeoff.** A run
-reaches it only because a person opened it in QAssist and pressed Stop; it is
-never something the agent, the worker or a timeout produces. Failing the build on
-it would report a problem with the deploy when what actually happened is that
-somebody watching decided the run was not worth finishing.
-
-Read the cost before you copy the script: a stopped run verified **nothing**, so
-a job whose runs were all stopped exits 0 having proved nothing. Anyone who can
-reach the app can turn a gate green by stopping its runs. That is acceptable
-because stopping takes a deliberate click per run by the run's own owner, while
-the alternative makes a feature whose entire purpose is to *stop spending* cost
-an incident. **If your pipeline gates a release, treat a stop as a failure** —
-move the `cancelled` branch into the catch-all below and change nothing else.
+**Gate only on `passed`. Treat every other terminal status as a failure.** That
+includes `completed`, which means the agent finished without a verdict, and
+`cancelled`, which means somebody stopped the run before it verified the goal.
 
 ## The script
 
@@ -125,13 +110,6 @@ for id in $ids; do
   case "$status" in
     passed)
       echo "  PASS  $id  $detail"
-      ;;
-    cancelled)
-      # Somebody stopped this run by hand. Not a verdict, and not a build
-      # failure — see "What to gate on" for why, and for when to move this
-      # line down into the catch-all instead.
-      echo "  STOP  $id  stopped before it finished"
-      echo "        $QASSIST_URL/runs/$id"
       ;;
     *)
       echo "  FAIL  $id  [$status] $detail"

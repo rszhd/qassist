@@ -1,14 +1,14 @@
 # Writing a goal
 
-A goal is the whole test. It tells the agent what to do *and* it is what the
-judge checks at the end, so a badly written goal does not fail loudly — it
-passes on something you did not mean.
+A goal is the whole test. It tells the agent what to do, and it is what the
+judge checks at the end. A vague goal may therefore pass while proving the
+wrong thing.
 
 ## The one rule: describe the outcome, not the clicks
 
-The judge can only check what the goal claims. A goal that describes actions
-gives it nothing to check, so the run "succeeds" the moment the actions are
-performed, whatever they produced.
+The judge can only check what the goal claims. A goal that describes only an
+action gives it no outcome to verify, so the run may succeed once the action is
+performed, regardless of what it produced.
 
 ::: danger Describes clicking
 Click the blue Add to cart button
@@ -43,9 +43,9 @@ so it survives a redesign — which is the point of writing tests this way at al
 
 ## One goal, one thing
 
-A goal with four unrelated checks in it fails as a unit and tells you very
-little: something among the four did not happen. Four goals fail individually
-and name themselves.
+A goal with four unrelated checks fails as a unit and tells you very little:
+something among the four did not happen. Four focused goals fail individually
+and name the broken behavior.
 
 The natural size is *one user-visible outcome and whatever navigation it takes
 to reach it*. When a goal starts needing "and then", it is usually two tests —

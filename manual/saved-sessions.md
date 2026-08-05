@@ -24,11 +24,11 @@ paying for it in steps.
 
 ### Three ways to fill one
 
-**Nominate a login test** — the route for everyone, and the whole answer for an
-ordinary username-and-password login. Create the session, point it at a saved
-test whose job is to log in, and put the credentials in as [secret
+**Nominate a login test** — the usual route for an ordinary
+username-and-password login. Create the session, point it at a saved test whose
+job is to log in, and store the credentials as [secret
 variables](./variables.md). The next **passing** run of that test captures the
-resulting state into the session.
+resulting state.
 
 Nothing is installed and no terminal is involved: the agent does the login. And
 because you can already [schedule](./schedules.md) that test nightly, "the
@@ -96,9 +96,23 @@ confirmation code or link and type it — for up to three minutes. One mailbox
 serves many signups through plus-addressing (`inbox+qa-<tag>@example.com`) or a
 catch-all domain.
 
-The fetched code goes through the same redaction as a
-[secret](./variables.md#secrets): the model only ever sees a placeholder, and the
-real value is stripped from the steps, the frames and the report.
+On a self-hosted instance, add the mailbox credentials to `.env` and restart:
+
+```dotenv
+QA_IMAP_USER=qa.inbox@example.com
+QA_IMAP_PASSWORD=an-app-password
+# Optional for a catch-all domain:
+QA_MAILBOX_DOMAIN=qa.example.com
+```
+
+The defaults are Gmail IMAP on port 993 and the `INBOX` folder. Other providers
+can use `QA_IMAP_HOST`, `QA_IMAP_PORT`, and `QA_IMAP_FOLDERS`. Use a dedicated
+test mailbox: the configured credential can read everything in it. On a hosted
+instance, the operator owns this configuration.
+
+The fetched code goes through the same structured-output redaction as a
+[secret](./variables.md#secrets): the model uses a placeholder, and QAssist
+strips the real value from the goal, Activity, diagnostics, and report text.
 
 ::: warning The mailbox is instance-wide
 There is one slot: no per-project mailbox and no way to give two projects
@@ -123,24 +137,17 @@ like any other secret. This is also the only shape that repeats daily.
 
 ## Social login
 
-**It works, through a saved session** — and only because the session does the one
-thing the agent cannot.
-
-From a cold browser it is impossible, permanently. The agent clicks "Continue
-with Google", lands on the provider's page, and has to type a Google password
-into the one form Google refuses to serve to an automated browser. Nothing on
-this side fixes that.
-
-What makes it work is that a saved session need not be a session for *your* app.
-It can be a session for **the provider**, and which one you save decides what the
-run can test:
+A cold automated browser is a poor place to start a social login. Providers may
+refuse the sign-in form, challenge the browser, or require a CAPTCHA. A saved
+session lets you avoid that cold login, but the state you capture determines
+what the run can reliably test:
 
 | What you save | What the run can do |
 |---|---|
-| **Your app's signed-in state** (log in via Google by hand, then capture) | Starts past the login and never clicks the button. This is what you want for testing what is behind the wall — which is most tests, most of the time. |
-| **The provider's signed-in state** (sign in at the provider, then capture) | Starts signed in to Google but signed out of your app. The agent clicks "Continue with Google" and completes the handshake for real, because the provider recognises the session and shows only the account chooser and consent screen. Use this to test the social login flow itself. |
+| **Your app's signed-in state** (log in through the provider by hand, then capture) | Starts past login and never clicks the social button. This is the reliable choice for testing what is behind the wall. |
+| **The provider's signed-in state** (sign in at the provider, then capture) | May let the agent test the chooser, consent, and callback flow without typing a password. Provider behavior varies; do not assume the session will replay successfully. In testing, Google still returned a cold sign-in form. |
 
-Four things to know before relying on either:
+Four things to know before relying on either approach:
 
 **The [navigation fence](./navigation-fence.md) blocks the provider.** If your
 project has an allowlist set to your own domain, the hop to the provider is
@@ -150,11 +157,9 @@ hole in the fence is not a fence, and this is the one setting standing between a
 run and a browser signed in to a real account.
 
 **A provider identity is one-shot against your app.** The first run signs up;
-every rerun lands on "welcome back" instead of the registration funnel — and
-still passes, while no longer testing what its name says. This is the sharp edge
-because it fails silently. Testing signup rather than what is behind it needs a
-pool of provider accounts or a reset hook that deletes the test user between
-runs, and neither exists yet.
+later runs may land on "welcome back" instead of the registration funnel and
+still satisfy a loosely written goal. To test signup repeatedly, you need a pool
+of provider accounts or your own reset hook; QAssist supplies neither.
 
 **Plus-addressing does not multiply identities.** It gives one mailbox many
 addresses, which is how the email route gets many signups from one inbox. Social
@@ -168,13 +173,11 @@ reach.
 
 ## What is out of reach
 
-- **The agent typing a provider password.** Providers block sign-in from
-  automated browsers. This is not a gap waiting to be closed — it is the reason
-  session reuse exists.
+- **Reliable provider-password entry.** Providers commonly block or challenge
+  automated sign-in. Session reuse exists to avoid depending on that path.
 - **CAPTCHA and bot detection.** Out of scope. Social login makes an encounter
   *more* likely, not less.
-- **A Google session replayed from an automated browser.** Confirmed by
-  measurement: a captured session with every cookie a real login sets still
-  rendered a cold sign-in form when replayed. Reuse still works for *your app's*
-  session, where the button is never clicked; it is specifically the
-  provider-only variant — testing the handshake itself — that Google blocks.
+- **A dependable provider-only Google session.** In QAssist's test, replaying a
+  captured Google session still produced a cold sign-in form. Capturing your
+  app's already-authenticated state remains useful because that route never
+  revisits Google.

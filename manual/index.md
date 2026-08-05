@@ -21,23 +21,23 @@ hero:
 
 features:
   - title: No selectors to maintain
-    details: A test is a sentence, not a script. When the button moves or the class name changes, the agent still finds it — there is nothing to update.
+    details: A test is a sentence, not a script. When a button moves or a class name changes, the agent can still find it without a selector rewrite.
   - title: You watch it happen
-    details: The browser session streams to the page while the run works, at about six frames a second, and is recorded so you can watch it back later.
+    details: The browser session streams to the page while the run works and, when recording is enabled, can be watched again later.
   - title: A verdict with reasons
-    details: Every run ends passed or failed with a written rationale, the step list the agent took, and the failed requests and console errors the page produced.
+    details: A finished run records its status, a written summary, the agent's activity, and any failed requests or console errors the page produced.
   - title: Yours to run
-    details: Self-hosting is free, for anything, forever. Model tokens are bring-your-own on every tier, so the only bill is the one you already have.
+    details: Self-hosting is free, for anything, forever. Model tokens are bring-your-own on every tier, so you keep control of model spend.
 ---
 
 ## What this manual covers
 
-This is the manual for **using** QAssist. It follows the path a test actually
-takes: one goal typed into a box, then the same goal saved, grouped, given
-credentials, scheduled, and finally gating a deploy.
+This is the manual for **using** QAssist. It follows the path a test usually
+takes: write one goal, save it, group it, give it credentials, schedule it, and
+eventually use it to gate a deploy.
 
-- **New here?** [Your first run](./first-run.md) gets you a verdict in about
-  five minutes, whether you are on a hosted instance or your own box.
+- **New here?** [Your first run](./first-run.md) gets you from a ready instance
+  to a verdict in about five minutes.
 - **A run keeps failing and you think it shouldn't?**
   [Writing a goal](./writing-goals.md) is almost always the answer, and
   [When a run goes wrong](./troubleshooting.md) covers the rest.
