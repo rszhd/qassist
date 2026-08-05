@@ -162,6 +162,7 @@ live in [`docs/repo-model.md`](../docs/repo-model.md). Email provider: **Resend*
 | [US-045](unscheduled/US-045-model-provider-choice.md) | Bring your own key, to your own provider (incl. local) | 📋 Planned | P2 | US-005, US-039 |
 | [US-062](unscheduled/US-062-live-browser-test-tier.md) | A test tier that drives a real browser | 📋 Planned | P2 | US-034, US-042, US-043, US-048 |
 | [US-072](unscheduled/US-072-landing-page-astro-and-self-hosted.md) | The landing page, onto the box and off React | ⏸️ Unscheduled 2026-08-05 | P2 | US-007, US-070 |
+| [US-073](unscheduled/US-073-typed-run-and-ndjson-events.md) | Type the run object and the NDJSON events | 📋 Planned | P2 | — |
 | [US-015](unscheduled/US-015-horizontal-scaling-100-concurrent.md) | Horizontal scaling to ~100 concurrent | 📋 Planned | P3 | US-005, US-009 |
 | [US-014](unscheduled/US-014-block-heavy-resources.md) | Block heavy page resources | 📋 Planned | P3 | — |
 | [US-046](unscheduled/US-046-token-usage-and-cost.md) | What did that run cost? (token usage + cost) | 📋 Planned | P3 | US-039 |
@@ -171,6 +172,8 @@ live in [`docs/repo-model.md`](../docs/repo-model.md). Email provider: **Resend*
 | [US-068](unscheduled/US-068-module-level-notification-prefs.md) | A module can say who hears about it | 📋 Planned | P3 | US-012, US-023 |
 | [US-061](unscheduled/US-061-evidence-in-the-judges-context.md) | The judge sees the 500 (was US-044's deferred tier 2) | 📋 Planned | P3 | US-041, US-044, US-046 |
 | [US-059](unscheduled/US-059-otp-and-social-login-in-tested-flows.md) | OTP and social login in a tested flow (was US-013 tiers 2–3) | ⏸️ Unscheduled 2026-08-04 — TOTP and SMS code removed, needs replanning | P3 | US-013 tier 1, US-043, US-035 |
+| [US-074](unscheduled/US-074-run-agent-pure-logic-extracted.md) | `run_agent.py`: move the pure logic where the tests can reach it | 📋 Planned | P3 | — |
+| [US-075](unscheduled/US-075-orchestrators-split-along-seams.md) | The two run orchestrators shrink to their subject | 📋 Planned | P3 | US-073 |
 | [US-016](unscheduled/US-016-desktop-shell.md) | Desktop shell (Electron) | 📋 Planned | TBD | — |
 | [US-017](unscheduled/US-017-frozen-python-agent.md) | Frozen Python agent (no system Python) | 📋 Planned | TBD | US-016 |
 | [US-018](unscheduled/US-018-first-run-setup.md) | First-run setup: Chromium download + BYOK settings | 📋 Planned | TBD | US-016 |
@@ -185,7 +188,8 @@ use; US-060..US-062 (2026-07-28) out of reading every story in `done/` for
 tiered scope that closed at tier 1 and left the rest with no owner — each was
 deferred against a condition that has since been met, which is exactly what a
 closed file cannot notice. Nothing else in `done/` carries unowned tiered
-scope. The desktop track (US-016..019) is on hold; its strategy is in US-016.
+scope. US-073..US-075 (2026-08-05) out of a code-health review: no defects,
+three places where future mistakes cost more than they should. The desktop track (US-016..019) is on hold; its strategy is in US-016.
 
 US-041 and US-049 will owe rows in
 [`correctness-critical.md`](correctness-critical.md) when the work happens —
