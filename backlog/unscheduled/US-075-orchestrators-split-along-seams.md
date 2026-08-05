@@ -27,6 +27,12 @@ two run orchestrators are 3× over (2026-08-05):
   event switch in `handleEvent` — a reducer in disguise. A `useRun` hook
   (reducer + WS lifecycle) would leave the view holding layout.
 
+The size also has a session cost beyond review speed: an AI coding session
+must read the whole file to change one concern, so every runs task starts
+~10–15k tokens deep (2026-08-05 assessment). The split repays that on every
+future session, which is an argument for scheduling this earlier than its
+severity alone suggests.
+
 ## Constraints
 
 - `server/CLAUDE.md`: "the engine stays `src/runs.js`" — read here as
