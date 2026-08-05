@@ -68,6 +68,33 @@ def blocked_url_in(failure):
     return match.group(1) if match else None
 
 
+def new_blocks(errors, reported):
+    """The refusals in `errors` that have not been announced yet, in order.
+
+    `errors` is browser-use's history shape: one entry per step, each entry a
+    list of that step's messages, a bare message, or None where the step had
+    none. SecurityWatchdog refuses inside the navigate action rather than by
+    taking the run down, so this is where the evidence ends up and the whole
+    history is re-scanned at every step.
+
+    Which is why `reported` is a set the caller carries for the run and this
+    function ADDS to: a fence that keeps refusing the same URL appears in the
+    history at every step from then on, and the operator needs to be told once.
+    The sweep after the run reads the same set, so a block a step already
+    announced is not announced again at the end.
+    """
+    found = []
+    for entry in errors or []:
+        messages = entry if isinstance(entry, (list, tuple)) else [entry]
+        for message in messages:
+            blocked = blocked_url_in(str(message or ""))
+            if not blocked or blocked in reported:
+                continue
+            reported.add(blocked)
+            found.append(blocked)
+    return found
+
+
 def _flag_on(raw):
     return (raw or "").strip().lower() not in _OFF
 

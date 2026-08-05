@@ -123,6 +123,19 @@ wrong promotion inside the same timeout the busy box produces.
   replays canned NDJSON transcripts through the real engine, no browser). What
   stays untested is the Chromium-driving core proper — the part that genuinely
   needs a browser to exercise.
+
+  **The boundary moves by extraction, not by mocking a browser**
+  ([US-074](../backlog/unscheduled/US-074-run-agent-pure-logic-extracted.md)).
+  `run_agent.py` imports `browser_use` at module top, so the host can never
+  import it and nothing defined inside it is reachable by an assertion. The
+  policy is therefore: when a change touches logic in that file that does not
+  itself need a browser, it moves to a stdlib-only module *first*, the assertion
+  goes on the module, and only then is the change made. Where the logic and the
+  browser genuinely interleave, the browser half becomes an injected callable
+  and the module owns the rest — `session_recorder.py` takes a
+  `start_service(frame)` from run_agent.py and keeps the sampling, and
+  `step_events.callback` takes its three collaborators the same way. Each of
+  those seams exists because it is the only place an assertion can stand.
 - **Deep frontend interaction.** `status.js` helpers are unit-tested and a
   jsdom mount-smoke test now renders the shell and the run-detail card
   (`App.test.jsx`, `RunDetail.test.jsx`, US-034) to catch render-time breaks the

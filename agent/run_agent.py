@@ -5,11 +5,12 @@ line to the browser over a WebSocket. One JSON object per line, flushed
 immediately so the UI updates live.
 
 THE EVENT SHAPES LIVE IN `server/src/runEvents.js`, one typedef apiece, and
-that file is the only place they are written down. This module is their
-author, so a new field or a renamed one starts in `emit(...)` below and lands
-there in the same commit — which is what makes `npm run check` in server/ fail
-for a relay or a viewer still reading the old shape. Restating them here would
-give the protocol a second, unchecked copy, and the two would drift.
+that file is the only place they are written down. This module is their author
+— with `step_events.py` for the `step` event — so a new field or a renamed one
+starts at the `emit(...)` call site and lands there in the same commit, which is
+what makes `npm run check` in server/ fail for a relay or a viewer still reading
+the old shape. Restating them here would give the protocol a second, unchecked
+copy, and the two would drift.
 
 Three obligations a typedef cannot state, all of them this file's to keep —
 `docs/architecture.md` section 4.3 says why each one is there:
@@ -75,7 +76,9 @@ import exit_watchdog
 import fixtures
 import navigation_policy
 import secret_vars
+import step_events
 import browser_session
+from session_recorder import RECORD_FILENAME, RECORD_FPS, SessionRecorder
 
 # Screencast tuning — keep bandwidth modest so stdout never backs up.
 FRAME_FORMAT = "jpeg"
@@ -88,10 +91,8 @@ FRAME_MIN_INTERVAL = 1 / 6  # cap emitted frames to ~6 fps
 # viewer gating already owns it, so we encode the recording off the same frame
 # stream rather than setting BrowserProfile.record_video_dir — browser-use's
 # RecordingWatchdog would otherwise fight us over start/stopScreencast. Only
-# its encoder service is reused.
-RECORD_FILENAME = "recording.mp4"
-RECORD_FPS = 3  # sample rate and video framerate — reviewable, cheap to encode
-RECORD_MIN_INTERVAL = 1 / RECORD_FPS
+# its encoder service is reused, by `start_recorder_service` below; the
+# sampling and lifecycle around it are session_recorder.py's.
 
 # Full network archive (US-044), opt-in via QA_HAR=1. Written by the browser
 # itself, headers and bodies omitted — see the profile kwargs in main().
@@ -125,43 +126,21 @@ def safe(fn, default=None):
         return default
 
 
-class SessionRecorder:
-    """Encodes sampled screencast frames into <run dir>/recording.mp4.
+def recorder_for(output_path: str) -> SessionRecorder:
+    """A recorder for this run, and the encoder it starts on its first frame.
 
-    Sized from the first frame, so the video keeps the browser's aspect ratio
-    without a per-frame resize. Chromium only emits a screencast frame when
-    the page repaints, so the result is a condensed replay of the session, not
-    a wall-clock one. Encoding is synchronous (as in browser-use's own
-    watchdog) — at RECORD_FPS that costs a few ms per frame.
+    Everything browser-use knows about a recording is the closure below;
+    session_recorder.py owns when it is called and what happens either side.
+    It reads None as "no recording, and the operator has already been told", so
+    every way this can fail says so before returning it.
     """
 
-    def __init__(self, output_path: str) -> None:
-        self.output_path = output_path
-        self._svc: VideoRecorderService | None = None
-        self._tried_start = False
-        self._closed = False
-        self._last_add = 0.0
-        self.frames = 0
-
-    def add(self, frame_b64: str) -> None:
-        now = time.monotonic()
-        if self._closed or now - self._last_add < RECORD_MIN_INTERVAL:
-            return
-        self._last_add = now
-        if not self._tried_start:
-            self._tried_start = True
-            self._svc = self._start(frame_b64)
-        if self._svc is None:
-            return
-        self._svc.add_frame(frame_b64)
-        self.frames += 1
-
-    def _start(self, frame_b64: str) -> VideoRecorderService | None:
+    def start_service(frame_b64: str) -> VideoRecorderService | None:
         try:
             with Image.open(io.BytesIO(base64.b64decode(frame_b64))) as img:
                 size = ViewportSize(width=img.width, height=img.height)
-            os.makedirs(os.path.dirname(self.output_path), exist_ok=True)
-            svc = VideoRecorderService(Path(self.output_path), size=size, framerate=RECORD_FPS)
+            os.makedirs(os.path.dirname(output_path), exist_ok=True)
+            svc = VideoRecorderService(Path(output_path), size=size, framerate=RECORD_FPS)
             svc.start()
         except Exception as e:
             emit({"type": "warn", "message": f"recording unavailable: {type(e).__name__}: {e}"})
@@ -171,14 +150,7 @@ class SessionRecorder:
             return None
         return svc
 
-    def stop(self) -> bool:
-        """Finalize the file. Blocking — call via asyncio.to_thread."""
-        self._closed = True  # stragglers after stopScreencast must not reopen it
-        if self._svc is None:
-            return False
-        self._svc.stop_and_save()
-        self._svc = None
-        return self.frames > 0 and os.path.exists(self.output_path)
+    return SessionRecorder(output_path, start_service)
 
 
 async def stdin_control(agent, watch_event: asyncio.Event, stop_event: asyncio.Event) -> None:
@@ -449,10 +421,15 @@ async def main() -> int:
     artifacts_dir = os.environ.get("ARTIFACTS_DIR")
     run_started = time.monotonic()
 
+    # Where this run's durable artifacts go — the recording and the per-step
+    # screenshots. None when the server named neither, which is only ever a
+    # direct invocation of this script.
+    run_dir = os.path.join(artifacts_dir, run_id) if run_id and artifacts_dir else None
+
     # Record every run by default: the recording is part of the deliverable.
     recorder = None
-    if run_id and artifacts_dir and os.environ.get("QA_RECORD", "1") != "0":
-        recorder = SessionRecorder(os.path.join(artifacts_dir, run_id, RECORD_FILENAME))
+    if run_dir and os.environ.get("QA_RECORD", "1") != "0":
+        recorder = recorder_for(os.path.join(run_dir, RECORD_FILENAME))
 
     # --- email confirmation (US-013 tier 1), enabled when a mailbox is configured ---
     # Secrets (generated password, fetched code/link) go through browser-use
@@ -564,62 +541,27 @@ async def main() -> int:
         set the allowlist needs to see that it fired, so it is surfaced live.
         Never allowed to raise: a reporting bug must not cost a run.
         """
-        found = []
         try:
-            errors = safe(agent.history.errors, []) or []
+            errors = safe(agent.history.errors, [])
         except Exception:
-            return found
-        for entry in errors:
-            for message in entry if isinstance(entry, (list, tuple)) else [entry]:
-                blocked = navigation_policy.blocked_url_in(str(message or ""))
-                if not blocked or blocked in reported_blocks:
-                    continue
-                reported_blocks.add(blocked)
-                found.append(blocked)
-                event = {"type": "blocked", "url": blocked, "reason": "navigation_blocked"}
-                if step_number is not None:
-                    event["step"] = step_number
-                emit(event)
+            return []
+        found = navigation_policy.new_blocks(errors, reported_blocks)
+        for blocked in found:
+            event = {"type": "blocked", "url": blocked, "reason": "navigation_blocked"}
+            if step_number is not None:
+                event["step"] = step_number
+            emit(event)
         return found
 
-    async def on_step(browser_state, agent_output, step_number):
-        try:
-            report_blocks(step_number)
-            # Hand over what the previous step turned up, then move the
-            # attribution on: this callback reports the goal the agent is *about*
-            # to pursue, so everything the browser says from here belongs to
-            # `step_number`. set_step also refreshes the per-step cap budget,
-            # which is what stops a chatty first step silencing the one that fails.
-            flush_diagnostics()
-            diag.set_step(step_number)
-            url = scrub(getattr(browser_state, "url", None), sensitive)
-
-            # Save a durable per-step screenshot for the PDF report (separate
-            # from the ephemeral live screencast frames).
-            screenshot_file = None
-            shot_b64 = getattr(browser_state, "screenshot", None)
-            if shot_b64 and run_id and artifacts_dir:
-                try:
-                    run_dir = os.path.join(artifacts_dir, run_id)
-                    os.makedirs(run_dir, exist_ok=True)
-                    screenshot_file = f"step_{step_number}.png"
-                    with open(os.path.join(run_dir, screenshot_file), "wb") as f:
-                        f.write(base64.b64decode(shot_b64))
-                except Exception:
-                    screenshot_file = None
-
-            emit({
-                "type": "step",
-                "step": step_number,
-                "elapsed": round(time.monotonic() - run_started, 1),
-                "url": url,
-                "evaluation": scrub(getattr(agent_output, "evaluation_previous_goal", None), sensitive),
-                "next_goal": scrub(getattr(agent_output, "next_goal", None), sensitive),
-                "thinking": scrub(getattr(agent_output, "thinking", None), sensitive),
-                "screenshot_file": screenshot_file,
-            })
-        except Exception as e:
-            emit({"type": "warn", "message": f"step callback error: {e}"})
+    on_step = step_events.callback(
+        emit=emit,
+        report_blocks=report_blocks,
+        flush_diagnostics=flush_diagnostics,
+        set_step=diag.set_step,
+        run_dir=run_dir,
+        sensitive=sensitive,
+        run_started=run_started,
+    )
 
     # Full HAR (US-044), opt-in. The always-on artifact is the curated summary
     # above; this is the archive, and it is the one thing here `scrub` cannot
@@ -628,11 +570,10 @@ async def main() -> int:
     # no `Cookie`) and no bodies unless someone deliberately asks. It lives in
     # runs/<id>/, so ARTIFACT_RETENTION_DAYS prunes it with everything else.
     har_kwargs = {}
-    if run_id and artifacts_dir and os.environ.get("QA_HAR", "0") == "1":
-        har_path = os.path.join(artifacts_dir, run_id, HAR_FILENAME)
-        os.makedirs(os.path.dirname(har_path), exist_ok=True)
+    if run_dir and os.environ.get("QA_HAR", "0") == "1":
+        os.makedirs(run_dir, exist_ok=True)
         har_kwargs = {
-            "record_har_path": har_path,
+            "record_har_path": os.path.join(run_dir, HAR_FILENAME),
             "record_har_content": "omit",
             "record_har_mode": "minimal",
         }

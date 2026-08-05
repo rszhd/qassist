@@ -153,7 +153,9 @@ and the run-start middleware. Endpoint-by-endpoint documentation is
 
 | Module | Owns |
 |---|---|
-| [`run_agent.py`](../agent/run_agent.py) | One run: browser-use `Agent`, the screencast, the recorder, the callbacks, the terminal event. |
+| [`run_agent.py`](../agent/run_agent.py) | One run: browser-use `Agent`, the screencast, the CDP hookup, the callbacks' wiring, the terminal event. Everything left in it needs a browser (US-074). |
+| [`step_events.py`](../agent/step_events.py) | The `step` event and the durable screenshot, and the order a step boundary does them in. |
+| [`session_recorder.py`](../agent/session_recorder.py) | Which screencast frames reach the encoder, and the recording's lifecycle around it. |
 | [`make_report.py`](../agent/make_report.py) | `report_data.json` → HTML → PDF, rendered by the same Chromium. |
 | [`report_format.py`](../agent/report_format.py) | Pure formatters for that HTML. |
 | [`diagnostics.py`](../agent/diagnostics.py) | Failed requests, console errors and exceptions — capped, deduplicated, scrubbed. |

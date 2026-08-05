@@ -142,3 +142,84 @@ class TestFailureReason:
         # A goal like "check the page blocked by security policy renders" must
         # not manufacture a fence event out of the agent's own prose.
         assert np.failure_reason_for("AssertionError: expected 'blocked by security policy'") is None
+
+
+def refusal(url):
+    return f"ValueError: Navigation to {url} blocked by security policy"
+
+
+class TestNewBlocks:
+    """The scan-dedup half of run_agent.py's `report_blocks`.
+
+    SecurityWatchdog refuses inside the navigate action, so the evidence lands
+    in browser-use's error history and stays there. The whole history is
+    re-scanned at every step boundary and once more after the run, which is what
+    makes the `reported` set load-bearing rather than an optimisation.
+    """
+
+    def test_a_refusal_is_found_and_recorded(self):
+        reported = set()
+        assert np.new_blocks([[refusal("http://169.254.169.254/")]], reported) == [
+            "http://169.254.169.254/"
+        ]
+        assert reported == {"http://169.254.169.254/"}
+
+    def test_the_same_refusal_is_announced_once_across_scans(self):
+        # The failure this guards is noise that hides the signal. A fenced
+        # navigation the agent keeps retrying stays in the history from the step
+        # it happened onwards, so a scan without the set emits a `blocked` event
+        # per step per refusal — and the operator who needs to see that the
+        # allowlist fired sees a wall instead.
+        reported = set()
+        history = [[refusal("http://10.0.0.5/")]]
+        assert np.new_blocks(history, reported) == ["http://10.0.0.5/"]
+        history.append([refusal("http://10.0.0.5/")])
+        assert np.new_blocks(history, reported) == []
+        assert np.new_blocks(history, reported) == []
+
+    def test_the_final_sweep_finds_what_no_step_reached(self):
+        # A block on the last step, or one that took the run down, has no later
+        # step callback to announce it. The sweep after the run reads the same
+        # set, so it reports that one and repeats none of the earlier ones.
+        reported = set()
+        np.new_blocks([[refusal("http://10.0.0.5/")]], reported)
+        late = [[refusal("http://10.0.0.5/")], [refusal("http://metadata.internal/")]]
+        assert np.new_blocks(late, reported) == ["http://metadata.internal/"]
+
+    def test_distinct_refusals_are_all_reported_in_order(self):
+        reported = set()
+        history = [
+            [refusal("http://a.internal/")],
+            [refusal("http://b.internal/"), refusal("http://c.internal/")],
+        ]
+        assert np.new_blocks(history, reported) == [
+            "http://a.internal/", "http://b.internal/", "http://c.internal/"
+        ]
+
+    def test_a_bare_message_is_scanned_like_a_list(self):
+        # browser-use's history holds a list per step, but an entry arrives as a
+        # bare string often enough that treating it as an iterable of characters
+        # would silently find nothing at all.
+        reported = set()
+        assert np.new_blocks([refusal("http://a.internal/")], reported) == ["http://a.internal/"]
+
+    def test_empty_steps_and_ordinary_failures_yield_nothing(self):
+        reported = set()
+        history = [None, [], [None], ["TimeoutError: page load timed out"], "", [""]]
+        assert np.new_blocks(history, reported) == []
+        assert reported == set()
+
+    def test_no_history_at_all_is_not_an_error(self):
+        # `safe(agent.history.errors, [])` resolves to the default on a run that
+        # crashed before browser-use had a history, and this is called from a
+        # path that must never raise.
+        for absent in (None, [], ()):
+            assert np.new_blocks(absent, set()) == []
+
+    def test_prose_quoting_the_phrase_is_not_a_refusal(self):
+        # The same guard as `blocked_url_in`, asserted through the loop that
+        # feeds the `blocked` event: an agent narrating a fenced page must not
+        # manufacture one.
+        reported = set()
+        history = [["AssertionError: expected 'blocked by security policy'"]]
+        assert np.new_blocks(history, reported) == []
