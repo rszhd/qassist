@@ -41,12 +41,24 @@ services:
       - traefik.http.routers.${COMPOSE_PROJECT_NAME}.rule=Host(`${DOCS_HOST:?set DOCS_HOST}`)
       - traefik.http.routers.${COMPOSE_PROJECT_NAME}.entrypoints=websecure
       - traefik.http.routers.${COMPOSE_PROJECT_NAME}.tls.certresolver=le
-      - traefik.http.routers.${COMPOSE_PROJECT_NAME}.middlewares=${COMPOSE_PROJECT_NAME}-robots@docker
+      # Robots first, so it is outermost and stamps the header on whatever comes
+      # back — including the error page the second one substitutes.
+      - traefik.http.routers.${COMPOSE_PROJECT_NAME}.middlewares=${COMPOSE_PROJECT_NAME}-robots@docker,${COMPOSE_PROJECT_NAME}-404@docker
       - traefik.http.services.${COMPOSE_PROJECT_NAME}.loadbalancer.server.port=80
       # The manual exists to be the one link you send someone, so unlike staging
       # it is meant to be indexed. Still a value rather than a constant: a fork
       # serving its own copy sets "noindex, nofollow" here.
       - traefik.http.middlewares.${COMPOSE_PROJECT_NAME}-robots.headers.customresponseheaders.X-Robots-Tag=${ROBOTS_TAG:-all}
+      # `cleanUrls: false` means a URL typed without `.html` is a 404, and stock
+      # nginx answers those with its own page — so the styled 404 VitePress
+      # builds, the one carrying the nav and the search box, was never served.
+      # Fixed at the proxy rather than with an `nginx.conf`, which is the thing
+      # this stack exists without: Traefik re-fetches the body from the same
+      # service and keeps the 404 status. The proxy needs no change either — it
+      # reads these off the container like every other label.
+      - traefik.http.middlewares.${COMPOSE_PROJECT_NAME}-404.errors.status=404
+      - traefik.http.middlewares.${COMPOSE_PROJECT_NAME}-404.errors.service=${COMPOSE_PROJECT_NAME}@docker
+      - traefik.http.middlewares.${COMPOSE_PROJECT_NAME}-404.errors.query=/404.html
     restart: unless-stopped
 
   # Long-lived rather than a cron: the clone and node_modules are what make a
