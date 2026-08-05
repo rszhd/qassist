@@ -10,9 +10,16 @@ browser.
 No password ever reaches QAssist. The extension never sees one either — it
 reads the cookies and local storage a signed-in tab already holds.
 
-## Install (unpacked — no store listing required)
+## Install from the Chrome Web Store
 
-This is the only install path today; see "What's not done" below.
+[QAssist Session Capture](https://chromewebstore.google.com/detail/qassist-session-capture/jnciafjeefejhpgohapjjejoijfmaffp)
+— live since 2026-08-04 (US-066). This is the path for anyone who is not
+changing the extension's code.
+
+## Install (unpacked)
+
+For working on the extension itself, or for a self-hoster who would rather run
+their own build than the published one.
 
 1. Open `chrome://extensions` (or the equivalent in any Chromium browser).
 2. Turn on **Developer mode** (top right).
@@ -126,11 +133,6 @@ to — the guard is a deliberate stop, not a lock.
 
 ## What's not done
 
-- **No store listing yet.** This ships side-loaded only. The package, icons,
-  privacy policy and every listing field are prepared (US-066); what is left
-  is a developer account, screenshots and Google's review. Side-loading stays
-  documented above whatever the review decides — a self-hoster building their
-  own copy still needs it.
 - **No automated test of the chrome.* glue** — permission prompts,
   `chrome.identity`, `chrome.scripting`, the popup's screens. There's no
   puppeteer-loads-unpacked-extension harness in this repo, and building one

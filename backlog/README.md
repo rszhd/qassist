@@ -67,7 +67,6 @@ Sprints aren't split along a self-host/hosted-tier line — `sprint/current/` an
 |---|---|---|---|
 | [US-056](sprint/current/US-056-production-deployment.md) | Production deployment: `app.qassist.run` goes live | 🔨 **Live** 2026-07-29 on `v0.3.0`, 4/10 — the rest need a sign-in, live Stripe keys, or a decision | US-007, US-038, US-052 |
 | [US-020](sprint/current/US-020-report-v2-screenshots-recording.md) | Report v2: step screenshots + recording | 📋 Planned — P2 | US-006 |
-| [US-066](sprint/current/US-066-chrome-web-store-listing.md) | List the session-capture extension on the Chrome Web Store | ⏳ **Submitted** 2026-08-03, 5/6 — `0.1.1` in review; the last criterion is Google's answer | US-063 |
 | [US-070](sprint/current/US-070-user-manual-site.md) | A user manual, deployed off the chain (`docs.qassist.run`) | 🔨 **Live** 2026-08-05, 9/11 | US-007, US-055 |
 | [US-071](sprint/current/US-071-one-command-deploy.md) | One command deploys a stack, and proves which one it deployed | 📋 Planned — P1 | US-052, US-055, US-056 |
 
@@ -79,6 +78,7 @@ Sprints aren't split along a self-host/hosted-tier line — `sprint/current/` an
 | [US-073](sprint/current/done/US-073-typed-run-and-ndjson-events.md) | Type the run object and the NDJSON events | ✅ **Done** 2026-08-05, 5/5 | — |
 | [US-075](sprint/current/done/US-075-orchestrators-split-along-seams.md) | The two run orchestrators shrink to their subject | ✅ **Done** 2026-08-05, 4/4 | US-073 (shipped without it) |
 | [US-024](sprint/current/done/US-024-memory-watchdog-pss-metric.md) | Memory watchdog: measure PSS, not summed RSS | ✅ **Done** 2026-08-05, 4/4 | — |
+| [US-066](sprint/current/done/US-066-chrome-web-store-listing.md) | List the session-capture extension on the Chrome Web Store | ✅ **Live** 2026-08-04, 6/6 | US-063 |
 | [US-069](sprint/current/done/US-069-schedule-health-strip.md) | The last few nights, at a glance (pass/fail strip on the Schedules row) | ✅ **Done** 2026-08-04, 11/12 | US-010, US-011 |
 | [US-057](sprint/current/done/US-057-html-email-template.md) | An HTML template for outgoing email | ✅ **Done** 2026-08-04, 5/5 | — |
 | [US-067](sprint/current/done/US-067-mobile-app-view.md) | The app on a phone | ✅ **Done** 2026-08-03, 8/8 | US-025, US-030 |

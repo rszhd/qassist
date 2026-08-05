@@ -3,7 +3,13 @@
 Everything the Developer Dashboard asks for, written once so a submission is a
 paste rather than a fresh draft — and so a rejection can be answered by editing
 a tracked file. The extension itself is `extension/`; the story is
-[US-066](../backlog/sprint/current/US-066-chrome-web-store-listing.md).
+[US-066](../backlog/sprint/current/done/US-066-chrome-web-store-listing.md).
+
+**Live since 2026-08-04** as item `jnciafjeefejhpgohapjjejoijfmaffp`
+(<https://chromewebstore.google.com/detail/qassist-session-capture/jnciafjeefejhpgohapjjejoijfmaffp>),
+version `0.1.1`, approved with no rejection round. This file stays the current
+submission: an update is edited here first and then pasted, so what the store
+shows and what the repo says are the same words.
 
 ## Prerequisites
 

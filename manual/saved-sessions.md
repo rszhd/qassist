@@ -41,9 +41,11 @@ login must not destroy the working credential it was meant to renew.
 
 **Capture with the browser extension** — for logins a test structurally cannot
 drive, chiefly [social login](#social-login), and for anyone who would rather not
-open a terminal. Side-load the extension, sign in to the site by hand in a tab
-you already have open, and it reads the cookies and local storage and posts them
-to your instance.
+open a terminal. Install [QAssist Session
+Capture](https://chromewebstore.google.com/detail/qassist-session-capture/jnciafjeefejhpgohapjjejoijfmaffp)
+from the Chrome Web Store, sign in to the site by hand in a tab you already have
+open, and it reads the cookies and local storage and posts them to your
+instance.
 
 The extension has no QAssist login of its own. You mint a short-lived, single-use
 **setup code** for exactly one session, paste it into the extension, and it fills

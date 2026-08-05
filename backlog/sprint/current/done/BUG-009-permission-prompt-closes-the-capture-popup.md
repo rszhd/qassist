@@ -37,7 +37,7 @@ permission, and the failure only exists on the first attempt for a given site.
 It defeats the first capture every user ever attempts, and it reads as "the
 extension does not work". It also undermines the verification US-063 closed
 on. It blocks nothing in
-[US-066](../US-066-chrome-web-store-listing.md), but spending a
+[US-066](US-066-chrome-web-store-listing.md), but spending a
 store review cycle on a build with this in it would waste the slowest resource
 in that story.
 
@@ -68,7 +68,7 @@ goes straight from memory into the POST, as US-063 promised.
 to browsers where the popup fails to open at all. Version bumped to `0.1.1`;
 the store rejects a re-upload of a version it already holds, and this is the
 first change since the packaging work in
-[US-066](../US-066-chrome-web-store-listing.md).
+[US-066](US-066-chrome-web-store-listing.md).
 
 ## Proving it is fixed
 

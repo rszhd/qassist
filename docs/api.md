@@ -451,7 +451,8 @@ fill it.
 
 ### Capturing with the browser extension (US-063)
 
-The extension (`extension/`, side-loaded — see `extension/README.md`) has no
+The extension (`extension/`, published on the Chrome Web Store — see
+`extension/README.md`) has no
 QAssist login of its own. It trades a short-lived, single-use **capture
 token** for permission to fill exactly one session, once:
 

@@ -6,23 +6,25 @@ QAssist Session Capture extension the normal way, **so that** "capture a
 session without a terminal" doesn't still require `chrome://extensions` and
 Developer mode, which is its own small terminal.
 
-- **Status:** ⏳ **Submitted** 2026-08-03, 5/6 — `0.1.1` uploaded with every
-  listing field, permission justification and disclosure answer from
-  [`extension/chrome-web-store-listing.md`](../../../extension/chrome-web-store-listing.md).
-  Only Google's review is left, and its outcome is the last criterion. Icons,
-  the privacy policy page, the package script, the developer account and the
-  five rendered screenshots all landed the same day. Packaging the build for
-  this story is also what surfaced
-  [BUG-009](done/BUG-009-permission-prompt-closes-the-capture-popup.md) —
-  submit `0.1.1` or later, never `0.1.0`. Created 2026-07-31 as 📋 Planned.
-- **Priority:** P2 — same footing as [US-063](done/US-063-capture-a-session-without-a-terminal.md)
+- **Status:** ✅ **Live** 2026-08-04, 6/6 — `0.1.1` is public on the Chrome Web
+  Store at
+  [`jnciafjeefejhpgohapjjejoijfmaffp`](https://chromewebstore.google.com/detail/qassist-session-capture/jnciafjeefejhpgohapjjejoijfmaffp),
+  approved unchanged one day after the 2026-08-03 submission. Every listing
+  field, permission justification and disclosure answer came from
+  [`extension/chrome-web-store-listing.md`](../../../../extension/chrome-web-store-listing.md).
+  Icons, the privacy policy page, the package script, the developer account and
+  the five rendered screenshots all landed on submission day. Packaging the
+  build for this story is also what surfaced
+  [BUG-009](BUG-009-permission-prompt-closes-the-capture-popup.md) — submit
+  `0.1.1` or later, never `0.1.0`. Created 2026-07-31 as 📋 Planned.
+- **Priority:** P2 — same footing as [US-063](US-063-capture-a-session-without-a-terminal.md)
   itself: a P3-adjacent feature a developer can already use in full (side-load
   works today) is not finished for the audience it was built for until this
   ships.
 - **Estimate:** Unknown on purpose. The code side is small (icons, a package
   step); the review side is not estimable from here — see "Why this is mostly
   not a code task."
-- **Depends on:** [US-063](done/US-063-capture-a-session-without-a-terminal.md)
+- **Depends on:** [US-063](US-063-capture-a-session-without-a-terminal.md)
   (built and hand-verified 2026-07-31; this is the distribution step it
   explicitly left out of scope).
 - **Not** a rebuild of the extension's functionality. `extension/` already
@@ -32,7 +34,7 @@ Developer mode, which is its own small terminal.
 
 ## Why this is mostly not a code task
 
-[US-063's Notes](done/US-063-capture-a-session-without-a-terminal.md#notes)
+[US-063's Notes](US-063-capture-a-session-without-a-terminal.md#notes)
 flagged this on the way in: "Submission, review turnaround and a
 privacy-policy URL are all real, and the ~1–2 day estimate covers none of
 them." Most of what is below is account setup, writing, and waiting on Google
@@ -84,10 +86,11 @@ never itself shown to a user. Expect back-and-forth, not a rubber stamp.
       statement, the three certifications and remote code answered No
 - [x] The extension is packaged and submitted for review — `0.1.1` uploaded
       2026-08-03
-- [ ] The listing is live — or, if the first pass is rejected, the rejection
-      reasons are recorded here rather than silently retried
+- [x] The listing is live — or, if the first pass is rejected, the rejection
+      reasons are recorded here rather than silently retried — published
+      2026-08-04, approved with no rejection round
 
-## Results (2026-08-03)
+## Results (2026-08-03, listing live 2026-08-04)
 
 **Icons.** `extension/icons/icon{16,48,128}.png`, rasterized from
 `frontend/public/favicon.svg` so the extension carries the same mark as the
@@ -131,7 +134,7 @@ story's own description of the bundle listed `lib/storageState.js` and not
 `lib/siteScope.js`, which `popup.js` also imports — an allowlist written from
 that sentence would have shipped an extension that throws on load. The
 blocklist earned itself a week later: `lib/pendingCapture.js`
-([BUG-009](done/BUG-009-permission-prompt-closes-the-capture-popup.md)) shipped
+([BUG-009](BUG-009-permission-prompt-closes-the-capture-popup.md)) shipped
 with no change to the script at all. The current bundle is **11 entries,
 41 kB, version 0.1.1**.
 
@@ -139,7 +142,7 @@ with no change to the script at all. The current bundle is **11 entries,
 `extension/` is what put the extension in front of a first-ever capture, and
 it failed: Chrome destroys the popup when it shows the host-permission prompt,
 so every user's first attempt was silently lost
-([BUG-009](done/BUG-009-permission-prompt-closes-the-capture-popup.md), fixed
+([BUG-009](BUG-009-permission-prompt-closes-the-capture-popup.md), fixed
 and hand-verified 2026-08-03). Submitting `0.1.0` would have spent a review
 cycle on a build whose primary flow does not work. Two things came out of that
 fix which this story now depends on: the version is `0.1.1`, and the manifest
@@ -147,7 +150,7 @@ declares `minimum_chrome_version: "102"` for `chrome.storage.session`. The
 store honours that field, so older browsers are never offered a build whose
 popup cannot open.
 
-**Listing copy.** [`extension/chrome-web-store-listing.md`](../../../extension/chrome-web-store-listing.md)
+**Listing copy.** [`extension/chrome-web-store-listing.md`](../../../../extension/chrome-web-store-listing.md)
 — name, short description (122 of 132 chars), detailed description, category
 (Developer Tools), single-purpose statement, a justification per permission,
 the data-collection table, and the screenshot plan. It lives in the repo
@@ -198,16 +201,40 @@ verified separately on the Settings page**, and publishing is blocked until it
 is — worth knowing before an upload day, because it is where every review
 message then arrives.
 
-### What is left, and why it is not code
+### Approved 2026-08-04, unchanged
 
-- ~~**Developer registration**~~ — done 2026-08-03.
-- ~~**Screenshots**~~ — done 2026-08-03, `node scripts/make-store-screenshots.mjs`.
-- ~~**Upload and submit**~~ — done 2026-08-03, version `0.1.1`.
-- **Google's review.** No committed turnaround: most items clear in under a
-  day, but `cookies` plus the `<all_urls>` ceiling is the class a human reads,
-  and this is a first submission from a new publisher. Expect days, and a
-  fortnight is not abnormal. A rejection is recorded here, with its text; the
-  fallback for the ceiling is unchanged.
+Public at
+<https://chromewebstore.google.com/detail/qassist-session-capture/jnciafjeefejhpgohapjjejoijfmaffp>.
+The ID `jnciafjeefejhpgohapjjejoijfmaffp` is permanent for this item and is what
+any install link, doc or support answer points at.
+
+**One day, no questions asked.** This story budgeted "days, and a fortnight is
+not abnormal" for `cookies` plus an `<all_urls>` ceiling from a first-time
+publisher, and the whole of "Why this is mostly not a code task" was written
+around expecting back-and-forth. There was none: no rejection round, no request
+to justify the ceiling beyond the written justification, no change to the
+manifest. The curated-SSO-domain fallback stays hypothetical.
+
+The estimate was wrong in the safe direction, and the reason it was wrong is
+worth keeping for the next submission: **the slow part was the publisher
+account, not the review**. Trader verification, the separately-verified contact
+email and the payments profile all had to clear before the item could even be
+sent, and they are what a submission day actually costs. Budget for those; do
+not budget a fortnight of waiting.
+
+### The publisher shows as Non-trader, and should not
+
+The live listing carries "Non-trader — This developer has not identified itself
+as a trader", with the EU consumer-rights disclaimer that goes with it. That
+contradicts the declaration this story made on 2026-08-03 and the reasoning in
+the listing doc's prerequisites, which is that QAssist *is* a trader.
+
+The likely cause is the reset that got past "your personal information could not
+be verified": that procedure is *switch to non-trader and back to trader*, and
+the account appears to have been left on the first half. It is a publisher-level
+setting, so it is fixed in the dashboard rather than by a resubmission, and
+fixing it publishes a legal name and address at the foot of the listing — which
+is why it is written down here rather than quietly corrected.
 
 ## Notes
 
@@ -215,8 +242,9 @@ message then arrives.
   of this story's outcome — a self-hoster building their own copy, or anyone
   who doesn't want to wait on a store review, still needs that path. This
   story adds a second install route; it does not retire the first.
-- If review rejects the `<all_urls>` ceiling outright, the fallback is
-  narrowing `optional_host_permissions` to a curated list of common SSO
-  provider domains (Google, Microsoft, etc.) rather than an arbitrary origin
-  — worth recording here as a real possibility, not assuming the current
-  manifest survives review unchanged.
+- The `<all_urls>` ceiling survived review as written, so the fallback this
+  story planned for — narrowing `optional_host_permissions` to a curated list
+  of SSO provider domains, at the cost of capturing an arbitrary first-party
+  app — was never needed. It stays written down because a later manifest
+  change reopens the review, and the same ceiling is what a second reviewer
+  would read.
