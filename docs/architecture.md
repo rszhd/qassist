@@ -110,7 +110,8 @@ Engines (`server/src/`):
 |---|---|
 | [`server.js`](../server/src/server.js) | Wiring: the auth gate, router mounts, the WS upgrade, boot refusals. ~300 lines and meant to stay there. |
 | [`runs.js`](../server/src/runs.js) | The run engine's entry: admission, the queue, one agent process (spawn, watchdogs, NDJSON loop, stop). Re-exports the surface the routes import. |
-| [`runState.js`](../server/src/runState.js) | The in-memory registry and the derived views — `verdictOf`, `stepsOf`, `diagnosticsOf`. Talks to nothing. |
+| [`runState.js`](../server/src/runState.js) | The in-memory registry, the `Run` typedef every reader resolves through, and the derived views — `verdictOf`, `stepsOf`, `diagnosticsOf`. Talks to nothing. |
+| [`runEvents.js`](../server/src/runEvents.js) | The NDJSON protocol, one typedef per event. Types only — no runtime, and the sole written copy of the shapes (§4.3). |
 | [`runRelay.js`](../server/src/runRelay.js) | What WS subscribers are sent, what a late viewer replays, the screencast toggle. |
 | [`runPersistence.js`](../server/src/runPersistence.js) | The runs row, a login run's captured session, the one mail per finished run — ordered on `run.persisted`. |
 | [`runReport.js`](../server/src/runReport.js) | `report_data.json` and the PDF render. |
@@ -226,7 +227,11 @@ Set in `startRun`, and the only way in:
 
 ### 4.3 Agent → server: NDJSON on stdout
 
-One JSON object per line, flushed immediately.
+One JSON object per line, flushed immediately. **The shapes are
+[`server/src/runEvents.js`](../server/src/runEvents.js)** — one typedef per
+event, and the only written copy, so `npm run check` fails when the relay or a
+route reads a field the agent no longer writes (US-073). The table below is
+what each event is *for*; the fields are there.
 
 | Event | Meaning | Durable? |
 |---|---|---|

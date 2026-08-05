@@ -19,6 +19,8 @@ import {
 import { getUserOpenaiKeyStatus } from '../openaiKey.js';
 import { h } from './helpers.js';
 
+/** @typedef {import('./helpers.js').AppRequest} AppRequest */
+
 const EMAIL_RE = /^[^\s@]+@[^\s@.]+\.[^\s@]+$/;
 
 // A small in-memory throttle on link requests: an unauthenticated endpoint that
@@ -111,7 +113,7 @@ export function authRouter({ checkToken }) {
     checkToken,
     h(async (req, res) => {
       const { rows } = await db().query('select id, email from users where id = $1', [
-        /** @type {any} */ (req).userId,
+        /** @type {AppRequest} */ (req).userId,
       ]);
       if (!rows.length) return res.status(401).json({ error: 'unauthorized' });
       // openai_key is set-state only (US-005) — the stored value is never

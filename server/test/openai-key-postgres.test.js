@@ -209,13 +209,17 @@ test('a resolved run key reaches only the child env, and the request key beats t
   // owning user and the per-request key. Precedence lives in resolveRunKey
   // (pinned purely in openai-key.test.js); here we prove the winner is what the
   // child receives and that it leaks nowhere else.
-  const run = engine.createRun({
-    goal: 'log in and check the dashboard',
-    start_url: 'https://example.test',
-    max_steps: 1,
-    user_id: u,
-    openai_api_key: REQUEST_KEY,
-  });
+  // No cap in force and a permitted start_url, so this is always a Run —
+  // said once here, so every field read below stays checked.
+  const run = /** @type {import('../src/runState.js').Run} */ (
+    engine.createRun({
+      goal: 'log in and check the dashboard',
+      start_url: 'https://example.test',
+      max_steps: 1,
+      user_id: u,
+      openai_api_key: REQUEST_KEY,
+    })
+  );
   delete process.env.QA_CAPTURE_FILE;
 
   await pollUntil(() => fs.existsSync(captureFile));

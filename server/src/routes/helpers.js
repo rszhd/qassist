@@ -45,6 +45,26 @@ export const RUNNABLE_TEST_JOINS =
   'left join browser_sessions bs on bs.login_test_id = t.id';
 export const RUNNABLE_TEST_FROM = `tests t ${RUNNABLE_TEST_JOINS}`;
 
+/**
+ * The three things this app's gates stash on the request. Express has no slot
+ * for them, so each reader casts — to THIS rather than to `any`, so a rename on
+ * either side still fails `npm run check`. Deliberately not a global `Express.Request`
+ * augmentation: these exist for one request, set by one gate each, and a
+ * declaration everybody sees would say they are always there.
+ * @typedef {import('express').Request & {
+ *   userId?: string | null,
+ *   runOpenaiKey?: string | null,
+ *   project?: ProjectRow,
+ * }} AppRequest
+ *
+ * One `PROJECT_COLS` row (routes/projects.js), as the `:project` param handler
+ * resolves it.
+ * @typedef {{ id: string, name: string, slug: string, notify: string,
+ *             notify_emails: string[], allowed_domains: string[],
+ *             initial_actions: any, created_at: Date,
+ *             updated_at: Date }} ProjectRow
+ */
+
 /** Triggers a caller may set; 'schedule' is US-010's, not callers'. */
 export const TRIGGERS = new Set(['ui', 'api', 'ci']);
 
@@ -112,7 +132,7 @@ export function requireAgentKey(req, res, next) {
       res.status(503).json({ error: 'no OpenAI key: add yours in Settings' });
       return;
     }
-    /** @type {any} */ (req).runOpenaiKey = key;
+    /** @type {AppRequest} */ (req).runOpenaiKey = key;
     next();
   })().catch(next);
 }
@@ -218,7 +238,7 @@ export function requireDb(_req, res, next) {
  * decrypted, which is a DB read, and `createRun`/`startRun` are synchronous —
  * every trigger path funnels through them. So the material is pre-resolved
  * here, exactly as `requireAgentKey` pre-resolves the BYOK key.
- * @param {{ id: string, goal: string, start_url: string, max_steps: number, model: string|null, variables?: any, project_id?: string|null, allowed_domains?: string[], browser_session_id?: string|null, captures_session_id?: string|null, initial_actions?: any }[]} tests
+ * @param {import('../runs.js').RunnableTest[]} tests
  * @param {{ start_url?: string, trigger?: string, variables?: Record<string, string> }} body
  * @param {string|null} [openaiApiKey] the run key requireAgentKey resolved (req.runOpenaiKey)
  */

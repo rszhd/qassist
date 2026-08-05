@@ -13,6 +13,9 @@ import { refreshCapturedSession } from './browserSession.js';
 import { notifyRunFinished } from './notify.js';
 import { stepCount, verdictOf } from './runState.js';
 
+/** @typedef {import('./runState.js').Run} Run */
+
+/** @param {Run} run */
 export function persistInsert(run) {
   if (!db()) return;
   run.persisted = db()
@@ -38,6 +41,7 @@ export function persistInsert(run) {
     .catch((err) => console.error(`db: insert run ${run.id.slice(0, 8)} failed:`, err.message));
 }
 
+/** @param {Run} run */
 export function persistUpdate(run) {
   if (!db()) return;
   const res = run.result || {};
@@ -82,6 +86,7 @@ export function persistUpdate(run) {
 // fire-and-forget from the agent's point of view, which is why a failure here
 // is logged rather than thrown: the run itself passed, and the session simply
 // did not refresh.
+/** @param {Run} run @param {string} exported the raw JSON the agent wrote */
 export function captureSession(run, exported) {
   if (!db()) return;
   run.persisted = (run.persisted || Promise.resolve()).then(() =>
@@ -96,6 +101,7 @@ export function captureSession(run, exported) {
 // usually outlives the agent process, but a watchdog kill doesn't wait for it —
 // so both paths call this and whichever completes the pair wins. The flag is
 // belt and braces over the notifications table's own (run_id, recipient) key.
+/** @param {Run} run */
 export function maybeNotify(run) {
   if (run.notified || !run.finishedAt || run.reportStatus === 'generating') return;
   run.notified = true;

@@ -24,6 +24,8 @@ import { NOTIFY_MODES, cleanEmails } from '../notify.js';
 import { validateAllowlist } from '../navigationPolicy.js';
 import { instancePolicy } from '../config.js';
 
+/** @typedef {import('./helpers.js').AppRequest} AppRequest */
+
 export const PROJECT_COLS =
   'id, name, slug, notify, notify_emails, allowed_domains, initial_actions, created_at, updated_at';
 export const MODULE_COLS = 'id, project_id, name, slug, created_at, updated_at';
@@ -269,8 +271,7 @@ export function projectsRouter({ checkToken }) {
         findProject(ref)
           .then((project) => {
             if (!project) return res.status(404).json({ error: 'not found' });
-            // @ts-expect-error — request-scoped stash, no augmentation needed
-            req.project = project;
+            /** @type {AppRequest} */ (req).project = project;
             next();
           })
           .catch(next);
@@ -415,7 +416,7 @@ export function projectsRouter({ checkToken }) {
       if (!tests.length) return res.status(400).json({ error: 'project has no tests' });
       res.json({
         projectId: project.id,
-        runs: await runTestsFromRequest(tests, req.body || {}, /** @type {any} */ (req).runOpenaiKey),
+        runs: await runTestsFromRequest(tests, req.body || {}, /** @type {AppRequest} */ (req).runOpenaiKey),
       });
     })
   );
@@ -455,7 +456,7 @@ export function projectsRouter({ checkToken }) {
       // @ts-expect-error — set by r.param
       const mod = await findModule(req.project.id, req.params.module);
       if (!mod) return res.status(404).json({ error: 'not found' });
-      const result = await runModule(mod, req.body || {}, /** @type {any} */ (req).runOpenaiKey);
+      const result = await runModule(mod, req.body || {}, /** @type {AppRequest} */ (req).runOpenaiKey);
       if (result.empty) return res.status(400).json({ error: 'module has no tests' });
       res.json(result);
     })

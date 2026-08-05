@@ -39,6 +39,8 @@ import { captureRouter } from './routes/capture.js';
 import { billingEnabled } from './billing.js';
 import { loadUserConcurrencyCaps } from './concurrency.js';
 
+/** @typedef {import('./routes/helpers.js').AppRequest} AppRequest */
+
 await initDb();
 
 // Per-user concurrency overrides (US-058), so the scheduler and the fair-share
@@ -83,7 +85,7 @@ function makeGate(allowQueryToken) {
   /** @type {import('express').RequestHandler} */
   return (req, res, next) => {
     const proceed = (/** @type {string|null} */ userId) => {
-      /** @type {any} */ (req).userId = userId;
+      /** @type {AppRequest} */ (req).userId = userId;
       userContext.run({ userId }, () => next());
     };
     // Cookie-auth modes: magic-link (multi) and the demo sandbox both scope every

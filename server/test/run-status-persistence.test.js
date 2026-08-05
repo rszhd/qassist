@@ -87,11 +87,9 @@ async function pollUntil(fn, timeoutMs = 3000) {
 }
 
 test('a starting run does not persist its running UPDATE before the queued INSERT commits', async () => {
-  const run = engine.createRun({
-    goal: 'record status',
-    start_url: 'https://example.test',
-    max_steps: 1,
-  });
+  const run = /** @type {import('../src/runState.js').Run} */ (
+    engine.createRun({ goal: 'record status', start_url: 'https://example.test', max_steps: 1 })
+  );
   assert.equal(run.status, 'running'); // in memory it has started
 
   // The INSERT is still stalled, so the running UPDATE must not have been

@@ -4,23 +4,22 @@ Express spawns this as a child process (one per test run) and relays each
 line to the browser over a WebSocket. One JSON object per line, flushed
 immediately so the UI updates live.
 
-Two kinds of visual events are emitted:
-  - {"type":"frame", "data": <jpeg-b64>}   CDP screencast (~6 fps), only while
-                                            a viewer is attached (see below)
-  - {"type":"step",  ...}                   one per agent reasoning step
+THE EVENT SHAPES LIVE IN `server/src/runEvents.js`, one typedef apiece, and
+that file is the only place they are written down. This module is their
+author, so a new field or a renamed one starts in `emit(...)` below and lands
+there in the same commit — which is what makes `npm run check` in server/ fail
+for a relay or a viewer still reading the old shape. Restating them here would
+give the protocol a second, unchecked copy, and the two would drift.
 
-Why a run failed comes over a third (US-044):
-  - {"type":"diagnostics", "entries":[…], "dropped": n}
-    failed requests, console errors and uncaught exceptions, each stamped with
-    the step it happened during. Batched one event per step boundary — never per
-    console line — capped and deduplicated in `diagnostics.py` before it crosses
-    stdout, and scrubbed of the run's secrets on the way in.
+Three obligations a typedef cannot state, all of them this file's to keep —
+`docs/architecture.md` section 4.3 says why each one is there:
+  - batch diagnostics per step boundary, never per console line (US-044);
+  - `scrub` everything before it is emitted, against the live `sensitive` dict;
+  - emit `recording` before the run's `done`/`error`, so the report can link
+    the mp4 written to <ARTIFACTS_DIR>/<runId>/recording.mp4 (US-006).
 
-Every run is also recorded to <ARTIFACTS_DIR>/<runId>/recording.mp4 off the
-same frame stream (US-006); a {"type":"recording"} event announces the file
-just before the run's done/error event.
-
-Express also writes control commands to our stdin, one JSON object per line:
+Express also writes control commands to our stdin, one JSON object per line
+(`ControlCommand` in the same file):
   {"cmd": "screencast", "on": true|false}   viewer attached / last viewer left
   {"cmd": "stop"}                           the user stopped this run (US-047)
 Frames are only emitted while "on". Without recording the screencast itself is

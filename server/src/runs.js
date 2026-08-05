@@ -48,6 +48,27 @@ import { startReplay } from './runReplay.js';
 export { diagnosticsOf, getRun, stepsOf, TERMINAL, verdictOf } from './runState.js';
 export { attachViewer } from './runRelay.js';
 
+/**
+ * @typedef {import('./runState.js').Run} Run
+ * @typedef {import('./runEvents.js').RunEvent} RunEvent
+ *
+ * The two ways `createRun` can answer with no run: nothing inserted, nothing
+ * queued. Neither carries an `id`, so the `in` check a caller makes to tell
+ * them apart is also what proves it holds a `Run` afterwards.
+ * @typedef {{ blocked: true, error: string, reason: string }} Blocked
+ * @typedef {{ rejected: true, cap: number, inFlight: number }} Rejected *
+ * One row of `RUNNABLE_TEST_COLS` (routes/helpers.js), which is what every
+ * batch trigger hands `runTests`. Declared here rather than beside the columns
+ * because this is the shape the *engine* requires — the query exists to satisfy
+ * it, and a column dropped from that select should fail here, at the consumer.
+ * @typedef {{ id: string, goal: string, start_url: string, max_steps: number,
+ *             model: string|null,
+ *             variables?: import('./variables.js').VariableSpec[],
+ *             project_id?: string|null, allowed_domains?: string[],
+ *             browser_session_id?: string|null, captures_session_id?: string|null,
+ *             initial_actions?: any }} RunnableTest
+ */
+
 let active = 0;
 /** @type {string[]} */
 const queue = [];
@@ -64,7 +85,8 @@ export function counts() {
 // read it in; re-exported here because that is where callers import it from.
 export { getUserConcurrencyCap };
 
-/** How many of a user's runs are running OR queued — what admission counts. */
+/** How many of a user's runs are running OR queued — what admission counts.
+ * @param {string} uid */
 function inFlightForUser(uid) {
   let n = 0;
   for (const run of allRuns()) {
@@ -73,7 +95,8 @@ function inFlightForUser(uid) {
   return n;
 }
 
-/** How many of a user's runs are running — what the start-gate and dequeue count. */
+/** How many of a user's runs are running — what the start-gate and dequeue count.
+ * @param {string} uid */
 function runningForUser(uid) {
   let n = 0;
   for (const run of allRuns()) {
@@ -85,6 +108,7 @@ function runningForUser(uid) {
 // A run may start when a global slot is free AND its owner is under their
 // running cap. The second clause is what holds a user (or a scheduled burst
 // that bypassed admission) to `cap` running even when global slots are free.
+/** @param {Run} run */
 function canStart(run) {
   if (active >= MAX_CONCURRENT) return false;
   const cap = getUserConcurrencyCap(run.user_id);
@@ -99,16 +123,20 @@ function canStart(run) {
  * `{ blocked, error, reason }` when the start_url is outside what this instance
  * or this project may visit (US-042), and `{ rejected, cap, inFlight }` when the
  * caller is over their per-user cap (US-028) and the submit isn't a
- * schedule/demo replay. Callers branch with `'blocked' in` / `'rejected' in`.
+ * schedule/demo replay. Callers branch with `'blocked' in` / `'rejected' in`,
+ * and that `in` is what narrows the return to a `Run` for everything after it.
  * @param {{ goal: string, start_url: string, max_steps?: number,
  *           model?: string | null, test_id?: string | null,
  *           trigger?: string, variables?: Record<string, string>,
  *           secrets?: Record<string, string>, user_id?: string | null,
  *           openai_api_key?: string | null, project_id?: string | null,
  *           allowed_domains?: string[], har?: boolean,
- *           storage_state?: string | null, session_verify?: any,
- *           capture_session_id?: string | null, preamble?: any[],
+ *           storage_state?: string | null,
+ *           session_verify?: import('./browserSession.js').SessionMaterial['verify'],
+ *           capture_session_id?: string | null,
+ *           preamble?: import('./browserSession.js').PreambleAction[],
  *           schedule_id?: string | null, scheduled_for?: Date | null }} fields
+ * @returns {Run | Blocked | Rejected}
  */
 export function createRun(fields) {
   // Explicit user_id for the scheduler (no request context); a request-borne run
@@ -124,10 +152,7 @@ export function createRun(fields) {
   // endpoint should hear that, not "you are over your concurrency cap".
   const policy = instancePolicy(fields.allowed_domains);
   const blocked = checkStartUrl(fields.start_url, policy);
-  // Cast because a THIRD marker in this return position stops tsc reducing the
-  // union, and every existing caller that reads `run.status` off the happy path
-  // would need a narrowing it never needed for `rejected`.
-  if (blocked) return /** @type {any} */ ({ blocked: true, ...blocked });
+  if (blocked) return { blocked: true, ...blocked };
   // Admission (US-028): an interactive submit over the user's in-flight cap is
   // refused here, not queued — queueing silently would make the wait unbounded
   // and US-027's position meaningless. Demo replays claim no slot, and a
@@ -141,6 +166,7 @@ export function createRun(fields) {
   }
 
   const runId = randomUUID();
+  /** @type {Run} */
   const run = {
     id: runId,
     goal: fields.goal,
@@ -228,8 +254,13 @@ export function createRun(fields) {
  * the rest from its own defaults. A test that can't resolve (a required
  * variable with no value) is skipped with an `error` marker rather than
  * starting a broken run — one misconfigured member never blocks the batch.
- * @param {{ id: string, goal: string, start_url: string, max_steps: number, model: string|null, variables?: any, project_id?: string|null, allowed_domains?: string[], browser_session_id?: string|null, captures_session_id?: string|null, initial_actions?: any }[]} tests
- * @param {{ start_url?: string|null, trigger?: string, variables?: Record<string, string>, user_id?: string|null, openai_api_key?: string|null, sessions?: Map<string, any>, storedSecrets?: Map<string, any>, schedule_id?: string|null, scheduled_for?: Date|null }} [opts]
+ * @param {RunnableTest[]} tests
+ * @param {{ start_url?: string|null, trigger?: string,
+ *           variables?: Record<string, string>, user_id?: string|null,
+ *           openai_api_key?: string|null,
+ *           sessions?: Map<string, import('./browserSession.js').SessionMaterial>,
+ *           storedSecrets?: Map<string, import('./testSecrets.js').StoredSecrets>,
+ *           schedule_id?: string|null, scheduled_for?: Date|null }} [opts]
  */
 export function runTests(tests, opts = {}) {
   return tests.map((t) => {
@@ -299,6 +330,7 @@ export function runTests(tests, opts = {}) {
 // is said once — a per-poll log would repeat every 3 s for the life of the box.
 let warnedRssFallback = false;
 
+/** @param {import('node:child_process').ChildProcess} child @param {number[]} pids */
 function killRunTree(child, pids) {
   // Group kill first (child is its own group leader via detached), then each
   // known pid in case anything escaped the group.
@@ -326,7 +358,7 @@ function killRunTree(child, pids) {
  * viewers the run is over — so assigning it at request time would prune
  * `runs/<id>/` out from under a process that is still writing to it, and tell
  * everyone watching that a run they can still see moving has finished.
- * @param {any} run
+ * @param {Run} run
  */
 export function stopRun(run) {
   if (!run || TERMINAL.has(run.status) || run.cancelling) return false;
@@ -378,6 +410,7 @@ export function stopRun(run) {
 // End a run that has no process to wait for. The `close` handler's job, minus
 // the slot bookkeeping it does not owe: nothing was spawned, so nothing was
 // counted.
+/** @param {Run} run */
 function finishCancelled(run) {
   run.status = 'cancelled';
   // The other end: a queued run stopped before it ever spawned has no `close`
@@ -392,6 +425,7 @@ function finishCancelled(run) {
   evictLater(run.id);
 }
 
+/** @param {string} runId */
 function startRun(runId) {
   const run = getRun(runId);
   if (!run) return;
@@ -408,7 +442,7 @@ function startRun(runId) {
   // server's own environment, so an absent key would silently inherit whatever
   // OPENAI_API_KEY this process happens to hold and fund the run out of the
   // operator's pocket at the one layer that actually spends money.
-  /** @type {Record<string, any>} */
+  /** @type {Record<string, string>} */
   const childEnv = {
     ...process.env,
     QA_GOAL: run.goal,
@@ -534,6 +568,9 @@ function startRun(runId) {
       const line = buf.slice(0, nl);
       buf = buf.slice(nl + 1);
       if (!line.trim()) continue;
+      // A line that will not parse is still worth showing — as a log event,
+      // which is a shape the viewer already renders.
+      /** @type {RunEvent} */
       let evt;
       try {
         evt = JSON.parse(line);

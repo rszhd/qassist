@@ -75,6 +75,7 @@ Sprints aren't split along a self-host/hosted-tier line — `sprint/current/` an
 
 | ID | Story | Status | Depends on |
 |---|---|---|---|
+| [US-073](sprint/current/done/US-073-typed-run-and-ndjson-events.md) | Type the run object and the NDJSON events | ✅ **Done** 2026-08-05, 5/5 | — |
 | [US-075](sprint/current/done/US-075-orchestrators-split-along-seams.md) | The two run orchestrators shrink to their subject | ✅ **Done** 2026-08-05, 4/4 | US-073 (shipped without it) |
 | [US-024](sprint/current/done/US-024-memory-watchdog-pss-metric.md) | Memory watchdog: measure PSS, not summed RSS | ✅ **Done** 2026-08-05, 4/4 | — |
 | [US-069](sprint/current/done/US-069-schedule-health-strip.md) | The last few nights, at a glance (pass/fail strip on the Schedules row) | ✅ **Done** 2026-08-04, 11/12 | US-010, US-011 |
@@ -163,7 +164,6 @@ live in [`docs/repo-model.md`](../docs/repo-model.md). Email provider: **Resend*
 | [US-045](unscheduled/US-045-model-provider-choice.md) | Bring your own key, to your own provider (incl. local) | 📋 Planned | P2 | US-005, US-039 |
 | [US-062](unscheduled/US-062-live-browser-test-tier.md) | A test tier that drives a real browser | 📋 Planned | P2 | US-034, US-042, US-043, US-048 |
 | [US-072](unscheduled/US-072-landing-page-astro-and-self-hosted.md) | The landing page, onto the box and off React | ⏸️ Unscheduled 2026-08-05 | P2 | US-007, US-070 |
-| [US-073](unscheduled/US-073-typed-run-and-ndjson-events.md) | Type the run object and the NDJSON events | 📋 Planned | P2 | — |
 | [US-015](unscheduled/US-015-horizontal-scaling-100-concurrent.md) | Horizontal scaling to ~100 concurrent | 📋 Planned | P3 | US-005, US-009 |
 | [US-014](unscheduled/US-014-block-heavy-resources.md) | Block heavy page resources | 📋 Planned | P3 | — |
 | [US-046](unscheduled/US-046-token-usage-and-cost.md) | What did that run cost? (token usage + cost) | 📋 Planned | P3 | US-039 |

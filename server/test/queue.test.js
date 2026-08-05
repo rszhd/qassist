@@ -44,8 +44,12 @@ function fakeSocket() {
   };
 }
 
+// No cap in force and a permitted start_url, so this is always a Run — said
+// once here, so every field read below stays checked.
 const start = (goal) =>
-  engine.createRun({ goal, start_url: 'https://example.test', max_steps: 1 });
+  /** @type {import('../src/runState.js').Run} */ (
+    engine.createRun({ goal, start_url: 'https://example.test', max_steps: 1 })
+  );
 
 async function pollUntil(fn, timeoutMs = 5000) {
   const deadline = Date.now() + timeoutMs;

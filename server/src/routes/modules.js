@@ -12,6 +12,8 @@ import { h, requireDb, requireAgentKey, requireEntitled, withUserCap } from './h
 import { isUuid } from '../db.js';
 import { MODULE_COLS, findModuleById, listModules, resolveSlug, runModule } from './projects.js';
 
+/** @typedef {import('./helpers.js').AppRequest} AppRequest */
+
 /** @param {{ checkToken: import('express').RequestHandler }} deps */
 export function modulesRouter({ checkToken }) {
   const r = express.Router();
@@ -70,7 +72,7 @@ export function modulesRouter({ checkToken }) {
     h(async (req, res) => {
       const mod = await findModuleById(req.params.id);
       if (!mod) return res.status(404).json({ error: 'not found' });
-      const result = await runModule(mod, req.body || {}, /** @type {any} */ (req).runOpenaiKey);
+      const result = await runModule(mod, req.body || {}, /** @type {AppRequest} */ (req).runOpenaiKey);
       if (result.empty) return res.status(400).json({ error: 'module has no tests' });
       res.json(result);
     })

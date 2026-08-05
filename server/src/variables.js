@@ -52,6 +52,15 @@ export const AGENT_PROVIDED_SECRETS = [
 // The internal placeholder resolveForRun emits. Matching only well-formed tags
 // with a legal name is the point: anything else that mentions `secret` as a tag
 // is malformed, so it can't be exempt and can't be substituted either.
+/**
+ * One entry of a test's `variables` column, as `normalizeDeclarations` stores
+ * it and every consumer reads it. `optional` and `secret` are the two axes:
+ * a secret's value lives in `test_secrets`, not here, so this row carries the
+ * declaration and never the plaintext.
+ * @typedef {{ name: string, value: string, secret: boolean,
+ *             optional: boolean }} VariableSpec
+ */
+
 const SECRET_TAG = /<secret>([a-zA-Z_][a-zA-Z0-9_]*)<\/secret>/g;
 const ANY_SECRET_TAG = /<\/?secret\b/i;
 
@@ -60,7 +69,7 @@ const ANY_SECRET_TAG = /<\/?secret\b/i;
  * on create/update. Returns `{ error }` or `{ variables }` (the cleaned array,
  * ready to store as jsonb). `undefined` input normalizes to `[]`.
  * @param {unknown} raw
- * @returns {{ error: string } | { variables: Array<{name: string, value: string, secret: boolean, optional: boolean}> }}
+ * @returns {{ error: string } | { variables: VariableSpec[] }}
  */
 export function normalizeDeclarations(raw) {
   if (raw === undefined || raw === null) return { variables: [] };
@@ -142,7 +151,7 @@ export function secretWrites(raw) {
  * decrypts nothing. The same rule `resolveForRun` applies below; the pairing is
  * asserted rather than assumed, because two spellings of "required and empty"
  * that drift apart give you a save the tick then refuses.
- * @param {{ variables?: Array<{name: string, value: string, secret: boolean, optional: boolean}>,
+ * @param {{ variables?: VariableSpec[],
  *          storedNames?: string[], goal?: string|null, start_url?: string|null }} input
  * @returns {string[]}
  */
@@ -234,7 +243,7 @@ export function validateSecretTags({ goal, start_url }) {
  * shape `sessionsForTests` and the BYOK key already arrive in. Precedence is
  * override > stored > declaration, decided here because this is the one place
  * the manual, CI and scheduled paths already share.
- * @param {{ variables?: Array<{name: string, value: string, secret: boolean, optional: boolean}>,
+ * @param {{ variables?: VariableSpec[],
  *          overrides?: Record<string, string> | null, stored?: Record<string, string> | null,
  *          goal: string, start_url: string }} input
  * @returns {{ error: string } | { goal: string, start_url: string, variables: Record<string, string>, secrets: Record<string, string> }}

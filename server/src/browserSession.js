@@ -59,6 +59,16 @@ const PREAMBLE_ACTIONS = {
 };
 
 /**
+ * One validated preamble action, in the single-key form browser-use's
+ * `initial_actions` takes. The four are the whole vocabulary, and it is short
+ * for a reason the error message spells out: every other action needs an
+ * element index, which does not exist before the page has been looked at.
+ * @typedef {{ navigate: { url: string } } | { wait: { seconds: number } }
+ *          | { send_keys: { keys: string } }
+ *          | { scroll: { down: boolean, pages: number } }} PreambleAction
+ */
+
+/**
  * Validate a Playwright `storageState` as it arrives from a paste or from a
  * login run's export. Returns `{ error }`, or the canonical JSON text plus the
  * counts that let the UI describe a session without reading it.
@@ -277,6 +287,16 @@ export function sessionsDirConflict({ sessionsDir: sessions, fixturesDir, artifa
 // --- resolving a batch of tests' sessions -----------------------------------
 
 /**
+ * What one test's session resolves to before its run is created: the decrypted
+ * blob, the expiry check to run first, and the session a pass here refreshes —
+ * or `error` alone, which is a test that must not start rather than one that
+ * starts unauthenticated.
+ * @typedef {{ error?: string, storageState?: string,
+ *             verify?: { url_contains: string|null, text: string|null } | null,
+ *             captureSessionId?: string|null }} SessionMaterial
+ */
+
+/**
  * The session material for a batch of runnable tests, keyed by test id.
  *
  * Resolved HERE, before `createRun`, and not inside `startRun`. The run engine
@@ -291,12 +311,10 @@ export function sessionsDirConflict({ sessionsDir: sessions, fixturesDir, artifa
  * starts unauthenticated passes nothing and fails everything, which is the
  * false green the whole story exists to remove.
  * @param {{ id: string, browser_session_id?: string|null, captures_session_id?: string|null }[]} tests
- * @returns {Promise<Map<string, { error?: string, storageState?: string,
- *                                 verify?: { url_contains: string|null, text: string|null } | null,
- *                                 captureSessionId?: string|null }>>}
+ * @returns {Promise<Map<string, SessionMaterial>>}
  */
 export async function sessionsForTests(tests) {
-  /** @type {Map<string, any>} */
+  /** @type {Map<string, SessionMaterial>} */
   const byTest = new Map();
   for (const t of tests) {
     if (t.captures_session_id) byTest.set(t.id, { captureSessionId: t.captures_session_id });
@@ -427,7 +445,7 @@ export async function captureFromExtension(sessionId, raw) {
  * the one entry that mattered was silently dropped.
  * @param {unknown} raw
  * @param {import('./navigationPolicy.js').Policy} policy
- * @returns {{ error: string } | { actions: any[] }}
+ * @returns {{ error: string } | { actions: PreambleAction[] }}
  */
 export function normalizePreamble(raw, policy) {
   if (raw === undefined || raw === null) return { actions: [] };
@@ -435,6 +453,7 @@ export function normalizePreamble(raw, policy) {
   if (raw.length > PREAMBLE_MAX_ACTIONS) {
     return { error: `a preamble may have at most ${PREAMBLE_MAX_ACTIONS} actions` };
   }
+  /** @type {PreambleAction[]} */
   const actions = [];
   for (const entry of raw) {
     if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
@@ -457,13 +476,15 @@ export function normalizePreamble(raw, policy) {
     }
     const params = validate(entry[name], policy);
     if ('error' in params) return { error: `${name}: ${params.error}` };
-    actions.push({ [name]: params.value });
+    // The name/validator pairing is PREAMBLE_ACTIONS's and holds by construction;
+    // a computed key is where tsc loses it.
+    actions.push(/** @type {PreambleAction} */ ({ [name]: params.value }));
   }
   return { actions };
 }
 
 function navigateParams(raw, policy) {
-  const url = raw && typeof raw === 'object' ? /** @type {any} */ (raw).url : null;
+  const url = raw && typeof raw === 'object' ? /** @type {Record<string, unknown>} */ (raw).url : null;
   if (typeof url !== 'string' || !url.trim()) return { error: 'a url is required' };
   // The same fence a start_url passes (US-042), applied at WRITE time. A
   // preamble is a list of navigations that never reaches `createRun`'s check,
@@ -475,7 +496,9 @@ function navigateParams(raw, policy) {
 }
 
 function waitParams(raw) {
-  const seconds = Number(raw && typeof raw === 'object' ? /** @type {any} */ (raw).seconds : NaN);
+  const seconds = Number(
+    raw && typeof raw === 'object' ? /** @type {Record<string, unknown>} */ (raw).seconds : NaN
+  );
   if (!Number.isFinite(seconds) || seconds <= 0) return { error: 'seconds must be a positive number' };
   if (seconds > PREAMBLE_MAX_WAIT_SECONDS) {
     return { error: `seconds must be at most ${PREAMBLE_MAX_WAIT_SECONDS}` };
@@ -484,14 +507,16 @@ function waitParams(raw) {
 }
 
 function sendKeysParams(raw) {
-  const keys = raw && typeof raw === 'object' ? /** @type {any} */ (raw).keys : null;
+  const keys = raw && typeof raw === 'object' ? /** @type {Record<string, unknown>} */ (raw).keys : null;
   if (typeof keys !== 'string' || !keys.trim()) return { error: 'keys is required (e.g. "Escape")' };
   if (keys.length > 64) return { error: 'keys is too long to be a keystroke' };
   return { value: { keys } };
 }
 
 function scrollParams(raw) {
-  const { down, pages } = /** @type {any} */ (raw && typeof raw === 'object' ? raw : {});
+  const { down, pages } = /** @type {Record<string, unknown>} */ (
+    raw && typeof raw === 'object' ? raw : {}
+  );
   if (down !== undefined && typeof down !== 'boolean') return { error: 'down must be a boolean' };
   const n = pages === undefined ? 1 : Number(pages);
   if (!Number.isFinite(n) || n <= 0 || n > 10) return { error: 'pages must be between 0 and 10' };
@@ -510,7 +535,7 @@ function scrollParams(raw) {
  * would take out every run in a project over one bad row. Copying either
  * module's rule onto the other breaks it.
  * @param {unknown} stored the project's `initial_actions` column
- * @returns {any[]}
+ * @returns {PreambleAction[]}
  */
 export function preambleForRun(stored) {
   let parsed = stored;

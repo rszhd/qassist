@@ -127,12 +127,16 @@ function fakeSocket() {
  */
 const started = [];
 const start = (uid, { holdMs = 5000, stop = 'honour' } = {}) => {
-  const run = engine.createRun({
-    goal: `hold=${holdMs} stop=${stop}`,
-    start_url: 'https://example.test',
-    max_steps: 1,
-    user_id: uid,
-  });
+  // No cap in force and a permitted start_url, so this is always a Run —
+  // said once here, so every field read below stays checked.
+  const run = /** @type {import('../src/runState.js').Run} */ (
+    engine.createRun({
+      goal: `hold=${holdMs} stop=${stop}`,
+      start_url: 'https://example.test',
+      max_steps: 1,
+      user_id: uid,
+    })
+  );
   started.push(run);
   return run;
 };
@@ -146,7 +150,7 @@ const start = (uid, { holdMs = 5000, stop = 'honour' } = {}) => {
  */
 async function startRunning(uid, opts) {
   const run = start(uid, opts);
-  await pollUntil(() => run.events.some((e) => e.message === 'stub ready'));
+  await pollUntil(() => run.events.some((e) => e.type === 'log' && e.message === 'stub ready'));
   return run;
 }
 

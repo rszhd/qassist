@@ -23,6 +23,8 @@ import {
   REPORTS_ENABLED,
 } from './config.js';
 
+/** @typedef {import('./runState.js').Run} Run */
+
 export const NOTIFY_MODES = new Set(['failure', 'always', 'never']);
 
 /**
@@ -107,7 +109,7 @@ async function allowed(emails) {
  * belongs to no project falls back to the instance's env settings, and an
  * empty recipient list falls through to NOTIFY_EMAILS and then to the owner's
  * account email (which only becomes a real mailbox with US-021's auth).
- * @param {{ test_id: string }} run
+ * @param {Run} run
  */
 async function prefsFor(run) {
   const { rows } = await db().query(
@@ -153,7 +155,7 @@ const TONE = {
 /**
  * The message body. Everything a person needs to decide whether to open the
  * report: verdict, what was asked, how long it took, and what the judge said.
- * @param {any} run
+ * @param {Run} run
  * @param {string | null} name
  * @param {string} recipient
  */
@@ -217,7 +219,8 @@ function compose(run, name, recipient) {
 }
 
 /** The report PDF as a Resend attachment, when one was rendered — else none of
- *  them, which is a list to concatenate rather than an absence to test for. */
+ *  them, which is a list to concatenate rather than an absence to test for.
+ * @param {Run} run */
 function attachmentFor(run) {
   const file = run.reportPath || path.join(ARTIFACTS_DIR, run.id, 'report.pdf');
   if (run.reportStatus !== 'ready' || !fs.existsSync(file)) return [];
@@ -238,7 +241,7 @@ function attachmentFor(run) {
  * unjudged `completed` run is exactly as much of a reason to look as a `failed`
  * one, and treating them as silence is how a broken agent stays invisible.
  *
- * @param {any} run
+ * @param {Run} run
  * @returns {Promise<{ sent: number, failed: number, reason?: string }>}
  */
 export async function notifyRunFinished(run) {

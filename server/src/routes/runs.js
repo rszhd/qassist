@@ -15,6 +15,8 @@ import { ARTIFACTS_DIR, HAR_FILENAME, RECORDING_FILENAME, REPORT_DATA_FILENAME, 
 import { h, requireDb, requireAgentKey, requireEntitled, withUserCap, respondOverCap, STORED_TRIGGERS } from './helpers.js';
 import { validateSecretTags } from '../variables.js';
 
+/** @typedef {import('./helpers.js').AppRequest} AppRequest */
+
 /** Mirrors the runs.status check constraint (001_init.sql, widened by 011). */
 const STATUSES = new Set([
   'queued', 'running', 'passed', 'failed', 'completed', 'error', 'cancelled',
@@ -121,6 +123,7 @@ function buildPaging(q) {
  * before the insert lands) they are the whole answer. Mirrors what
  * persistUpdate() writes; the test's name and grouping and the artifact-pruning
  * stamp are the row's alone, since they only exist via the join.
+ * @param {import('../runState.js').Run} run
  */
 function liveRow(run) {
   const res = run.result || {};
@@ -148,7 +151,10 @@ function liveRow(run) {
   };
 }
 
-/** Artifact links are gone once retention prunes the directory (US-011). */
+/**
+ * Artifact links are gone once retention prunes the directory (US-011).
+ * @param {Record<string, any>} row a LIST_COLS row
+ */
 function shapeRun(row) {
   const pruned = !!row.artifacts_deleted_at;
   return {
@@ -213,7 +219,7 @@ export function runsRouter({ checkToken, checkTokenOrQuery }) {
       // US-044: `har` absent leaves the instance default in force, so an
       // explicit `false` can still turn it off on a box that has it on.
       har: har === undefined ? undefined : !!har,
-      openai_api_key: /** @type {any} */ (req).runOpenaiKey,
+      openai_api_key: /** @type {AppRequest} */ (req).runOpenaiKey,
     });
     if ('blocked' in run) return res.status(400).json({ error: run.error, reason: run.reason });
     if ('rejected' in run) return respondOverCap(res, run);

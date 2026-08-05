@@ -133,8 +133,17 @@ before(async () => {
   caps = await import('../src/concurrency.js');
 });
 
+/**
+ * One ad-hoc run for `uid`. `trigger` defaults to an interactive one.
+ *
+ * Deliberately un-narrowed: these tests assert WHICH member of createRun's
+ * union came back — including that a rejected one carries no `status` at all —
+ * and the narrowed type is what would refuse to let them ask.
+ */
 const start = (goal, uid, trigger = 'api') =>
-  engine.createRun({ goal, start_url: 'https://example.test', max_steps: 1, user_id: uid, trigger });
+  /** @type {any} */ (
+    engine.createRun({ goal, start_url: 'https://example.test', max_steps: 1, user_id: uid, trigger })
+  );
 
 const asTest = (name) => ({
   id: randomUUID(),

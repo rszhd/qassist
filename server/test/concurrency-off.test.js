@@ -36,8 +36,17 @@ before(async () => {
   engine = await import('../src/runs.js');
 });
 
+/**
+ * One ad-hoc run for `uid`.
+ *
+ * Deliberately un-narrowed: these tests assert WHICH member of createRun's
+ * union came back — including that a rejected one carries no `status` at all —
+ * and the narrowed type is what would refuse to let them ask.
+ */
 const start = (goal, uid) =>
-  engine.createRun({ goal, start_url: 'https://example.test', max_steps: 1, user_id: uid, trigger: 'api' });
+  /** @type {any} */ (
+    engine.createRun({ goal, start_url: 'https://example.test', max_steps: 1, user_id: uid, trigger: 'api' })
+  );
 
 async function pollUntil(fn, timeoutMs = 5000) {
   const deadline = Date.now() + timeoutMs;

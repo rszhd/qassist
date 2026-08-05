@@ -16,10 +16,13 @@ import {
 import { maybeNotify, persistUpdate } from './runPersistence.js';
 import { diagnosticsOf, stepCount, stepsOf, verdictOf } from './runState.js';
 
+/** @typedef {import('./runState.js').Run} Run */
+
 /**
  * With REPORTS_ENABLED off the JSON is still written and only the render is
  * skipped: `report_data.json` is where the steps endpoint and US-044's
  * diagnostics come from, so dropping it would empty the run page as well.
+ * @param {Run} run
  */
 export function generateReport(run) {
   if (run.reportStatus === 'generating' || run.reportStatus === 'ready') return;

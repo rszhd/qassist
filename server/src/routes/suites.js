@@ -9,6 +9,8 @@ import {
   RUNNABLE_TEST_COLS, RUNNABLE_TEST_JOINS,
 } from './helpers.js';
 
+/** @typedef {import('./helpers.js').AppRequest} AppRequest */
+
 const COLS = 'id, name, project_id, created_at, updated_at';
 
 /**
@@ -205,7 +207,7 @@ export function suitesRouter({ checkToken }) {
       if (!tests.length) return res.status(400).json({ error: 'suite has no tests' });
       res.json({
         suiteId: req.params.id,
-        runs: await runTestsFromRequest(tests, req.body || {}, /** @type {any} */ (req).runOpenaiKey),
+        runs: await runTestsFromRequest(tests, req.body || {}, /** @type {AppRequest} */ (req).runOpenaiKey),
       });
     })
   );

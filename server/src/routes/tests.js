@@ -16,6 +16,8 @@ import {
 import { sessionsForTests, preambleForRun } from '../browserSession.js';
 import { applySecretWrites, secretsForTests, withSecretState } from '../testSecrets.js';
 
+/** @typedef {import('./helpers.js').AppRequest} AppRequest */
+
 // A stored secret's ciphertext is deliberately NOT reachable from here: it
 // lives in `test_secrets` (US-064), which nothing that answers a request
 // selects, so "it never leaves in a response" is a property of the schema
@@ -337,7 +339,7 @@ export function testsRouter({ checkToken }) {
         trigger: TRIGGERS.has(body.trigger) ? body.trigger : 'api',
         variables: resolved.variables,
         secrets: resolved.secrets,
-        openai_api_key: /** @type {any} */ (req).runOpenaiKey,
+        openai_api_key: /** @type {AppRequest} */ (req).runOpenaiKey,
         allowed_domains: test.allowed_domains,
         // US-048: which project's fixtures this run may attach. Off the test's
         // row, never off the request body.

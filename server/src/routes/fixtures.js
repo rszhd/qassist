@@ -24,6 +24,8 @@ import {
 } from '../fixtures.js';
 import { isUniqueViolation } from './helpers.js';
 
+/** @typedef {import('./helpers.js').AppRequest} AppRequest */
+
 const FIXTURE_COLS = 'id, filename, size_bytes, content_type, created_at';
 
 const raw = express.raw({ type: () => true, limit: FIXTURE_MAX_BYTES });
@@ -53,7 +55,7 @@ function overSizeMessage() {
 
 /** GET /api/projects/:project/fixtures */
 export async function listFixtures(req, res) {
-  const project = /** @type {any} */ (req).project;
+  const project = /** @type {AppRequest} */ (req).project;
   const { rows } = await db().query(
     `select ${FIXTURE_COLS} from fixtures where project_id = $1 order by filename`,
     [project.id]
@@ -70,7 +72,7 @@ export async function listFixtures(req, res) {
 
 /** POST /api/projects/:project/fixtures?filename=cv.pdf */
 export async function uploadFixture(req, res) {
-  const project = /** @type {any} */ (req).project;
+  const project = /** @type {AppRequest} */ (req).project;
   const resolved = fixturePath(project.id, req.query.filename);
   if ('error' in resolved) return res.status(400).json({ error: resolved.error });
   const { path: target, filename } = resolved;
@@ -119,7 +121,7 @@ export async function uploadFixture(req, res) {
 
 /** DELETE /api/projects/:project/fixtures/:filename */
 export async function deleteFixture(req, res) {
-  const project = /** @type {any} */ (req).project;
+  const project = /** @type {AppRequest} */ (req).project;
   const resolved = fixturePath(project.id, req.params.filename);
   if ('error' in resolved) return res.status(400).json({ error: resolved.error });
 

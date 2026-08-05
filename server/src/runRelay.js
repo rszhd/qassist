@@ -6,6 +6,13 @@
 import { MAX_CONCURRENT } from './config.js';
 import { TERMINAL } from './runState.js';
 
+/**
+ * @typedef {import('./runState.js').Run} Run
+ * @typedef {import('./runEvents.js').RunEvent} RunEvent
+ * @typedef {import('./runState.js').Viewer} Viewer
+ */
+
+/** @param {Run} run @param {RunEvent} evt */
 function send(run, evt) {
   const data = JSON.stringify(evt);
   for (const ws of run.subscribers) {
@@ -15,6 +22,7 @@ function send(run, evt) {
 
 // Durable events are buffered for replay; screencast frames are live-only
 // (we keep just the most recent one so a late viewer sees something immediately).
+/** @param {Run} run @param {RunEvent} evt */
 export function broadcast(run, evt) {
   if (evt.type === 'frame') {
     run.lastFrame = evt;
@@ -30,6 +38,7 @@ export function broadcast(run, evt) {
 // `run.events` would make a late viewer watch a countdown that already
 // happened. Each waiting run keeps just its current one and `attachViewer`
 // sends that.
+/** @param {Run} run @param {number} position */
 export function setQueuePosition(run, position) {
   run.queueEvent = { type: 'status', status: 'queued', position, concurrency: MAX_CONCURRENT };
   send(run, run.queueEvent);
@@ -37,6 +46,7 @@ export function setQueuePosition(run, position) {
 
 // Tell the agent whether anyone is watching: it only captures screencast
 // frames while a viewer is attached (saves Chromium encode CPU otherwise).
+/** @param {Run} run @param {boolean} on */
 export function setScreencast(run, on) {
   const stdin = run.child?.stdin;
   if (stdin && stdin.writable) {
@@ -47,6 +57,8 @@ export function setScreencast(run, on) {
 /**
  * Subscribe a WebSocket to a run's live feed: replay durable events, then the
  * live-only state (queue position, latest frame), then live updates follow.
+ * @param {Run} run
+ * @param {Viewer} ws
  */
 export function attachViewer(run, ws) {
   run.subscribers.add(ws);

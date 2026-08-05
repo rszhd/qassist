@@ -16,6 +16,12 @@ import { broadcast } from './runRelay.js';
 import { maybeNotify, persistUpdate } from './runPersistence.js';
 import { evictLater, TERMINAL } from './runState.js';
 
+/**
+ * @typedef {import('./runState.js').Run} Run
+ * @typedef {import('./runEvents.js').RunEvent} RunEvent
+ */
+
+/** @param {Run} run */
 export function startReplay(run) {
   const slug = fixtureForRun(run);
   const demo = loadDemo(slug);
@@ -51,6 +57,7 @@ export function startReplay(run) {
 
 // Same event handling as startRun's stdout loop: a fixture's `done`/`error`
 // carries the verdict that sets the terminal status; everything else is relayed.
+/** @param {Run} run @param {RunEvent} evt */
 function applyReplayEvent(run, evt) {
   if (TERMINAL.has(run.status)) return; // a later timer after finishReplay: ignore
   if (evt.type === 'done') {
@@ -63,6 +70,7 @@ function applyReplayEvent(run, evt) {
   broadcast(run, evt);
 }
 
+/** @param {Run} run */
 function finishReplay(run) {
   if (run.finishedAt) return; // already ended — a stop (US-047) beat this timer
   if (!TERMINAL.has(run.status)) run.status = 'completed';
@@ -78,6 +86,7 @@ function finishReplay(run) {
 // {recording,report.pdf} serve them unchanged. Symlink, not copy: the fixture
 // stays the single shared source, and the reaper's rm -rf runs/<id> removes only
 // the links. Best-effort — a run row is honest about what actually linked.
+/** @param {Run} run @param {string} slug */
 function linkFixtureArtifacts(run, slug) {
   const runDir = path.join(ARTIFACTS_DIR, run.id);
   try {

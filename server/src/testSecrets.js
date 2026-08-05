@@ -115,6 +115,14 @@ export async function applySecretWrites(testId, writes, declarations) {
 }
 
 /**
+ * What one test's stored secrets resolve to before its run is created: the
+ * plaintext by name, or `error` alone — which is a test that must not start
+ * rather than one that types an empty password.
+ * @typedef {{ error?: string, values?: Record<string, string> }} StoredSecrets
+ * @typedef {import('./variables.js').VariableSpec} VariableSpec
+ */
+
+/**
  * The decrypted secrets for a batch of runnable tests, keyed by test id.
  *
  * Resolved HERE, before `createRun`, exactly as `sessionsForTests` is and for
@@ -127,11 +135,11 @@ export async function applySecretWrites(testId, writes, declarations) {
  * nothing into the field and reports the app as broken, which is the false
  * failure this story exists to remove. AES-GCM makes that state reachable by
  * configuration alone (a rotated KEY_ENCRYPTION_SECRET), with no bug anywhere.
- * @param {{ id: string, variables?: any }[]} tests
- * @returns {Promise<Map<string, { error?: string, values?: Record<string, string> }>>}
+ * @param {{ id: string, variables?: VariableSpec[] }[]} tests
+ * @returns {Promise<Map<string, StoredSecrets>>}
  */
 export async function secretsForTests(tests) {
-  /** @type {Map<string, { error?: string, values?: Record<string, string> }>} */
+  /** @type {Map<string, StoredSecrets>} */
   const byTest = new Map();
   // Only tests that declare a secret can consume one, so a batch of ordinary
   // tests asks the DB nothing at all.

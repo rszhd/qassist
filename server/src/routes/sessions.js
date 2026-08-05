@@ -16,6 +16,8 @@ import { mintCaptureToken } from '../sessionCapture.js';
 import { PUBLIC_BASE_URL } from '../config.js';
 import { isUniqueViolation } from './helpers.js';
 
+/** @typedef {import('./helpers.js').AppRequest} AppRequest */
+
 // Everything a session is allowed to say about itself. `storage_state_ciphertext`
 // is absent by construction: this fragment is the only column list any query in
 // this file uses, so there is no `select *` for the blob to arrive on.
@@ -25,7 +27,7 @@ const SESSION_COLS =
 
 /** GET /api/projects/:project/sessions */
 export async function listSessions(req, res) {
-  const project = /** @type {any} */ (req).project;
+  const project = /** @type {AppRequest} */ (req).project;
   const { rows } = await db().query(
     `select ${SESSION_COLS} from browser_sessions where project_id = $1 order by name`,
     [project.id]
@@ -48,7 +50,7 @@ export async function listSessions(req, res) {
  * moment to say so is now rather than when a run refuses.
  */
 export async function createSession(req, res) {
-  const project = /** @type {any} */ (req).project;
+  const project = /** @type {AppRequest} */ (req).project;
   const body = /** @type {any} */ (req.body || {});
   const name = String(body.name || '').trim();
   if (!name) return res.status(400).json({ error: 'a name is required' });
@@ -124,7 +126,7 @@ export async function createSession(req, res) {
  * a different verb would leave two ways to write the column.
  */
 export async function updateSession(req, res) {
-  const project = /** @type {any} */ (req).project;
+  const project = /** @type {AppRequest} */ (req).project;
   const id = req.params.id;
   if (!isUuid(id)) return res.status(404).json({ error: 'not found' });
   const body = /** @type {any} */ (req.body || {});
@@ -203,7 +205,7 @@ export async function updateSession(req, res) {
  * extension, because it is read off the request that's asking.
  */
 export async function mintSessionCaptureToken(req, res) {
-  const project = /** @type {any} */ (req).project;
+  const project = /** @type {AppRequest} */ (req).project;
   const id = req.params.id;
   if (!isUuid(id)) return res.status(404).json({ error: 'not found' });
   const { rowCount } = await db().query(
@@ -218,7 +220,7 @@ export async function mintSessionCaptureToken(req, res) {
 
 /** DELETE /api/projects/:project/sessions/:id */
 export async function deleteSession(req, res) {
-  const project = /** @type {any} */ (req).project;
+  const project = /** @type {AppRequest} */ (req).project;
   if (!isUuid(req.params.id)) return res.status(404).json({ error: 'not found' });
   const { rowCount } = await db().query(
     'delete from browser_sessions where id = $1 and project_id = $2',
