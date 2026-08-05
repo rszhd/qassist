@@ -69,6 +69,7 @@ Sprints aren't split along a self-host/hosted-tier line — `sprint/current/` an
 | [US-066](sprint/current/US-066-chrome-web-store-listing.md) | List the session-capture extension on the Chrome Web Store | ⏳ **Submitted** 2026-08-03, 5/6 — `0.1.1` in review; the last criterion is Google's answer | US-063 |
 | [US-070](sprint/current/US-070-user-manual-site.md) | A user manual, deployed off the chain (`docs.qassist.run`) | 🔨 **Live** 2026-08-05, 9/11 — one closes on the first page edit, one is a line in the marketing repo | US-007, US-055 |
 | [US-071](sprint/current/US-071-one-command-deploy.md) | One command deploys a stack, and proves which one it deployed | 📋 Planned — P1 | US-052, US-055, US-056 |
+| [US-072](sprint/current/US-072-landing-page-astro-and-self-hosted.md) | The landing page, onto the box and off React | 📋 Planned — P2 | US-007, US-070 |
 
 ### Done
 
