@@ -120,15 +120,23 @@ these; a request for `/first-run` with no extension is a 404 and that is
 expected, not a misconfiguration. Every link the site emits carries the
 extension, so this is only ever reached by a URL somebody typed or truncated.
 
-**That 404 is nginx's own page, not the site's.** VitePress builds a styled
-`404.html` carrying the nav and the search box — the way back — and the stock
-server block has no `error_page 404` rule, so it is never served. Known, and
-left alone on 2026-08-05: the fix is not an `nginx.conf`, which is the one thing
-this stack exists without, but three Traefik labels on `web`
-(`errors.status=404`, `errors.service`, `errors.query=/404.html`) that the
-existing proxy would discover with no change to `docker-compose.proxy.yml`.
-Worth doing when someone is next in this file; not worth recreating a healthy
-container for on its first day.
+**That 404 is the site's own page, and it is the proxy that makes it so.** Stock
+nginx has no `error_page 404` rule, so it answered with its own page and the
+styled `404.html` VitePress builds — the one carrying the nav and the search
+box, which is the way back — was never served. Fixed 2026-08-05 with three
+`errors` labels on `web` rather than an `nginx.conf`, which is the one thing
+this stack exists without: Traefik re-fetches the body from the same service and
+keeps the 404 status. `docker-compose.proxy.yml` is untouched, because reading
+labels off a container is exactly the contract it states.
+
+```sh
+curl -sSI https://docs.qassist.run/settings | head -1        # HTTP/2 404
+curl -sS  https://docs.qassist.run/settings | grep '<title>' # 404 | QAssist
+```
+
+Both halves matter and it is easy to fix one and not the other: a styled page
+returning **200** tells a crawler the URL is real, and a bare nginx page
+returning 404 leaves a reader with no way back.
 
 The one thing worth confirming by hand after a stand-up, because it is the only
 thing no other check covers:

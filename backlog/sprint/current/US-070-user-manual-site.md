@@ -184,14 +184,22 @@ manual publishes off `dev` and never needed a promotion to work — which is the
 story's whole point arriving one layer earlier than expected. `checkout <ref> --
 <paths>` writes those paths only, so the four running stacks saw nothing.
 
-**One wart, left alone deliberately.** A URL with no `.html` — only ever reached
-by typing or truncation, since every emitted link carries it — gets nginx's own
-404 page rather than the styled `404.html` VitePress builds, which carries the
-nav and the search box. The fix is *not* an `nginx.conf`, which is the thing
-this stack exists without; it is three Traefik `errors` labels on `web` that the
-existing proxy discovers with no change to `docker-compose.proxy.yml`. Recorded
-in the runbook rather than done, because it is not worth recreating a healthy
-container for on its first day.
+**`cleanUrls: false` had one cost, and it was paid at the proxy.** A URL typed
+without `.html` got nginx's own 404 page, so the styled `404.html` VitePress
+builds — the one carrying the nav and the search box — was never served. Fixing
+it *inside* nginx means mounting the config file this stack exists without, so
+it was fixed with three `errors` labels on `web` instead: Traefik re-fetches the
+body from the same service and keeps the 404 status.
+`docker-compose.proxy.yml` is still untouched, which is the point — a new
+behaviour arrived by labels on our own container, exactly the contract the proxy
+file states. Verified live: `HTTP/2 404` with `<title>404 | QAssist</title>`,
+and `X-Robots-Tag` still on it because robots stays outermost in the chain.
+
+The generalisable bit: **an error page has to get both halves right**, and it is
+easy to fix one. A styled page returning 200 tells a crawler the URL is real; a
+bare nginx page returning 404 leaves a reader with no way back. Only `web` was
+recreated, so the builder's clone and `node_modules` survived and the next
+publish stayed incremental.
 
 **The builder was rehearsed end to end before anything was written about it**,
 in a throwaway container against a throwaway ref carrying the working tree — a
