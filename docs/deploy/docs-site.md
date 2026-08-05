@@ -65,12 +65,20 @@ hostnames.
 
 **2. The compose file.** `~/qassist` is the shared checkout the other stacks
 read their compose and env files from, and it is only ever **checked out** here
-— never built in, never branch-switched:
+— never built in, never branch-switched. `checkout <ref> -- <paths>` writes those
+paths and nothing else, so it cannot disturb a running stack:
 
 ```sh
 cd ~/qassist
 git fetch origin && git checkout main -- docker-compose.docs.yml .env.docs.example
 ```
+
+**Take the ref that actually carries the files.** The box's checkout sits on
+`staging`, and on the first stand-up (2026-08-05) neither branch had them yet —
+US-070 was on `dev`, since the manual publishes off `dev` and never needed a
+promotion to work. So it was `git checkout origin/dev -- …`, and the two files
+stayed at that revision until the story promoted. Byte-identical content, so the
+later `checkout` of `staging` reconciled it with no conflict.
 
 **3. Configure.**
 
@@ -110,7 +118,17 @@ curl -sS https://docs.qassist.run/first-run.html | grep -o '<title>.*</title>'
 **The `.html` matters.** `cleanUrls` is off precisely so stock nginx can serve
 these; a request for `/first-run` with no extension is a 404 and that is
 expected, not a misconfiguration. Every link the site emits carries the
-extension.
+extension, so this is only ever reached by a URL somebody typed or truncated.
+
+**That 404 is nginx's own page, not the site's.** VitePress builds a styled
+`404.html` carrying the nav and the search box — the way back — and the stock
+server block has no `error_page 404` rule, so it is never served. Known, and
+left alone on 2026-08-05: the fix is not an `nginx.conf`, which is the one thing
+this stack exists without, but three Traefik labels on `web`
+(`errors.status=404`, `errors.service`, `errors.query=/404.html`) that the
+existing proxy would discover with no change to `docker-compose.proxy.yml`.
+Worth doing when someone is next in this file; not worth recreating a healthy
+container for on its first day.
 
 The one thing worth confirming by hand after a stand-up, because it is the only
 thing no other check covers:

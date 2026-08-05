@@ -5,9 +5,9 @@ there is one link to send someone — and, as the maintainer, so that fixing a
 typo in it costs a push rather than a promotion through `dev → staging → main`
 and an image rebuild.
 
-- **Status:** 🔨 **Repo-side done** 2026-08-05, 8/11 — the three open criteria all
-  need the box (DNS, the certificate, the stand-up), plus one line in the
-  marketing repo. See [Results](#results).
+- **Status:** 🔨 **Live** 2026-08-05 at `docs.qassist.run`, 10/11 — the last one
+  is a line in the marketing repo, which is not this repo. See
+  [Results](#results).
 - **Priority:** P2 (current sprint)
 - **Estimate:** ~1 h repo-side, plus one stand-up on the box
 - **Depends on:** [US-007](done/US-007-https-reverse-proxy.md) (Traefik,
@@ -133,14 +133,14 @@ carrying `DOCS_HOST`.
 
 ## Acceptance criteria
 
-- [ ] `docs.qassist.run` serves the manual over HTTPS on its own Let's Encrypt
+- [x] `docs.qassist.run` serves the manual over HTTPS on its own Let's Encrypt
       certificate
-- [ ] A push to `dev` touching `manual/**` is live within one poll interval,
+- [x] A push to `dev` touching `manual/**` is live within one poll interval,
       with no workflow run, no image build and no registry round trip
 - [x] A push touching nothing under `manual/` rebuilds nothing
 - [x] The whole stack is `docker-compose.docs.yml` plus `.env.docs`: no cron, no
       host script, no `nginx.conf`, and `docker-compose.proxy.yml` is unchanged
-- [ ] Standing it up touches no other stack: `~/qassist` is only checked out,
+- [x] Standing it up touches no other stack: `~/qassist` is only checked out,
       the builder's clone is a volume of its own, and demo, staging, production
       and the proxy see no change from a docs publish
 - [x] The manual covers the path a user actually walks — writing a goal, reading
@@ -160,13 +160,32 @@ carrying `DOCS_HOST`.
 
 ## Results
 
-**Repo-side complete, 2026-08-05.** Sixteen pages under `manual/`, the stack in
-[`docker-compose.docs.yml`](../../../docker-compose.docs.yml) +
+**Live 2026-08-05 at `docs.qassist.run`**, on its own Let's Encrypt certificate
+(`CN = docs.qassist.run`, issued at stand-up). Sixteen pages under `manual/`,
+the stack in [`docker-compose.docs.yml`](../../../docker-compose.docs.yml) +
 [`.env.docs.example`](../../../.env.docs.example), the loop body in
 [`manual/publish.sh`](../../../manual/publish.sh), and the runbook at
-[`docs/deploy/docs-site.md`](../../../docs/deploy/docs-site.md). What is left is
-the box: an `A` record, a `git checkout` in `~/qassist`, one `up -d`, and one
-line in the marketing repo.
+[`docs/deploy/docs-site.md`](../../../docs/deploy/docs-site.md).
+
+**The stand-up was three commands and cost nothing else on the box**: an `A`
+record, `git checkout origin/dev -- <two files>` in the shared `~/qassist`, and
+one `up -d`. First publish — a cold clone, `npm ci` and a build — landed in
+about a minute. All seventeen emitted pages and every asset answer 200 over
+HTTP/2, `X-Robots-Tag: all`, and `:80` 301s to `:443`.
+
+`origin/dev` rather than the branch `~/qassist` sits on (`staging`), because the
+manual publishes off `dev` and never needed a promotion to work — which is the
+story's whole point arriving one layer earlier than expected. `checkout <ref> --
+<paths>` writes those paths only, so the four running stacks saw nothing.
+
+**One wart, left alone deliberately.** A URL with no `.html` — only ever reached
+by typing or truncation, since every emitted link carries it — gets nginx's own
+404 page rather than the styled `404.html` VitePress builds, which carries the
+nav and the search box. The fix is *not* an `nginx.conf`, which is the thing
+this stack exists without; it is three Traefik `errors` labels on `web` that the
+existing proxy discovers with no change to `docker-compose.proxy.yml`. Recorded
+in the runbook rather than done, because it is not worth recreating a healthy
+container for on its first day.
 
 **The builder was rehearsed end to end before anything was written about it**,
 in a throwaway container against a throwaway ref carrying the working tree — a
