@@ -371,6 +371,11 @@ code { font-family: var(--mono); font-size: .92em; }
 }
 .views a:hover { color: var(--text); }
 .views a.active { color: var(--text); background: var(--hover); }
+/* The run's status on the Run tab, for the phone bar alone — there the pill
+   and the WS state are gone and the tab is the only thing left that can carry
+   them. Off everywhere else: a dot and a pill saying the same word twice on
+   one row is how the bar reads as cluttered. */
+.tab-dot { display: none; }
 
 .top-right { margin-left: auto; display: flex; align-items: center; gap: var(--s3); }
 /* `capitalize` rather than a label map: the state names arrive lowercase from
@@ -807,24 +812,58 @@ select {
   .top-right { min-height: var(--ctl); }
 }
 
-/* 600px: the phone. Same construction as above, one size up — 44 (row one, now
-   a touch target) + 8 + 44 (the tab row) + 8 = 104. */
+/* 600px: the phone — and here the bar goes back to one row. Two rows cost
+   104px of a ~780px viewport, sticky, for a decorative mark and two icon
+   buttons; the tabs join them instead. It measures: 288 inner on the narrowest
+   phone (320 − two 16px gutters), less the Manual and Settings buttons at 44
+   each and their 12px gap, less the 16px gap before the nav, leaves 172px for
+   four tabs — 43px each, and 60px on a 390px screen. The row keeps its 44px
+   height, so every target is still a finger. 44 + 8 of block padding = 52. */
 @media (max-width: 600px) {
   :root {
-    --topbar-h: 104px;
+    --topbar-h: 52px;
     --gutter: var(--s4);
+    /* The gutter has stepped down here since the phone breakpoint existed and
+       the card's own inset never did, so the two stacked: 16 of gutter and 20
+       of card each side is 72px of a 320px screen — 22% of the width gone
+       before a row's first character, and it is what made a name that fits
+       wrap. They step down together now. Six other rules read this token and
+       cancel it with a negative margin, which is the whole reason it is a
+       token: they follow it down and their text still lines up with the card
+       head above them. */
+    --card-pad: var(--s3);
     /* Every control becomes a touch target. `--ctl-sm` stops being the compact
        pair and meets `--ctl`: 44px is a finger either way, and a 28px icon
        button next to a 44px one only reads as a mistake. */
     --ctl: 44px; --ctl-sm: 44px;
   }
 
+  /* One row again: undo the wrap the 900px block above sets up. */
+  .topbar-inner { flex-wrap: nowrap; row-gap: 0; }
+  /* The mark is the row's cheapest 26px — it is an image, not a link, and
+     nobody needs telling which app they have open. Scoped to the bar; the
+     login screen's mark is the identity there and stays. */
+  .topbar .brand { display: none; }
+  .views { order: 0; flex: 1; min-width: 0; flex-basis: auto; }
+
   /* The tabs fill the row and drop to their icons — four labels do not fit
      288px, and a tab row that scrolls sideways is not one control any more.
      The label stays in the DOM for `aria-label` to have shadowed; see
      TopBar.jsx. */
-  .views a { flex: 1; padding: 0; justify-content: center; }
+  .views a { position: relative; flex: 1; padding: 0; justify-content: center; }
   .views a span { display: none; }
+  /* The status the pill used to carry, under the Run tab's icon. Cornered
+     rather than in the flex line: the icon is centred in the tab's share of
+     the row, and a second item beside it would push it off centre. */
+  .views a .tab-dot {
+    display: block; position: absolute; bottom: var(--s15); left: 50%;
+    width: var(--dot); height: var(--dot); margin-left: calc(var(--dot) / -2);
+    border-radius: 50%;
+  }
+  /* With the tabs on the row there is no width left for the WS state or the
+     pill; the dot above replaces them. Without a nav — no control plane, so no
+     tabs (US-023) — the row is short and they stay. */
+  .topbar-inner:has(.views) .ws, .topbar-inner:has(.views) .badge { display: none; }
 
   /* iOS Safari zooms the viewport on focus for any control under 16px and
      never zooms back out. This is that workaround and nothing else — it is not

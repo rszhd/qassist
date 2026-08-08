@@ -563,26 +563,46 @@ a.row-main { color: inherit; text-decoration: none; }
   font-family: var(--mono); font-size: var(--t-sm); line-height: 1.7; color: var(--muted);
 }
 
-/* A history row on a phone. The row is verdict + name/goal + when, and at 390px
-   the `when` column held 107px of a 356px row, leaving the test name 187 —
-   enough to wrap "Returning customer pays with a saved card" onto three lines
-   while a date sat beside it. So `when` stops being a column and becomes a
-   line: the row wraps, the name gets the full width, and the timestamp and the
-   steps/duration read left to right underneath it. */
+/* History is the one list scanned for the verdict itself, so the row leads
+   with the pill rather than with a dot — a dot is a colour you have to have
+   learnt, and `stopped` and `completed` are two greys apart in it. Fixed
+   width because a pill is set from a word and the words run 5–9 characters:
+   left to size themselves, every row's name starts at a different x. 8em of
+   the badge's own `--t-xs` holds COMPLETED, the longest; anything longer
+   grows the pill rather than eliding.
+   Above the phone block on purpose: the override there is the same three
+   classes, so at equal specificity only source order decides, and while this
+   rule sat below it the phone kept the 8em column. */
+.hist-list .list .badge { flex: 0 0 auto; min-width: 8em; justify-content: center; }
+
+/* A history row on a phone. Three things want the row — the verdict pill, the
+   name over its goal, and the timestamp with its steps/duration — and at 320px
+   the pill's 8em column plus the gap took 104 of 320 before the name started,
+   so a name like "Returning customer pays with a saved card" wrapped to two
+   lines inside the 176px left over.
+   So the row turns on its side. The name and goal take line one at the full
+   width; the pill sizes to its word again and shares line two with the
+   timestamp. Every line then starts at the same x — which the earlier version
+   of this block gave up on, and the ragged left edge is most of what made the
+   list look broken. Rows measure 80px flat instead of 84–103 depending on how
+   long the name was. */
 @media (max-width: 600px) {
-  .hist-list .list li { flex-wrap: wrap; }
+  .hist-list .list li { flex-wrap: wrap; row-gap: var(--s1); }
   /* The trigger tag follows the name instead of floating to the right of it: a
      name long enough to wrap left the tag centred against two lines at the far
      edge, where it read as a column of its own rather than as part of the row. */
   .hist-list .row-name { flex-wrap: wrap; }
-  /* The pill sizes to its word again: a fixed 8em column is a quarter of a
-     356px row spent before the name starts, and the name is what a phone has
-     least of. Rows starting at slightly different x is the cheaper loss —
-     there are two verdicts in a phone-length list, not nine. */
-  .hist-list .list .badge { min-width: 0; }
+  /* Order, not DOM order: the pill leads the row at every other width, and
+     that is the reading order this list is built on. Only the phone lifts the
+     name above it. */
+  .hist-list .row-main { order: 1; flex-basis: 100%; }
+  .hist-list .list .badge { order: 2; min-width: 0; }
+  /* Wraps rather than overflows: the pill, the date and "14 steps · 1m 22s"
+     fit 280px together, but a run measured in minutes is the line's own
+     ceiling and the steps drop under it instead of pushing off the row. */
   .hist-list .run-when {
-    flex-basis: 100%; flex-direction: row; align-items: baseline;
-    justify-content: flex-start; gap: var(--s2);
+    order: 3; flex: 1; flex-direction: row; flex-wrap: wrap;
+    align-items: baseline; justify-content: flex-start; gap: var(--s2);
   }
   /* Nothing to pick yet is not worth a screen of its own above the list. */
   .hist-detail.is-empty { display: none; }
@@ -599,12 +619,50 @@ a.row-main { color: inherit; text-decoration: none; }
    not shrink, so it overflowed its own column and painted over the timestamp
    beside it. The name and its recurrence take the full line; the next-run time
    and the actions share the one under it, which is where the 136px of touch
-   targets stop competing with the thing they act on. */
+   targets stop competing with the thing they act on.
+   The time then has to be able to give that line up. Left at `flex: 0 0 auto`
+   it held its full 170px, and 170 + 136 does not fit 280 — so at 320px the
+   three buttons took a *third* line and the row stood 191px tall, one row to a
+   third of the screen. It shrinks and wraps its own two parts instead, the
+   same shape History's rows take one section up. */
 @media (max-width: 600px) {
+  /* The wrap lines are one row's content, not a gap between rows. */
+  .sched-list .list li { row-gap: var(--s1); }
   .sched-list .row-main { flex-basis: 100%; }
   .sched-list .row-name { flex-wrap: wrap; }
-  .sched-list .run-when { align-items: flex-start; }
-  .sched-list .row-actions { margin-left: auto; }
+  /* `nowrap` on the container, and it is load-bearing: the next-run date is a
+     bare text node, so it is an anonymous flex item that no rule can reach.
+     Shrinking beside "in 3h 40m · last 8 Aug, 06:00" it broke across two lines
+     as "8 Aug," / "12:00", which reads as a layout coming apart. Held
+     unwrappable it keeps its width, the sub takes the rest, and the two fall
+     onto separate lines whole instead. The row-gap is `--s05` because those
+     two lines are one column of text, not two rows of it — at `--s2` they
+     stood taller than the buttons beside them and every row grew 4px. */
+  .sched-list .run-when {
+    flex: 1; min-width: 0; flex-direction: row; flex-wrap: wrap; white-space: nowrap;
+    align-items: baseline; justify-content: flex-start; gap: var(--s05) var(--s2);
+  }
+  /* The three buttons set the height of that line, and beside one 20px line of
+     time — every schedule that has not run yet — 44px of them left 24px of
+     nothing under it, the row's whole bottom half. So the control draws at
+     `--s8`, the size it is on a desktop, and reaches a finger's 44px through
+     `::after` instead of through its own box: the row gets 12px back and the
+     target does not change. The width stays 44 and only the height gives —
+     three targets 32px apart would overlap each other's hit area, which is the
+     one error this trade must not make. */
+  .sched-list .row-actions .icon-btn { position: relative; height: var(--s8); }
+  .sched-list .row-actions .icon-btn::after {
+    content: ''; position: absolute; inset: calc((var(--ctl) - var(--s8)) / -2) 0;
+  }
+  /* Nothing to say yet — a schedule that has never run and is not counting
+     down to anything. Left in, it is a flex item with a wrap line of its own,
+     which is the row's `gap` hanging under the time. Same reason
+     `.sched-strip:empty` goes. */
+  .sched-list .run-sub:empty { display: none; }
+  /* The last resort under all that: a sub too long for a line of its own
+     elides rather than pushing the buttons off the row. */
+  .sched-list .run-sub { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .sched-list .row-actions { margin-left: auto; flex: 0 0 auto; }
 }
 
 .hist-paging { display: flex; justify-content: flex-end; gap: var(--s2); }
@@ -612,15 +670,6 @@ a.row-main { color: inherit; text-decoration: none; }
 .hist-scope { display: flex; align-items: center; justify-content: space-between; gap: var(--s2); margin-bottom: var(--s2); font-size: var(--t-sm); color: var(--muted); }
 .run-when { flex: 0 0 auto; display: flex; flex-direction: column; align-items: flex-end; gap: var(--s05); font-size: var(--t-sm); color: var(--muted); }
 .run-sub { font-size: var(--t-sm); color: var(--faint); }
-/* History is the one list scanned for the verdict itself, so the row leads
-   with the pill rather than with a dot — a dot is a colour you have to have
-   learnt, and `stopped` and `completed` are two greys apart in it. Fixed
-   width because a pill is set from a word and the words run 5–9 characters:
-   left to size themselves, every row's name starts at a different x. 8em of
-   the badge's own `--t-xs` holds COMPLETED, the longest; anything longer
-   grows the pill rather than eliding. */
-.hist-list .list .badge { flex: 0 0 auto; min-width: 8em; justify-content: center; }
-
 /* US-069: a schedule's strip is a second line of its row at every width, not a
    fourth column. The row already carries a name, a type tag, a recurrence, a
    next-fire time and three actions, and the phone rules below wrap it twice

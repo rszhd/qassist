@@ -1,7 +1,7 @@
 import { BookOpen, CalendarClock, FolderTree, History, Play, Settings } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import { BrandMark, IconButton } from './ui.jsx';
-import { statusLabel } from './status.js';
+import { statusColor, statusLabel } from './status.js';
 
 const VIEWS = [
   ['/', 'Run', Play],
@@ -25,6 +25,11 @@ const MANUAL_URL = 'https://docs.qassist.run';
 // renders before it exists).
 export default function TopBar({ showNav, runState, onOpenSettings }) {
   const { status, wsState, runId } = runState;
+  // The phone bar is one row, and the WS state and the status pill do not fit
+  // beside four tabs and two buttons. The Run tab carries the status instead
+  // (`.tab-dot`, phone-only in CSS) and the WS word is dropped there: it is
+  // diagnostics, and the live frame under it says the same thing.
+  const runDot = Boolean(runId) && showNav;
   return (
     <header className="topbar">
       <div className="topbar-inner">
@@ -43,10 +48,16 @@ export default function TopBar({ showNav, runState, onOpenSettings }) {
                 // The label is hidden below the phone breakpoint, where four
                 // labelled tabs no longer fit the row, so the accessible name
                 // has to come from somewhere the stylesheet can't take away.
-                aria-label={label}
+                // On the phone the tab is also the only place the run's status
+                // is shown, and a colour is not a name — so it joins the label
+                // rather than being left to `.tab-dot` alone.
+                aria-label={runDot && to === '/' ? `${label} — ${statusLabel(status)}` : label}
               >
                 <Icon size={13} strokeWidth={2} aria-hidden="true" />
                 <span>{label}</span>
+                {runDot && to === '/' && (
+                  <span className="tab-dot" style={{ background: statusColor(status) }} />
+                )}
               </NavLink>
             ))}
           </nav>

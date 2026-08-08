@@ -180,8 +180,10 @@ Two narrow breakpoints, and they answer different questions. **900px** is where
 a view gives up its side column and the app becomes one stack. The top bar joins
 it there, because four labelled tabs beside a run's indicators is a side-by-side
 layout too: below 900px the nav takes a row of its own, and `--topbar-h` is
-restated to 80px for the taller bar. **600px is the phone**, and `--topbar-h` is
-restated again to 110px, because that nav row is now touch targets. Everything
+restated to 80px for the taller bar. **600px is the phone**, and there the bar
+goes back to *one* row of 52px: the mark is dropped, the tabs share the line
+with Manual and Settings, and the run's status moves onto the Run tab as a dot
+because the pill and the WS word no longer fit beside them. Everything
 downstream measures from `--topbar-h`, which is why it is a token restated per
 breakpoint rather than three numbers.
 
@@ -192,12 +194,21 @@ can watch. Below 600px Run only has to stop breaking the page: no sideways
 scroll, controls reachable, and the stage first so the view opens on it.
 
 600px changes tokens where it can and rules where it must. `--gutter` steps from
-`--s6` to `--s4`; `--ctl` and `--ctl-sm` meet at 44px, so the compact pair stops
+`--s6` to `--s4` and `--card-pad` from `--s5` to `--s3` — they have to step
+*together*, because stacked they cost 72px of a 320px screen before a row's
+first character; `--ctl` and `--ctl-sm` meet at 44px, so the compact pair stops
 existing and every target is a finger; form controls go to 16px, which is an iOS
 Safari zoom workaround and not a type decision (`--t-base` is unchanged
 elsewhere, and the rule says so); page heads wrap their actions to a second line;
 and a flanking column that is still `position: sticky` once stacked goes static,
 because pinning covers the content it now sits above rather than beside.
+
+**A 44px target does not have to be a 44px box.** Where a cluster of icon
+buttons shares a line with one line of text — a schedule row's actions — the
+button draws at `--s8` and reaches 44px through an `::after` overlay, so the
+line is 32px tall and the finger still gets its 44. Height only: two targets
+32px *apart* would overlap each other's hit area, which is the failure this
+trade exists to avoid, so the width stays 44.
 
 Heights on a phone are `dvh`, not `vh`: `vh` measures the viewport with the
 browser toolbar retracted, so `--sticky-h` and a modal's `max-height` both cut
@@ -351,7 +362,8 @@ one of these by name — the two tables cannot drift.
 
 ### Sizes
 
-`--card-pad` `var(--s5)`/20px · `--col-side` 300px · `--col-side-min` 250px ·
+`--card-pad` `var(--s5)`/20px — a card's own inset, `--s3` below the 600px
+breakpoint · `--col-side` 300px · `--col-side-min` 250px ·
 `--stage-min` 800px · `--rail-strip` 34px · `--scroll-cap` 240px · `--dot` 6px ·
 `--page-w` 1480px · `--gutter` `var(--s6)`/24px — the page's side inset, `--s4`
 below the 600px breakpoint ·
