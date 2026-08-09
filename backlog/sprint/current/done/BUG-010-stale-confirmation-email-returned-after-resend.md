@@ -148,6 +148,19 @@ Both parts landed as proposed, with the Message-ID design chosen over the
 timestamp watermark for the reason above. 303 agent tests pass, 39 of them in
 `test_email_codes.py`, up from 24.
 
+One thing the work turned up that the proposal did not have. **The agent's
+secret names are read by a server test**, and tidying them cost two CI rounds
+on `staging`. `variables.test.js` greps `sensitive["name"] =` out of
+`run_agent.py` to keep `AGENT_PROVIDED_SECRETS` in step, so folding the two
+assignments into a loop over `(name, value)` pairs — which is the natural way to
+express "set what this email has, drop what it hasn't" — made `email_code` and
+`email_link` invisible to it and the exemption list unguarded. The fix is one
+literal assignment per name, with a comment saying why it is not a loop. The
+second round was the comment *itself* matching the grep, because it quoted the
+spelling it was explaining. Worth knowing before the next tidy-up: this file has
+a reader outside the agent, and that reader is a regex that cannot tell code
+from prose.
+
 What is **not** proved yet: every assertion here runs against a stub
 connection, so the fix is verified against the IMAP protocol as this module
 uses it, not against a real mailserver. Gmail's `SEARCH` returning UIDs in a

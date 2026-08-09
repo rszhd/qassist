@@ -506,18 +506,23 @@ async def main() -> int:
                 )
             consumed_email_ids.add(conf.message_id)
             got = []
-            # Drop what this email doesn't carry: leaving a previous value in
-            # place would let <secret>email_code</secret> quietly resolve to the
-            # code this email supersedes.
-            for key, value in (("email_code", conf.code), ("email_link", conf.link)):
-                if value:
-                    sensitive[key] = value
-                else:
-                    sensitive.pop(key, None)
+            # Each branch drops what this email doesn't carry: leaving a
+            # previous value in place would let <secret>email_code</secret>
+            # quietly resolve to the code this email supersedes.
+            # One literal assignment per name, on purpose: variables.test.js
+            # reads that spelling out of this file to keep
+            # server/src/variables.js's AGENT_PROVIDED_SECRETS in step, so a
+            # loop over the pairs makes these names invisible to it.
             if conf.code:
+                sensitive["email_code"] = conf.code
                 got.append("a verification code — type <secret>email_code</secret> into the code field")
+            else:
+                sensitive.pop("email_code", None)
             if conf.link:
+                sensitive["email_link"] = conf.link
                 got.append("a confirmation link — navigate to <secret>email_link</secret>")
+            else:
+                sensitive.pop("email_link", None)
             # Scrub the subject: it may literally contain the code ("123456 is
             # your code"), which must not reach the LLM or the event feed.
             # `mask_codes` first, because `scrub` can only remove the token that
