@@ -420,7 +420,7 @@ export default function RunView({ token, health, keyStatus, visible, needsToken,
         // Informational, not celebratory: the subscription becomes real when
         // the webhook lands, which is usually immediate but is not guaranteed
         // to have happened by the time Stripe redirects the browser back.
-        <div className="batch-note page-error">
+        <div className="note page-error">
           <CreditCard size={14} aria-hidden="true" />
           <span>
             Payment complete. Stripe confirms in the background — if a run is still refused, give
@@ -482,7 +482,7 @@ export default function RunView({ token, health, keyStatus, visible, needsToken,
 
         <section className="stage">
           {batch && (
-            <div className="batch-note">
+            <div className="note">
               <Play size={14} aria-hidden="true" />
               <span>
                 Running {batch.kind} <strong>{batch.name}</strong> — {batchSummary(batch)}

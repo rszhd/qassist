@@ -224,7 +224,7 @@ export default function App() {
           />
         </div>
         <Routes>
-          <Route path="/history" element={<HistoryView token={token} />} />
+          <Route path="/history" element={<HistoryView token={token} reports={!!health?.reports} />} />
           <Route path="/schedules" element={<SchedulesView token={token} />} />
           {/* One route with both segments optional, not three routes sharing an
               element: switching project or section then changes params on the

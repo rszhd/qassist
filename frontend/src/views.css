@@ -820,7 +820,9 @@ a.row-main { color: inherit; text-decoration: none; }
    divider between siblings, and the caption belongs to the player rather than
    being the section after it. */
 .detail-recording { display: flex; flex-direction: column; gap: var(--s2); }
-.detail-screen { margin: 0; }
+/* Seeking from an activity row scrolls this to the top of the viewport, where
+   the sticky top bar would otherwise cover the first rows of the frame. */
+.detail-screen { margin: 0; scroll-margin-top: var(--sticky-top); }
 
 /* Inline row editors (rename a project/module, edit a suite's membership). */
 .inline-edit { display: flex; flex-direction: column; gap: var(--s2); width: 100%; }

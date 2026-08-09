@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Activity, AlertTriangle, ChevronDown, ChevronUp, CircleStop, Download, ExternalLink,
+  Activity, AlertTriangle, ChevronDown, ChevronUp, CircleStop, Download, ExternalLink, Info,
 } from 'lucide-react';
 import { api, openReport } from './api.js';
 import ActivityLog from './Activity.jsx';
@@ -44,6 +44,7 @@ export default function RunDetail({ run, token, onError, liveSteps, liveDiagnost
   const goalRef = useRef(null);
   const [goalClamped, setGoalClamped] = useState(false);
   const videoRef = useRef(null);
+  const frameRef = useRef(null);
 
   const pruned = !!run.artifacts_deleted_at;
   const steps = liveSteps ?? fetched;
@@ -145,7 +146,7 @@ export default function RunDetail({ run, token, onError, liveSteps, liveDiagnost
   // it loads its first frame and waits, which a page you may have opened to
   // read the summary should do.
   //
-  // US-078: the hint rides with the player, so it is absent exactly when the
+  // US-078: the note rides with the player, so it is absent exactly when the
   // player is. The page otherwise states three numbers it gives no way to
   // reconcile — Duration and the step times are wall clock, the scrub bar is
   // not — and the two readings a user reaches unaided, that the recording was
@@ -155,7 +156,7 @@ export default function RunDetail({ run, token, onError, liveSteps, liveDiagnost
   // invites exactly the subtraction the sentence exists to head off.
   const recording = page && !pruned && run.has_recording && (
     <div className="detail-recording">
-      <div className="browser detail-screen">
+      <div className="browser detail-screen" ref={frameRef}>
         <div className="browser-bar">
           <span className="browser-dots"><i /><i /><i /></span>
           <span className="browser-url">Session recording</span>
@@ -171,10 +172,13 @@ export default function RunDetail({ run, token, onError, liveSteps, liveDiagnost
           />
         </div>
       </div>
-      <p className="hint">
-        Only frames the page repainted are recorded, so the recording is shorter than the
-        run and its clock is not the step times below.
-      </p>
+      <div className="note">
+        <Info size={14} aria-hidden="true" />
+        <span>
+          Only frames the page repainted are recorded, so the recording is shorter than the
+          run and its clock is not the step times below.
+        </span>
+      </div>
     </div>
   );
 
@@ -184,11 +188,28 @@ export default function RunDetail({ run, token, onError, liveSteps, liveDiagnost
   // one intent and stopping at a still would cost a second click; the promise
   // is ignored because a browser refusing to play is not an error worth a
   // banner over a frame that is already showing.
+  //
+  // The whole frame, not the video: `block: 'nearest'` moves the least it can,
+  // which lands a row clicked from below on the frame's bottom edge — a sliver
+  // of the moment you asked to see. Scrolling the browser chrome to the top of
+  // the viewport is the only alignment that shows a 16/9 frame whole, and
+  // `.detail-screen`'s `scroll-margin-top` is what keeps the sticky top bar off
+  // it. Only when it is not already whole on screen, so a row clicked with the
+  // player in view seeks without the page moving under the pointer.
   const seekRecording = recording && ((seconds) => {
     const video = videoRef.current;
     if (!video) return;
     video.currentTime = seconds;
-    video.scrollIntoView({ block: 'nearest' });
+    const frame = frameRef.current;
+    if (frame) {
+      // The same inset the scroll will apply: anything above it is behind the
+      // bar, so "visible" starts there and not at 0.
+      const inset = parseFloat(getComputedStyle(frame).scrollMarginTop) || 0;
+      const box = frame.getBoundingClientRect();
+      if (box.top < inset || box.bottom > window.innerHeight) {
+        frame.scrollIntoView({ block: 'start' });
+      }
+    }
     video.play?.()?.catch(() => {});
   });
 
@@ -333,16 +354,20 @@ export default function RunDetail({ run, token, onError, liveSteps, liveDiagnost
     </Button>
   );
 
-  // Artifacts belong to the run's own page. In the History panel you are
-  // picking a run, not reading one, and the PDF and the 16:9 player are both
-  // things that column is too narrow to hold — `verdictHead`'s link out is the
-  // way to them.
+  // The player stays on the run's own page — a 16:9 frame is more than the
+  // History column can hold — but the PDF does not: it opens in a new tab, so
+  // the narrow column is no argument against the button, and making someone
+  // open the run page first put a click in front of the one artifact they came
+  // to History for. It is the primary action in both layouts for the same
+  // reason: beside a verdict and a fact list, the report is the only thing on
+  // either surface that a reader is likely to want next.
   //
   // `reports` is the instance-wide REPORTS_ENABLED off /api/health: with it off
   // nothing renders a PDF, so a button here would be a permanently disabled one
   // with no way to explain itself.
-  const reportAction = page && reports && (
+  const reportAction = reports && (
     <Button
+      variant="primary"
       icon={Download}
       onClick={downloadReport}
       disabled={reportBusy || run.report_status === 'none'}
@@ -384,10 +409,14 @@ export default function RunDetail({ run, token, onError, liveSteps, liveDiagnost
           {evidenceBlock}
           {activity}
         </section>
+        {/* Actions ride directly under the verdict, above the fact list: last
+            in the rail they sat below a stack of timestamps and a URL, off the
+            fold on a short window, which is a poor place for the artifact the
+            page is most often opened to fetch. */}
         <aside className="card detail-side">
           {stats}
-          {facts}
           {actions}
+          {facts}
         </aside>
       </div>
     );
@@ -397,16 +426,16 @@ export default function RunDetail({ run, token, onError, liveSteps, liveDiagnost
     <div className="run-detail">
       {verdictHead}
       {stats}
+      {actions}
       {facts}
       {goal}
       {outcome}
       {/* `.detail-block` carries the card's own gap, so wrapping the header
           and the list on the page's account doesn't change the rhythm the live
           panel reads at. The step log is not here for the same reason the
-          artifacts are not: the panel answers what happened, the run's own page
-          is where you read it. */}
+          player is not: the panel answers what happened, the run's own page is
+          where you read it. */}
       {evidenceBlock}
-      {actions}
     </div>
   );
 }

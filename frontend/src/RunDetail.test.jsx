@@ -49,9 +49,10 @@ describe('RunDetail', () => {
     expect(screen.getByText(run.goal)).toBeTruthy();
   });
 
-  // The artifacts and the step log are the run page's; the History panel only
-  // picks a run.
-  it('offers no report, recording or activity in the panel', () => {
+  // The player and the step log are the run page's; the History panel only
+  // picks a run. The PDF is the exception — it opens in a new tab, so the
+  // narrow column is no reason to make someone open the page to reach it.
+  it('offers the report but no recording or activity in the panel', () => {
     render(
       <MemoryRouter>
         <RunDetail
@@ -59,13 +60,29 @@ describe('RunDetail', () => {
           token="t"
           onError={() => {}}
           liveSteps={[{ type: 'step', action: 'click', detail: 'Buy now' }]}
+          reports
         />
       </MemoryRouter>
     );
 
-    expect(screen.queryByText('PDF report')).toBeNull();
+    expect(screen.getByText('PDF report')).toBeTruthy();
     expect(screen.queryByText('Session recording')).toBeNull();
     expect(screen.queryByText('Activity')).toBeNull();
+  });
+
+  // REPORTS_ENABLED off means no PDF is ever rendered, so the button would be
+  // permanently disabled with nothing to explain itself — it stays absent, on
+  // both surfaces.
+  it('offers no report on either surface when reports are disabled', () => {
+    for (const layout of ['panel', 'page']) {
+      const { unmount } = render(
+        <MemoryRouter>
+          <RunDetail run={run} token="t" onError={() => {}} liveSteps={[]} layout={layout} />
+        </MemoryRouter>
+      );
+      expect(screen.queryByText('PDF report')).toBeNull();
+      unmount();
+    }
   });
 
   // The page arrangement drops the run's own title and status because RunPage's
@@ -168,6 +185,40 @@ describe('RunDetail', () => {
 
     expect(document.querySelector('.log-item').tagName).toBe('DIV');
     expect(screen.getByText('0:41')).toBeTruthy();
+  });
+
+  // A seek that shows a sliver of the frame has not shown you the moment. The
+  // scroll target is the whole browser chrome rather than the <video>, and it
+  // only runs when part of that frame is off screen — a row clicked with the
+  // player in view must not move the page under the pointer.
+  it('scrolls the whole frame into view, and only when it is not already whole', () => {
+    const scrolled = [];
+    vi.spyOn(HTMLElement.prototype, 'scrollIntoView').mockImplementation(function record() {
+      scrolled.push(this);
+    });
+    vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
+
+    render(
+      <MemoryRouter>
+        <RunDetail
+          run={{ ...run, has_recording: true }}
+          token="t"
+          onError={() => {}}
+          liveSteps={[{ step: 1, elapsed: 41, next_goal: 'Open the cart', video_seconds: 12.5 }]}
+          layout="page"
+        />
+      </MemoryRouter>
+    );
+
+    // jsdom lays nothing out, so the frame's box is the test's to state.
+    const frame = document.querySelector('.detail-screen');
+    frame.getBoundingClientRect = () => ({ top: 40, bottom: window.innerHeight + 200 });
+    fireEvent.click(document.querySelector('.log-item'));
+    expect(scrolled).toEqual([frame]);
+
+    frame.getBoundingClientRect = () => ({ top: 40, bottom: window.innerHeight - 20 });
+    fireEvent.click(document.querySelector('.log-item'));
+    expect(scrolled).toEqual([frame]);
   });
 
   // US-078 tier 1. The page states Duration and the step times in wall clock

@@ -41,7 +41,7 @@ const RANGES = [
   { value: '30d', label: 'Last 30 days', hours: 24 * 30 },
 ];
 
-export default function HistoryView({ token }) {
+export default function HistoryView({ token, reports }) {
   // Arrived at from a bar on the Schedules strip (US-069). Read off the URL
   // rather than copied into state, so the filter is linkable and survives a
   // reload — the same call Projects makes about which project is open.
@@ -287,6 +287,7 @@ export default function HistoryView({ token }) {
               onError={setError}
               onStopped={load}
               permalink
+              reports={reports}
             />
           ) : (
             <EmptyState icon={MousePointerClick} title="No run selected">

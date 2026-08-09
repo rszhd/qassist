@@ -750,12 +750,12 @@ select {
 /* ==========================================================================
    5. Messages — banner, error, hint
    ========================================================================== */
-.banner, .error, .batch-note {
+.banner, .error, .note {
   display: flex; align-items: flex-start; gap: var(--s2);
   padding: var(--s3); border-radius: var(--r-md);
   font-size: var(--t-base); line-height: 1.5; border: 1px solid;
 }
-.banner > svg, .error > svg, .batch-note > svg { flex: 0 0 auto; margin-top: var(--s05); }
+.banner > svg, .error > svg, .note > svg { flex: 0 0 auto; margin-top: var(--s05); }
 .banner { background: var(--warn-bg); border-color: var(--warn-line); color: var(--warn); }
 .banner strong { display: block; font-size: var(--t-base); font-weight: 600; }
 .banner span { color: var(--warn-soft); }
@@ -763,7 +763,7 @@ select {
   background: var(--sunken); border-radius: var(--r-sm); padding: 0 var(--s1);
 }
 .error { background: var(--bad-bg); border-color: var(--bad-line); color: var(--bad); }
-.batch-note { background: var(--info-bg); border-color: var(--info-line); color: var(--info); }
+.note { background: var(--info-bg); border-color: var(--border); color: var(--info); }
 .page-error { margin-bottom: var(--s4); }
 
 .hint { font-size: var(--t-sm); line-height: 1.6; color: var(--faint); }
