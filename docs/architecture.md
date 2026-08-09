@@ -266,6 +266,21 @@ Line-delimited JSON on the child's stdin:
   `agent.run()` still returns its history. That is the point: `SIGKILL` leaves
   an mp4 with no moov atom — unplayable, at exactly the moment someone wanted
   to look at it. A grace timer is the backstop, never the first move.
+- `{"cmd":"pause"}` / `{"cmd":"resume"}` (US-079) — the same checkpoint the stop
+  flag is read at, so a pause lands within roughly one in-flight action.
+- `{"cmd":"hint","text":…}` — a person's mid-run correction, appended to the
+  agent's history as a follow-up request. Additive: the goal survives and the
+  run continues from the step it was on. A hint also releases a paused run.
+
+**Pausing moves two timers, and that pair is correctness-critical.** The pause
+suspends the wall-clock watchdog — a paused run is doing what it was told and
+must not be reported as a resource failure — and starts a `PAUSE_MAX_SECONDS`
+budget of its own, because a suspended ceiling and nothing else would leak a
+browser, a process and a concurrency slot. The budget escalates through
+`stopRun`, so a forgotten pause ends `cancelled` with its evidence. A resume
+re-arms the wall clock with the **remainder**, never a fresh ceiling, or the
+limit would be defeatable by pausing repeatedly. Spec:
+[`pause-run.test.js`](../server/test/pause-run.test.js).
 
 ### 4.5 Server → browser: the WebSocket
 
@@ -354,6 +369,7 @@ catch-up. Per due schedule:
 | Memory watchdog | PSS over the process tree exceeds `MAX_RUN_MEMORY_MB` (polled every 3 s) | `failed`, tree killed, report built |
 | Wall-clock watchdog | `RUN_TIMEOUT_SECONDS` — steps are bounded, time is not | `failed`, tree killed |
 | Stop | User request; graceful over stdin, hard kill after the grace window | `cancelled`, verdict `null` |
+| Pause budget | `PAUSE_MAX_SECONDS` with no resume — an abandoned run, not a failure | `cancelled` via the stop path, evidence kept |
 | Navigation fence | A blocked URL, including one reached by redirect | `failed` with `failure_reason: navigation_blocked` |
 | Expired session | The first-step check finds the saved session logged out | `failed` with `failure_reason: session_expired` — not `error`, which would page someone about something merely stale |
 | Session write failure | The blob cannot be prepared | `failed` — refuse rather than run silently unauthenticated |

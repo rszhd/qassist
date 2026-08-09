@@ -238,6 +238,20 @@
   background: var(--accent); animation: pulse 1.3s ease-in-out infinite;
 }
 
+/* Telling a live run what to do (US-079). It sits directly above the log,
+   which is newest-first, so what you send appears on the row under the box —
+   the same reading order as typing into a chat that scrolls upward. */
+.steer { display: flex; flex-direction: column; gap: var(--s2); margin-bottom: var(--s3); }
+.steer-row { display: flex; gap: var(--s2); }
+.steer-row input { flex: 1; min-width: 0; }
+/* A held run is not a broken one, so this is the amber of the queued-copy
+   family rather than the error red — the same distinction the report's
+   assisted note makes on the cover. */
+.steer-held {
+  color: var(--warn); background: var(--warn-bg);
+  border-radius: var(--r-sm); padding: var(--s2) var(--s3);
+}
+
 /* Bled to the card's side edges like `.list`, and like `.list` it keeps the
    card's bottom padding — the two lists in the app end the same way. */
 .log { display: flex; flex-direction: column; max-height: var(--scroll-cap); overflow-y: auto; margin: 0 calc(var(--card-pad) * -1); }

@@ -16,6 +16,7 @@ The data JSON shape is produced by the Express server (see generateReport()):
     steps_count, final_result, errors[], failure_reason, blocked_url,
     has_recording, recording_url,
     generated_at,
+    assisted, hints: [{ text, elapsed }],
     steps: [{ step, elapsed, next_goal, evaluation, url, screenshot_file }],
     diagnostics: [{ kind, step, count, url?, status?, error?, level?, text? }],
     diagnostics_dropped: n }
@@ -164,6 +165,27 @@ def build_html(data: dict) -> str:
           <div class="label">Blocked by this instance</div>
           <ul><li>Navigation{target} was refused by the navigation policy.
               Check the project's allowed domains and QA_BLOCK_PRIVATE_NETWORKS.</li></ul>
+        </section>"""
+
+    # A run somebody steered proved less than one that finished alone (US-079),
+    # and the verdict alone cannot say so. On the cover rather than in the log,
+    # because the person who reads only the first page is exactly the person the
+    # unqualified verdict would mislead.
+    assisted_html = ""
+    hints = data.get("hints") or []
+    if data.get("assisted") or hints:
+        items = "".join(
+            f'<li><span class="hint-at">{esc(fmt_duration(h.get("elapsed")))}</span>'
+            f'{esc(h.get("text"))}</li>'
+            for h in hints
+        )
+        assisted_html = f"""
+        <section class="assisted">
+          <div class="label">This run was assisted</div>
+          <p class="assisted-note">A person told the agent what to do while it was running.
+             The verdict above covers the run as it happened, with that help — not the
+             goal reached unaided.</p>
+          <ul>{items}</ul>
         </section>"""
 
     errors = data.get("errors") or []
@@ -385,6 +407,22 @@ def build_html(data: dict) -> str:
   .errors {{ margin: -16px 0 40px; }}
   .errors ul {{ margin: 6px 0 0; padding-left: 18px; color: #8C1D18; font-size: 15px; }}
 
+  /* ============ ASSISTED RUN (US-079) ============ */
+  /* Amber and not red: a hint is not a failure, it is a qualification on the
+     verdict — so it must catch the eye without reading as an error. */
+  .assisted {{
+    margin: -16px 0 40px; padding: 14px 18px;
+    background: #FFF8E6; border-left: 3px solid #C08A17; border-radius: 3px;
+  }}
+  .assisted .label {{ color: #7A5606; margin-bottom: 6px; }}
+  .assisted-note {{ font-size: 14.5px; color: #6E5626; margin: 0; max-width: 68ch; }}
+  .assisted ul {{ margin: 10px 0 0; padding-left: 18px; font-size: 15px; color: #45494F; }}
+  .assisted li {{ margin-bottom: 4px; }}
+  .hint-at {{
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-size: 12.5px; color: #8A9096; margin-right: 10px;
+  }}
+
   /* ============ BROWSER DIAGNOSTICS (US-044) ============ */
   /* Its own page, straight after the cover: the reason the run failed is what
      a developer opens this report for, so it precedes the execution log. */
@@ -494,6 +532,7 @@ def build_html(data: dict) -> str:
         {summary_html}
       </section>
 
+      {assisted_html}
       {blocked_html}
       {errors_html}
 

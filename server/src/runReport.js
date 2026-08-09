@@ -14,7 +14,7 @@ import {
   REPORTS_ENABLED,
 } from './config.js';
 import { maybeNotify, persistUpdate } from './runPersistence.js';
-import { diagnosticsOf, stepCount, stepsOf, verdictOf } from './runState.js';
+import { diagnosticsOf, hintsOf, stepCount, stepsOf, verdictOf } from './runState.js';
 
 /** @typedef {import('./runState.js').Run} Run */
 
@@ -58,6 +58,12 @@ export function generateReport(run) {
         ? `${PUBLIC_BASE_URL}/api/runs/${run.id}/recording`
         : null,
     generated_at: new Date().toISOString(),
+    // US-079: what a person told this run to do mid-flight. `assisted` is a
+    // claim about the verdict and not a count, so the cover can qualify a pass
+    // without reading the list — a run somebody steered proved less than one
+    // that finished alone, and a report silent about it says otherwise.
+    hints: hintsOf(run),
+    assisted: hintsOf(run).length > 0,
     steps: stepsOf(run),
     // US-044: what the browser said while this run was failing. Bounded by the
     // agent's per-step cap, so this stays a section and not an archive — the

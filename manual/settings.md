@@ -36,6 +36,7 @@ operator's tokens on someone else's runs.
 | `RUN_TIMEOUT_SECONDS` | `600` | Wall-clock ceiling. `MAX_STEPS` bounds steps, not time — this is what stops a rate-limited key squatting a browser slot. |
 | `MAX_RUN_MEMORY_MB` | `1000` | Per-run memory ceiling over the run's whole process tree; over it the run is killed and reported failed. A recording run peaks around 700 MB, which is where the sizing rule comes from. |
 | `STOP_GRACE_SECONDS` | `10` | How long a stopped run has to end itself — finalizing its recording and report — before the process tree is killed anyway. |
+| `PAUSE_MAX_SECONDS` | `600` | How long a run may stay [paused](./steering-a-run.md) before it is ended for you. A pause suspends the wall-clock ceiling, so this is what stops a forgotten one holding a browser slot; reaching it ends the run as stopped, evidence kept. |
 | `MAX_CONCURRENT_PER_USER` | — | Per-user fair-use cap on a **shared** instance, so one person cannot hold every slot. Over it a run is refused rather than queued. Unset = off, one global queue. |
 
 ## Where a run may navigate

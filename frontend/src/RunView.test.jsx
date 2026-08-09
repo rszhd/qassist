@@ -515,3 +515,71 @@ describe('VariablesEditor secret flag (US-035, amended by US-064)', () => {
     expect(writeCalls(calls)).toHaveLength(0);
   });
 });
+
+// US-079. The fork worth pinning is what the buttons do to a run that is still
+// going: a pause must not read as a stop, a hint must reach the server with the
+// text that was typed, and the held state has to come from the server's own
+// event rather than from the click — two tabs watching one run would otherwise
+// disagree about whether it is held.
+describe('RunView steering a live run (US-079)', () => {
+  async function startedRun() {
+    const calls = stubEnv();
+    renderRunView();
+    fireEvent.click(await screen.findByLabelText('Run "Plain test"'));
+    await waitFor(() => expect(sockets.length).toBe(1));
+    emit({ type: 'status', status: 'running' });
+    return calls;
+  }
+
+  it('pauses on the server\'s word, not on the click', async () => {
+    const calls = await startedRun();
+
+    fireEvent.click(await screen.findByText('Pause'));
+    await waitFor(() =>
+      expect(calls.some((c) => c.url.endsWith('/pause') && c.method === 'POST')).toBe(true)
+    );
+    // Still offering Pause: the request landed, but nothing says the run is
+    // held until the relay does.
+    expect(screen.queryByText('Resume')).toBeNull();
+
+    emit({ type: 'paused', until: new Date(Date.now() + 600_000).toISOString() });
+    expect(await screen.findByText('Resume')).toBeTruthy();
+    expect(screen.getByText(/Held before the next action/)).toBeTruthy();
+
+    emit({ type: 'resumed' });
+    expect(await screen.findByText('Pause')).toBeTruthy();
+  });
+
+  it('sends a hint with the typed text, and shows it as activity', async () => {
+    const calls = await startedRun();
+
+    const box = await screen.findByLabelText('Tell the run what to do');
+    fireEvent.change(box, { target: { value: 'the button is in the account menu' } });
+    fireEvent.click(screen.getByText('Send'));
+
+    await waitFor(() => {
+      const hint = calls.find((c) => c.url.endsWith('/hint'));
+      expect(hint?.body).toEqual({ text: 'the button is in the account menu' });
+    });
+    // Cleared, so a second Enter cannot send the same sentence twice.
+    expect(box.value).toBe('');
+
+    // The row is the server's echo, not the click — the same event a second
+    // viewer of this run is replayed.
+    emit({ type: 'hint', text: 'the button is in the account menu', elapsed: 12 });
+    expect(
+      await screen.findByText('You told the run: the button is in the account menu')
+    ).toBeTruthy();
+  });
+
+  it('offers no steering once the run has ended', async () => {
+    await startedRun();
+    expect(await screen.findByText('Pause')).toBeTruthy();
+
+    emit({ type: 'done', success: true, steps: 1 });
+    emit({ type: 'end', status: 'passed' });
+
+    await waitFor(() => expect(screen.queryByText('Pause')).toBeNull());
+    expect(screen.queryByLabelText('Tell the run what to do')).toBeNull();
+  });
+});

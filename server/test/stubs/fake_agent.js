@@ -133,6 +133,19 @@ if (holdMs || releaseName) {
       } catch {
         continue;
       }
+      // US-079: the pause/hint/resume trio changes nothing about how the stub
+      // behaves — every window under test is a server-side timer, and a stub
+      // that also held its own clock would let an assertion pass because the
+      // agent happened to exit first. Echoed so a test can prove the line
+      // reached the child at all, which is the only part the server cannot see.
+      if (msg.cmd === 'pause' || msg.cmd === 'resume') {
+        process.stdout.write(JSON.stringify({ type: 'log', message: `stub ${msg.cmd}` }) + '\n');
+      }
+      if (msg.cmd === 'hint') {
+        process.stdout.write(
+          JSON.stringify({ type: 'log', message: `stub hint: ${msg.text}` }) + '\n'
+        );
+      }
       if (msg.cmd === 'stop' && !wedged) emit();
     }
   });

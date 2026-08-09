@@ -29,6 +29,10 @@ export default function RunPage({ token, health, needsToken, onOpenSettings }) {
   // itself as it goes rather than only once the report exists.
   const [evidence, setEvidence] = useState({ diagnostics: [], dropped: 0 });
   const [frame, setFrame] = useState(null);
+  // `{ until }` while the run is held (US-079), null otherwise. Lives here and
+  // not in RunDetail because the socket that reports it lives here — the same
+  // card in History has no socket, and so offers no steering.
+  const [paused, setPaused] = useState(null);
   const [error, setError] = useState(null);
   const [missing, setMissing] = useState(false);
   const wsRef = useRef(null);
@@ -64,6 +68,7 @@ export default function RunPage({ token, health, needsToken, onOpenSettings }) {
     // built from scratch here rather than seeded from GET /:id/steps.
     setSteps([]);
     setEvidence({ diagnostics: [], dropped: 0 });
+    setPaused(null);
     ws.onmessage = (m) => {
       let evt;
       try {
@@ -71,9 +76,19 @@ export default function RunPage({ token, health, needsToken, onOpenSettings }) {
       } catch {
         return;
       }
-      if (evt.type === 'step' || evt.type === 'progress' || evt.type === 'blocked') {
+      if (
+        evt.type === 'step' ||
+        evt.type === 'progress' ||
+        evt.type === 'blocked' ||
+        evt.type === 'hint'
+      ) {
         setSteps((s) => [...(s || []), evt]);
       }
+      // US-079. Durable events, so this is also how a page opened onto an
+      // already-held run learns it is held rather than showing a live run that
+      // has stopped moving for no stated reason.
+      else if (evt.type === 'paused') setPaused({ until: evt.until });
+      else if (evt.type === 'resumed') setPaused(null);
       else if (evt.type === 'diagnostics') {
         // `dropped` is the agent's running total, so the newest event is the
         // whole answer — accumulating it would multiply it by the step count.
@@ -165,6 +180,7 @@ export default function RunPage({ token, health, needsToken, onOpenSettings }) {
               onError={setError}
               liveSteps={unfinished ? steps : null}
               liveDiagnostics={unfinished ? evidence : null}
+              steering={unfinished ? { paused } : null}
               reports={!!health?.reports}
               layout="page"
               onStopped={load}

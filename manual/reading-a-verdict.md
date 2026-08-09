@@ -23,6 +23,12 @@ failure everywhere it matters, and [CI does exactly that](./ci.md).
 **`stopped` verified nothing.** A run only reaches it because a person ended it
 by hand, so it is not a verdict about your app either way.
 
+**An assisted run verified less.** If somebody told the run what to do while it
+was going, the status alone does not say so — the activity list and the PDF
+report both do, and the report says it on its cover. A pass that needed a person
+to point at the button did not show that a user could have found it. See
+[Steering a live run](./steering-a-run.md).
+
 ## The summary
 
 Under the status, **Summary** describes what happened and why the run reached

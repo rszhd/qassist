@@ -4,8 +4,11 @@
 **I want** to pause the run and type a sentence, **so that** the run finishes
 the goal instead of being thrown away and started again with a longer prompt.
 
-- **Status:** 📋 Planned — scheduled into `sprint/current/` on 2026-08-10, the
-  day it was written.
+- **Status:** ✅ **Done** 2026-08-10, 8/8. Built in one pass, assertion-first for
+  the timer pair: the spec was written and reviewed before any of `pauseRun`
+  existed, and eleven of its twelve cases passed on the first run of the
+  implementation. The twelfth failed on the assertion, not the code — see
+  "What the spec got wrong" below.
 - **Priority:** P2. Today the only lever on a live run is US-047's Stop, which
   is all-or-nothing: a run that is 80 % right and stuck ends with nothing
   proved, and the fix costs a full re-run on the user's own key (US-039). This
@@ -104,18 +107,69 @@ wiring and stays test-alongside.
 
 ## Acceptance criteria
 
-- [ ] A running run can be paused and resumed by its owner, from the Run view
+- [x] A running run can be paused and resumed by its owner, from the Run view
       and from the live `RunDetail`, and the screencast keeps working while
       paused
-- [ ] A hint typed while paused reaches the agent as a follow-up request, the
+- [x] A hint typed while paused reaches the agent as a follow-up request, the
       original goal survives, and the run continues from the step it was on —
       not from the first step
-- [ ] A hint can also be sent to a running run without pausing first
-- [ ] A paused run is bounded: it does not hold a slot indefinitely, and the
+- [x] A hint can also be sent to a running run without pausing first
+- [x] A paused run is bounded: it does not hold a slot indefinitely, and the
       bound ends it as `cancelled` with its evidence, not as a timeout error
-- [ ] The hint and its time appear in the run's activity and on the report, and
+- [x] The hint and its time appear in the run's activity and on the report, and
       the report states the run was assisted
-- [ ] A queued run cannot be paused; a finished one cannot be resumed
-- [ ] One user cannot pause, resume or hint another's run
-- [ ] `docs/api.md` documents the three endpoints; `manual/` says what the
+- [x] A queued run cannot be paused; a finished one cannot be resumed
+- [x] One user cannot pause, resume or hint another's run
+- [x] `docs/api.md` documents the three endpoints; `manual/` says what the
       feature is for and what it costs a verdict
+
+## What shipped
+
+`{"cmd":"pause"}`, `{"cmd":"resume"}` and `{"cmd":"hint","text":…}` on the stdin
+channel; `POST /api/runs/:id/{pause,resume,hint}`; `run.paused` plus `paused` /
+`resumed` / `hint` events; the two controls in `Steering.jsx`, shared by the Run
+view and the run page; `assisted` and `hints` on the report, and an amber note
+on the PDF's cover.
+
+Everything the "Details" section proposed was built as proposed, including the
+wall-clock decision. Three things worth recording beyond that:
+
+- **The browser-use surface was re-verified against the installed 0.13.6 during
+  the work**, not only when the story was written. `Agent.pause`/`resume` exist
+  and both `print()` — `pause` really does print "Press [Enter] to resume or
+  [Ctrl+C] again to quit". `MessageManager.add_new_task` wraps and appends as
+  described. And `Agent.add_new_task` turned out to do **one more** damaging
+  thing than the story listed: it assigns the bare hint to `agent.task`, so the
+  run would be judged against the correction instead of against the goal.
+- **`quietly` and `apply_hint` live in `agent/run_control.py`, not in
+  `run_agent.py`.** CI installs pytest and nothing else (`ci.yml`), so a helper
+  inside `run_agent.py` — which imports `browser_use` — is unreachable from the
+  suite that would test it. Same reason `step_events.py` and `secret_vars.py`
+  are their own modules.
+- **`docs/api.md` gained `/stop` too.** US-047 never documented it, and the four
+  levers on a live run only make sense as one family.
+
+## What the spec got wrong
+
+One of the twelve assertions failed against a correct implementation. It read
+`ws.sent.at(-1).type === 'paused'`, and the stub agent — taught in the same
+change to echo every control line it receives — put its own `log` after the
+server's broadcast. The property was never "the `paused` event is last"; it is
+"viewers hear `paused`, then `resumed`, and never `end`". The fix filters the
+socket to the server's own flag events and asserts the **sequence**, which is
+stricter than `at(-1)` in the part that carries the meaning. Worth remembering
+next time a test stub is extended in the same commit as the spec that reads it:
+the stub is a second writer on the channel being asserted.
+
+## The pause budget in practice
+
+`PAUSE_MAX_SECONDS` defaults to 600, matching `RUN_TIMEOUT_SECONDS`. The
+escalation goes through `stopRun`, so a forgotten pause takes the whole US-047
+path — graceful over stdin, hard kill after the grace window, `cancelled` with
+its evidence. That reuse is what makes the wedged-agent case free: a paused
+agent that never reaches its checkpoint is killed by machinery that already
+existed and is already tested.
+
+The memory watchdog is deliberately **left running** during a pause. A paused
+Chromium can still leak, and `MAX_RUN_MEMORY_MB` is a promise about the box
+rather than about the run's fairness.

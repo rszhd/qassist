@@ -6,6 +6,7 @@ import {
 import { api, openReport } from './api.js';
 import ActivityLog from './Activity.jsx';
 import Diagnostics from './Diagnostics.jsx';
+import { HintBox, PauseButton } from './Steering.jsx';
 import { Button, CardHead, EmptyState, IconButton, Stat } from './ui.jsx';
 import { formatWhen, formatDuration, statusLabel } from './status.js';
 
@@ -30,7 +31,14 @@ import { formatWhen, formatDuration, statusLabel } from './status.js';
 //
 // `onStopped` is the caller's cue to refetch after US-047's Stop: this card
 // renders the row it was handed, so it cannot update the row itself.
-export default function RunDetail({ run, token, onError, liveSteps, liveDiagnostics, permalink, reports, layout = 'panel', onStopped }) {
+//
+// `steering` is US-079's levers, and it is non-null only where a socket is
+// attached — the run page. `{ paused }` is what that socket reported, which is
+// the one thing this card cannot learn for itself: the row says `running` for a
+// held run and always will, because `paused` is a flag and never a status.
+// History's panel passes nothing, so it keeps Stop alone rather than offering a
+// pause it could never show the state of.
+export default function RunDetail({ run, token, onError, liveSteps, liveDiagnostics, permalink, reports, layout = 'panel', onStopped, steering }) {
   const [reportBusy, setReportBusy] = useState(false);
   const [stopping, setStopping] = useState(false);
   // null until the fetch settles, so an empty list reads as "none recorded"
@@ -109,6 +117,18 @@ export default function RunDetail({ run, token, onError, liveSteps, liveDiagnost
       }
     }
     onStopped?.();
+  }
+
+  // US-079, and the same shape as `stop` above for the same reason: the state
+  // this card shows is the caller's, so nothing is flipped locally — the
+  // server's `paused`/`resumed` event reaches the socket that owns `steering`.
+  // A 409 is the run having moved on between the click and the request.
+  async function control(route, body) {
+    try {
+      await api(`/api/runs/${run.id}/${route}`, { token, method: 'POST', body });
+    } catch (err) {
+      if (err.status !== 409) onError(`${route}: ${err.message}`);
+    }
   }
 
   async function downloadReport() {
@@ -310,6 +330,16 @@ export default function RunDetail({ run, token, onError, liveSteps, liveDiagnost
   const activity = !pruned && steps !== null && (
     <section className="detail-block">
       <CardHead title="Activity" count={steps.length || undefined} />
+      {/* Above the log for the same reason as in the Run view: the log is
+          newest-first, so what you send lands on the row below the box. */}
+      {steering && !stopping && (
+        <HintBox
+          paused={!!steering.paused}
+          until={steering.paused?.until}
+          onHint={(text) => control('hint', { text })}
+          onResume={() => control('resume')}
+        />
+      )}
       {steps.length > 0 ? (
         <ActivityLog steps={steps} onSeek={seekRecording || undefined} />
       ) : unfinished ? (
@@ -352,6 +382,14 @@ export default function RunDetail({ run, token, onError, liveSteps, liveDiagnost
     </Button>
   );
 
+  const pauseAction = steering && unfinished && !stopping && (
+    <PauseButton
+      paused={!!steering.paused}
+      onPause={() => control('pause')}
+      onResume={() => control('resume')}
+    />
+  );
+
   // The player stays on the run's own page — a 16:9 frame is more than the
   // History column can hold — but the PDF does not: it opens in a new tab, so
   // the narrow column is no argument against the button, and making someone
@@ -386,8 +424,9 @@ export default function RunDetail({ run, token, onError, liveSteps, liveDiagnost
       Artifacts were removed on {formatWhen(run.artifacts_deleted_at)} — the report and
       recording are gone, the verdict above is kept.
     </p>
-  ) : (stopAction || reportAction) ? (
+  ) : (stopAction || pauseAction || reportAction) ? (
     <div className="verdict-actions">
+      {pauseAction}
       {stopAction}
       {reportAction}
     </div>

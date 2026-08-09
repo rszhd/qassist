@@ -47,6 +47,7 @@ export default defineConfig({
           { text: 'Your first run', link: '/first-run' },
           { text: 'Writing instructions', link: '/writing-instructions' },
           { text: 'Reading a verdict', link: '/reading-a-verdict' },
+          { text: 'Steering a live run', link: '/steering-a-run' },
         ],
       },
       {

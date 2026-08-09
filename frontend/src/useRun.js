@@ -44,6 +44,13 @@ const INITIAL = {
   showRecording: false,
   // US-047: a stop has been asked for and the run has not ended yet.
   stopping: false,
+  // US-079: the run is held before its next action. A flag and not a status,
+  // exactly as on the server — a paused run is still running.
+  paused: false,
+  // When the pause budget ends the run if nobody resumes it, as an ISO string
+  // off the `paused` event. The server counts it; this is only what the notice
+  // reads so the count runs against the viewer's own clock.
+  pausedUntil: null,
 };
 
 // One relay event applied to the run. The `done` and `error` cases are where a
@@ -67,10 +74,21 @@ function applyEvent(state, evt) {
     // email). `blocked` is the navigation fence firing (US-042), which belongs
     // beside the steps rather than in a red banner: the run is still going, and
     // whoever set the allowlist needs to see WHICH url it refused.
+    // `hint` joins them (US-079): what a person told the run is activity, and
+    // it has to sit among the steps in the order it happened — a hint floating
+    // above the log loses the one thing it explains, which step changed after it.
     case 'step':
     case 'progress':
     case 'blocked':
+    case 'hint':
       return { ...state, steps: [...state.steps, evt] };
+    case 'paused':
+      // Durable, like `stopping`: a viewer attaching mid-pause shows the same
+      // held run as the tab that asked for it, rather than a run that looks
+      // alive and is not moving.
+      return { ...state, paused: true, pausedUntil: evt.until };
+    case 'resumed':
+      return { ...state, paused: false, pausedUntil: null };
     case 'recording':
       // A demo replay carries no live frames — the recording is the stage feed.
       // Show it playing from the start rather than leaving the browser pane on
@@ -110,6 +128,8 @@ function applyEvent(state, evt) {
         ...state,
         waiting: null,
         stopping: false,
+        paused: false,
+        pausedUntil: null,
         status:
           state.status === 'running' || state.status === 'queued' ? evt.status : state.status,
       };
@@ -130,6 +150,8 @@ export function runReducer(state, action) {
         ...state,
         error: null,
         stopping: false,
+        paused: false,
+        pausedUntil: null,
         capNotice: null,
         billingNotice: null,
         subscribed: false,
@@ -236,6 +258,27 @@ export function useRun(token) {
     }
   }, [run.runId, token]);
 
+  // US-079's three, and the opposite of `stop`'s optimism: pausing spends
+  // nothing, so there is no reason to claim it landed before it did. The
+  // server's own `paused`/`resumed` broadcast moves the state, which is also
+  // what a second tab watching the same run sees. A 409 means the run ended or
+  // moved between the click and the request — nothing went wrong.
+  const control = useCallback(
+    async (route, body) => {
+      if (!run.runId) return;
+      try {
+        await api(`/api/runs/${run.runId}/${route}`, { token, method: 'POST', body });
+      } catch (err) {
+        if (err.status === 409) return;
+        dispatch({ type: 'setError', message: `${route}: ${err.message}` });
+      }
+    },
+    [run.runId, token]
+  );
+  const pause = useCallback(() => control('pause'), [control]);
+  const resume = useCallback(() => control('resume'), [control]);
+  const hint = useCallback((text) => control('hint', { text }), [control]);
+
   // The three start paths share one failure ladder: a cap and a paywall are
   // both "nothing started, try again", and only what is left is a real error.
   const startFailed = useCallback((err, message = err.message) => {
@@ -282,6 +325,9 @@ export function useRun(token) {
 
     follow,
     stop,
+    pause,
+    resume,
+    hint,
     startFailed,
     reset,
     clearActiveTest,

@@ -23,6 +23,9 @@ Express also writes control commands to our stdin, one JSON object per line
 (`ControlCommand` in the same file):
   {"cmd": "screencast", "on": true|false}   viewer attached / last viewer left
   {"cmd": "stop"}                           the user stopped this run (US-047)
+  {"cmd": "pause"} / {"cmd": "resume"}      hold the run before its next action
+  {"cmd": "hint", "text": "…"}              tell it what to do (US-079); a hint
+                                            also releases a paused run
 Frames are only emitted while "on". Without recording the screencast itself is
 stopped too, so an unwatched run skips the JPEG encoding entirely; a recorded
 run needs the frames regardless and only gates the emitting.
@@ -75,6 +78,7 @@ import diagnostics
 import exit_watchdog
 import fixtures
 import navigation_policy
+import run_control
 import secret_vars
 import step_events
 import browser_session
@@ -154,7 +158,8 @@ def recorder_for(output_path: str) -> SessionRecorder:
 
 
 async def stdin_control(agent, watch_event: asyncio.Event, stop_event: asyncio.Event) -> None:
-    """Apply control lines from Express: screencast on/off, and stop (US-047)."""
+    """Apply control lines from Express: screencast, stop (US-047), and the
+    pause/hint/resume trio (US-079)."""
     loop = asyncio.get_running_loop()
     reader = asyncio.StreamReader()
     try:
@@ -189,6 +194,22 @@ async def stdin_control(agent, watch_event: asyncio.Event, stop_event: asyncio.E
             # That is the whole difference from the SIGKILL this replaces.
             emit({"type": "progress", "message": "Stop requested — finishing up…"})
             agent.stop()
+        elif cmd == "pause":
+            # Same checkpoint as the stop: _check_stop_or_pause() reads this
+            # flag before every action within a step, not only between steps, so
+            # a pause lands within roughly one in-flight action.
+            run_control.quietly(agent.pause)
+        elif cmd == "resume":
+            run_control.quietly(agent.resume)
+        elif cmd == "hint":
+            text = (msg.get("text") or "").strip()
+            if not text:
+                continue
+            run_control.apply_hint(agent, text)
+            # Typing the correction is itself the instruction to carry on, so a
+            # hint releases a paused run. Express sends `resume` as well and the
+            # flag is idempotent; neither side relies on the other doing it.
+            run_control.quietly(agent.resume)
 
 
 async def screencast(

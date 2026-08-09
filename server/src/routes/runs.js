@@ -10,7 +10,18 @@ import express from 'express';
 import fs from 'node:fs';
 import path from 'node:path';
 import { db, isUuid, currentUserId } from '../db.js';
-import { createRun, diagnosticsOf, getRun, stepsOf, stopRun, verdictOf } from '../runs.js';
+import {
+  createRun,
+  diagnosticsOf,
+  getRun,
+  hintRun,
+  hintsOf,
+  pauseRun,
+  resumeRun,
+  stepsOf,
+  stopRun,
+  verdictOf,
+} from '../runs.js';
 import { ARTIFACTS_DIR, HAR_FILENAME, RECORDING_FILENAME, REPORT_DATA_FILENAME, REPORTS_ENABLED } from '../config.js';
 import { h, requireDb, requireAgentKey, requireEntitled, withUserCap, respondOverCap, STORED_TRIGGERS } from './helpers.js';
 import { validateSecretTags } from '../variables.js';
@@ -339,6 +350,61 @@ export function runsRouter({ checkToken, checkTokenOrQuery }) {
     })
   );
 
+  // Pause, resume and hint (US-079): the three levers on a live run, beside
+  // US-047's stop and behind the same guards for the same reason. Steering a
+  // stuck run is how a user avoids paying for a second one on their own key, so
+  // it has to work for an account whose subscription lapsed mid-run.
+  //
+  // Every one of them needs a process to talk to, so a queued run is a 409 —
+  // not a silent success, which would leave a lit button against a run that
+  // never heard it. Same tail as `/stop`: a run that has left the relay is a
+  // 409 to its owner and a 404 to everyone else, so a refusal never confirms
+  // another tenant's run exists.
+  /**
+   * Apply `lever` to the caller's live run, or answer why it could not be.
+   * @param {string} id @param {import('express').Response} res
+   * @param {(run: import('../runState.js').Run) => boolean} lever
+   */
+  async function control(id, res, lever) {
+    const run = ownedLiveRun(id);
+    if (run) {
+      if (!lever(run)) return res.status(409).json({ error: 'run is not in that state' });
+      return res.json({ runId: run.id, paused: !!run.paused });
+    }
+    if (db() && isUuid(id) && (await runOwned(id))) {
+      return res.status(409).json({ error: 'run has already finished' });
+    }
+    res.status(404).json({ error: 'not found' });
+  }
+
+  r.post(
+    '/:id/pause',
+    checkToken,
+    h(async (req, res) => control(req.params.id, res, pauseRun))
+  );
+  r.post(
+    '/:id/resume',
+    checkToken,
+    h(async (req, res) => control(req.params.id, res, resumeRun))
+  );
+
+  // Long enough for the sentence that unsticks a run ("the button is in the
+  // account menu"), short enough that nobody pastes a second goal in here: a
+  // hint corrects the agent, it does not replace what the run is for.
+  const MAX_HINT_CHARS = 1000;
+  r.post(
+    '/:id/hint',
+    checkToken,
+    h(async (req, res) => {
+      const text = typeof req.body?.text === 'string' ? req.body.text.trim() : '';
+      if (!text) return res.status(400).json({ error: 'text is required' });
+      if (text.length > MAX_HINT_CHARS) {
+        return res.status(400).json({ error: `text must be ${MAX_HINT_CHARS} characters or fewer` });
+      }
+      return control(req.params.id, res, (run) => hintRun(run, text));
+    })
+  );
+
   // Step-by-step activity (US-026), so a past run can explain itself in History
   // rather than only in the PDF. A read path over what generateReport() already
   // wrote: the live buffer while the run is still in the relay, report_data.json
@@ -354,7 +420,7 @@ export function runsRouter({ checkToken, checkTokenOrQuery }) {
     checkToken,
     h(async (req, res) => {
       const run = ownedLiveRun(req.params.id);
-      if (run) return res.json({ steps: stepsOf(run), ...diagnosticsOf(run) });
+      if (run) return res.json({ steps: stepsOf(run), hints: hintsOf(run), ...diagnosticsOf(run) });
       if (!isUuid(req.params.id)) return res.status(404).json({ error: 'not found' });
       if (!(await runOwned(req.params.id))) return res.status(404).json({ error: 'not found' });
       const file = path.join(ARTIFACTS_DIR, req.params.id, REPORT_DATA_FILENAME);
@@ -362,6 +428,7 @@ export function runsRouter({ checkToken, checkTokenOrQuery }) {
       const data = JSON.parse(fs.readFileSync(file, 'utf8'));
       res.json({
         steps: data.steps || [],
+        hints: data.hints || [],
         diagnostics: data.diagnostics || [],
         diagnostics_dropped: data.diagnostics_dropped || 0,
       });

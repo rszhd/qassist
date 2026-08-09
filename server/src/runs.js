@@ -26,6 +26,7 @@ import {
   DEFAULT_MAX_STEPS,
   MAX_RUN_MEMORY_MB,
   MEM_POLL_MS,
+  PAUSE_MAX_MS,
   RUN_TIMEOUT_MS,
   STOP_GRACE_MS,
   PYTHON_BIN,
@@ -45,7 +46,7 @@ import { startReplay } from './runReplay.js';
 
 // The engine's public surface: every caller outside it imports from here, so a
 // seam moving between the modules above stays invisible to the routes.
-export { diagnosticsOf, getRun, stepsOf, TERMINAL, verdictOf } from './runState.js';
+export { diagnosticsOf, getRun, hintsOf, stepsOf, TERMINAL, verdictOf } from './runState.js';
 export { attachViewer } from './runRelay.js';
 
 /**
@@ -349,6 +350,131 @@ function killRunTree(child, pids) {
 }
 
 /**
+ * Arm the wall clock (US-005) for `ms`, and record when it will fire.
+ *
+ * `ms` is the whole ceiling on a fresh run and the *remainder* on a resume
+ * (US-079) — a pause must not hand the run a new budget, or the ceiling is
+ * defeated by pausing repeatedly rather than by omitting the timer. The message
+ * still names RUN_TIMEOUT_MS, because the ceiling the run exceeded is the whole
+ * one however many pieces it was served in.
+ * @param {Run} run @param {number} ms
+ */
+function armWallClock(run, ms) {
+  run.timeoutAt = Date.now() + ms;
+  run.timeoutWatch = setTimeout(() => {
+    run.timeoutWatch = null;
+    clearInterval(run.memWatch);
+    const secs = Math.round(RUN_TIMEOUT_MS / 1000);
+    const msg = `run exceeded the ${secs}s time limit and was stopped`;
+    console.error(`[watchdog ${run.id.slice(0, 8)}] ${msg}`);
+    run.status = 'failed';
+    run.result = { success: false, message: msg };
+    broadcast(run, { type: 'error', message: msg });
+    generateReport(run);
+    killRunTree(run.child, processTree(run.child.pid).pids);
+  }, ms);
+  run.timeoutWatch.unref(); // never hold the process open for the ceiling alone
+}
+
+/** @param {Run} run */
+function disarmWallClock(run) {
+  if (run.timeoutWatch) clearTimeout(run.timeoutWatch);
+  run.timeoutWatch = null;
+}
+
+// Take down the pause budget and clear the flag, WITHOUT giving the wall clock
+// back: that is `resumeRun`'s job and only its job. A stop landing on a paused
+// run goes through here, and re-arming there would let a run paused near its
+// ceiling be reported `failed` by a watchdog that fired during its own stop.
+/** @param {Run} run */
+function disarmPause(run) {
+  if (run.pauseTimer) clearTimeout(run.pauseTimer);
+  run.pauseTimer = null;
+  run.paused = false;
+}
+
+/**
+ * Hold a run before its next action (US-079). False when there is nothing to
+ * hold: a queued run has no process and no wall clock to suspend, a finished one
+ * has nothing to say, and a second pause must not push the budget out — a client
+ * polling the button would otherwise keep a run alive forever.
+ *
+ * `paused` is a flag and never a status, for US-047's reason: `TERMINAL` is what
+ * `retention.js` reads to sweep a live run's artifacts and what `attachViewer`
+ * reads to announce the end, and a paused run is still running.
+ * @param {Run} run
+ */
+export function pauseRun(run) {
+  if (!run || run.paused || run.cancelling || TERMINAL.has(run.status)) return false;
+  const stdin = run.child?.stdin;
+  if (!stdin || !stdin.writable) return false;
+
+  run.paused = true;
+  // Banked before the timer comes down, because after it there is nothing left
+  // to read the remainder off.
+  run.timeoutRemainingMs = Math.max(0, run.timeoutAt - Date.now());
+  disarmWallClock(run);
+  stdin.write(JSON.stringify({ cmd: 'pause' }) + '\n');
+
+  // The pause's own bound. Without it, suspending the wall clock turns a
+  // forgotten pause into a leaked browser, a leaked process and a held slot.
+  // It escalates through `stopRun` so an abandoned run ends the way an abandoned
+  // run should: `cancelled`, with the evidence it did gather.
+  run.pauseDeadlineAt = Date.now() + PAUSE_MAX_MS;
+  run.pauseTimer = setTimeout(() => {
+    run.pauseTimer = null;
+    if (TERMINAL.has(run.status)) return;
+    const secs = Math.round(PAUSE_MAX_MS / 1000);
+    console.error(`[pause ${run.id.slice(0, 8)}] paused for ${secs}s with no resume — cancelling`);
+    stopRun(run);
+  }, PAUSE_MAX_MS);
+  run.pauseTimer.unref(); // the pause budget must never hold the process open
+
+  broadcast(run, { type: 'paused', until: new Date(run.pauseDeadlineAt).toISOString() });
+  return true;
+}
+
+/**
+ * Let a paused run carry on (US-079), with the wall clock it had left.
+ *
+ * Not guaranteed to work, and deliberately not pretended otherwise: the tested
+ * app's own session can expire while the run is held (US-043) and browser-use's
+ * own note on `resume()` says the browser may be found closed. Either way the
+ * agent fails the run on its next action, which is the honest ending.
+ * @param {Run} run
+ */
+export function resumeRun(run) {
+  if (!run || !run.paused || run.cancelling || TERMINAL.has(run.status)) return false;
+  disarmPause(run);
+  armWallClock(run, run.timeoutRemainingMs);
+  const stdin = run.child?.stdin;
+  if (stdin && stdin.writable) stdin.write(JSON.stringify({ cmd: 'resume' }) + '\n');
+  broadcast(run, { type: 'resumed' });
+  return true;
+}
+
+/**
+ * Tell a live run what to do (US-079). The agent appends it to its own history
+ * as a follow-up request, so the original goal survives and the run carries on
+ * from the step it was on.
+ *
+ * A hint sent to a paused run also releases it, so the user types once. The
+ * agent does the same on its side; both are independently correct and the order
+ * on the wire is what matters — the text lands before the release.
+ * @param {Run} run @param {string} text
+ */
+export function hintRun(run, text) {
+  if (!run || run.cancelling || TERMINAL.has(run.status)) return false;
+  const stdin = run.child?.stdin;
+  if (!stdin || !stdin.writable) return false;
+  stdin.write(JSON.stringify({ cmd: 'hint', text }) + '\n');
+  const elapsed = run.startedAt ? (Date.now() - run.startedAt) / 1000 : 0;
+  broadcast(run, { type: 'hint', text, elapsed: Math.round(elapsed * 10) / 10 });
+  if (run.paused) resumeRun(run);
+  return true;
+}
+
+/**
  * Stop a run early (US-047). False when there is nothing to stop — the run has
  * already reached a terminal status, or a stop is already in flight.
  *
@@ -363,6 +489,11 @@ function killRunTree(child, pids) {
 export function stopRun(run) {
   if (!run || TERMINAL.has(run.status) || run.cancelling) return false;
   run.cancelling = true;
+  // A paused run is stoppable, and this is also the path its own budget takes.
+  // The wall clock stays down: browser-use's stop releases the pause event, so
+  // the agent is on its way out, and a remainder re-armed here could report the
+  // run `failed` in the middle of the stop that was already ending it.
+  disarmPause(run);
 
   const queued = queue.indexOf(run.id);
   if (queued >= 0) queue.splice(queued, 1);
@@ -547,18 +678,7 @@ function startRun(runId) {
   // rate-limited (429-retrying) run — likely on a throttled BYOK key — would
   // otherwise squat a browser slot forever. Kill the tree at the ceiling and
   // report failed; the 'close' path then frees the slot for the next run.
-  run.timeoutWatch = setTimeout(() => {
-    clearInterval(run.memWatch);
-    const secs = Math.round(RUN_TIMEOUT_MS / 1000);
-    const msg = `run exceeded the ${secs}s time limit and was stopped`;
-    console.error(`[watchdog ${runId.slice(0, 8)}] ${msg}`);
-    run.status = 'failed';
-    run.result = { success: false, message: msg };
-    broadcast(run, { type: 'error', message: msg });
-    generateReport(run);
-    killRunTree(child, processTree(child.pid).pids);
-  }, RUN_TIMEOUT_MS);
-  run.timeoutWatch.unref(); // never hold the process open for the ceiling alone
+  armWallClock(run, RUN_TIMEOUT_MS);
 
   let buf = '';
   child.stdout.on('data', (chunk) => {
@@ -630,7 +750,10 @@ function startRun(runId) {
     // all four of the others.
     removeSessionFiles(run.id);
     clearInterval(run.memWatch);
-    clearTimeout(run.timeoutWatch);
+    disarmWallClock(run);
+    // Same hazard as the grace window below, reached by the pause: a budget
+    // still counting down after the run has ended calls stopRun on a dead run.
+    disarmPause(run);
     // An armed grace window outlives the pid it was going to kill, and
     // killRunTree's group kill would then take whatever inherited that pid.
     if (run.stopTimer) {

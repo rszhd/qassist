@@ -59,15 +59,19 @@ export default function ActivityLog({ steps, logRef, live, onSeek }) {
   );
 }
 
-/** A step's number, or a glyph for the two events that have none. */
+/** A step's number, or a glyph for the three events that have none. */
 function marker(s) {
   if (s.type === 'blocked') return '⊘';
   if (s.type === 'progress') return '···';
+  if (s.type === 'hint') return '✎';
   return s.step;
 }
 
 /** What a step event says it is doing — `progress` events carry a message. */
 function stepText(s) {
   if (s.type === 'blocked') return 'Blocked by this instance — navigation refused';
+  // US-079: a hint is the one row a person wrote, so it says so. The report
+  // makes the same distinction on the verdict, and for the same reason.
+  if (s.type === 'hint') return `You told the run: ${s.text}`;
   return s.message || s.next_goal || s.thinking || s.evaluation || '…';
 }

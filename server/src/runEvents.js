@@ -159,6 +159,29 @@
  */
 
 /**
+ * The server's own: the run is held before its next action, and released again
+ * (US-079). Durable, so a viewer attaching mid-pause sees the same state as the
+ * tab that asked for it — `stopping` is durable for the same reason.
+ *
+ * `until` is when the pause budget ends the run if nobody resumes it, as an ISO
+ * timestamp: the viewer counts down against its own clock rather than being told
+ * a number that goes stale the moment it is buffered.
+ * @typedef {{ type: 'paused', until: string }} PausedEvent
+ * @typedef {{ type: 'resumed' }} ResumedEvent
+ */
+
+/**
+ * A person told the run what to do (US-079), and the agent has it. Durable and
+ * carried into the report, because a run that passed after a human pointed at
+ * the button is a different fact from one that passed alone — the same class of
+ * overstatement as US-047's `success: true` on a stopped run.
+ *
+ * `elapsed` is wall-clock seconds since the run started, matching `StepEvent`,
+ * so the activity timeline can place it among the steps.
+ * @typedef {{ type: 'hint', text: string, elapsed: number }} HintEvent
+ */
+
+/**
  * The server's own, and the last event on the socket. `status` is the resolved
  * terminal status, `code` the child's exit code when there was a child to
  * exit, `demo: true` when a replay ended.
@@ -171,10 +194,17 @@
  * or a `.filter(e => e.type === 'step')` narrows to the one shape.
  * @typedef {StartEvent | FrameEvent | StepEvent | DiagnosticsEvent | BlockedEvent
  *          | PreambleEvent | RecordingEvent | DoneEvent | ErrorEvent | MessageEvent
- *          | StatusEvent | StoppingEvent | EndEvent} RunEvent
+ *          | StatusEvent | StoppingEvent | PausedEvent | ResumedEvent | HintEvent
+ *          | EndEvent} RunEvent
  */
 
 /**
  * Server → agent, line-delimited on the child's stdin.
- * @typedef {{ cmd: 'screencast', on: boolean } | { cmd: 'stop' }} ControlCommand
+ *
+ * `hint` arriving while paused appends *and* releases, so the user types once
+ * and the run continues; `resume` stays its own command because pausing to read
+ * the screencast without saying anything is a legitimate thing to want.
+ * @typedef {{ cmd: 'screencast', on: boolean } | { cmd: 'stop' }
+ *          | { cmd: 'pause' } | { cmd: 'resume' }
+ *          | { cmd: 'hint', text: string }} ControlCommand
  */

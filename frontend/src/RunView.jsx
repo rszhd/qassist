@@ -9,6 +9,7 @@ import ActivityLog from './Activity.jsx';
 import { startCheckout } from './Billing.jsx';
 import SavedTests from './SavedTests.jsx';
 import { TestDialog, RunVarsDialog } from './RunDialogs.jsx';
+import { HintBox, PauseButton } from './Steering.jsx';
 import { batchSummary, fillTemplate, referencedNames, useProjectList } from './runHelpers.js';
 import { useRun } from './useRun.js';
 import { Button, CardHead, EmptyState, PageHeader, Stat } from './ui.jsx';
@@ -358,6 +359,13 @@ export default function RunView({ token, health, keyStatus, visible, needsToken,
             which is what makes it findable at the moment you want it. The record
             a stop leaves stays neutral — that is where "a stop is not a failure"
             has to hold. */}
+        {/* US-079's pause sits beside it and stays neutral for the same reason,
+            from the other side: it interrupts nothing and spends nothing. Only
+            once the run actually holds a slot — a queued run has no process to
+            hold, which is what the route answers 409 to. */}
+        {running && !queued && !run.stopping && (
+          <PauseButton paused={run.paused} onPause={run.pause} onResume={run.resume} />
+        )}
         {running && (
           <Button variant="danger" icon={CircleStop} onClick={run.stop} disabled={run.stopping}>
             {run.stopping ? 'Stopping…' : 'Stop run'}
@@ -633,6 +641,18 @@ export default function RunView({ token, health, keyStatus, visible, needsToken,
                   says what it is waiting for. No pulse — it explains a wait, it
                   is not the thing the agent is doing. */}
               {run.stopping && <p className="hint">Finishing the recording and the report…</p>}
+              {/* Above the log rather than below it: the log is newest-first, so
+                  what you type lands on the row directly under the box. Offered
+                  while the run is merely running, not only while it is held — a
+                  correction that arrives without a pause is the cheaper fix. */}
+              {running && !queued && !run.stopping && (
+                <HintBox
+                  paused={run.paused}
+                  until={run.pausedUntil}
+                  onHint={run.hint}
+                  onResume={run.resume}
+                />
+              )}
               {/* `live` puts the pulse on the newest row, which is the current
                   action while a run is going: the agent announces a step as it
                   starts it. Off here once the run ends, and never set by

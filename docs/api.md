@@ -46,6 +46,56 @@ curl http://<host>:8080/api/health
 # live feed: ws://<host>:8080/ws?runId=<runId>&token=<WORKER_API_TOKEN>
 ```
 
+### Steering a run in flight
+
+Four writes act on a run that has not finished. All four are scoped to the run's
+owner and answer `404` — never `403` — for anyone else, so a refusal cannot
+confirm another tenant's run exists. A run that has already ended, or is not in
+the state the call needs, answers `409`.
+
+None of them sit behind the billing gate or require a stored key: they are how a
+user stops or redirects spending, so they have to work for an account whose
+subscription lapsed or whose key was removed mid-run.
+
+```bash
+# stop early (US-047). The agent finishes its recording and report, so the
+# partial evidence survives — the run ends `cancelled`, carrying no verdict.
+curl -X POST http://<host>:8080/api/runs/<runId>/stop \
+  -H "Authorization: Bearer $WORKER_API_TOKEN"
+# -> {"runId":"...","status":"running","stopping":true}
+
+# hold the run before its next action (US-079). A queued run has no browser to
+# hold: 409. The screencast keeps working while paused.
+curl -X POST http://<host>:8080/api/runs/<runId>/pause \
+  -H "Authorization: Bearer $WORKER_API_TOKEN"
+# -> {"runId":"...","paused":true}
+
+# let it carry on. 409 if the run is not paused.
+curl -X POST http://<host>:8080/api/runs/<runId>/resume \
+  -H "Authorization: Bearer $WORKER_API_TOKEN"
+
+# tell it what to do. Additive: the original goal survives and the run
+# continues from the step it was on. Sent to a paused run, this also resumes it.
+curl -X POST http://<host>:8080/api/runs/<runId>/hint \
+  -H "Authorization: Bearer $WORKER_API_TOKEN" -H "Content-Type: application/json" \
+  -d '{"text":"the confirm button is in the account menu"}'
+# -> {"runId":"...","paused":false}
+```
+
+`text` is required and capped at 1000 characters; empty or longer is `400`.
+
+**A pause is bounded.** It suspends the run's wall-clock limit — otherwise a
+paused run would be killed as a resource failure — and starts its own
+`PAUSE_MAX_SECONDS` budget (default 600). A pause nobody resumes ends the run
+`cancelled`, with the steps and recording it produced. A resumed run gets back
+the wall clock it had left, not a fresh ceiling, so pausing repeatedly cannot
+buy a run more time.
+
+**A hint is evidence.** It appears in `GET /api/runs/<runId>/steps` as `hints`,
+and in `report_data.json` as `hints` plus `assisted: true`, which the PDF states
+on its cover. What that costs a verdict is
+[Steering a live run](https://docs.qassist.run/steering-a-run) in the manual.
+
 ## Saved tests, projects and modules
 
 A saved test is the reusable unit. Grouping is optional: a test can sit in a

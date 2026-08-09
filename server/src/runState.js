@@ -79,7 +79,17 @@ import { RUN_TTL_MS } from './config.js';
  * @property {number} [finishedAt]
  * @property {import('node:child_process').ChildProcess} [child] absent on a queued or replayed run
  * @property {NodeJS.Timeout} [memWatch]
- * @property {NodeJS.Timeout} [timeoutWatch]
+ * @property {NodeJS.Timeout | null} [timeoutWatch] the wall clock, null while
+ *   the run is paused — cleared rather than rescheduled (US-079)
+ * @property {number} [timeoutAt] when the armed wall clock fires, epoch ms
+ * @property {number} [timeoutRemainingMs] what was left of the wall clock when
+ *   the pause took it down, and what the resume re-arms — a fresh
+ *   RUN_TIMEOUT_MS per resume would make the ceiling defeatable by repetition
+ * @property {boolean} [paused] held before its next action (US-079). A flag and
+ *   never a status: a paused run is still `running`, or TERMINAL would let
+ *   retention sweep a live run's artifacts
+ * @property {NodeJS.Timeout | null} [pauseTimer] the pause budget
+ * @property {number} [pauseDeadlineAt] when that budget ends the run, epoch ms
  * @property {NodeJS.Timeout | null} [stopTimer] the stop grace window (US-047)
  * @property {boolean} [cancelling] a stop was asked for; the status follows later
  * @property {ReportStatus} [reportStatus]
@@ -159,6 +169,23 @@ export function stepsOf(run) {
       url: e.url,
       screenshot_file: e.screenshot_file,
     }));
+}
+
+/**
+ * What a person told this run to do while it was running (US-079), in the one
+ * shape the run page and the report both read.
+ *
+ * Kept out of `stepsOf` on purpose: a hint has no step number, and the report's
+ * step section is keyed on one. It is evidence about the *verdict* rather than
+ * about a step — a run that passed after somebody pointed at the button proved
+ * less than one that passed alone, and a report that does not say so overstates
+ * it exactly as US-047's `success: true` overstated a stopped run.
+ * @param {Run} run
+ */
+export function hintsOf(run) {
+  return run.events
+    .filter((e) => e.type === 'hint')
+    .map((e) => ({ text: e.text, elapsed: e.elapsed }));
 }
 
 /**

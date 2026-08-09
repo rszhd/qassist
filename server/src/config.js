@@ -40,6 +40,13 @@ export const RUN_TIMEOUT_MS = parseInt(process.env.RUN_TIMEOUT_SECONDS || '600',
 // pre-empts its own agent throws away the recording it was about to finalize,
 // which is the failure this story exists to fix.
 export const STOP_GRACE_MS = parseInt(process.env.STOP_GRACE_SECONDS || '10', 10) * 1000;
+// How long a run may stay paused before the engine ends it (US-079). A pause
+// suspends the wall clock above, so without a budget of its own a pause left on
+// a second monitor leaks a browser, a process and a concurrency slot for as long
+// as the box is up. It escalates through `stopRun`, so a forgotten pause ends
+// `cancelled` with its evidence — an abandoned run, which is what it is — rather
+// than as a resource failure nobody caused.
+export const PAUSE_MAX_MS = parseInt(process.env.PAUSE_MAX_SECONDS || '600', 10) * 1000;
 export const PYTHON_BIN = process.env.PYTHON_BIN || 'python3';
 export const AGENT_DIR = process.env.AGENT_DIR || path.join(__dirname, '..', '..', 'agent');
 export const AGENT_SCRIPT = process.env.AGENT_SCRIPT || path.join(AGENT_DIR, 'run_agent.py');

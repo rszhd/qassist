@@ -70,12 +70,12 @@ Sprints aren't split along a self-host/hosted-tier line — `sprint/current/` an
 | [US-070](sprint/current/US-070-user-manual-site.md) | A user manual, published without an image build (`docs.qassist.run`) | 🔨 **Live** 2026-08-05, 9/11 — follows `main` since 2026-08-06 | US-007, US-055 |
 | [US-071](sprint/current/US-071-one-command-deploy.md) | One command deploys a stack, and proves which one it deployed | 📋 Planned — P1 | US-052, US-055, US-056 |
 | [US-077](sprint/current/US-077-test-mail-without-gmail.md) | The test mailbox stops being a Gmail account | 🔨 Tier 1 done 2026-08-09, 2/8 — 51 → 2.7 logins/min | US-013 tier 1, US-007 |
-| [US-079](sprint/current/US-079-pause-a-run-and-tell-it-what-to-do.md) | Pause a run, and tell it what to do | 📋 Planned — P2 | US-047, US-076 |
 
 ### Done
 
 | ID | Story | Status | Depends on |
 |---|---|---|---|
+| [US-079](sprint/current/done/US-079-pause-a-run-and-tell-it-what-to-do.md) | Pause a run, and tell it what to do | ✅ **Done** 2026-08-10, 8/8 | US-047, US-076 |
 | [US-078](sprint/current/done/US-078-recording-clock-and-diagnostic-seek.md) | The recording's clock, said out loud, and a diagnostic that jumps to it | ✅ **Done** 2026-08-09, 6/6 | US-076, US-044 |
 | [US-076](sprint/current/done/US-076-activity-leads-the-run-and-seeks-the-recording.md) | Activity leads the run, and seeks the recording | ✅ **Done** 2026-08-09, 7/7 | US-006, US-026 |
 | [US-074](sprint/current/done/US-074-run-agent-pure-logic-extracted.md) | `run_agent.py`: move the pure logic where the tests can reach it | ✅ **Done** 2026-08-05, 6/6 | — |
