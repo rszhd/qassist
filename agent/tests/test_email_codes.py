@@ -88,15 +88,81 @@ class TestExtractCode:
         # Token precedes the keyword, so the subject-leading rule supplies it.
         assert ec.extract_code("482913 is your login code", "") == "482913"
 
-    def test_standalone_digits_in_body_without_keyword(self):
-        assert ec.extract_code("Hello", "Your reference is 5567 for records") == "5567"
+    def test_standalone_digits_need_a_keyword_somewhere(self):
+        # The subject supplies the keyword; the body supplies only the token.
+        assert ec.extract_code("Your OTP Code", "482913") == "482913"
+
+    def test_bare_number_in_a_keyword_free_email_is_not_a_code(self):
+        # Behaviour change with BUG-012: this used to return 5567. An email
+        # that never says code/otp/pin/passcode/password has nothing to
+        # extract — a digit run in it is a reference, a postcode, a street.
+        assert ec.extract_code("Hello", "Your reference is 5567 for records") is None
 
     def test_no_code_returns_none(self):
         assert ec.extract_code("Newsletter", "Welcome to our site, enjoy") is None
 
     def test_too_long_a_run_is_not_a_code(self):
         # Standalone matcher caps at 8 digits, so an order number isn't a code.
-        assert ec.extract_code("Order", "Order 1234567890 shipped") is None
+        assert ec.extract_code("Order code", "Order 1234567890 shipped") is None
+
+
+class TestExtractCodeStagingEmails:
+    """BUG-012 — cut from the two real emails of staging run cf7a4e1e
+    (2026-08-09). The site sends a link-only email and an OTP email, and both
+    carry a postal footer whose postcode is a plausible 5-digit "code".
+    """
+
+    LINK_BODY = (
+        "Thank you for signing up. In order to activate your account, we need "
+        "to verify that you own this email address.\n"
+        "Please verify your email address by clicking the verification link below.\n"
+        "Verify my account\n"
+        "Thank You!\n"
+        "CIDB E-Construct Services Sdn Bhd,\n"
+        "Tingkat 11, Menara Sunway Putra,\n"
+        "Jalan Putra, 50350 KUALA LUMPUR\n"
+        "Phone: +603- 4040 0399"
+    )
+    OTP_BODY = (
+        "To activate your account, please enter this One-Time Password (OTP) "
+        "on the activation page:\n"
+        "053604\n"
+        "This code will expire in 10 minutes.\n"
+        "Thank You!\n"
+        "CIDB E-Construct Services Sdn Bhd,\n"
+        "Jalan Putra, 50350 KUALA LUMPUR\n"
+        "Phone: +603- 4040 0399"
+    )
+
+    def test_link_only_email_yields_no_code(self):
+        # The staging failure: this returned "50350" — the postcode — and the
+        # agent typed it into a six-box OTP field.
+        assert ec.extract_code("Email Verification", self.LINK_BODY) is None
+
+    def test_otp_email_code_found_without_a_stated_width(self):
+        assert ec.extract_code("Your OTP Code", self.OTP_BODY) == "053604"
+
+    def test_otp_email_code_found_by_the_keyword_path_not_by_position(self):
+        # "…(OTP) on the activation page: 053604" puts 26 characters between
+        # keyword and code. The keyword window must span that, so selection
+        # does not depend on the code preceding the footer in the body — here
+        # the footer comes first, and the bare fallback would answer 50350.
+        body = (
+            "Jalan Putra, 50350 KUALA LUMPUR\n"
+            "Enter this One-Time Password (OTP) on the activation page:\n053604"
+        )
+        assert ec.extract_code("", body) == "053604"
+
+    def test_otp_email_with_a_stated_width(self):
+        assert ec.extract_code("Your OTP Code", self.OTP_BODY, code_length=6) == "053604"
+
+    def test_link_is_still_extracted_from_the_link_email(self):
+        html = (
+            '<a href="https://smartv2-sp.econstruct.com.my/register/'
+            'account-activation/fnbvaiyvixDF"><button>Verify my account</button></a>'
+        )
+        link = ec.extract_link("", html)
+        assert link is not None and link.endswith("/fnbvaiyvixDF")
 
 
 class TestExtractCodeLength:
@@ -166,6 +232,69 @@ class TestSearchFolderSelection:
         found = _search(messages, code_length=6)
         assert found is not None
         assert found.code is None
+
+
+class TestExtractorSeam:
+    """US-080 — `_search_folder` consults the wired extractor first.
+
+    The extractor here is the stub the module's no-network rule requires; the
+    real one (LLM + validation) lives in email_extract.py and is tested there.
+    Contract: None = the call failed, regex answers; a tuple — including
+    (None, None) — is final, because a regex answer behind a reader that read
+    the email and found nothing is the confident wrong answer US-080 removes.
+    """
+
+    MESSAGES = [_raw_message(ADDRESS, "Your OTP Code", "Your code is 482913", NOW)]
+
+    def _search_with(self, extractor, code_length=None):
+        conn = FakeConn(self.MESSAGES)
+        box = ec.ImapMailbox(host="h", port=993, user="qa@test", password="pw", domain=None)
+        box.extractor = extractor
+        return box._search_folder(
+            conn, "INBOX", ADDRESS, (NOW - timedelta(minutes=1)).timestamp(),
+            code_length=code_length,
+        )
+
+    def test_extractor_answer_wins_over_regex(self):
+        found = self._search_with(lambda s, b, h, w: ("482913", "https://x.test/verify"))
+        assert found.code == "482913"
+        assert found.link == "https://x.test/verify"
+
+    def test_extractor_nothing_found_is_final_and_regex_stays_silent(self):
+        # Regex would answer 482913 here; the reader's (None, None) must stand.
+        found = self._search_with(lambda s, b, h, w: (None, None))
+        assert found is not None
+        assert found.code is None
+        assert found.link is None
+
+    def test_failed_call_falls_back_to_regex(self):
+        found = self._search_with(lambda s, b, h, w: None)
+        assert found.code == "482913"
+
+    def test_no_extractor_wired_is_the_regex_path(self):
+        found = self._search_with(None)
+        assert found.code == "482913"
+
+    def test_extractor_receives_subject_body_and_stated_width(self):
+        seen = {}
+
+        def extractor(subject, body_text, body_html, code_length):
+            seen.update(subject=subject, body=body_text, width=code_length)
+            return (None, None)
+
+        self._search_with(extractor, code_length=6)
+        assert seen["subject"] == "Your OTP Code"
+        assert "482913" in seen["body"]
+        assert seen["width"] == 6
+
+    def test_confirmation_carries_no_body_field(self):
+        # The body reaches the extractor and nowhere else: every event the
+        # action emits is built from Confirmation, so the payload cage is its
+        # field list. A body field added here would be one emit away from the
+        # feed, the logs and the report.
+        assert set(ec.Confirmation.__dataclass_fields__) == {
+            "subject", "sender", "code", "link", "message_id"
+        }
 
 
 class TestWaitForConfirmation:

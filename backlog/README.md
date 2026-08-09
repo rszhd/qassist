@@ -75,6 +75,7 @@ Sprints aren't split along a self-host/hosted-tier line — `sprint/current/` an
 
 | ID | Story | Status | Depends on |
 |---|---|---|---|
+| [US-080](sprint/current/done/US-080-llm-email-code-extraction.md) | The confirmation email is read by an LLM, and its answer is verified | ✅ **Done** 2026-08-10, 6/6 | US-013 tier 1, US-039 |
 | [US-079](sprint/current/done/US-079-pause-a-run-and-tell-it-what-to-do.md) | Pause a run, and tell it what to do | ✅ **Done** 2026-08-10, 8/8 | US-047, US-076 |
 | [US-078](sprint/current/done/US-078-recording-clock-and-diagnostic-seek.md) | The recording's clock, said out loud, and a diagnostic that jumps to it | ✅ **Done** 2026-08-09, 6/6 | US-076, US-044 |
 | [US-076](sprint/current/done/US-076-activity-leads-the-run-and-seeks-the-recording.md) | Activity leads the run, and seeks the recording | ✅ **Done** 2026-08-09, 7/7 | US-006, US-026 |
@@ -205,6 +206,8 @@ speculatively.
 
 | ID | Defect | Status | Area |
 |---|---|---|---|
+| [BUG-013](bugs/BUG-013-unconsumed-stale-email-after-resend.md) | After a Resend, an *unconsumed* older email satisfies `get_email_code`'s filters and comes back carrying the code the Resend just invalidated — BUG-010's exclusion only covers mail already handed out | 🐛 Open (2026-08-10) | `agent/email_codes.py`, `agent/run_agent.py` |
+| [BUG-012](sprint/current/done/BUG-012-footer-postcode-extracted-as-otp.md) | A link-only email with no code in it yields one anyway: the bare digit-run fallback takes the footer's postcode, and the agent types it into the OTP field | ✅ Fixed 2026-08-10 | `agent/email_codes.py` |
 | [BUG-011](sprint/current/done/BUG-011-run-page-recording-frame-jumps-on-load.md) | The recording's frame on `/runs/<id>` has no height until the video's metadata lands, so the page jumps on first load | ✅ Fixed 2026-08-09 | `frontend/src/views.css` |
 | [BUG-010](sprint/current/done/BUG-010-stale-confirmation-email-returned-after-resend.md) | `get_email_code` re-returns an email it already used, so after a Resend the agent enters the code that Resend invalidated — an unbounded loop the agent reports as the site rejecting fresh codes | ✅ Fixed 2026-08-09 | `agent/email_codes.py`, `agent/run_agent.py` |
 | [BUG-009](sprint/current/done/BUG-009-permission-prompt-closes-the-capture-popup.md) | Chrome destroys the popup when it shows the host-permission prompt, so every user's first capture is silently lost | ✅ Fixed 2026-08-03 | `extension/popup.js`, `extension/lib/pendingCapture.js` |

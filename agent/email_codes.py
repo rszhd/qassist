@@ -33,9 +33,12 @@ from email.message import Message
 
 # Codes near a keyword ("your verification code is 123456", "PIN: 9482").
 # The token must contain a digit so filler words ("is below") never match;
-# length is checked in extract_code.
+# length is checked in extract_code. The 40-character window spans a clause
+# between keyword and code — "…Password (OTP) on the activation page: 053604"
+# holds 26 (BUG-012).
+_CODE_KEYWORD = re.compile(r"code|otp|pin|passcode|password", re.IGNORECASE)
 _CODE_NEAR_KEYWORD = re.compile(
-    r"(?:code|otp|pin|passcode|password)\b.{0,20}?\b([A-Z0-9-]*\d[A-Z0-9-]*)\b",
+    r"(?:code|otp|pin|passcode|password)\b.{0,40}?\b([A-Z0-9-]*\d[A-Z0-9-]*)\b",
     re.IGNORECASE | re.DOTALL,
 )
 # Subject style: "482913 is your ... code".
@@ -99,15 +102,21 @@ def _message_key(msg: Message) -> str:
 
 
 def _code_candidates(subject: str, body_text: str):
-    """Code-shaped tokens, best first: keyword-adjacent, subject-leading, bare."""
+    """Code-shaped tokens, best first: keyword-adjacent, subject-leading, bare.
+
+    The bare fallback runs only when the email mentions a code at all. A
+    link-only email still holds digit runs — a footer's postcode, a street
+    number, a phone — and one of those typed into an OTP field is BUG-012.
+    """
     for text in (subject, body_text):
         for m in _CODE_NEAR_KEYWORD.finditer(text):
             yield m.group(1)
     m = _CODE_LEADING.search(subject)
     if m:
         yield m.group(1)
-    for m in _CODE_STANDALONE.finditer(body_text):
-        yield m.group(1)
+    if _CODE_KEYWORD.search(subject) or _CODE_KEYWORD.search(body_text):
+        for m in _CODE_STANDALONE.finditer(body_text):
+            yield m.group(1)
 
 
 def extract_code(subject: str, body_text: str, code_length: int | None = None) -> str | None:
@@ -146,11 +155,20 @@ def mask_codes(subject: str) -> str:
     return _SUBJECT_CODE.sub("<redacted:code>", subject)
 
 
-def extract_link(body_text: str, body_html: str) -> str | None:
-    """First URL that looks like a confirmation/verification link."""
+def link_candidates(body_text: str, body_html: str) -> list[str]:
+    """Every URL literally present in the email, hrefs first.
+
+    Also the ground truth email_extract.py validates an LLM-returned link
+    against: a link is only real if it is on this list.
+    """
     candidates = [html_lib.unescape(u) for u in _HREF.findall(body_html)]
     candidates += _URL.findall(body_text)
-    for url in candidates:
+    return candidates
+
+
+def extract_link(body_text: str, body_html: str) -> str | None:
+    """First URL that looks like a confirmation/verification link."""
+    for url in link_candidates(body_text, body_html):
         if _CONFIRM_URL_HINT.search(url):
             return url.rstrip(".,;")
     return None
@@ -173,6 +191,10 @@ class ImapMailbox:
         self.domain = domain
         self.folders = folders or ["INBOX"]
         self._conn: imaplib.IMAP4_SSL | None = None
+        # LLM-primary reader (US-080), wired by run_agent when the run has a
+        # client: (subject, body_text, body_html, code_length) -> (code, link)
+        # or None. See _extract for what the two answers mean.
+        self.extractor = None
 
     @classmethod
     def from_env(cls, env) -> "ImapMailbox | None":
@@ -323,11 +345,36 @@ class ImapMailbox:
             plain, html = _walk_bodies(msg)
             body_text = plain or _strip_html(html)
             subject = str(email.header.make_header(email.header.decode_header(msg.get("Subject", ""))))
+            code, link = self._extract(subject, body_text, html, code_length)
             return Confirmation(
                 subject=subject,
                 sender=msg.get("From", ""),
-                code=extract_code(subject, body_text, code_length),
-                link=extract_link(body_text, html),
+                code=code,
+                link=link,
                 message_id=message_id,
             )
         return None
+
+    def _extract(
+        self,
+        subject: str,
+        body_text: str,
+        body_html: str,
+        code_length: int | None,
+    ) -> tuple[str | None, str | None]:
+        """LLM-primary when an extractor is wired (US-080), regex otherwise.
+
+        The extractor returns None only when its call failed; regex may then
+        answer. A tuple — including (None, None) — is final: the regex failure
+        mode is a *confident* wrong answer, so letting it speak behind a
+        reader that read the email and found nothing would reintroduce
+        BUG-012 exactly where the reader had just prevented it.
+        """
+        if self.extractor is not None:
+            found = self.extractor(subject, body_text, body_html, code_length)
+            if found is not None:
+                return found
+        return (
+            extract_code(subject, body_text, code_length),
+            extract_link(body_text, body_html),
+        )

@@ -70,8 +70,10 @@ os.environ.setdefault("BROWSER_USE_CLOUD_SYNC", "false")
 from browser_use import Agent, ChatOpenAI, Tools
 from browser_use.browser.profile import BrowserProfile, ViewportSize
 from browser_use.browser.video_recorder import VideoRecorderService
+from browser_use.llm.messages import SystemMessage, UserMessage
 from PIL import Image
 
+import email_extract
 from email_codes import ImapMailbox, mask_codes
 from redact import scrub
 import diagnostics
@@ -466,6 +468,21 @@ async def main() -> int:
     tools = None
     sensitive: dict[str, str] | None = dict(run_secrets) if run_secrets else None
     if mailbox:
+        # LLM-primary email reading (US-080): the extractor calls the run's
+        # own BYOK provider — the one already seeing every page screenshot —
+        # and email_extract's validation cages the answer. It runs on
+        # wait_for_confirmation's worker thread, so it gets its own event
+        # loop and a fresh client per call rather than sharing the agent's,
+        # which is bound to the main loop.
+        def extractor_invoke(system: str, user: str) -> str:
+            answer = asyncio.run(
+                ChatOpenAI(model=model).ainvoke(
+                    [SystemMessage(content=system), UserMessage(content=user)]
+                )
+            )
+            return answer.completion
+
+        mailbox.extractor = email_extract.make_extractor(extractor_invoke)
         tools = Tools()
         tag = (run_id or pysecrets.token_hex(4)).replace("-", "")[:10]
         test_address = mailbox.generate_address(tag)
