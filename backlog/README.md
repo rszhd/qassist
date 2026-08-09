@@ -69,7 +69,7 @@ Sprints aren't split along a self-host/hosted-tier line — `sprint/current/` an
 | [US-020](sprint/current/US-020-report-v2-screenshots-recording.md) | Report v2: step screenshots + recording | 📋 Planned — P2 | US-006 |
 | [US-070](sprint/current/US-070-user-manual-site.md) | A user manual, published without an image build (`docs.qassist.run`) | 🔨 **Live** 2026-08-05, 9/11 — follows `main` since 2026-08-06 | US-007, US-055 |
 | [US-071](sprint/current/US-071-one-command-deploy.md) | One command deploys a stack, and proves which one it deployed | 📋 Planned — P1 | US-052, US-055, US-056 |
-| [US-077](sprint/current/US-077-test-mail-without-gmail.md) | The test mailbox stops being a Gmail account | 📋 Planned (tiered) — P2 | US-013 tier 1, US-007 |
+| [US-077](sprint/current/US-077-test-mail-without-gmail.md) | The test mailbox stops being a Gmail account | 🔨 Tier 1 done 2026-08-09, 2/8 — 51 → 2.7 logins/min | US-013 tier 1, US-007 |
 
 ### Done
 

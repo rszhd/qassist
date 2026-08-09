@@ -46,6 +46,9 @@ _URL = re.compile(r"https?://[^\s<>\"')\]]+")
 _CONFIRM_URL_HINT = re.compile(
     r"confirm|verif|activat|validate|register|signup|sign-up|token=|welcome", re.IGNORECASE
 )
+# Raised when the server hung up rather than answered: IMAP4.abort for a
+# protocol-level teardown, OSError/EOFError for the socket under it.
+_CONNECTION_LOST = (imaplib.IMAP4.abort, OSError, EOFError)
 
 
 @dataclass
@@ -169,6 +172,7 @@ class ImapMailbox:
         self.password = password
         self.domain = domain
         self.folders = folders or ["INBOX"]
+        self._conn: imaplib.IMAP4_SSL | None = None
 
     @classmethod
     def from_env(cls, env) -> "ImapMailbox | None":
@@ -210,8 +214,11 @@ class ImapMailbox:
         a resend landing in the same second as the message it replaces is
         indistinguishable by timestamp, and Message-ID has no such boundary.
 
-        Blocking (imaplib) — call via asyncio.to_thread. Reconnects per poll so
-        a long wait can't die on a stale connection.
+        Blocking (imaplib) — call via asyncio.to_thread. One login covers the
+        whole wait and every wait after it until `close`: a login per 5s poll
+        put four concurrent runs at ~50 logins a minute against one mailbox,
+        which is a rate the provider throttles (US-077 tier 1). A dropped
+        connection is still survivable — see `_fetch_newest`.
         """
         deadline = time.monotonic() + timeout
         while True:
@@ -222,6 +229,22 @@ class ImapMailbox:
                 return None
             time.sleep(min(poll_interval, max(0.0, deadline - time.monotonic())))
 
+    def _connection(self) -> imaplib.IMAP4_SSL:
+        if self._conn is None:
+            conn = imaplib.IMAP4_SSL(self.host, self.port)
+            conn.login(self.user, self.password)
+            self._conn = conn
+        return self._conn
+
+    def close(self) -> None:
+        """Log out and drop the held connection. Safe to call at any time."""
+        conn, self._conn = self._conn, None
+        if conn is not None:
+            try:
+                conn.logout()
+            except Exception:
+                pass
+
     def _fetch_newest(
         self,
         to_address: str,
@@ -229,21 +252,35 @@ class ImapMailbox:
         exclude_ids: set[str] | None = None,
         code_length: int | None = None,
     ) -> Confirmation | None:
-        conn = imaplib.IMAP4_SSL(self.host, self.port)
+        """One poll over every configured folder, reconnecting once if needed.
+
+        The connection outlives the poll now, so a wait long enough for the
+        server to time it out finds it dead — reconnect on that rather than
+        pre-emptively every poll, which is what made the login rate a problem.
+        """
         try:
-            conn.login(self.user, self.password)
-            for folder in self.folders:
-                found = self._search_folder(
-                    conn, folder, to_address, since, exclude_ids, code_length
-                )
-                if found is not None:
-                    return found
-            return None
-        finally:
-            try:
-                conn.logout()
-            except Exception:
-                pass
+            return self._search_folders(
+                self._connection(), to_address, since, exclude_ids, code_length
+            )
+        except _CONNECTION_LOST:
+            self.close()
+        return self._search_folders(
+            self._connection(), to_address, since, exclude_ids, code_length
+        )
+
+    def _search_folders(
+        self,
+        conn: imaplib.IMAP4_SSL,
+        to_address: str,
+        since: float,
+        exclude_ids: set[str] | None = None,
+        code_length: int | None = None,
+    ) -> Confirmation | None:
+        for folder in self.folders:
+            found = self._search_folder(conn, folder, to_address, since, exclude_ids, code_length)
+            if found is not None:
+                return found
+        return None
 
     def _search_folder(
         self,
@@ -256,7 +293,9 @@ class ImapMailbox:
     ) -> Confirmation | None:
         try:
             status, _ = conn.select(f'"{folder}"', readonly=True)
-        except Exception:
+        except _CONNECTION_LOST:
+            raise  # the connection died, not the folder — _fetch_newest reopens it
+        except imaplib.IMAP4.error:
             return None  # folder doesn't exist on this provider
         if status != "OK":
             return None

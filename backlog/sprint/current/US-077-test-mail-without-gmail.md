@@ -5,10 +5,12 @@ confirmation email to arrive without every waiting run hammering one Gmail
 account over IMAP, **so that** the number of parallel signups is bounded by the
 concurrency cap I chose and not by a third party's login throttle.
 
-- **Status:** 📋 Planned (tiered). Written and scheduled into the current
-  sprint on 2026-08-09, the day the concurrency question was asked — tier 1 is
-  an hour against a ceiling that fails every waiting run at once, so it does
-  not wait behind tier 2's infrastructure decision.
+- **Status:** 🔨 Tier 1 done 2026-08-09, tiers 2–3 planned. Written and
+  scheduled into the current sprint on 2026-08-09, the day the concurrency
+  question was asked — tier 1 is an hour against a ceiling that fails every
+  waiting run at once, so it does not wait behind tier 2's infrastructure
+  decision. Whether tiers 2–3 are ever needed is now a question for the login
+  rate that tier 1 leaves behind (below).
 - **Priority:** P2
 - **Estimate:** tier 1 ~1h · tier 2 ~1 day · tier 3 ~0.5 day
 - **Depends on:** [US-013 tier 1](done/US-013-registration-flow-verification.md)
@@ -69,6 +71,41 @@ This is contained, ships on its own, and buys the time to do tier 2 properly.
 If it is enough in practice, the rest of this story stays unscheduled, which is
 the good outcome.
 
+### Result (2026-08-09)
+
+`ImapMailbox` now holds its connection: `_connection()` logs in lazily,
+`_fetch_newest` reuses it, and `close()` ends it. `get_email_code` closes in a
+`finally`, so the login lasts exactly one tool call and nothing idles on the
+mailbox while the agent browses between two fetches.
+
+Measured over one 90s wait with the agent's real chunk loop (15s progress
+chunks, 5s polls) against a stub socket and a simulated clock:
+
+| | logins per wait per run | logins/min at `MAX_CONCURRENT_SESSIONS=4` |
+|---|---|---|
+| before | 19 | 51 |
+| after | 1 | 2.7 |
+
+The reconnect property survives, but it moved: it used to be bought by opening
+a socket every 5s, and is now a catch. Two traps were in the way.
+
+- **A dead connection reads as a missing folder.** `_search_folder` swallowed
+  every exception from `select` as "this provider has no such folder", which is
+  right for `IMAP4.error` and silently wrong for `IMAP4.abort` — a subclass of
+  it. Left alone, a wait whose connection timed out would have polled a corpse
+  until the deadline and reported no email. `_CONNECTION_LOST` (`IMAP4.abort`,
+  `OSError`, `EOFError`) is re-raised ahead of the folder case, and the two
+  paths have a test each.
+- **Reconnect once, not in a loop.** The retry is a single second attempt; a
+  connection that dies twice raises, which the caller already turns into
+  `Mailbox error`. Also tested, because the failure mode of getting it wrong is
+  an unkillable poll loop rather than a red test.
+
+Tier 2's case is unchanged by this — it was never mainly about the login rate,
+and the once-only-delivery and latency arguments stand. But the *ceiling* is no
+longer close, so tier 2 is now scheduled on its own merits rather than on
+pressure.
+
 ## Tier 2 — mail is delivered to us, not fetched by us
 
 Cloudflare Email Routing can deliver to a Worker instead of to an address. The
@@ -123,9 +160,9 @@ credentials to store and encrypt.
 
 ## Acceptance criteria
 
-- [ ] **Tier 1:** one login per wait, not per poll; a dropped connection still
+- [x] **Tier 1:** one login per wait, not per poll; a dropped connection still
       reconnects and the wait survives it
-- [ ] **Tier 1:** logins-per-minute measured at `MAX_CONCURRENT_SESSIONS` runs
+- [x] **Tier 1:** logins-per-minute measured at `MAX_CONCURRENT_SESSIONS` runs
       all waiting, before and after, recorded here
 - [ ] **Tier 2:** a message posted to the ingest endpoint reaches the waiting
       agent, and Gmail is out of the path for the hosted tier

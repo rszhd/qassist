@@ -491,6 +491,11 @@ async def main() -> int:
             except Exception as e:
                 emit({"type": "progress", "message": f"Mailbox error: {type(e).__name__}"})
                 return f"Mailbox error ({type(e).__name__}) — cannot fetch the email. Report the goal as blocked."
+            finally:
+                # The chunks above are one wait split for progress reporting, and
+                # the mailbox holds its login across them; release it here so no
+                # connection idles through the browsing between two fetches.
+                await asyncio.to_thread(mailbox.close)
             if conf is None:
                 emit({"type": "progress", "message": f"No confirmation email after {timeout}s"})
                 if consumed_email_ids:

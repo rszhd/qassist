@@ -5,12 +5,16 @@ This is the first agent-side test layer. The module is all pure stdlib, so the
 suite runs with no browser, no IMAP server and no network: it drives the
 extraction/formatting logic directly with hand-written subjects and bodies.
 `_search_folder` takes its connection as an argument, so the message-selection
-rules are driven through a stub connection here; only the socket setup in
-`_fetch_newest` is left uncovered.
+rules are driven through a stub connection here; `_fetch_newest`'s connection
+reuse is driven by substituting the IMAP4_SSL constructor, so the socket itself
+is still never opened.
 """
 import email.utils
+import imaplib
 from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
+
+import pytest
 
 import email_codes as ec
 
@@ -193,6 +197,106 @@ class TestWaitForConfirmation:
             ADDRESS, NOW.timestamp(), timeout=0, poll_interval=0, exclude_ids={"<one@test>"}
         )
         assert self.calls == [{"<one@test>"}]
+
+
+class TrackingConn(FakeConn):
+    """FakeConn plus the login/logout calls _fetch_newest drives.
+
+    `dies` makes every select raise the abort a server sends when it hangs up;
+    `missing` makes it raise the plain error a server sends for a folder that
+    does not exist. The two look alike from the call site and must not be
+    treated alike.
+    """
+
+    def __init__(self, messages, dies=False, missing=()):
+        super().__init__(messages)
+        self.dies = dies
+        self.missing = set(missing)
+        self.selected = []
+        self.logged_out = False
+
+    def login(self, user, password):
+        return "OK", [b"logged in"]
+
+    def logout(self):
+        self.logged_out = True
+        return "BYE", [b""]
+
+    def select(self, folder, readonly=False):
+        self.selected.append(folder)
+        if self.dies:
+            raise imaplib.IMAP4.abort("socket error: EOF")
+        if folder.strip('"') in self.missing:
+            raise imaplib.IMAP4.error("SELECT command error: NO")
+        return super().select(folder, readonly=readonly)
+
+
+class TestConnectionReuse:
+    """US-077 tier 1: one login per wait, not per poll."""
+
+    def _mailbox(self, monkeypatch, *conns, folders=None):
+        opened = []
+
+        def fake_ssl(host, port):
+            opened.append(conns[len(opened)])
+            return opened[-1]
+
+        monkeypatch.setattr(imaplib, "IMAP4_SSL", fake_ssl)
+        box = ec.ImapMailbox(
+            host="h", port=993, user="qa@test", password="pw", domain=None, folders=folders
+        )
+        return box, opened
+
+    def _poll(self, box):
+        return box._fetch_newest(ADDRESS, (NOW - timedelta(minutes=1)).timestamp())
+
+    def test_repeated_polls_share_one_login(self, monkeypatch):
+        conn = TrackingConn([])
+        box, opened = self._mailbox(monkeypatch, conn)
+        for _ in range(3):
+            self._poll(box)
+        assert len(opened) == 1
+        assert len(conn.selected) == 3
+
+    def test_a_dropped_connection_is_reopened_and_the_poll_still_answers(self, monkeypatch):
+        raw = _raw_message(ADDRESS, "Confirm", "Your code is 482913", NOW)
+        dead, live = TrackingConn([], dies=True), TrackingConn([raw])
+        box, opened = self._mailbox(monkeypatch, dead, live)
+        found = self._poll(box)
+        assert found is not None and found.code == "482913"
+        assert len(opened) == 2
+        assert dead.logged_out
+
+    def test_a_connection_that_dies_twice_raises_rather_than_looping(self, monkeypatch):
+        box, opened = self._mailbox(
+            monkeypatch, TrackingConn([], dies=True), TrackingConn([], dies=True)
+        )
+        with pytest.raises(imaplib.IMAP4.abort):
+            self._poll(box)
+        assert len(opened) == 2
+
+    def test_a_missing_folder_is_skipped_without_reconnecting(self, monkeypatch):
+        raw = _raw_message(ADDRESS, "Confirm", "Your code is 482913", NOW)
+        conn = TrackingConn([raw], missing={"INBOX"})
+        box, opened = self._mailbox(monkeypatch, conn, folders=["INBOX", "Bulk"])
+        found = self._poll(box)
+        assert found is not None and found.code == "482913"
+        assert len(opened) == 1
+
+    def test_close_ends_the_session_and_a_later_wait_starts_a_new_one(self, monkeypatch):
+        first, second = TrackingConn([]), TrackingConn([])
+        box, opened = self._mailbox(monkeypatch, first, second)
+        self._poll(box)
+        box.close()
+        assert first.logged_out
+        self._poll(box)
+        assert len(opened) == 2
+
+    def test_close_is_a_no_op_when_nothing_was_opened(self, monkeypatch):
+        box, opened = self._mailbox(monkeypatch, TrackingConn([]))
+        box.close()
+        box.close()
+        assert opened == []
 
 
 class TestMaskCodes:
