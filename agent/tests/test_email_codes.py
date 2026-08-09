@@ -464,6 +464,51 @@ class TestExtractLink:
         assert ec.extract_link("Visit https://example.test/home for more", "") is None
 
 
+class TestLabelledLinks:
+    """What the LLM reader is shown (US-080 follow-up, staging run 6984279c).
+
+    `link_candidates` is the set a returned link is validated against, so it
+    is also the set the reader must be shown — anything outside it is refused
+    anyway, and anything inside it that stays hidden is a link the reader
+    cannot return. The label is the anchor text, because a list of bare URLs
+    makes a confirmation link and an unsubscribe link indistinguishable.
+    """
+
+    def test_anchor_text_is_paired_with_its_href(self):
+        html = '<a href="https://x.test/verify?token=abc">Verify my account</a>'
+        assert ec.labelled_links("", html) == [
+            ("Verify my account", "https://x.test/verify?token=abc")
+        ]
+
+    def test_markup_inside_the_anchor_becomes_flat_label_text(self):
+        html = '<a href="https://x.test/v"><button>  Verify\n  my account </button></a>'
+        assert ec.labelled_links("", html) == [("Verify my account", "https://x.test/v")]
+
+    def test_a_bare_text_url_has_no_label(self):
+        assert ec.labelled_links("Go to https://x.test/a now", "") == [("", "https://x.test/a")]
+
+    def test_html_entities_are_unescaped_in_the_url(self):
+        html = '<a href="https://x.test/c?a=1&amp;b=2">go</a>'
+        assert ec.labelled_links("", html) == [("go", "https://x.test/c?a=1&b=2")]
+
+    def test_every_labelled_url_is_a_candidate(self):
+        # The two lists must not drift: validation reads one, the prompt the
+        # other, and a URL in only one of them is either unreachable or
+        # unrefusable.
+        text = "Mirror: https://x.test/plain"
+        html = '<a href="https://x.test/verify">Verify</a><a href="https://x.test/stop">Unsubscribe</a>'
+        candidates = ec.link_candidates(text, html)
+        assert [url for _, url in ec.labelled_links(text, html)] == candidates
+
+    def test_a_url_present_as_both_href_and_text_is_listed_once(self):
+        url = "https://x.test/verify?token=abc"
+        pairs = ec.labelled_links(f"Or paste {url}", f'<a href="{url}">Verify</a>')
+        assert pairs == [("Verify", url)]
+
+    def test_no_links_is_an_empty_list(self):
+        assert ec.labelled_links("Your code is 482913", "") == []
+
+
 class TestStripHtml:
     def test_tags_removed_and_text_kept(self):
         out = ec._strip_html("<p>Hello <b>world</b></p>")

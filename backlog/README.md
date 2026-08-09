@@ -207,6 +207,7 @@ speculatively.
 
 | ID | Defect | Status | Area |
 |---|---|---|---|
+| [BUG-014](sprint/current/done/BUG-014-llm-reader-never-shown-the-links.md) | US-080's prompt carries the stripped body only, so an email whose URL is in an `href` is read as having no link — and that answer is final, so the regex that would have found it never runs | ✅ Fixed 2026-08-10 | `agent/email_extract.py`, `agent/email_codes.py` |
 | [BUG-013](bugs/BUG-013-unconsumed-stale-email-after-resend.md) | After a Resend, an *unconsumed* older email satisfies `get_email_code`'s filters and comes back carrying the code the Resend just invalidated — BUG-010's exclusion only covers mail already handed out | 🐛 Open (2026-08-10) | `agent/email_codes.py`, `agent/run_agent.py` |
 | [BUG-012](sprint/current/done/BUG-012-footer-postcode-extracted-as-otp.md) | A link-only email with no code in it yields one anyway: the bare digit-run fallback takes the footer's postcode, and the agent types it into the OTP field | ✅ Fixed 2026-08-10 | `agent/email_codes.py` |
 | [BUG-011](sprint/current/done/BUG-011-run-page-recording-frame-jumps-on-load.md) | The recording's frame on `/runs/<id>` has no height until the video's metadata lands, so the page jumps on first load | ✅ Fixed 2026-08-09 | `frontend/src/views.css` |

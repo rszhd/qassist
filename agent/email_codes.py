@@ -45,6 +45,9 @@ _CODE_NEAR_KEYWORD = re.compile(
 _CODE_LEADING = re.compile(r"^\W*(\d{4,8})\b")
 _CODE_STANDALONE = re.compile(r"\b(\d{4,8})\b")
 _HREF = re.compile(r'href=["\']([^"\']+)["\']', re.IGNORECASE)
+_ANCHOR = re.compile(
+    r'<a\b[^>]*?href=["\']([^"\']+)["\'][^>]*>(.*?)</a>', re.IGNORECASE | re.DOTALL
+)
 _URL = re.compile(r"https?://[^\s<>\"')\]]+")
 _CONFIRM_URL_HINT = re.compile(
     r"confirm|verif|activat|validate|register|signup|sign-up|token=|welcome", re.IGNORECASE
@@ -164,6 +167,34 @@ def link_candidates(body_text: str, body_html: str) -> list[str]:
     candidates = [html_lib.unescape(u) for u in _HREF.findall(body_html)]
     candidates += _URL.findall(body_text)
     return candidates
+
+
+def labelled_links(body_text: str, body_html: str) -> list[tuple[str, str]]:
+    """The same URLs, each with the anchor text the recipient would click.
+
+    This is what email_extract.py *shows* the reader, and link_candidates is
+    what it validates the answer against — one list, so a URL can never be
+    unreachable in the prompt yet acceptable in the cage, or the reverse.
+    Duplicates are dropped: a URL given as both an href and a pasteable line
+    is one choice, not two.
+
+    The label carries the whole judgement. A confirmation link and an
+    unsubscribe link are indistinguishable as bare URLs, and reading the
+    email is the entire reason this reader exists.
+    """
+    labels: dict[str, str] = {}
+    for href, inner in _ANCHOR.findall(body_html):
+        url = html_lib.unescape(href)
+        text = " ".join(_strip_html(inner).split())
+        if text:
+            labels.setdefault(url, text)
+    seen: set[str] = set()
+    pairs = []
+    for url in link_candidates(body_text, body_html):
+        if url not in seen:
+            seen.add(url)
+            pairs.append((labels.get(url, ""), url))
+    return pairs
 
 
 def extract_link(body_text: str, body_html: str) -> str | None:

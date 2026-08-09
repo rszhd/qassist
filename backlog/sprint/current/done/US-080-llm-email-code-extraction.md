@@ -117,6 +117,14 @@ real-model, real-mailbox evidence is the next registration run on staging —
 expected shape: first `get_email_code` call answers the link alone, second
 call from the activation page answers the OTP.
 
+That run was `6984279c` (2026-08-09) and it failed on the first call, for a
+reason the stubs could not show: `build_prompt` never received `body_html`,
+so the reader was shown an email whose URL exists only in an `href` and
+answered "no link" — final, by the contract above, which is what stopped
+`extract_link` from answering it. Fixed in
+[BUG-014](BUG-014-llm-reader-never-shown-the-links.md); the story's real-model
+evidence is still owed, and is the run after that fix.
+
 ## Correctness-critical
 
 This is register row 57 (Confirmation email selection) growing a second

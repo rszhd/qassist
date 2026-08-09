@@ -30,6 +30,22 @@ HTML = (
 )
 LINK = "https://smartv2-sp.econstruct.com.my/register/account-activation/fnbvaiyvixDF"
 
+# The site's *first* email, the one the run actually blocks on: an activation
+# link and no code. Cut from the same staging pair as BUG-012's fixtures. Its
+# URL exists only in the href — the body text names the link and does not
+# contain it, which is what staging run 6984279c fell into.
+LINK_SUBJECT = "Email Verification"
+LINK_BODY = (
+    "Thank you for signing up. In order to activate your account, we need "
+    "to verify that you own this email address.\n"
+    "Please verify your email address by clicking the verification link below.\n"
+    "Verify my account\n"
+    "Thank You!\n"
+    "CIDB E-Construct Services Sdn Bhd,\n"
+    "Jalan Putra, 50350 KUALA LUMPUR\n"
+    "Phone: +603- 4040 0399"
+)
+
 
 class TestValidateCode:
     def test_code_present_verbatim_is_kept(self):
@@ -175,3 +191,61 @@ class TestMakeExtractor:
 
         ex.make_extractor(invoke)(SUBJECT, big, "", None)
         assert len(seen["user"]) < ex.BODY_LIMIT + 2000
+
+
+class TestTheReaderSeesEveryLink:
+    """Staging run 6984279c — the reader answered "no link" to an email that
+    had one, and the run died there.
+
+    The prompt carried the subject and the stripped body alone. In this site's
+    email the URL is only in the href, so the reader was shown the words
+    "Verify my account" with nothing behind them; `null` was the honest answer
+    to what it could see. And a tuple is final, so `extract_link` — which
+    reads hrefs and had answered this email correctly every run before —
+    never spoke. The reader must be shown every URL it is allowed to return.
+    """
+
+    def _prompt_for(self, subject, body, html, code_length=None):
+        seen = {}
+
+        def invoke(system, user):
+            seen["system"], seen["user"] = system, user
+            return '{"code": null, "link": null}'
+
+        ex.make_extractor(invoke)(subject, body, html, code_length)
+        return seen
+
+    def test_a_url_only_in_the_href_reaches_the_prompt(self):
+        assert LINK in self._prompt_for(LINK_SUBJECT, LINK_BODY, HTML)["user"]
+
+    def test_the_anchor_text_reaches_the_prompt_beside_its_url(self):
+        # Without the label, "verify my account" and "unsubscribe" are two
+        # opaque URLs and the choice the reader exists to make is a coin toss.
+        # The label has to sit with *its own* URL: this email says "Verify my
+        # account" in its body too, so a test that only looked for the words
+        # somewhere in the prompt would pass without the pairing existing.
+        stop = "https://smartv2-sp.econstruct.com.my/unsubscribe"
+        html = HTML + f'<a href="{stop}">Stop these emails</a>'
+        user = self._prompt_for(LINK_SUBJECT, LINK_BODY, html)["user"]
+        line = next(one for one in user.splitlines() if LINK in one)
+        assert "Verify my account" in line
+        assert "Stop these emails" not in line
+
+    def test_shown_the_link_the_reader_answers_it_and_the_cage_agrees(self):
+        # End to end over the real email that failed: the link comes back and
+        # validation passes it, so the agent gets the activation URL.
+        answer = f'{{"code": null, "link": "{LINK}"}}'
+        assert ex.make_extractor(lambda s, u: answer)(LINK_SUBJECT, LINK_BODY, HTML, 0) == (
+            None,
+            LINK,
+        )
+
+    def test_an_email_with_no_urls_offers_none(self):
+        # Nothing to choose from, and no invitation to invent one.
+        assert "http" not in self._prompt_for(SUBJECT, BODY, "")["user"]
+
+    def test_the_links_survive_body_truncation(self):
+        # BODY_LIMIT protects the user's key from a mailing-list monster. It
+        # must not be the thing that hides the URL: the links go after the cut.
+        big = "x" * (ex.BODY_LIMIT + 5000)
+        assert LINK in self._prompt_for(LINK_SUBJECT, big, HTML)["user"]

@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import json
 
-from email_codes import link_candidates
+from email_codes import labelled_links, link_candidates
 
 # One email's stripped body comfortably fits; a mailing-list monster is cut
 # rather than spent — codes and links sit at the top of real transactional
@@ -40,15 +40,34 @@ _SYSTEM_PROMPT = (
     "for anything the email does not contain.\n"
     "The code must be copied character for character from the email — never "
     "invent, complete, or reformat one. The link must be one URL copied "
-    "exactly from the email. Digits that are not a verification code — "
-    "postcodes, phone numbers, street addresses, order numbers — are not "
-    "codes; when in doubt, use null."
+    "exactly from the list of links below, which is every URL the email "
+    "contains; the body text names its links but does not spell them out. "
+    "Choose the link that confirms, verifies or activates the account, not "
+    "an unsubscribe, help or marketing link. Digits that are not a "
+    "verification code — postcodes, phone numbers, street addresses, order "
+    "numbers — are not codes; when in doubt, use null."
 )
 
 
-def build_prompt(subject: str, body_text: str, code_length: int | None) -> tuple[str, str]:
-    """(system, user) messages for the one-shot call."""
+def build_prompt(
+    subject: str, body_text: str, body_html: str, code_length: int | None
+) -> tuple[str, str]:
+    """(system, user) messages for the one-shot call.
+
+    The links are listed separately because they are not in the text at all:
+    an HTML email's URL lives in an href, and stripping the markup leaves the
+    anchor text with nothing behind it. A reader shown "Verify my account"
+    and no URL answers null — correctly, and the run then has no way forward,
+    because that answer silences the regex fallback (staging run 6984279c).
+
+    They go *after* the truncated body so BODY_LIMIT can never be what hides
+    them.
+    """
     user = f"Subject: {subject}\n\n{body_text[:BODY_LIMIT]}"
+    links = labelled_links(body_text, body_html)
+    if links:
+        listed = "\n".join(f"- {label or '(no text)'} → {url}" for label, url in links)
+        user += f"\n\nLinks in this email:\n{listed}"
     if code_length:
         user += f"\n\nThe code entry field on the page has {code_length} characters."
     return _SYSTEM_PROMPT, user
@@ -133,7 +152,7 @@ def make_extractor(invoke):
         body_html: str,
         code_length: int | None = None,
     ) -> tuple[str | None, str | None] | None:
-        system, user = build_prompt(subject, body_text, code_length)
+        system, user = build_prompt(subject, body_text, body_html, code_length)
         try:
             raw = invoke(system, user)
         except Exception:

@@ -71,6 +71,7 @@ from browser_use import Agent, ChatOpenAI, Tools
 from browser_use.browser.profile import BrowserProfile, ViewportSize
 from browser_use.browser.video_recorder import VideoRecorderService
 from browser_use.llm.messages import SystemMessage, UserMessage
+import httpx
 from PIL import Image
 
 import email_extract
@@ -474,13 +475,20 @@ async def main() -> int:
         # wait_for_confirmation's worker thread, so it gets its own event
         # loop and a fresh client per call rather than sharing the agent's,
         # which is bound to the main loop.
-        def extractor_invoke(system: str, user: str) -> str:
-            answer = asyncio.run(
-                ChatOpenAI(model=model).ainvoke(
+        # `asyncio.run` closes the loop, and ChatOpenAI builds an AsyncOpenAI
+        # per call that nobody closes — so its httpx pool is torn down later,
+        # on a dead loop, and prints a RuntimeError traceback into the run log
+        # (staging run 6984279c). Owning the http client is what lets it be
+        # closed while the loop it belongs to is still open.
+        async def ask(system: str, user: str) -> str:
+            async with httpx.AsyncClient() as http_client:
+                answer = await ChatOpenAI(model=model, http_client=http_client).ainvoke(
                     [SystemMessage(content=system), UserMessage(content=user)]
                 )
-            )
             return answer.completion
+
+        def extractor_invoke(system: str, user: str) -> str:
+            return asyncio.run(ask(system, user))
 
         mailbox.extractor = email_extract.make_extractor(extractor_invoke)
         tools = Tools()
