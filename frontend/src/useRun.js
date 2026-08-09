@@ -12,8 +12,6 @@ import { api } from './api.js';
 // binding. `dispatch` is stable and the reducer always sees current state, so
 // the ref is gone and the two can no longer disagree.
 
-const LAUNCHING = 'Launching browser and loading the page…';
-
 const INITIAL = {
   status: 'idle',
   // US-027: `{ position, concurrency }` while this run sits in the worker's
@@ -24,7 +22,6 @@ const INITIAL = {
   wsState: 'idle',
   runId: null,
   screenshot: null,
-  currentAction: null,
   steps: [],
   result: null,
   error: null,
@@ -40,9 +37,10 @@ const INITIAL = {
   // only follow one.
   batch: null,
   activeTestId: null,
-  // US-006: set by the `recording` event that arrives just before the run
-  // ends. `showRecording` swaps the live screen for the replay player.
-  hasRecording: false,
+  // US-006: the replay player stands in for the live screen. Set only by a
+  // demo's `recording` event since US-076 retired the Watch-recording toggle —
+  // a real run's recording is reached through /runs/<id>, which opens with the
+  // player already in place.
   showRecording: false,
   // US-047: a stop has been asked for and the run has not ended yet.
   stopping: false,
@@ -58,45 +56,31 @@ function applyEvent(state, evt) {
         status: evt.status,
         waiting:
           evt.status === 'queued' ? { position: evt.position, concurrency: evt.concurrency } : null,
-        currentAction: evt.status === 'running' ? LAUNCHING : state.currentAction,
       };
-    case 'start':
-      return { ...state, currentAction: LAUNCHING };
     case 'frame':
       // Continuous CDP screencast (JPEG) — this is the live video feed.
       return evt.data ? { ...state, screenshot: `data:image/jpeg;base64,${evt.data}` } : state;
+    // The three events that land as a row in the activity log, and since
+    // US-076 that is all any of them does — the newest row is the current
+    // action, so none of them needs a second copy of itself in state.
+    // `progress` is long-running tool activity (e.g. waiting for a confirmation
+    // email). `blocked` is the navigation fence firing (US-042), which belongs
+    // beside the steps rather than in a red banner: the run is still going, and
+    // whoever set the allowlist needs to see WHICH url it refused.
     case 'step':
-      return {
-        ...state,
-        currentAction: evt.next_goal || evt.thinking || evt.evaluation || 'Thinking…',
-        steps: [...state.steps, evt],
-      };
     case 'progress':
-      // Long-running tool activity (e.g. waiting for a confirmation email).
-      return { ...state, currentAction: evt.message, steps: [...state.steps, evt] };
     case 'blocked':
-      // The navigation fence fired (US-042). Rendered in the activity log
-      // beside the steps rather than as a red banner: the run is still going,
-      // and whoever set the allowlist needs to see WHICH url it refused.
-      return {
-        ...state,
-        currentAction: `Navigation to ${evt.url} was blocked by this instance`,
-        steps: [...state.steps, evt],
-      };
+      return { ...state, steps: [...state.steps, evt] };
     case 'recording':
-      // Emitted before done/error, so the button is ready when the run ends.
       // A demo replay carries no live frames — the recording is the stage feed.
       // Show it playing from the start rather than leaving the browser pane on
-      // a spinner waiting for a frame that never comes.
-      return { ...state, hasRecording: true, showRecording: evt.demo || state.showRecording };
+      // a spinner waiting for a frame that never comes. A real run ignores this
+      // event: its recording is on /runs/<id>.
+      return evt.demo ? { ...state, showRecording: true } : state;
     case 'stopping':
       // Durable, so a viewer that attaches mid-stop replays it and shows the
       // same "Stopping…" as the tab that asked for it.
-      return {
-        ...state,
-        stopping: true,
-        currentAction: 'Stopping the run — finishing the recording and the report…',
-      };
+      return { ...state, stopping: true };
     case 'done':
       // The agent's self-report does not survive a stop (US-047). browser-use
       // returns history normally out of Agent.stop(), so this event still says
@@ -108,7 +92,6 @@ function applyEvent(state, evt) {
       return {
         ...state,
         result: evt,
-        currentAction: null,
         status: state.stopping
           ? 'cancelled'
           : evt.success === true
@@ -120,12 +103,11 @@ function applyEvent(state, evt) {
     case 'error':
       // An agent torn down mid-action may report an error on its way out. That
       // is the stop working, not a run that broke — no red banner for it.
-      if (state.stopping) return { ...state, currentAction: null, status: 'cancelled' };
-      return { ...state, currentAction: null, error: evt.message, status: 'error' };
+      if (state.stopping) return { ...state, status: 'cancelled' };
+      return { ...state, error: evt.message, status: 'error' };
     case 'end':
       return {
         ...state,
-        currentAction: null,
         waiting: null,
         stopping: false,
         status:
@@ -154,9 +136,7 @@ export function runReducer(state, action) {
         result: null,
         steps: [],
         screenshot: null,
-        currentAction: null,
         batch: null,
-        hasRecording: false,
         showRecording: false,
         waiting: null,
         status: 'queued',
@@ -194,8 +174,6 @@ export function runReducer(state, action) {
       return { ...state, stopping: action.on };
     case 'subscribed':
       return { ...state, subscribed: action.on };
-    case 'toggleRecording':
-      return { ...state, showRecording: !state.showRecording };
     default:
       return state;
   }
@@ -288,7 +266,6 @@ export function useRun(token) {
   const setBatch = useCallback((batch) => dispatch({ type: 'batch', batch }), []);
   const setError = useCallback((message) => dispatch({ type: 'setError', message }), []);
   const setSubscribed = useCallback((on) => dispatch({ type: 'subscribed', on }), []);
-  const toggleRecording = useCallback(() => dispatch({ type: 'toggleRecording' }), []);
 
   const running = run.status === 'running' || run.status === 'queued';
   const queued = run.status === 'queued' && !!run.waiting;
@@ -312,6 +289,5 @@ export function useRun(token) {
     setBatch,
     setError,
     setSubscribed,
-    toggleRecording,
   };
 }

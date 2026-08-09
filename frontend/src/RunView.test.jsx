@@ -62,12 +62,12 @@ function stubEnv(withVars = WITH_VARS) {
 
 // Inside a router: the view links a started run to its own page, and a bare
 // <Link> outside one throws.
-function renderRunView() {
+function renderRunView(health = { db: true }) {
   return render(
     <MemoryRouter>
       <RunView
         token="t"
-        health={{ db: true }}
+        health={health}
         keyStatus={{ set: true, updated_at: null }}
         visible
         needsToken={false}
@@ -314,7 +314,7 @@ describe('RunView stopping a run (US-047)', () => {
 
     expect(screen.getByText('Stopped')).toBeTruthy();
     expect(screen.getByText(/never started/)).toBeTruthy();
-    // Nothing to open: a run that never ran has no report and no recording.
+    // Nothing to open: a run that never ran has no report.
     expect(screen.queryByText('PDF report')).toBeNull();
   });
 
@@ -328,6 +328,92 @@ describe('RunView stopping a run (US-047)', () => {
 
     expect(screen.queryByText('Stop run')).toBeNull();
     expect(screen.getByText('Passed')).toBeTruthy();
+  });
+});
+
+// US-076 moved the current action into the Activity card and retired the
+// Watch-recording toggle. The two are pinned together because the branch that
+// played the recording in the stage did NOT go with the button — a demo has no
+// live frames, so the player is still its stage feed.
+describe('RunView activity leads the run (US-076)', () => {
+  it('pulses the newest row while the run is live, and stops when it ends', async () => {
+    stubEnv();
+    const { container } = renderRunView();
+    fireEvent.click(await screen.findByLabelText('Run "Plain test"'));
+    await waitFor(() => expect(sockets).toHaveLength(1));
+
+    emit({ type: 'status', status: 'running' });
+    emit({ type: 'step', step: 1, next_goal: 'Open the page' });
+    emit({ type: 'step', step: 2, next_goal: 'Click the login link' });
+
+    // Newest first, so the pulse belongs to the row the log puts at the top —
+    // and the row it marks is the one still being worked on, which is why the
+    // dot stands in for that row's number rather than sitting beside it.
+    const rows = () => [...container.querySelectorAll('.stage-side .log-item')];
+    expect(rows()[0].textContent).toContain('Click the login link');
+    expect(rows()[0].querySelector('.pulse')).toBeTruthy();
+    expect(rows()[0].querySelector('.step-n')).toBeNull();
+    expect(rows()[1].querySelector('.pulse')).toBeNull();
+    expect(rows()[1].querySelector('.step-n')?.textContent).toBe('1');
+
+    // Nothing is in progress once the run is over, so every row is numbered.
+    emit({ type: 'done', success: true, steps: 2 });
+    emit({ type: 'end', status: 'passed' });
+    expect(container.querySelector('.pulse')).toBeNull();
+    expect(rows()[0].querySelector('.step-n')?.textContent).toBe('2');
+  });
+
+  it('says what a stop is waiting for, which no step row carries', async () => {
+    await startPlainRun();
+    emit({ type: 'status', status: 'running' });
+    emit({ type: 'step', step: 1, next_goal: 'Open the page' });
+    expect(screen.queryByText(/Finishing the recording/)).toBeNull();
+
+    emit({ type: 'stopping' });
+    expect(screen.getByText(/Finishing the recording and the report/)).toBeTruthy();
+
+    emit({ type: 'end', status: 'cancelled' });
+    expect(screen.queryByText(/Finishing the recording/)).toBeNull();
+  });
+
+  it('keeps the empty state for the two moments with no steps to show', async () => {
+    stubEnv();
+    renderRunView();
+    // Before any run.
+    expect(await screen.findByText('Steps appear here during a run.')).toBeTruthy();
+
+    fireEvent.click(await screen.findByLabelText('Run "Plain test"'));
+    await waitFor(() => expect(sockets).toHaveLength(1));
+    // Queued behind another run: no action yet, and the wait is the news.
+    emit({ type: 'status', status: 'queued', position: 1, concurrency: 2 });
+    expect(screen.getByText('Steps start arriving once the run gets a slot.')).toBeTruthy();
+  });
+
+  it('offers the report and the run page, and no recording toggle', async () => {
+    await startPlainRun();
+    emit({ type: 'status', status: 'running' });
+    emit({ type: 'recording' });
+    emit({ type: 'done', success: true, steps: 2 });
+    emit({ type: 'end', status: 'passed' });
+
+    expect(screen.getByText('Full report')).toBeTruthy();
+    expect(screen.queryByText('Watch recording')).toBeNull();
+    // The stage stays on the last live frame — the recording is a click away
+    // on /runs/<id>, not a second thing this view can swap itself into.
+    expect(screen.queryByText('Session recording')).toBeNull();
+  });
+
+  it('still plays a demo replay in the stage', async () => {
+    stubEnv();
+    const { container } = renderRunView({ db: true, auth_mode: 'demo' });
+    fireEvent.click(await screen.findByLabelText('Run "Plain test"'));
+    await waitFor(() => expect(sockets).toHaveLength(1));
+
+    emit({ type: 'status', status: 'running' });
+    emit({ type: 'recording', demo: true });
+
+    expect(container.querySelector('.stage-main video')).toBeTruthy();
+    expect(screen.getByText('Session recording')).toBeTruthy();
   });
 });
 

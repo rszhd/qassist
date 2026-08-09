@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Activity, AlertTriangle, Check, CircleStop, Clock, CreditCard, Download, ExternalLink, KeyRound,
-  Monitor, PanelLeftOpen, Play, Plus, Undo2, X,
+  Monitor, PanelLeftOpen, Play, Plus, X,
 } from 'lucide-react';
 import { api, openReport } from './api.js';
 import ActivityLog from './Activity.jsx';
@@ -499,6 +499,9 @@ export default function RunView({ token, health, keyStatus, visible, needsToken,
               <div className="browser">
                 <div className="browser-bar">
                   <span className="browser-dots"><i /><i /><i /></span>
+                  {/* `showRecording` is demo-only since US-076 retired the
+                      toggle: a demo replay is the stage feed, a real run is
+                      always live frames here. */}
                   <span className="browser-url">{run.showRecording ? 'Session recording' : liveUrl}</span>
                 </div>
                 {/* With no frame to measure the box has no height of its own, so
@@ -507,6 +510,9 @@ export default function RunView({ token, health, keyStatus, visible, needsToken,
                     and the stage jumps taller the moment a frame lands. */}
                 <div className={`screen${run.hasFrame ? '' : ' screen-empty'}`}>
                   {run.showRecording && run.runId ? (
+                    // The demo replay standing in for a live feed — nothing
+                    // else reaches this branch. A real run's recording is on
+                    // /runs/<id>, which opens with the player already in it.
                     // Plain <video src>, not a fetched blob: the endpoint takes
                     // a query token and honours Range, so seeking works (US-006).
                     <video
@@ -557,17 +563,13 @@ export default function RunView({ token, health, keyStatus, visible, needsToken,
                 </div>
               </div>
 
+              {/* Demo-only, with the branch above it: it explains why the
+                  replay skips ahead of itself. */}
               {run.showRecording && (
                 <p className="replay-note">
                   Condensed replay — frames are only captured when the page repaints, so idle time
                   is skipped.
                 </p>
-              )}
-
-              {run.currentAction && (
-                <div className="action-bar">
-                  <span className="pulse" /> {run.currentAction}
-                </div>
               )}
 
               {/* A run stopped before it started has no result to show, and
@@ -618,14 +620,6 @@ export default function RunView({ token, health, keyStatus, visible, needsToken,
                       <Button as={Link} icon={ExternalLink} to={`/runs/${run.runId}`}>
                         Full report
                       </Button>
-                      {run.hasRecording && !isDemo && (
-                        <Button
-                          icon={run.showRecording ? Undo2 : Play}
-                          onClick={run.toggleRecording}
-                        >
-                          {run.showRecording ? 'Back to last frame' : 'Watch recording'}
-                        </Button>
-                      )}
                     </div>
                   )}
                 </div>
@@ -634,8 +628,17 @@ export default function RunView({ token, health, keyStatus, visible, needsToken,
 
             <aside className="card stage-side">
               <CardHead title="Activity" count={run.steps.length || undefined} />
+              {/* The one thing a stop has to say that no step row carries: why
+                  it is not instant. The header's button says "Stopping…"; this
+                  says what it is waiting for. No pulse — it explains a wait, it
+                  is not the thing the agent is doing. */}
+              {run.stopping && <p className="hint">Finishing the recording and the report…</p>}
+              {/* `live` puts the pulse on the newest row, which is the current
+                  action while a run is going: the agent announces a step as it
+                  starts it. Off here once the run ends, and never set by
+                  RunDetail, where every row is history. */}
               {run.steps.length > 0 ? (
-                <ActivityLog steps={run.steps} logRef={logRef} />
+                <ActivityLog steps={run.steps} logRef={logRef} live={running} />
               ) : (
                 <EmptyState icon={Activity} title={running ? 'Waiting…' : 'No activity'}>
                   {queued

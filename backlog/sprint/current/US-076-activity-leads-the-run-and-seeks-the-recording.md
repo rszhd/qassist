@@ -2,7 +2,7 @@
 
 **As a** user, **I want** the current action at the top of the activity list, and each past step to say when it happened and take me there in the recording, **so that** one column answers "what is it doing now?" during the run and "show me that moment" after it.
 
-- **Status:** 📋 Planned
+- **Status:** 🔨 Tier 1 done 2026-08-09 (see Results); tier 2 planned
 - **Priority:** P2 — no story depends on it, and both halves are UI work on
   shipped data.
 - **Estimate:** ~1 day for tier 1 + tier 2 display; tier 2's seek costs more,
@@ -115,13 +115,65 @@ two disagree by however long the run sat idle. Recommendation: show `elapsed`.
 the file was encoded, and it is the number nobody asked for. Accept that the
 player lands at a different reading.
 
+## Results — tier 1 (2026-08-09)
+
+`RunView.jsx`, `useRun.js`, `Activity.jsx`, `views.css`, `App.css`,
+`RunView.test.jsx`.
+
+**The action bar is gone rather than moved.** Put at the top of the Activity
+card as planned, it was visibly a second copy of the row beneath it, and the
+reducer says why: `currentAction` on a `step` event is
+`next_goal || thinking || evaluation`, and `stepText` renders
+`message || next_goal || thinking || evaluation` — a step carries no `message`,
+so the two resolve to the same string. `progress` is `evt.message` on both
+sides. `blocked` differed only in wording, and the row already showed the URL.
+The bar said something no row did in exactly two moments, both of which produce
+no row at all: launching, and stopping.
+
+So the pulse moved onto the newest row instead, in place of that row's number —
+the agent announces a step as it starts it, so while a run is live the top row
+*is* the current action. `ActivityLog` takes a `live` prop for it; RunDetail
+never passes one, where every row is history. That deleted `currentAction`,
+`LAUNCHING` and the `start` case from the reducer, and collapsed `step`,
+`progress` and `blocked` into one case, since appending a row is now all any of
+them does. `.action-bar` left `App.css`'s `.banner` family and then left
+entirely.
+
+The two orphaned messages: launching was already covered twice over (the
+stage's "Agent is starting…" spinner and the log's own "The first step lands
+shortly"), so it went. Stopping kept its explanation as a `.hint` under the
+card head — the header button says "Stopping…", and this says what it is
+waiting for. No pulse on it: it explains a wait rather than naming what the
+agent is doing.
+
+- `hasRecording` went with the button, which the plan above did not list. It
+  existed only to gate it — nothing else read it — so the `recording` event now
+  returns `state` untouched for a real run and sets `showRecording` for a demo,
+  which is the whole of what the event still means to this view.
+- `.action-bar` is `--sunken` and borderless inside the card. Its old
+  `--card` fill and hairline were how it separated itself from the page
+  background under the frame; in a card those become a border inside a border,
+  which is the third concentric line `.stats` already refuses to draw.
+- Four tests added: the pulse is on the newest row and gone once the run ends,
+  the stop's hint appears only while stopping, a finished run offers the report
+  and no toggle, and a demo replay still puts a `<video>` in the stage. The last
+  is the one that matters — it is the branch that deliberately did *not* go with
+  the button.
+- `RunView.test.jsx` had no assertion on the toggle to retire, only a comment
+  in the queued-stop test naming "no report and no recording"; that clause went.
+- Filed while working here: [BUG-011](../../bugs/BUG-011-run-page-recording-frame-jumps-on-load.md),
+  the run page's recording frame having no height until its metadata loads. Same
+  family as the `.screen-empty` ratio the Run view already carries, and it will
+  be under the seek work in tier 2.
+
 ## Acceptance criteria
 
-- [ ] The Run view shows the current action at the top of the Activity card,
-      not under the browser pane
-- [ ] The Run view has no "Watch recording" button; the demo replay still plays
+- [x] The Run view answers "what is it doing now?" in the Activity card, not
+      under the browser pane — met by pulsing the newest row rather than by the
+      moved action bar this was written for; see Results
+- [x] The Run view has no "Watch recording" button; the demo replay still plays
       in the stage
-- [ ] A step's URL takes one line however long it is, and hovering shows all of
+- [x] A step's URL takes one line however long it is, and hovering shows all of
       it
 - [ ] Each step row on `/runs/<id>` shows its elapsed time as `m:ss`
 - [ ] Clicking a step row seeks the recording to that step

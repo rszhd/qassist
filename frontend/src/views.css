@@ -220,10 +220,18 @@
   animation: spin .8s linear infinite;
 }
 
-/* Padding and border come from the message rule above — it is the same kind
-   of object, a one-line strip of status under the frame. */
-.action-bar { align-items: center; background: var(--card); border-color: var(--border); color: var(--muted); }
-.pulse { flex: 0 0 auto; width: var(--dot); height: var(--dot); border-radius: 50%; background: var(--accent); animation: pulse 1.3s ease-in-out infinite; }
+/* The live run's newest row, in place of that row's number (US-076). It stands
+   in the same 16px gutter `.step-n` occupies — right-aligned into it, so the
+   goal beside it keeps the left edge every other goal has — and is dropped onto
+   the first line's midline, because a goal runs two or three lines in a 300px
+   rail and a dot centred on the whole block floats in the middle of the
+   paragraph. The `1.45` is `.step-goal`'s line-height and the `em` is the row's
+   own type size, so both follow if the scale moves. */
+.pulse {
+  flex: 0 0 var(--dot); height: var(--dot); border-radius: 50%;
+  margin: calc((1.45em - var(--dot)) / 2) 0 0 calc(var(--s4) - var(--dot));
+  background: var(--accent); animation: pulse 1.3s ease-in-out infinite;
+}
 
 /* Bled to the card's side edges like `.list`, and like `.list` it keeps the
    card's bottom padding — the two lists in the app end the same way. */
@@ -245,11 +253,18 @@
 /* Full text, wrapped — a truncated goal is the one thing you cannot recover
    by scrolling, and reading the agent's reasoning is the point of this list. */
 .step-goal { line-height: 1.45; overflow-wrap: anywhere; }
-/* Full URL, wrapped like the goal above it — the path is often the only way to
-   tell two steps on the same host apart. */
+/* One line however long the URL is, with the whole of it in `title` (US-076).
+   Wrapped, one step carrying a query string was four lines of grey mono in a
+   300px rail, pushing the steps around it off screen. Clamped from the right
+   even though the path is what tells two steps on the same host apart: it is
+   the *front* of the URL that repeats, so the differing tail is what the
+   ellipsis eats, and hovering recovers it. In CSS, not by cutting the string —
+   a truncated string cannot be selected, and this list is where a URL gets
+   copied out of. One rule for both views: the wide column on `/runs/<id>` shows
+   more of the same single line. */
 .step-url {
   font-family: var(--mono); font-size: var(--t-xs); color: var(--faint);
-  line-height: 1.4; overflow-wrap: anywhere;
+  line-height: 1.4; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
 /* Browser diagnostics (US-044). Bled to the card's edges and scroll-capped like

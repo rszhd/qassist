@@ -69,7 +69,7 @@ Sprints aren't split along a self-host/hosted-tier line — `sprint/current/` an
 | [US-020](sprint/current/US-020-report-v2-screenshots-recording.md) | Report v2: step screenshots + recording | 📋 Planned — P2 | US-006 |
 | [US-070](sprint/current/US-070-user-manual-site.md) | A user manual, published without an image build (`docs.qassist.run`) | 🔨 **Live** 2026-08-05, 9/11 — follows `main` since 2026-08-06 | US-007, US-055 |
 | [US-071](sprint/current/US-071-one-command-deploy.md) | One command deploys a stack, and proves which one it deployed | 📋 Planned — P1 | US-052, US-055, US-056 |
-| [US-076](sprint/current/US-076-activity-leads-the-run-and-seeks-the-recording.md) | Activity leads the run, and seeks the recording | 📋 Planned — P2 | US-006, US-026 |
+| [US-076](sprint/current/US-076-activity-leads-the-run-and-seeks-the-recording.md) | Activity leads the run, and seeks the recording | 🔨 Tier 1 done 2026-08-09 — P2 | US-006, US-026 |
 
 ### Done
 
@@ -202,6 +202,7 @@ speculatively.
 
 | ID | Defect | Status | Area |
 |---|---|---|---|
+| [BUG-011](bugs/BUG-011-run-page-recording-frame-jumps-on-load.md) | The recording's frame on `/runs/<id>` has no height until the video's metadata lands, so the page jumps on first load | 🐛 Open (2026-08-09) | `frontend/src/views.css` |
 | [BUG-010](sprint/current/done/BUG-010-stale-confirmation-email-returned-after-resend.md) | `get_email_code` re-returns an email it already used, so after a Resend the agent enters the code that Resend invalidated — an unbounded loop the agent reports as the site rejecting fresh codes | ✅ Fixed 2026-08-09 | `agent/email_codes.py`, `agent/run_agent.py` |
 | [BUG-009](sprint/current/done/BUG-009-permission-prompt-closes-the-capture-popup.md) | Chrome destroys the popup when it shows the host-permission prompt, so every user's first capture is silently lost | ✅ Fixed 2026-08-03 | `extension/popup.js`, `extension/lib/pendingCapture.js` |
 | [BUG-008](sprint/current/done/BUG-008-unique-violation-matched-on-message.md) | `isUniqueViolation` ORed the exact `23505` with a `/unique\|duplicate/i` match on the message, so any error whose text said either word was answered as a name clash | ✅ Fixed 2026-07-28 | `server/src/routes/helpers.js` |
