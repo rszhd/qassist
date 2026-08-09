@@ -86,9 +86,12 @@ consequences are on the manual page.
 (P3, unscheduled since 2026-08-04 — it needs replanning, not resuming) holds
 the non-email second factor and the productisation of social login.
 
-Two further gaps are known and in no story at all:
+[US-077](../backlog/sprint/current/US-077-test-mail-without-gmail.md) (P2) takes
+the test mailbox off Gmail IMAP, and carries **per-project mailboxes** as its
+last tier — `QA_IMAP_*` is one slot per deployment until it lands.
 
-- **Per-project mailbox credentials** — `QA_IMAP_*` is one slot per deployment.
+One further gap is known and in no story at all:
+
 - **A pool or reset hook** for one-shot provider registration identities: the
   first run signs up, every rerun lands on "welcome back" and still passes
   while no longer testing what its name says.
