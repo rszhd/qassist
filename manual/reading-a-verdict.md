@@ -56,15 +56,16 @@ It is the fastest way to answer "what did it actually see", especially when the
 Activity list makes a failure sound reasonable.
 
 **The recording is shorter than the run, and this is correct.** Only the frames
-the page repainted are recorded, so the time a run spends waiting — for a slow
-login, an API call, a redirect — costs the recording almost nothing. A run of
-3:41 can replay in 48 seconds. Two clocks follow from that: the run's Duration
-and the time under each Activity step are wall clock, and the player's own
-control bar is not. Nothing was cut, and no step time is wrong.
+showing a page change are recorded, so the time a run spends waiting — for a
+slow login, an API call, a redirect — costs the recording almost nothing. A run
+of 3:41 can replay in 48 seconds. Two clocks follow from that: the run's
+Duration is wall clock, and the player's own control bar is not. Nothing was
+cut.
 
 Click an Activity step, or the step heading above a diagnostic, to move the
-player to that moment. This is the reliable way across the two clocks — dragging
-the scrub bar to the step's own time lands somewhere else.
+player to that moment. This is the reliable way across the two clocks — reading
+a step's position off the run's Duration and dragging the scrub bar there lands
+somewhere else.
 
 Per-run artifacts are kept for a while and then swept — a week by default on a
 self-hosted instance. This removes the recording, PDF, HAR, screenshots, and

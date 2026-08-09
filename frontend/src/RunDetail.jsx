@@ -147,13 +147,11 @@ export default function RunDetail({ run, token, onError, liveSteps, liveDiagnost
   // read the summary should do.
   //
   // US-078: the note rides with the player, so it is absent exactly when the
-  // player is. The page otherwise states three numbers it gives no way to
-  // reconcile — Duration and the step times are wall clock, the scrub bar is
-  // not — and the two readings a user reaches unaided, that the recording was
-  // cut short or that the step times are wrong, are both wrong and both
-  // reasonable. Words rather than a second number: the video's own length is
-  // on the control bar already, and printing it beside the run's duration
-  // invites exactly the subtraction the sentence exists to head off.
+  // player is. Duration is wall clock and the scrub bar is not, and unaided a
+  // reader reconciles the two by concluding the recording was cut short. Words
+  // rather than a second number: the video's own length is on the control bar
+  // already, and printing it beside the run's duration invites exactly the
+  // subtraction the sentence exists to head off.
   const recording = page && !pruned && run.has_recording && (
     <div className="detail-recording">
       <div className="browser detail-screen" ref={frameRef}>
@@ -175,8 +173,8 @@ export default function RunDetail({ run, token, onError, liveSteps, liveDiagnost
       <div className="note">
         <Info size={14} aria-hidden="true" />
         <span>
-          Only frames the page repainted are recorded, so the recording is shorter than the
-          run and its clock is not the step times below.
+          Only frames showing page changes are recorded, so the recording may be shorter
+          than the original duration.
         </span>
       </div>
     </div>

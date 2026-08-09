@@ -280,14 +280,6 @@
   /* The clamp needs a floor to shrink to; a flex item's is its content. */
   min-width: 0;
 }
-/* The step's two facts share the line under its goal, so the time costs nothing
-   from the goal's width — which is the column that runs long. The time keeps
-   its own width and the URL takes what is left and ellipses. */
-.step-meta { display: flex; gap: var(--s2); align-items: baseline; }
-.step-time {
-  flex: none; font-family: var(--mono); font-size: var(--t-xs); color: var(--faint);
-  font-variant-numeric: tabular-nums;
-}
 
 /* Browser diagnostics (US-044). Bled to the card's edges and scroll-capped like
    `.log` above — a chatty page fills the cap, and the two lists in a run's

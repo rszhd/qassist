@@ -166,9 +166,8 @@ describe('RunDetail', () => {
     );
 
     fireEvent.click(document.querySelector('.log-item'));
-    // 12.5, not 41: the row shows the run's clock and seeks the video's.
+    // 12.5, not 41: the row carries both clocks and seeks the video's.
     expect(seeked).toEqual([12.5]);
-    expect(screen.getByText('0:41')).toBeTruthy();
 
     // Same step, same mapping — the run just has no recording to jump into.
     rerender(
@@ -184,7 +183,7 @@ describe('RunDetail', () => {
     );
 
     expect(document.querySelector('.log-item').tagName).toBe('DIV');
-    expect(screen.getByText('0:41')).toBeTruthy();
+    expect(screen.getByText(step.next_goal)).toBeTruthy();
   });
 
   // A seek that shows a sliver of the frame has not shown you the moment. The
@@ -226,7 +225,7 @@ describe('RunDetail', () => {
   // the recording was cut short or that the step times are wrong. The sentence
   // rides with the player, so it is absent exactly when the player is.
   it('says what the recording clock is, only where there is a recording', () => {
-    const clock = /the recording is shorter than the run/;
+    const clock = /the recording may be shorter/;
     const { rerender } = render(
       <MemoryRouter>
         <RunDetail

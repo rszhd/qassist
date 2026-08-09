@@ -1,5 +1,3 @@
-import { formatElapsed } from './status.js';
-
 // The run's step list, rendered the same way whether it is arriving live over
 // the WebSocket (RunView) or read back from a finished run's artifacts
 // (RunDetail, US-026) — one list, so what you watched and what you review
@@ -23,12 +21,10 @@ export default function ActivityLog({ steps, logRef, live, onSeek }) {
   return (
     <div className="log" ref={logRef}>
       {newestFirst.map(([i, s], row) => {
-        const at = formatElapsed(s.elapsed);
         // A run recorded before US-076 carries no `video_seconds`, and there is
         // deliberately no fallback to `elapsed`: the recording is condensed, so
         // seeking to wall-clock lands somewhere plausible and wrong, which is
-        // the failure nobody reports as a bug. Such a row keeps its time and
-        // loses only the jump.
+        // the failure nobody reports as a bug. Such a row simply loses the jump.
         const seek = onSeek && s.video_seconds != null
           ? () => onSeek(s.video_seconds)
           : null;
@@ -52,14 +48,9 @@ export default function ActivityLog({ steps, logRef, live, onSeek }) {
               : <span className="step-n">{marker(s)}</span>}
             <span className="step-body">
               <span className="step-goal">{stepText(s)}</span>
-              {(at || s.url) && (
-                <span className="step-meta">
-                  {at && <span className="step-time">{at}</span>}
-                  {/* One line, clamped in CSS — `title` is how the rest of a
-                      long URL is recovered. */}
-                  {s.url && <span className="step-url" title={s.url}>{s.url}</span>}
-                </span>
-              )}
+              {/* One line, clamped in CSS — `title` is how the rest of a long
+                  URL is recovered. */}
+              {s.url && <span className="step-url" title={s.url}>{s.url}</span>}
             </span>
           </Row>
         );

@@ -53,22 +53,19 @@ describe('ActivityLog', () => {
   });
 });
 
-// US-076. The time is the run's clock and the seek is the video's, and the two
-// are carried by different fields on purpose — these pin that a row never
-// reaches for the wrong one.
-describe('ActivityLog timestamps and seeking', () => {
-  it('shows each step time as m:ss, and none for an event without one', () => {
-    render(<ActivityLog steps={[...timed, { type: 'progress', message: 'Waiting' }]} />);
+// US-076. A row carries two clocks and shows neither: `elapsed` is the run's
+// and `video_seconds` is the recording's, and a seek must reach for the second.
+describe('ActivityLog seeking', () => {
+  it('shows no step time, whatever the row carries', () => {
+    render(<ActivityLog steps={timed} />);
 
-    // Newest first, and `progress` carries no `elapsed` — a zero there would be
-    // a step time of 0:00 on an event that happened an hour in.
-    expect([...document.querySelectorAll('.step-time')].map((el) => el.textContent))
-      .toEqual(['1:31', '0:03']);
+    expect(document.querySelector('.step-time')).toBeNull();
+    expect(screen.queryByText('1:31')).toBeNull();
   });
 
   it('seeks with video_seconds, never with elapsed', () => {
-    // The recording holds only the frames the page repainted, so a run that sat
-    // waiting reads 1:31 on the row and 9s into the file. Seeking to 91.8 would
+    // The recording holds only the frames showing a page change, so a step 1:31
+    // into a run that sat waiting is 9s into the file. Seeking to 91.8 would
     // land past the end of a short recording, and plausibly wrong on a long one.
     const onSeek = vi.fn();
     render(<ActivityLog steps={timed} onSeek={onSeek} />);
@@ -86,10 +83,6 @@ describe('ActivityLog timestamps and seeking', () => {
 
     render(<ActivityLog steps={timed.map(({ video_seconds, ...s }) => s)} onSeek={vi.fn()} />);
     expect(rows().map((el) => el.tagName)).toEqual(['DIV', 'DIV']);
-    // The time survives the loss of the seek — "when did this happen" is still
-    // answerable for a run recorded before the mapping existed.
-    expect([...document.querySelectorAll('.step-time')].map((el) => el.textContent))
-      .toEqual(['1:31', '0:03']);
   });
 
   it('mixes seekable and text rows inside one list', () => {
