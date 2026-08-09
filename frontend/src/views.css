@@ -207,8 +207,13 @@
 }
 /* No frame yet: hold the shape the agent actually captures (1920×1080), so the
    stage opens at exactly the height a live frame will occupy and nothing
-   resizes when the first one lands. */
-.screen-empty { aspect-ratio: 16 / 9; }
+   resizes when the first one lands.
+   The recording says the same thing for the same reason (BUG-011): a
+   `<video preload="metadata">` has no intrinsic size until its metadata
+   arrives, so without this the run page opens 300px tall and then grows to the
+   video's height, taking the instructions, the summary and the step log down
+   the page with it. Same capture, so it lands on the same ratio. */
+.screen-empty, .detail-screen .screen { aspect-ratio: 16 / 9; }
 .screen img, .screen video { display: block; width: 100%; height: auto; }
 .replay-note { font-size: var(--t-sm); color: var(--faint); }
 
@@ -302,6 +307,16 @@
   font-family: var(--mono); font-size: var(--t-xs); color: var(--faint);
   border-bottom: 1px solid var(--border);
 }
+/* The same heading, once it seeks the recording (US-078). Only the button's own
+   chrome is undone — it is a small heading that became clickable, not a row,
+   and it should not grow to look like one. The border is restated because
+   clearing the UA's four sides takes `.diag-step`'s bottom rule with it. */
+button.diag-step {
+  width: 100%; text-align: left; cursor: pointer;
+  border: 0; border-bottom: 1px solid var(--border);
+  font-weight: inherit; letter-spacing: inherit;
+}
+button.diag-step:hover { color: var(--muted); }
 .diag-row {
   display: flex; gap: var(--s2); align-items: flex-start;
   padding: var(--s15) var(--card-pad); font-size: var(--t-sm);
@@ -800,7 +815,11 @@ a.row-main { color: inherit; text-decoration: none; }
 .detail-main > .goal-block:first-child { padding-top: 0; border-top: 0; }
 .detail-main > * + *:not(.error) { padding-top: var(--s3); border-top: 1px solid var(--border); }
 /* The player takes the reading column, which is itself capped at 880 — so the
-   recording is as wide as the prose beside it and no wider. */
+   recording is as wide as the prose beside it and no wider. The frame and the
+   line that says what its clock is are one block: `.detail-main`'s rule draws a
+   divider between siblings, and the caption belongs to the player rather than
+   being the section after it. */
+.detail-recording { display: flex; flex-direction: column; gap: var(--s2); }
 .detail-screen { margin: 0; }
 
 /* Inline row editors (rename a project/module, edit a suite's membership). */

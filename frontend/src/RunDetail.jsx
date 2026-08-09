@@ -144,22 +144,37 @@ export default function RunDetail({ run, token, onError, liveSteps, liveDiagnost
   // between the reader and the thing they came for. Not autoplaying, though —
   // it loads its first frame and waits, which a page you may have opened to
   // read the summary should do.
+  //
+  // US-078: the hint rides with the player, so it is absent exactly when the
+  // player is. The page otherwise states three numbers it gives no way to
+  // reconcile — Duration and the step times are wall clock, the scrub bar is
+  // not — and the two readings a user reaches unaided, that the recording was
+  // cut short or that the step times are wrong, are both wrong and both
+  // reasonable. Words rather than a second number: the video's own length is
+  // on the control bar already, and printing it beside the run's duration
+  // invites exactly the subtraction the sentence exists to head off.
   const recording = page && !pruned && run.has_recording && (
-    <div className="browser detail-screen">
-      <div className="browser-bar">
-        <span className="browser-dots"><i /><i /><i /></span>
-        <span className="browser-url">Session recording</span>
+    <div className="detail-recording">
+      <div className="browser detail-screen">
+        <div className="browser-bar">
+          <span className="browser-dots"><i /><i /><i /></span>
+          <span className="browser-url">Session recording</span>
+        </div>
+        <div className="screen">
+          <video
+            key={run.id}
+            ref={videoRef}
+            src={`/api/runs/${run.id}/recording${token ? `?token=${encodeURIComponent(token)}` : ''}`}
+            controls
+            preload="metadata"
+            onError={() => onError('Recording could not be loaded.')}
+          />
+        </div>
       </div>
-      <div className="screen">
-        <video
-          key={run.id}
-          ref={videoRef}
-          src={`/api/runs/${run.id}/recording${token ? `?token=${encodeURIComponent(token)}` : ''}`}
-          controls
-          preload="metadata"
-          onError={() => onError('Recording could not be loaded.')}
-        />
-      </div>
+      <p className="hint">
+        Only frames the page repainted are recorded, so the recording is shorter than the
+        run and its clock is not the step times below.
+      </p>
     </div>
   );
 
@@ -176,6 +191,20 @@ export default function RunDetail({ run, token, onError, liveSteps, liveDiagnost
     video.scrollIntoView({ block: 'nearest' });
     video.play?.()?.catch(() => {});
   });
+
+  // US-078. A diagnostic is attributed to a step, and the step is where its
+  // time comes from — so the join happens here, where both lists already live,
+  // rather than as a new field down the protocol. First event wins: a step
+  // number can carry more than one event, and the earliest is the frame the
+  // step starts at. A step missing `video_seconds` (a run recorded before
+  // US-076, or one whose step event has not landed yet) simply has no entry,
+  // and its findings read as text.
+  const stepSeconds = new Map();
+  for (const s of steps || []) {
+    if (Number.isInteger(s.step) && s.video_seconds != null && !stepSeconds.has(s.step)) {
+      stepSeconds.set(s.step, s.video_seconds);
+    }
+  }
 
   const stats = (
     <div className="stats">
@@ -286,7 +315,12 @@ export default function RunDetail({ run, token, onError, liveSteps, liveDiagnost
   const evidenceBlock = !pruned && diagnostics.length > 0 && (
     <section className="detail-block">
       <CardHead title="Diagnostics" count={diagnostics.length} />
-      <Diagnostics diagnostics={diagnostics} dropped={dropped} />
+      <Diagnostics
+        diagnostics={diagnostics}
+        dropped={dropped}
+        stepSeconds={stepSeconds}
+        onSeek={seekRecording || undefined}
+      />
     </section>
   );
 

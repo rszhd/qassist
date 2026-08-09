@@ -170,6 +170,73 @@ describe('RunDetail', () => {
     expect(screen.getByText('0:41')).toBeTruthy();
   });
 
+  // US-078 tier 1. The page states Duration and the step times in wall clock
+  // and the scrub bar in video time, and unaided a reader concludes either that
+  // the recording was cut short or that the step times are wrong. The sentence
+  // rides with the player, so it is absent exactly when the player is.
+  it('says what the recording clock is, only where there is a recording', () => {
+    const clock = /the recording is shorter than the run/;
+    const { rerender } = render(
+      <MemoryRouter>
+        <RunDetail
+          run={{ ...run, has_recording: true }}
+          token="t"
+          onError={() => {}}
+          liveSteps={[]}
+          layout="page"
+        />
+      </MemoryRouter>
+    );
+    expect(screen.getByText(clock)).toBeTruthy();
+
+    rerender(
+      <MemoryRouter>
+        <RunDetail
+          run={{ ...run, has_recording: false }}
+          token="t"
+          onError={() => {}}
+          liveSteps={[]}
+          layout="page"
+        />
+      </MemoryRouter>
+    );
+    expect(screen.queryByText(clock)).toBeNull();
+  });
+
+  // US-078 tier 2. The join lives here because this is where both lists are —
+  // a diagnostic carries a step number and the step carries `video_seconds`,
+  // and no new field goes down the protocol to connect them.
+  it('seeks the player from a diagnostics group heading', () => {
+    const seeked = [];
+    vi.spyOn(HTMLMediaElement.prototype, 'currentTime', 'set').mockImplementation(
+      (value) => seeked.push(value)
+    );
+    vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
+
+    render(
+      <MemoryRouter>
+        <RunDetail
+          run={{ ...run, has_recording: true }}
+          token="t"
+          onError={() => {}}
+          layout="page"
+          liveSteps={[
+            { step: 1, elapsed: 8, next_goal: 'Open the cart', video_seconds: 2 },
+            { step: 2, elapsed: 41, next_goal: 'Pay', video_seconds: 12.5 },
+          ]}
+          liveDiagnostics={{
+            diagnostics: [{ kind: 'request', step: 2, url: 'https://api.test/order', status: 500, count: 1 }],
+            dropped: 0,
+          }}
+        />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByText('Step 2'));
+    // The step's first recorded frame, not its wall-clock elapsed.
+    expect(seeked).toEqual([12.5]);
+  });
+
   // REPORTS_ENABLED off (the default): /api/health says `reports: false` and no
   // PDF exists for any run, so the offer goes rather than 404ing on click.
   it('offers no PDF on the page when the instance renders none', () => {

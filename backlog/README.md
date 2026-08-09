@@ -75,6 +75,7 @@ Sprints aren't split along a self-host/hosted-tier line — `sprint/current/` an
 
 | ID | Story | Status | Depends on |
 |---|---|---|---|
+| [US-078](sprint/current/done/US-078-recording-clock-and-diagnostic-seek.md) | The recording's clock, said out loud, and a diagnostic that jumps to it | ✅ **Done** 2026-08-09, 6/6 | US-076, US-044 |
 | [US-076](sprint/current/done/US-076-activity-leads-the-run-and-seeks-the-recording.md) | Activity leads the run, and seeks the recording | ✅ **Done** 2026-08-09, 7/7 | US-006, US-026 |
 | [US-074](sprint/current/done/US-074-run-agent-pure-logic-extracted.md) | `run_agent.py`: move the pure logic where the tests can reach it | ✅ **Done** 2026-08-05, 6/6 | — |
 | [US-073](sprint/current/done/US-073-typed-run-and-ndjson-events.md) | Type the run object and the NDJSON events | ✅ **Done** 2026-08-05, 5/5 | — |
@@ -203,7 +204,7 @@ speculatively.
 
 | ID | Defect | Status | Area |
 |---|---|---|---|
-| [BUG-011](bugs/BUG-011-run-page-recording-frame-jumps-on-load.md) | The recording's frame on `/runs/<id>` has no height until the video's metadata lands, so the page jumps on first load | 🐛 Open (2026-08-09) | `frontend/src/views.css` |
+| [BUG-011](sprint/current/done/BUG-011-run-page-recording-frame-jumps-on-load.md) | The recording's frame on `/runs/<id>` has no height until the video's metadata lands, so the page jumps on first load | ✅ Fixed 2026-08-09 | `frontend/src/views.css` |
 | [BUG-010](sprint/current/done/BUG-010-stale-confirmation-email-returned-after-resend.md) | `get_email_code` re-returns an email it already used, so after a Resend the agent enters the code that Resend invalidated — an unbounded loop the agent reports as the site rejecting fresh codes | ✅ Fixed 2026-08-09 | `agent/email_codes.py`, `agent/run_agent.py` |
 | [BUG-009](sprint/current/done/BUG-009-permission-prompt-closes-the-capture-popup.md) | Chrome destroys the popup when it shows the host-permission prompt, so every user's first capture is silently lost | ✅ Fixed 2026-08-03 | `extension/popup.js`, `extension/lib/pendingCapture.js` |
 | [BUG-008](sprint/current/done/BUG-008-unique-violation-matched-on-message.md) | `isUniqueViolation` ORed the exact `23505` with a `/unique\|duplicate/i` match on the message, so any error whose text said either word was answered as a name clash | ✅ Fixed 2026-07-28 | `server/src/routes/helpers.js` |

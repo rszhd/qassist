@@ -6,23 +6,45 @@
 // Grouped here rather than server-side because the API returns one flat list: a
 // finding can predate the first step (a page's own assets failing to load do),
 // and those lead — the page was already broken before the agent touched it.
-export default function Diagnostics({ diagnostics, dropped = 0 }) {
+//
+// `onSeek` and `stepSeconds` are how a group reaches the recording (US-078),
+// on the same terms a step row gets it: the caller passes them only where a
+// player exists. The heading is the target and not the row, because a finding
+// is deduplicated with a `count` — an entry reading `12×` stands for twelve
+// moments and owns none of them, and the step it is attributed to is the only
+// well-defined time it has.
+export default function Diagnostics({ diagnostics, dropped = 0, onSeek, stepSeconds }) {
   return (
     <div className="diag">
-      {groupByStep(diagnostics).map(([step, entries]) => (
-        <div className="diag-group" key={step ?? 'pre'}>
-          <div className="diag-step">{step === null ? 'Before the first step' : `Step ${step}`}</div>
-          {entries.map((entry, i) => (
-            <div className="diag-row" key={i}>
-              <span className={`diag-tag${entry.level === 'warning' ? ' diag-warn' : ''}`}>
-                {label(entry)}
-              </span>
-              <span className="diag-detail">{detail(entry)}</span>
-              {entry.count > 1 && <span className="diag-count">{entry.count}×</span>}
-            </div>
-          ))}
-        </div>
-      ))}
+      {groupByStep(diagnostics).map(([step, entries]) => {
+        // The stepless group is the page's own load, which is the head of the
+        // recording by definition — it needs no map entry.
+        const seconds = step === null ? 0 : stepSeconds?.get(step);
+        const seek = onSeek && seconds != null ? () => onSeek(seconds) : null;
+        // Same rule as a step row: a button only where it seeks, so the
+        // keyboard and a screen reader get the affordance for free and nothing
+        // else swallows a click.
+        const Head = seek ? 'button' : 'div';
+        return (
+          <div className="diag-group" key={step ?? 'pre'}>
+            <Head
+              className="diag-step"
+              {...(seek && { type: 'button', onClick: seek, title: 'Show this step in the recording' })}
+            >
+              {step === null ? 'Before the first step' : `Step ${step}`}
+            </Head>
+            {entries.map((entry, i) => (
+              <div className="diag-row" key={i}>
+                <span className={`diag-tag${entry.level === 'warning' ? ' diag-warn' : ''}`}>
+                  {label(entry)}
+                </span>
+                <span className="diag-detail">{detail(entry)}</span>
+                {entry.count > 1 && <span className="diag-count">{entry.count}×</span>}
+              </div>
+            ))}
+          </div>
+        );
+      })}
       {dropped > 0 && (
         <p className="hint">
           A further {dropped} distinct {dropped === 1 ? 'finding' : 'findings'} exceeded the

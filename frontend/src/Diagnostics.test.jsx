@@ -5,7 +5,7 @@
 // is asserted here is the reading order and the two states that decide whether
 // the block appears at all.
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import Diagnostics from './Diagnostics.jsx';
 import RunDetail from './RunDetail.jsx';
@@ -61,6 +61,42 @@ describe('Diagnostics', () => {
   it('says nothing about a cap that refused nothing', () => {
     render(<Diagnostics diagnostics={entries} dropped={0} />);
     expect(screen.queryByText(/A further/)).toBeNull();
+  });
+
+  // US-078. The heading is the target and not the row: a finding carries a
+  // `count`, so an entry reading `4×` stands for four moments and owns none of
+  // them — the step it is attributed to is the only well-defined time it has.
+  it('seeks from a group heading, and sends the stepless group to the start', () => {
+    const seeked = [];
+    render(
+      <Diagnostics
+        diagnostics={entries}
+        onSeek={(s) => seeked.push(s)}
+        stepSeconds={new Map([[1, 4.5], [2, 19]])}
+      />
+    );
+    fireEvent.click(screen.getByText('Step 2'));
+    fireEvent.click(screen.getByText('Step 1'));
+    // The page's own load is the head of the recording by definition, so that
+    // group needs no map entry to be seekable.
+    fireEvent.click(screen.getByText('Before the first step'));
+    expect(seeked).toEqual([19, 4.5, 0]);
+  });
+
+  it('leaves a heading as text with no player, and with no time for that step', () => {
+    // No handler at all: the History panel, a pruned run, a run with no
+    // recording. Every heading is a div.
+    const { unmount } = render(<Diagnostics diagnostics={entries} stepSeconds={new Map([[1, 4.5]])} />);
+    expect(screen.getByText('Step 1').tagName).toBe('DIV');
+    unmount();
+
+    // A player, but no time for step 2 — a run recorded before US-076, or a
+    // live run whose finding arrived before the step event it belongs to.
+    // Deliberately no fallback to wall clock: the recording is condensed, so
+    // that would seek somewhere plausible and wrong.
+    render(<Diagnostics diagnostics={entries} onSeek={() => {}} stepSeconds={new Map([[1, 4.5]])} />);
+    expect(screen.getByText('Step 1').tagName).toBe('BUTTON');
+    expect(screen.getByText('Step 2').tagName).toBe('DIV');
   });
 });
 

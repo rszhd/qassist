@@ -161,7 +161,7 @@ agent is doing.
   the button.
 - `RunView.test.jsx` had no assertion on the toggle to retire, only a comment
   in the queued-stop test naming "no report and no recording"; that clause went.
-- Filed while working here: [BUG-011](../../../bugs/BUG-011-run-page-recording-frame-jumps-on-load.md),
+- Filed while working here: [BUG-011](./BUG-011-run-page-recording-frame-jumps-on-load.md),
   the run page's recording frame having no height until its metadata loads. Same
   family as the `.screen-empty` ratio the Run view already carries, and it will
   be under the seek work in tier 2.
@@ -242,7 +242,7 @@ Two test-side notes worth keeping:
 Register row added: **Recording seek offset** in
 [`correctness-critical.md`](../../../correctness-critical.md).
 
-[BUG-011](../../../bugs/BUG-011-run-page-recording-frame-jumps-on-load.md) is
+[BUG-011](./BUG-011-run-page-recording-frame-jumps-on-load.md) is
 untouched — the player's frame still has no height until its metadata loads, and
 that is now the one thing between a click and a clean jump.
 
