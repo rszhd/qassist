@@ -175,6 +175,7 @@ live in [`docs/repo-model.md`](../docs/repo-model.md). Email provider: **Resend*
 | [US-046](unscheduled/US-046-token-usage-and-cost.md) | What did that run cost? (token usage + cost) | 📋 Planned | P3 | US-039 |
 | [US-049](unscheduled/US-049-typed-assertions.md) | Assert on a value, not on a paragraph | 📋 Planned | P3 | US-041 |
 | [US-050](unscheduled/US-050-fast-run-mode.md) | A fast, cheap mode for tests that already pass | 📋 Planned | P3 | US-046 |
+| [US-081](unscheduled/US-081-a-test-remembers-its-last-good-route.md) | A test remembers the route that worked | 📋 Planned | P3 | US-046 |
 | [US-060](unscheduled/US-060-account-level-notification-prefs.md) | Notification settings a person owns, not just a project (was US-012 tiers 2–3) | 📋 Planned | P3 | US-012, US-021 |
 | [US-068](unscheduled/US-068-module-level-notification-prefs.md) | A module can say who hears about it | 📋 Planned | P3 | US-012, US-023 |
 | [US-061](unscheduled/US-061-evidence-in-the-judges-context.md) | The judge sees the 500 (was US-044's deferred tier 2) | 📋 Planned | P3 | US-041, US-044, US-046 |
@@ -197,7 +198,7 @@ scope.
 
 The desktop track (US-016..019) is on hold; its strategy is in US-016.
 
-US-041 and US-049 will owe rows in
+US-041, US-049 and US-081 will owe rows in
 [`correctness-critical.md`](correctness-critical.md) when the work happens —
 the register's own rule is that a row is added as part of doing the work, not
 speculatively.
