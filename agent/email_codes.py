@@ -21,7 +21,9 @@ Configuration (environment):
 from __future__ import annotations
 
 import email
+import email.header
 import email.utils
+import hashlib
 import html as html_lib
 import imaplib
 import re
@@ -52,6 +54,7 @@ class Confirmation:
     sender: str
     code: str | None
     link: str | None
+    message_id: str
 
 
 def _walk_bodies(msg: Message) -> tuple[str, str]:
@@ -76,18 +79,68 @@ def _strip_html(html: str) -> str:
     return html_lib.unescape(text)
 
 
-def extract_code(subject: str, body_text: str) -> str | None:
-    """Best-effort verification-code extraction; keyword-adjacent wins."""
+def _message_key(msg: Message) -> str:
+    """Identity of a message, for "have I already used this one?".
+
+    Message-ID when the sender set one, which is all but universal. The
+    fallback digest can collide only for two messages sharing a sender, a
+    subject and a send-second; that pair would cost one extra poll, where
+    trusting a missing header would cost the stale code the caller is trying
+    to avoid.
+    """
+    message_id = str(msg.get("Message-ID", "")).strip()
+    if message_id:
+        return message_id
+    parts = "|".join(str(msg.get(h, "")) for h in ("Date", "From", "Subject"))
+    return "digest:" + hashlib.sha256(parts.encode("utf-8", "replace")).hexdigest()[:32]
+
+
+def _code_candidates(subject: str, body_text: str):
+    """Code-shaped tokens, best first: keyword-adjacent, subject-leading, bare."""
     for text in (subject, body_text):
         for m in _CODE_NEAR_KEYWORD.finditer(text):
-            token = m.group(1)
-            if 4 <= len(token) <= 10:
-                return token
+            yield m.group(1)
     m = _CODE_LEADING.search(subject)
     if m:
-        return m.group(1)
-    m = _CODE_STANDALONE.search(body_text)
-    return m.group(1) if m else None
+        yield m.group(1)
+    for m in _CODE_STANDALONE.finditer(body_text):
+        yield m.group(1)
+
+
+def extract_code(subject: str, body_text: str, code_length: int | None = None) -> str | None:
+    """Best-effort verification-code extraction; keyword-adjacent wins.
+
+    `code_length` is the width of the field the site is asking for, when the
+    caller knows it. Proximity to the word "code" is a weak signal, so without
+    it the first plausible token wins and a neighbouring number can beat the
+    real code: a six-box OTP field once received a 5-character token, filled
+    five boxes, and the site answered "invalid OTP" (staging, 2026-08-09).
+    Given the width, a token of the wrong length is refused instead — the
+    caller then reports that no code was found, which is a diagnosable
+    outcome rather than a confident wrong one.
+    """
+    for token in _code_candidates(subject, body_text):
+        if code_length:
+            if len(token) == code_length:
+                return token
+        elif 4 <= len(token) <= 10:
+            return token
+    return None
+
+
+_SUBJECT_CODE = re.compile(r"\b\d{4,10}\b")
+
+
+def mask_codes(subject: str) -> str:
+    """Blank code-shaped digit runs in a subject line.
+
+    The subject is the only email text that reaches the LLM and the event feed,
+    and it routinely *is* the code ("482913 is your login code"). `scrub` can
+    only remove the value that was extracted, so a token extraction *refused* —
+    for being the wrong length, say — would otherwise arrive intact and invite
+    the guess the task prompt forbids.
+    """
+    return _SUBJECT_CODE.sub("<redacted:code>", subject)
 
 
 def extract_link(body_text: str, body_html: str) -> str | None:
@@ -140,28 +193,49 @@ class ImapMailbox:
         return f"{local}+qa-{tag}@{host}"
 
     def wait_for_confirmation(
-        self, to_address: str, since: float, timeout: float, poll_interval: float = 5.0
+        self,
+        to_address: str,
+        since: float,
+        timeout: float,
+        poll_interval: float = 5.0,
+        exclude_ids: set[str] | None = None,
+        code_length: int | None = None,
     ) -> Confirmation | None:
-        """Poll the inbox until a message addressed to to_address arrives.
+        """Poll the inbox until an unconsumed message to to_address arrives.
+
+        `exclude_ids` holds the Message-IDs the caller has already acted on, and
+        is what makes a second call wait for a genuinely new email instead of
+        returning the previous one. `since` stays a fixed floor rather than
+        advancing to the last message's Date, because Date is second-granular:
+        a resend landing in the same second as the message it replaces is
+        indistinguishable by timestamp, and Message-ID has no such boundary.
 
         Blocking (imaplib) — call via asyncio.to_thread. Reconnects per poll so
         a long wait can't die on a stale connection.
         """
         deadline = time.monotonic() + timeout
         while True:
-            found = self._fetch_newest(to_address, since)
+            found = self._fetch_newest(to_address, since, exclude_ids, code_length)
             if found is not None:
                 return found
             if time.monotonic() >= deadline:
                 return None
             time.sleep(min(poll_interval, max(0.0, deadline - time.monotonic())))
 
-    def _fetch_newest(self, to_address: str, since: float) -> Confirmation | None:
+    def _fetch_newest(
+        self,
+        to_address: str,
+        since: float,
+        exclude_ids: set[str] | None = None,
+        code_length: int | None = None,
+    ) -> Confirmation | None:
         conn = imaplib.IMAP4_SSL(self.host, self.port)
         try:
             conn.login(self.user, self.password)
             for folder in self.folders:
-                found = self._search_folder(conn, folder, to_address, since)
+                found = self._search_folder(
+                    conn, folder, to_address, since, exclude_ids, code_length
+                )
                 if found is not None:
                     return found
             return None
@@ -172,7 +246,13 @@ class ImapMailbox:
                 pass
 
     def _search_folder(
-        self, conn: imaplib.IMAP4_SSL, folder: str, to_address: str, since: float
+        self,
+        conn: imaplib.IMAP4_SSL,
+        folder: str,
+        to_address: str,
+        since: float,
+        exclude_ids: set[str] | None = None,
+        code_length: int | None = None,
     ) -> Confirmation | None:
         try:
             status, _ = conn.select(f'"{folder}"', readonly=True)
@@ -198,13 +278,17 @@ class ImapMailbox:
             )
             if to_address.lower() not in recipients.lower():
                 continue
+            message_id = _message_key(msg)
+            if exclude_ids and message_id in exclude_ids:
+                continue
             plain, html = _walk_bodies(msg)
             body_text = plain or _strip_html(html)
             subject = str(email.header.make_header(email.header.decode_header(msg.get("Subject", ""))))
             return Confirmation(
                 subject=subject,
                 sender=msg.get("From", ""),
-                code=extract_code(subject, body_text),
+                code=extract_code(subject, body_text, code_length),
                 link=extract_link(body_text, html),
+                message_id=message_id,
             )
         return None

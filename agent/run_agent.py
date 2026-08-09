@@ -69,7 +69,7 @@ from browser_use.browser.profile import BrowserProfile, ViewportSize
 from browser_use.browser.video_recorder import VideoRecorderService
 from PIL import Image
 
-from email_codes import ImapMailbox
+from email_codes import ImapMailbox, mask_codes
 from redact import scrub
 import diagnostics
 import exit_watchdog
@@ -452,15 +452,26 @@ async def main() -> int:
             sensitive = {}
         sensitive["qa_password"] = "Qa1!" + pysecrets.token_urlsafe(9)
         mail_since = time.time() - 60  # small clock-skew allowance
+        # Message-IDs already handed to the agent. A resend invalidates the code
+        # in the mail it replaces, so returning a consumed message a second time
+        # feeds the site a dead code and the run loops on "invalid or expired"
+        # until it is cancelled (staging, 2026-08-09).
+        consumed_email_ids: set[str] = set()
 
         @tools.action(
             "Fetch the confirmation email sent to the run's test email address and "
             "extract its verification code or confirmation link. Call this right after "
-            "submitting a form that triggers a confirmation email; it waits up to "
-            "timeout_seconds for the email to arrive."
+            "submitting a form that triggers a confirmation email, and again after every "
+            "Resend; it returns each email once and then waits for the next one, so a "
+            "resent code is never confused with the one it replaced. Pass code_length "
+            "when the page shows how many characters the code has (count the boxes in an "
+            "OTP field) — a code of any other length is then reported as not found "
+            "instead of being entered. It waits up to timeout_seconds; allow at least 60 "
+            "after a resend."
         )
-        async def get_email_code(timeout_seconds: int = 90) -> str:
-            timeout = max(10, min(int(timeout_seconds), 180))
+        async def get_email_code(timeout_seconds: int = 90, code_length: int = 0) -> str:
+            timeout = max(30, min(int(timeout_seconds), 180))
+            width = max(0, int(code_length)) or None
             # Wait in chunks so the viewer sees live progress during the poll.
             emit({"type": "progress", "message": f"Waiting for confirmation email to {test_address} (up to {timeout}s)…"})
             conf = None
@@ -469,7 +480,9 @@ async def main() -> int:
                 while waited < timeout:
                     chunk = min(15, timeout - waited)
                     conf = await asyncio.to_thread(
-                        mailbox.wait_for_confirmation, test_address, mail_since, chunk
+                        mailbox.wait_for_confirmation,
+                        test_address, mail_since, chunk, 5.0,
+                        consumed_email_ids, width,
                     )
                     waited += chunk
                     if conf is not None:
@@ -480,25 +493,43 @@ async def main() -> int:
                 return f"Mailbox error ({type(e).__name__}) — cannot fetch the email. Report the goal as blocked."
             if conf is None:
                 emit({"type": "progress", "message": f"No confirmation email after {timeout}s"})
+                if consumed_email_ids:
+                    return (
+                        f"No *new* confirmation email arrived for {test_address} within "
+                        f"{timeout}s; the earlier ones have already been used and their codes "
+                        "are dead. Check that the Resend control was really pressed (an "
+                        "enabled button, not one counting down), then call this again."
+                    )
                 return (
                     f"No confirmation email arrived for {test_address} within {timeout}s. "
                     "Check the address was submitted correctly, or try once more."
                 )
+            consumed_email_ids.add(conf.message_id)
             got = []
+            # Drop what this email doesn't carry: leaving a previous value in
+            # place would let <secret>email_code</secret> quietly resolve to the
+            # code this email supersedes.
+            for key, value in (("email_code", conf.code), ("email_link", conf.link)):
+                if value:
+                    sensitive[key] = value
+                else:
+                    sensitive.pop(key, None)
             if conf.code:
-                sensitive["email_code"] = conf.code
                 got.append("a verification code — type <secret>email_code</secret> into the code field")
             if conf.link:
-                sensitive["email_link"] = conf.link
                 got.append("a confirmation link — navigate to <secret>email_link</secret>")
             # Scrub the subject: it may literally contain the code ("123456 is
             # your code"), which must not reach the LLM or the event feed.
-            subject = scrub(conf.subject, sensitive)
+            # `mask_codes` first, because `scrub` can only remove the token that
+            # was extracted and a refused one is still a code in the subject.
+            subject = scrub(mask_codes(conf.subject), sensitive)
             emit({"type": "progress", "message": f'Confirmation email received: "{subject}"'})
             if not got:
+                unmatched = f" No {width}-character code was found in it." if width else ""
                 return (
                     f'Email arrived (subject: "{subject}") but no code or confirmation '
-                    "link could be extracted from it."
+                    f"link could be extracted from it.{unmatched} Do not guess a code; "
+                    "report the goal as blocked if this repeats."
                 )
             return f'Confirmation email received (subject: "{subject}"). It contains ' + " and ".join(got) + "."
 
@@ -507,7 +538,11 @@ async def main() -> int:
             f"{test_address} — do not invent another. If asked to create a password, enter "
             "<secret>qa_password</secret>. After submitting a step that sends a confirmation "
             "email, use the get_email_code action, then enter <secret>email_code</secret> or "
-            "open <secret>email_link</secret> as instructed by its result. Never guess codes."
+            "open <secret>email_link</secret> as instructed by its result. Never guess codes. "
+            "If a code is rejected, press the site's Resend control and call get_email_code "
+            "again before retrying — the action waits for the new email, so re-entering "
+            "<secret>email_code</secret> without that call re-sends the code the site has "
+            "just invalidated."
         )
 
     # Network/console evidence (US-044). Created here, after the mailbox block
