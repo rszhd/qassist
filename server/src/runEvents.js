@@ -47,9 +47,18 @@
  * One agent reasoning step. `screenshot_file` is a bare filename inside
  * `runs/<runId>/`, null when the shot could not be written — which is why the
  * report renders a placeholder rather than assuming a file.
+ *
+ * `elapsed` and `video_seconds` are two different clocks and neither converts
+ * to the other (US-076). `elapsed` is wall-clock seconds since the run started
+ * and is what a row shows. `video_seconds` is where this step begins inside
+ * `recording.mp4`, which holds only the frames Chromium repainted — so the two
+ * drift apart by however long the run sat waiting. It is null when the run was
+ * not recorded, and absent on every run recorded before US-076; a reader with
+ * neither offers no seek rather than falling back to `elapsed`.
  * @typedef {{ type: 'step', step: number, elapsed: number, url: string | null,
  *             evaluation: string | null, next_goal: string | null,
- *             thinking: string | null, screenshot_file: string | null }} StepEvent
+ *             thinking: string | null, screenshot_file: string | null,
+ *             video_seconds?: number | null }} StepEvent
  */
 
 /**

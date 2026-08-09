@@ -47,17 +47,26 @@ def save_screenshot(run_dir, step_number, frame_b64):
         return None
 
 
-def step_event(browser_state, agent_output, step_number, elapsed, screenshot_file, sensitive):
+def step_event(
+    browser_state, agent_output, step_number, elapsed, screenshot_file, sensitive,
+    video_seconds,
+):
     """The `step` event, with every page- and model-authored field scrubbed.
 
     `sensitive` is the LIVE dict browser-use holds, not a copy: `get_email_code`
     adds the fetched code to it mid-run, and a copy taken when the callback was
     built would keep scrubbing against the old contents.
+
+    `elapsed` and `video_seconds` are two clocks and neither converts to the
+    other (US-076): the recording holds only the frames Chromium repainted, so
+    they drift apart by every wait the run sat through. None means there is no
+    recording to seek, and the readers offer no jump rather than guessing.
     """
     return {
         "type": "step",
         "step": step_number,
         "elapsed": round(elapsed, 1),
+        "video_seconds": video_seconds,
         "url": scrub(getattr(browser_state, "url", None), sensitive),
         "evaluation": scrub(getattr(agent_output, "evaluation_previous_goal", None), sensitive),
         "next_goal": scrub(getattr(agent_output, "next_goal", None), sensitive),
@@ -75,9 +84,14 @@ def callback(
     run_dir,
     sensitive,
     run_started,
+    video_seconds,
     clock=time.monotonic,
 ):
     """browser-use's `register_new_step_callback`, and the boundary it draws.
+
+    `video_seconds` is a callable, not a number: the recorder keeps filling
+    while the run goes on, so a value read when this was wired would send every
+    step of the run to the same place. It reads None where there is no recorder.
 
     Report the fence's refusals, hand over what the PREVIOUS step turned up,
     then move the attribution on. This callback announces the goal the agent is
@@ -114,6 +128,7 @@ def callback(
                 clock() - run_started,
                 screenshot_file,
                 sensitive,
+                video_seconds(),
             ))
         except Exception as e:
             emit({"type": "warn", "message": f"step callback error: {e}"})

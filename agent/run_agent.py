@@ -601,6 +601,7 @@ async def main() -> int:
         run_dir=run_dir,
         sensitive=sensitive,
         run_started=run_started,
+        video_seconds=(lambda: recorder.video_seconds) if recorder else (lambda: None),
     )
 
     # Full HAR (US-044), opt-in. The always-on artifact is the curated summary

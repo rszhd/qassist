@@ -63,6 +63,22 @@ export function formatDeadline(iso) {
   });
 }
 
+/**
+ * How far into the run a step happened, `m:ss` (US-076). The run's own clock,
+ * which is not the recording's: the mp4 holds only the frames Chromium
+ * repainted, so a run that sat waiting reads later here than in the player's
+ * control bar. This is the number a reader asked for — "when did this happen"
+ * is a fact about the run, video time is an artifact of the encoding.
+ *
+ * null for the events that carry no `elapsed` at all (`progress`, `blocked`),
+ * which is how a row decides whether it has a time to show.
+ */
+export function formatElapsed(seconds) {
+  if (!Number.isFinite(seconds) || seconds < 0) return null;
+  const whole = Math.floor(seconds);
+  return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, '0')}`;
+}
+
 /** Wall-clock run length; '—' until the run has both ends. */
 export function formatDuration(startedAt, finishedAt) {
   if (!startedAt || !finishedAt) return '—';

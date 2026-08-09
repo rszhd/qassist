@@ -2,7 +2,7 @@
 
 **As a** user, **I want** the current action at the top of the activity list, and each past step to say when it happened and take me there in the recording, **so that** one column answers "what is it doing now?" during the run and "show me that moment" after it.
 
-- **Status:** 🔨 Tier 1 done 2026-08-09 (see Results); tier 2 planned
+- **Status:** ✅ Done 2026-08-09 — both tiers (see Results)
 - **Priority:** P2 — no story depends on it, and both halves are UI work on
   shipped data.
 - **Estimate:** ~1 day for tier 1 + tier 2 display; tier 2's seek costs more,
@@ -105,7 +105,7 @@ slot math against a lazily started encoder, it is off-by-one in two places
 (first admitted frame, step boundary vs. the frame that follows it), and it
 fails quietly. The maintainer writes the assertion before the implementation,
 and the work owes a row in
-[`correctness-critical.md`](../../correctness-critical.md) when it happens.
+[`correctness-critical.md`](../../../correctness-critical.md) when it happens.
 
 ### One open call
 
@@ -161,10 +161,90 @@ agent is doing.
   the button.
 - `RunView.test.jsx` had no assertion on the toggle to retire, only a comment
   in the queued-stop test naming "no report and no recording"; that clause went.
-- Filed while working here: [BUG-011](../../bugs/BUG-011-run-page-recording-frame-jumps-on-load.md),
+- Filed while working here: [BUG-011](../../../bugs/BUG-011-run-page-recording-frame-jumps-on-load.md),
   the run page's recording frame having no height until its metadata loads. Same
   family as the `.screen-empty` ratio the Run view already carries, and it will
   be under the seek work in tier 2.
+
+## Results — tier 2 (2026-08-09)
+
+`session_recorder.py`, `step_events.py`, `run_agent.py`, `runEvents.js`,
+`runState.js`, `Activity.jsx`, `RunDetail.jsx`, `status.js`, `views.css`, and
+the four test files.
+
+The mapping landed where the plan put it, with one move: it is a
+`SessionRecorder.video_seconds` property rather than arithmetic in
+`step_events.py`. That object already owns both the frame counter and
+`RECORD_FPS`, which are the two things the answer is made of, and its test file
+already had the fake service and fake clock the assertion needed.
+
+**The seek aims at the middle of the step's first frame, not its leading edge.**
+`(frames + 0.5) / RECORD_FPS`. Reading browser-use's `VideoRecorderService`
+settled the easy half: it hands imageio a fixed `fps` and appends one frame per
+call, so the file is constant-rate and frame *n* sits at exactly *n*/fps, with
+no timebase to reconcile. The edge is still the wrong place to aim, because
+Python's float for `1/3` is a hair *below* the true value and the JSON
+round-trip is another chance to lose the last bit — either drops the seek into
+frame *n*−1, which shows the page as the previous step left it and says nothing
+about it. Half a frame is 0.17s of margin on both sides against 0.005 of
+rounding.
+
+That reading also turned up a real defect, which is the part no assertion of
+ours would have caught:
+
+- `add_frame` swallows its own decode failures (`logger.warning`, then return)
+  and returns nothing either way, so a payload it could not read is a frame the
+  file never got. `SessionRecorder.add` counted it regardless. One lost frame
+  puts every later step a third of a second late and the error **accumulates**
+  — ten of them is 3.3s, silently. The sampler can see the reachable half of
+  this for itself, so `add` now counts only a frame that carried data. That also
+  makes `frames` honest on the `recording` event, which the file's own docstring
+  already said had to be the encoder's tally.
+- What is left is PIL failing on a well-headed but corrupt JPEG from CDP. Not
+  chased: it is remote, and the only fix is a second full decode on the hot path
+  of every repaint.
+
+Accuracy, stated plainly: **frame-exact against the file, at a resolution of
+0.33s**. Wall-clock cannot be tight and is not meant to be — the frame you land
+on is the first repaint *after* the boundary, which on an idle page is seconds
+of real time later. That is not error; the video holds nothing in between, and
+the only alternative frame is the previous step's.
+
+On the display half:
+
+- The time shares the line under the goal with the URL, rather than taking a
+  column of its own. The goal is what runs long, and a right-hand time column
+  costs it ~40px in a 300px rail; the URL was already clamped to one line, so
+  the time takes its own width and the URL keeps the rest.
+- A row is a `<button>` only where `onSeek` **and** `video_seconds` are both
+  there, a `<div>` otherwise — so a run with no recording, one still in flight,
+  and one recorded before this shipped all read as text. `.log-item` keeps
+  `user-select: text` through the button reset: a row is where a URL gets copied
+  out of, and a button suppresses selection.
+- `RunDetail` scrolls the player into view before seeking. The activity list is
+  below it on a long page, so a row clicked near the bottom would otherwise seek
+  something off screen.
+- `stepsOf` passes the field through, so it reaches `report_data.json` and
+  `GET /api/runs/:id/steps` at once. The PDF ignores it.
+
+Two test-side notes worth keeping:
+
+- The assertions state the landing **interval** (`n/fps <= at < (n+1)/fps`),
+  never an expected float. What the number has to do is pick a frame, and that
+  survives a change of fps or of rounding.
+- The `record` helper drives frames at *twice* the sampling interval and asserts
+  the count it reached. At exactly one interval, adding `1/3` repeatedly
+  accumulates float error until a gap lands a hair under it and a frame is
+  dropped — which made the arithmetic assert against a count the recorder never
+  reached, and only at 9 and 40 frames. The sampler is `TestSampling`'s subject,
+  not this one's.
+
+Register row added: **Recording seek offset** in
+[`correctness-critical.md`](../../../correctness-critical.md).
+
+[BUG-011](../../../bugs/BUG-011-run-page-recording-frame-jumps-on-load.md) is
+untouched — the player's frame still has no height until its metadata loads, and
+that is now the one thing between a click and a clean jump.
 
 ## Acceptance criteria
 
@@ -175,9 +255,13 @@ agent is doing.
       in the stage
 - [x] A step's URL takes one line however long it is, and hovering shows all of
       it
-- [ ] Each step row on `/runs/<id>` shows its elapsed time as `m:ss`
-- [ ] Clicking a step row seeks the recording to that step
-- [ ] The seek lands on the step's own frames, on a run with idle time in it —
+- [x] Each step row on `/runs/<id>` shows its elapsed time as `m:ss`
+- [x] Clicking a step row seeks the recording to that step — to the step's first
+      recorded frame, which is what "that step" can mean in a condensed replay;
+      see Results
+- [x] The seek lands on the step's own frames, on a run with idle time in it —
       proved by an assertion on the mapping, not by watching one video
-- [ ] A run with no recording, or one recorded before this shipped, shows the
+      (`TestVideoOffset::test_idle_time_does_not_move_it` is the one that names
+      it)
+- [x] A run with no recording, or one recorded before this shipped, shows the
       timestamps and no seek

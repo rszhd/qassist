@@ -150,6 +150,10 @@ export function stepsOf(run) {
     .map((e) => ({
       step: e.step,
       elapsed: e.elapsed,
+      // Where the step starts in the recording, which `elapsed` is not (US-076)
+      // — undefined for a run recorded before that shipped, and the readers
+      // treat that as "no seek" rather than guessing from the wall clock.
+      video_seconds: e.video_seconds,
       next_goal: e.next_goal,
       evaluation: e.evaluation,
       url: e.url,

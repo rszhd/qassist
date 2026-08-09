@@ -242,8 +242,15 @@
 .log-item {
   display: flex; gap: var(--s2); align-items: flex-start;
   padding: var(--s2) var(--card-pad); font-size: var(--t-base); color: var(--text);
+  /* The seeking row is a <button> (US-076) and this is the whole of its reset.
+     `user-select: text` is the load-bearing one: a row is where a URL and the
+     agent's reasoning get copied out of, and a button suppresses selection. */
+  width: 100%; text-align: left; font-family: inherit;
+  background: none; border: 0; user-select: text;
 }
 .log-item + .log-item { border-top: 1px solid var(--border); }
+.log-item.seekable { cursor: pointer; }
+.log-item.seekable:hover { background: var(--hover); }
 .step-n {
   /* The 1px lifts the mono digits onto the goal's baseline beside them. */
   flex: 0 0 var(--s4); padding-top: 1px; text-align: right;
@@ -265,6 +272,16 @@
 .step-url {
   font-family: var(--mono); font-size: var(--t-xs); color: var(--faint);
   line-height: 1.4; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  /* The clamp needs a floor to shrink to; a flex item's is its content. */
+  min-width: 0;
+}
+/* The step's two facts share the line under its goal, so the time costs nothing
+   from the goal's width — which is the column that runs long. The time keeps
+   its own width and the URL takes what is left and ellipses. */
+.step-meta { display: flex; gap: var(--s2); align-items: baseline; }
+.step-time {
+  flex: none; font-family: var(--mono); font-size: var(--t-xs); color: var(--faint);
+  font-variant-numeric: tabular-nums;
 }
 
 /* Browser diagnostics (US-044). Bled to the card's edges and scroll-capped like

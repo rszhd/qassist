@@ -12,7 +12,11 @@ import RunDetail from './RunDetail.jsx';
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
+
+// jsdom implements no layout, so this exists in every browser and in no test.
+HTMLElement.prototype.scrollIntoView = () => {};
 
 const run = {
   id: 'run-1',
@@ -118,6 +122,52 @@ describe('RunDetail', () => {
     );
 
     expect(container.querySelector('video')).toBeNull();
+  });
+
+  // US-076. The page owns the player, so it is the page that turns a row's
+  // `video_seconds` into a seek — and the rows only become buttons because a
+  // player is there to receive one.
+  it('seeks the player from a step row, and offers no seek without a player', () => {
+    const seeked = [];
+    const step = { step: 1, elapsed: 41, next_goal: 'Open the cart', video_seconds: 12.5 };
+    // jsdom has no playback, so a seek reaches the property and stops there.
+    vi.spyOn(HTMLMediaElement.prototype, 'currentTime', 'set').mockImplementation(
+      (value) => seeked.push(value)
+    );
+    vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
+
+    const { rerender } = render(
+      <MemoryRouter>
+        <RunDetail
+          run={{ ...run, has_recording: true }}
+          token="t"
+          onError={() => {}}
+          liveSteps={[step]}
+          layout="page"
+        />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(document.querySelector('.log-item'));
+    // 12.5, not 41: the row shows the run's clock and seeks the video's.
+    expect(seeked).toEqual([12.5]);
+    expect(screen.getByText('0:41')).toBeTruthy();
+
+    // Same step, same mapping — the run just has no recording to jump into.
+    rerender(
+      <MemoryRouter>
+        <RunDetail
+          run={{ ...run, has_recording: false }}
+          token="t"
+          onError={() => {}}
+          liveSteps={[step]}
+          layout="page"
+        />
+      </MemoryRouter>
+    );
+
+    expect(document.querySelector('.log-item').tagName).toBe('DIV');
+    expect(screen.getByText('0:41')).toBeTruthy();
   });
 
   // REPORTS_ENABLED off (the default): /api/health says `reports: false` and no

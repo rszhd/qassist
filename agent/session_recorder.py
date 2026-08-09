@@ -65,7 +65,39 @@ class SessionRecorder:
         if self._svc is None:
             return
         self._svc.add_frame(frame_b64)
-        self.frames += 1
+        # Counted only when there was something to encode. `add_frame` swallows
+        # its own decode failures and returns nothing either way, so a payload
+        # it could not read is a frame the file never got — and the tally has to
+        # be the encoder's, not the sampler's. Counting it would overstate what
+        # the `recording` event says the video contains, and would put every
+        # later step a frame late in the offset below.
+        if frame_b64:
+            self.frames += 1
+
+    @property
+    def video_seconds(self):
+        """Where a step boundary starting now lands in the file (US-076).
+
+        Read at a step boundary, before that step has acted: every frame
+        admitted so far belongs to the steps before it, so frame index
+        `self.frames` is the first one that can show what this step does.
+
+        The file is constant-rate — browser-use hands imageio a fixed `fps` and
+        appends one frame per call — so frame n sits at exactly n/RECORD_FPS.
+        Aimed at the MIDDLE of that frame rather than its leading edge: the
+        edge is where a float, a JSON round-trip and the container's own
+        timebase can each drop the seek a hair low, into the frame before it,
+        which shows the previous step's page and says nothing about it. Half a
+        frame is 0.17s of margin either side against 0.005 of rounding.
+
+        None when nothing was ever encoded after an attempt to start — missing
+        video deps, an unreadable first frame. There is no file to seek then,
+        and a 0.0 would read as "the start of the recording" and be written
+        into report_data.json for every step of a run that has none.
+        """
+        if self._tried_start and self.frames == 0:
+            return None
+        return round((self.frames + 0.5) / RECORD_FPS, 2)
 
     def stop(self) -> bool:
         """Finalize the file, and say whether there is one. Blocking."""

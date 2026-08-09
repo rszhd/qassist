@@ -39,13 +39,17 @@ class Output:
         self.thinking = thinking
 
 
-def event(state=None, output=None, step_number=1, elapsed=0.0, screenshot_file=None, sensitive=None):
+def event(
+    state=None, output=None, step_number=1, elapsed=0.0, screenshot_file=None,
+    sensitive=None, video_seconds=None,
+):
     return step_events.step_event(
-        state or State(), output or Output(), step_number, elapsed, screenshot_file, sensitive
+        state or State(), output or Output(), step_number, elapsed, screenshot_file,
+        sensitive, video_seconds,
     )
 
 
-def wiring(*, report_blocks=None, run_dir=None):
+def wiring(*, report_blocks=None, run_dir=None, video_seconds=lambda: None):
     """`run_agent.main`'s wiring of the callback, minus the browser.
 
     The `flush_diagnostics` closure is `run_agent.py`'s, and `diag` is a real
@@ -70,6 +74,7 @@ def wiring(*, report_blocks=None, run_dir=None):
         run_dir=run_dir,
         sensitive=None,
         run_started=0.0,
+        video_seconds=video_seconds,
         clock=lambda: 0.0,
     )
     return diag, on_step, emitted
@@ -92,7 +97,7 @@ class TestEventShape:
         # relay and a viewer reading a shape nothing describes.
         assert set(event()) == {
             "type", "step", "elapsed", "url",
-            "evaluation", "next_goal", "thinking", "screenshot_file",
+            "evaluation", "next_goal", "thinking", "screenshot_file", "video_seconds",
         }
 
     def test_absent_attributes_become_null_not_missing_keys(self):
@@ -102,7 +107,7 @@ class TestEventShape:
         class Bare:
             pass
 
-        assembled = step_events.step_event(Bare(), Bare(), 3, 1.0, None, None)
+        assembled = step_events.step_event(Bare(), Bare(), 3, 1.0, None, None, None)
         assert assembled["url"] is None
         assert assembled["evaluation"] is None
         assert assembled["next_goal"] is None
@@ -117,6 +122,21 @@ class TestEventShape:
     def test_elapsed_is_rounded_to_a_tenth(self):
         assert event(elapsed=12.34567)["elapsed"] == 12.3
         assert event(elapsed=0.0)["elapsed"] == 0.0
+
+    def test_the_two_clocks_are_carried_separately(self):
+        # US-076. `elapsed` is the run's clock and `video_seconds` the file's,
+        # and on a run that spent a minute waiting they are minutes apart. A
+        # step event that carried one of them twice, or derived either from the
+        # other, is a seek that lands wrong without saying so.
+        assembled = event(elapsed=91.8, video_seconds=9.17)
+        assert assembled["elapsed"] == 91.8
+        assert assembled["video_seconds"] == 9.17
+
+    def test_no_recording_is_a_null_offset_not_a_zero(self):
+        # A run with QA_RECORD=0, or one whose encoder never came up: readers
+        # take the null as "no seek". A 0.0 would send every row of an
+        # unrecorded run to the start of a file that does not exist.
+        assert event(video_seconds=None)["video_seconds"] is None
 
 
 class TestScrubbing:
@@ -268,7 +288,10 @@ class TestStepBoundary:
         boundary(on_step, 2)
         assert [e["type"] for e in emitted] == ["blocked", "step"]
 
-    @pytest.mark.parametrize("collaborator", ["report_blocks", "flush_diagnostics", "set_step"])
+    @pytest.mark.parametrize(
+        "collaborator",
+        ["report_blocks", "flush_diagnostics", "set_step", "video_seconds"],
+    )
     def test_a_collaborator_that_raises_costs_one_warning_not_the_run(self, collaborator):
         # browser-use awaits this callback; an exception escaping it ends the run
         # at a step boundary. A reporting bug must cost the report, never the run.
@@ -280,6 +303,7 @@ class TestStepBoundary:
             "report_blocks": lambda step_number=None: [],
             "flush_diagnostics": lambda: None,
             "set_step": lambda step: None,
+            "video_seconds": lambda: None,
         }
         collaborators[collaborator] = boom
         on_step = step_events.callback(
@@ -293,6 +317,17 @@ class TestStepBoundary:
         # failure before the emit costs the viewer that step's heading. Pinned
         # as the price of the single wrapper, not as the desirable outcome —
         # per-call guards would keep the step event.
+
+    def test_the_offset_is_read_at_the_boundary_not_when_the_callback_was_built(self):
+        # US-076. It arrives as a callable for the same reason `sensitive` is
+        # read live: the recorder is still filling while the run goes on, so a
+        # value captured at wiring time would send every step of the run to the
+        # same place — the start of the file.
+        offsets = iter([0.17, 3.5, 8.83])
+        _, on_step, emitted = wiring(video_seconds=lambda: next(offsets))
+        for step in (1, 2, 3):
+            boundary(on_step, step)
+        assert [e["video_seconds"] for e in emitted if e["type"] == "step"] == [0.17, 3.5, 8.83]
 
     def test_the_step_event_carries_the_screenshot_the_boundary_wrote(self, tmp_path):
         _, on_step, emitted = wiring(run_dir=str(tmp_path))

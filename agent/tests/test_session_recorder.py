@@ -17,7 +17,7 @@ import os
 
 import pytest
 
-from session_recorder import RECORD_MIN_INTERVAL, SessionRecorder
+from session_recorder import RECORD_FPS, RECORD_MIN_INTERVAL, SessionRecorder
 
 
 class FakeService:
@@ -201,6 +201,103 @@ class TestFrameCount:
         assert recorder.frames == 3
 
 
+class TestVideoOffset:
+    """Where a step boundary is inside the mp4 (US-076).
+
+    The recording is condensed — Chromium emits a frame only when the page
+    repaints and the sampler keeps RECORD_FPS of those — so the run's clock and
+    the file's clock are different clocks, and the gap between them is every
+    wait the run sat through. `video_seconds` is the second one, and it is only
+    ever read at a step boundary, before that step has acted: the frames
+    admitted so far belong to the steps before it, so frame index `frames` is
+    the first frame that can show what this step did.
+
+    Every failure here is quiet. A seek landing one frame early shows the
+    previous step's page and nothing says so; a seek computed from wall-clock
+    looks right on a busy run and is minutes out on a slow one. So the cases
+    assert the landing INTERVAL rather than an arithmetic result — what the
+    number has to do is pick a frame, and that survives a change of fps or of
+    rounding, which an expected float does not.
+    """
+
+    def record(self, recorder, clock, count):
+        """`count` frames actually admitted, and it checks that they were.
+
+        Well clear of the sampling interval rather than exactly on it: adding
+        1/3 repeatedly accumulates float error, and a gap landing a hair under
+        the interval drops a frame — which silently makes the arithmetic below
+        assert against a count the recorder never reached. What is under test
+        here is the mapping, not the sampler, which `TestSampling` owns.
+        """
+        for i in range(count):
+            recorder.add(f"frame-{i}")
+            clock.advance(RECORD_MIN_INTERVAL * 2)
+        assert recorder.frames == count
+
+    @pytest.mark.parametrize("frames", [0, 1, 2, 3, 9, 40])
+    def test_a_boundary_lands_inside_the_step_s_own_first_frame(self, tmp_path, frames):
+        # Frame n occupies [n/fps, (n+1)/fps) in the file. Landing below that
+        # window shows the page as the PREVIOUS step left it, which is the
+        # off-by-one this mapping exists to get right, and landing above it
+        # skips whatever the step did first.
+        recorder, _, clock, _ = make_recorder(tmp_path)
+        self.record(recorder, clock, frames)
+        at = recorder.video_seconds
+        assert frames / RECORD_FPS <= at < (frames + 1) / RECORD_FPS
+
+    def test_the_first_boundary_is_the_start_of_the_file(self, tmp_path):
+        # Step 1's callback runs before any repaint it caused, so the recorder
+        # may hold nothing at all. The encoder starts on the first frame it is
+        # given, so that frame is t=0 — there is no lead-in to skip.
+        recorder, _, _, _ = make_recorder(tmp_path)
+        assert 0 <= recorder.video_seconds < 1 / RECORD_FPS
+
+    def test_idle_time_does_not_move_it(self, tmp_path):
+        # The whole reason this is not `elapsed`. A run waiting on a
+        # confirmation email repaints nothing for minutes; the file does not
+        # grow, so neither does the offset.
+        recorder, _, clock, _ = make_recorder(tmp_path)
+        self.record(recorder, clock, 6)
+        waiting = recorder.video_seconds
+        clock.advance(300)
+        assert recorder.video_seconds == waiting
+
+    def test_dropped_frames_do_not_count(self, tmp_path):
+        # The offset is the ENCODER's tally, like `frames` on the `recording`
+        # event. Counting repaints the sampler refused would drift the mapping
+        # further with every busy page.
+        recorder, _, clock, _ = make_recorder(tmp_path)
+        for i in range(4):
+            recorder.add(f"frame-{i}")
+            recorder.add("dropped")  # same instant, inside the interval
+            clock.advance(RECORD_MIN_INTERVAL * 2)
+        assert recorder.frames == 4
+        assert 4 / RECORD_FPS <= recorder.video_seconds < 5 / RECORD_FPS
+
+    def test_a_recorder_whose_encoder_never_started_maps_to_nothing(self, tmp_path):
+        # Missing video deps or an unreadable first frame: there is no file to
+        # seek, so there is no offset either. A 0.0 here would be a number that
+        # reads as "the start of the recording" for a run that has none, and it
+        # would be written into report_data.json for every step.
+        def start_service(frame_b64):
+            return None
+
+        clock = FakeClock()
+        recorder = SessionRecorder(str(tmp_path / "recording.mp4"), start_service, clock=clock)
+        recorder.add("frame-0")
+        assert recorder.video_seconds is None
+
+    def test_it_stays_readable_after_the_file_is_finalized(self, tmp_path):
+        # `stop()` runs before the last events are assembled, and the offsets
+        # already emitted must not be contradicted by a recorder that forgot its
+        # count on the way out.
+        recorder, _, clock, _ = make_recorder(tmp_path)
+        self.record(recorder, clock, 5)
+        at = recorder.video_seconds
+        recorder.stop()
+        assert recorder.video_seconds == at
+
+
 @pytest.mark.parametrize("empty", ["", None])
 def test_a_frame_with_no_data_still_follows_the_contract(tmp_path, empty):
     # Nothing upstream promises a payload; `on_frame` reads it straight out of
@@ -211,3 +308,9 @@ def test_a_frame_with_no_data_still_follows_the_contract(tmp_path, empty):
     recorder.add(empty)
     assert starts == [empty]
     assert service.added == [empty]
+    # But it is not counted. browser-use's `add_frame` logs a warning and drops
+    # a payload it cannot decode, and it returns nothing either way — so this is
+    # the one lost frame the sampler can see for itself. A count that included
+    # it would drift the US-076 offset a frame later for the whole run, and the
+    # drift accumulates.
+    assert recorder.frames == 0

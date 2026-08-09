@@ -69,12 +69,12 @@ Sprints aren't split along a self-host/hosted-tier line — `sprint/current/` an
 | [US-020](sprint/current/US-020-report-v2-screenshots-recording.md) | Report v2: step screenshots + recording | 📋 Planned — P2 | US-006 |
 | [US-070](sprint/current/US-070-user-manual-site.md) | A user manual, published without an image build (`docs.qassist.run`) | 🔨 **Live** 2026-08-05, 9/11 — follows `main` since 2026-08-06 | US-007, US-055 |
 | [US-071](sprint/current/US-071-one-command-deploy.md) | One command deploys a stack, and proves which one it deployed | 📋 Planned — P1 | US-052, US-055, US-056 |
-| [US-076](sprint/current/US-076-activity-leads-the-run-and-seeks-the-recording.md) | Activity leads the run, and seeks the recording | 🔨 Tier 1 done 2026-08-09 — P2 | US-006, US-026 |
 
 ### Done
 
 | ID | Story | Status | Depends on |
 |---|---|---|---|
+| [US-076](sprint/current/done/US-076-activity-leads-the-run-and-seeks-the-recording.md) | Activity leads the run, and seeks the recording | ✅ **Done** 2026-08-09, 7/7 | US-006, US-026 |
 | [US-074](sprint/current/done/US-074-run-agent-pure-logic-extracted.md) | `run_agent.py`: move the pure logic where the tests can reach it | ✅ **Done** 2026-08-05, 6/6 | — |
 | [US-073](sprint/current/done/US-073-typed-run-and-ndjson-events.md) | Type the run object and the NDJSON events | ✅ **Done** 2026-08-05, 5/5 | — |
 | [US-075](sprint/current/done/US-075-orchestrators-split-along-seams.md) | The two run orchestrators shrink to their subject | ✅ **Done** 2026-08-05, 4/4 | US-073 (shipped without it) |

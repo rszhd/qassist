@@ -43,6 +43,7 @@ export default function RunDetail({ run, token, onError, liveSteps, liveDiagnost
   const [goalOpen, setGoalOpen] = useState(false);
   const goalRef = useRef(null);
   const [goalClamped, setGoalClamped] = useState(false);
+  const videoRef = useRef(null);
 
   const pruned = !!run.artifacts_deleted_at;
   const steps = liveSteps ?? fetched;
@@ -152,6 +153,7 @@ export default function RunDetail({ run, token, onError, liveSteps, liveDiagnost
       <div className="screen">
         <video
           key={run.id}
+          ref={videoRef}
           src={`/api/runs/${run.id}/recording${token ? `?token=${encodeURIComponent(token)}` : ''}`}
           controls
           preload="metadata"
@@ -160,6 +162,20 @@ export default function RunDetail({ run, token, onError, liveSteps, liveDiagnost
       </div>
     </div>
   );
+
+  // US-076. The activity list is below the player on a long page, so a row
+  // clicked near the bottom would seek something off screen — scrolling first
+  // is what makes the jump visible. It plays, because "show me that moment" is
+  // one intent and stopping at a still would cost a second click; the promise
+  // is ignored because a browser refusing to play is not an error worth a
+  // banner over a frame that is already showing.
+  const seekRecording = recording && ((seconds) => {
+    const video = videoRef.current;
+    if (!video) return;
+    video.currentTime = seconds;
+    video.scrollIntoView({ block: 'nearest' });
+    video.play?.()?.catch(() => {});
+  });
 
   const stats = (
     <div className="stats">
@@ -247,7 +263,7 @@ export default function RunDetail({ run, token, onError, liveSteps, liveDiagnost
     <section className="detail-block">
       <CardHead title="Activity" count={steps.length || undefined} />
       {steps.length > 0 ? (
-        <ActivityLog steps={steps} />
+        <ActivityLog steps={steps} onSeek={seekRecording || undefined} />
       ) : unfinished ? (
         <EmptyState icon={Activity} title="Waiting…">
           {run.status === 'queued'
