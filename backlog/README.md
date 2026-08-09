@@ -69,6 +69,7 @@ Sprints aren't split along a self-host/hosted-tier line — `sprint/current/` an
 | [US-020](sprint/current/US-020-report-v2-screenshots-recording.md) | Report v2: step screenshots + recording | 📋 Planned — P2 | US-006 |
 | [US-070](sprint/current/US-070-user-manual-site.md) | A user manual, published without an image build (`docs.qassist.run`) | 🔨 **Live** 2026-08-05, 9/11 — follows `main` since 2026-08-06 | US-007, US-055 |
 | [US-071](sprint/current/US-071-one-command-deploy.md) | One command deploys a stack, and proves which one it deployed | 📋 Planned — P1 | US-052, US-055, US-056 |
+| [US-076](sprint/current/US-076-activity-leads-the-run-and-seeks-the-recording.md) | Activity leads the run, and seeks the recording | 📋 Planned — P2 | US-006, US-026 |
 
 ### Done
 
