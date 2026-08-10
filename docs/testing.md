@@ -187,6 +187,31 @@ The wider rule: any constant in `config.js` justified by a measurement owes the
 repo the command that produced it. Otherwise the next person to touch it has
 only a comment, and a comment cannot be re-run.
 
+### A swallow-all `except` hides a programming error behind a promise
+
+US-081 named this one. Its memory generator ends `except Exception: return None`,
+and the comment above it is a real promise: a notebook is an optimisation, so a
+provider timeout must cost a run nothing. Under that promise a *bug* is
+indistinguishable from the failure being absorbed. The generator reached the
+model through `asyncio.run` from inside an already-running loop, raised on every
+single run, returned `None` every time, and nothing anywhere went red — the
+feature was a complete no-op and the suite was green.
+
+The parts were all asserted; the composition was not. Twenty-four assertions
+covered the prompt builder, the validator and the prompt renderer, and none
+covered the one function the caller actually calls — so the only untested line
+was the one holding the `except`.
+
+The rule: **a broad `except` obliges an assertion on the happy path of the thing
+it wraps, driven the way production drives it.** Testing the parts is not a
+substitute, because the swallow is in the seam between them. Where the failure
+depends on the calling context — an event loop, a thread, a transaction — the
+test has to establish that context, or it proves only that the code works
+somewhere production never calls it from. The same trap has a second mouth:
+US-081's `asyncio.run` was copied from US-080, where it is correct *because* it
+runs on a worker thread. A line's correctness can live in its surroundings, and
+copying it moves the line without the reason.
+
 ## Working with an AI pair changes one thing
 
 With two humans, the person who writes the test and the person who writes the
