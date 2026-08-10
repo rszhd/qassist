@@ -70,6 +70,7 @@ Sprints aren't split along a self-host/hosted-tier line — `sprint/current/` an
 | [US-070](sprint/current/US-070-user-manual-site.md) | A user manual, published without an image build (`docs.qassist.run`) | 🔨 **Live** 2026-08-05, 9/11 — follows `main` since 2026-08-06 | US-007, US-055 |
 | [US-071](sprint/current/US-071-one-command-deploy.md) | One command deploys a stack, and proves which one it deployed | 📋 Planned — P1 | US-052, US-055, US-056 |
 | [US-077](sprint/current/US-077-test-mail-without-gmail.md) | The test mailbox stops being a Gmail account | 🔨 Tier 1 done 2026-08-09, 2/8 — 51 → 2.7 logins/min | US-013 tier 1, US-007 |
+| [US-081](sprint/current/US-081-a-test-remembers-what-worked.md) | A test remembers what worked | 📋 Planned — P3 | US-046 |
 
 ### Done
 
@@ -175,7 +176,6 @@ live in [`docs/repo-model.md`](../docs/repo-model.md). Email provider: **Resend*
 | [US-046](unscheduled/US-046-token-usage-and-cost.md) | What did that run cost? (token usage + cost) | 📋 Planned | P3 | US-039 |
 | [US-049](unscheduled/US-049-typed-assertions.md) | Assert on a value, not on a paragraph | 📋 Planned | P3 | US-041 |
 | [US-050](unscheduled/US-050-fast-run-mode.md) | A fast, cheap mode for tests that already pass | 📋 Planned | P3 | US-046 |
-| [US-081](unscheduled/US-081-a-test-remembers-its-last-good-route.md) | A test remembers the route that worked | 📋 Planned | P3 | US-046 |
 | [US-060](unscheduled/US-060-account-level-notification-prefs.md) | Notification settings a person owns, not just a project (was US-012 tiers 2–3) | 📋 Planned | P3 | US-012, US-021 |
 | [US-068](unscheduled/US-068-module-level-notification-prefs.md) | A module can say who hears about it | 📋 Planned | P3 | US-012, US-023 |
 | [US-061](unscheduled/US-061-evidence-in-the-judges-context.md) | The judge sees the 500 (was US-044's deferred tier 2) | 📋 Planned | P3 | US-041, US-044, US-046 |
