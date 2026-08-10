@@ -195,6 +195,73 @@ an empty override never displaces a stored secret. A required secret with none
 of the three rejects the run with a 400. Why the states are shaped this way is
 argued on [the manual's Variables page](https://docs.qassist.run/variables.html).
 
+### What a test remembers between runs
+
+A saved test keeps a small notebook: what worked, what to avoid next time, and
+where the flow ended. Every passing run adds to it, and a later run is given it
+as fallible advice about a previous pass. It is on by default, cannot be turned
+off, and needs no setup — these endpoints exist to inspect it and to throw it
+away.
+
+```bash
+curl http://<host>:8080/api/tests/<testId>/memory \
+  -H "Authorization: Bearer $WORKER_API_TOKEN"
+# -> {"learned":{"successful_approach":[{"id":"a1b2c3d4e5f6",
+#       "text":"Open Billing from the account menu","steps":[4],
+#       "run_id":"...","learned_at":"...","hinted":false}]},
+#     "supplied":{...},"learned_at":"..."}
+```
+
+`supplied` is **exactly** what the next run is handed, or `null` when it will run
+cold. There is no memory the model sees and this endpoint does not.
+
+`learned` is what is stored, and `supplied` is what the next run gets. They are
+the same unless the notebook is empty: **nothing withholds a notebook**. An edit
+does not, a failing run does not, a model change does not. Only a person takes
+one away.
+
+An edit that changes the test's **instructions** or **start URL** does offer,
+though, because that is the one judgement a person can make and the system
+cannot — a typo fixed in the instructions is not a different flow. `PUT
+/api/tests/<testId>` answers with `"memory":{"changed":true,"lessons":2}`, and
+the UI asks. Nothing acts on it: keep the lessons, or clear them with the call
+below.
+
+**A run that does not pass changes nothing.** The commonest reason a test fails
+is that it found the bug it exists to find, so a failure is not evidence against
+the advice — and making the next run cold would replace a notebook none of whose
+lessons had failed. A wrong lesson is removed, or the notebook is cleared.
+
+Each lesson carries its own provenance: the run that found it, when, and whether
+a person hinted the run that led to it.
+
+Two things a person may do, and both are deletions:
+
+```bash
+# drop one lesson that is wrong
+curl -X DELETE http://<host>:8080/api/tests/<testId>/memory/lessons/<lessonId> \
+  -H "Authorization: Bearer $WORKER_API_TOKEN"
+
+# throw the whole notebook away; run history is untouched and the next run
+# starts as if the test had never learned anything
+curl -X DELETE http://<host>:8080/api/tests/<testId>/memory \
+  -H "Authorization: Bearer $WORKER_API_TOKEN"
+```
+
+A lesson can be removed and **not written**. `learned` means "derived from a
+trace this test produced", so there is no endpoint that adds one — hand-written
+advice must not be able to claim provenance it does not have. Durable
+instructions belong in the test's own **Instructions** field, which is also what
+the verdict is judged against. The notebook is only what a run worked out for
+itself.
+
+Every run says which it was: `memory_used` on a history row is `true` when
+learned lessons reached the agent. A run that was given the notebook may still
+add to it — what stops advice confirming itself is the shape of the write, not
+silence. An assisted run adds what it found, and can only erase a lesson its own
+steps show failing; a cold run, having had no advice, replaces the notebook
+outright.
+
 ## Schedules
 
 `POST /api/schedules` runs any of those four things on a repeating slot. The
@@ -300,6 +367,36 @@ reached by join — so a run whose test was later deleted keeps its history row
 (goal and start_url were copied at enqueue time) but matches no project
 filter. Once retention prunes `runs/<id>/`, `artifacts_deleted_at` is set and
 the row reports no recording or report while the verdict survives.
+
+### What a run cost
+
+Every run row carries `prompt_tokens`, `completion_tokens`, `total_tokens`,
+`total_cost` and `cost_known`. Tokens and cost are **two separate questions**,
+and the second one has an answer only sometimes:
+
+- `total_tokens` is a measurement whenever it is non-null. Null means nobody
+  counted — a run from before this shipped, or one that crashed before the
+  agent could summarise itself.
+- `total_cost` is an **estimate**, priced from a table browser-use fetches and
+  caches, not from the provider's billing API. It drifts, it does not know
+  negotiated rates, and it is `null` unless `cost_known` is true.
+
+**Never render a null cost as `$0.00`, and never sum a set that contains one
+without saying so.** `cost_known` is false in three unrelated cases — the
+operator set `CALCULATE_COST=0`, the pricing table could not be fetched, or the
+model has no published price — and only a `cost_known: true` zero means the run
+was free. A total over a filtered page that quietly skips the unpriced runs
+looks authoritative and is wrong downwards, which is the direction nobody
+questions.
+
+The per-model breakdown — a run bills against the agent, the judge, page
+extraction and message compaction, each of which may be a different model — is
+in `runs/<id>/report_data.json` under `usage.by_model`, not in the row. Each
+entry carries its own `cost_known`, so an unpriced total can be traced to the
+model that caused it.
+
+`CALCULATE_COST=0` turns the whole thing off, including the pricing fetch.
+Tokens are still counted; they cost nothing to collect.
 
 `schedule_id` narrows to the runs one schedule started. It is the filter to
 reach for when two schedules point at the same target — an hourly smoke and a

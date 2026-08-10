@@ -58,6 +58,12 @@ rule that decides which of the four test shapes a given check gets:
     other; drop both, as `004` and `011` do (US-047).
   - **`count(*) filter (where …)` answers with the unfiltered count**,
     silently (US-069) — green on a surface whose failures are the point.
+  - **`nullif` does not exist**, so every route using it 500s — which is most of
+    `PUT /api/tests/:id`, where it spells "omitted means unchanged" (US-081).
+    Not a lie but a hole, and worth telling apart: a lie has to be worked around
+    on a real server, a hole can be filled. `test-memory-panel.test.js`
+    registers the two-argument text form, because what that file tests IS the
+    route's answer and poking the row directly would prove nothing about it.
     `row_number() over (…)` and correlated subqueries are rejected loudly,
     which is the harmless kind; it is why the schedules strip trims a
     time-bounded window in JS and `LIST_QUERY` in `routes/schedules.js` uses
@@ -186,6 +192,31 @@ why its numbers could not be reproduced or trusted between measurements.
 The wider rule: any constant in `config.js` justified by a measurement owes the
 repo the command that produced it. Otherwise the next person to touch it has
 only a comment, and a comment cannot be re-run.
+
+### A swallow-all `except` hides a programming error behind a promise
+
+US-081 named this one. Its memory generator ends `except Exception: return None`,
+and the comment above it is a real promise: a notebook is an optimisation, so a
+provider timeout must cost a run nothing. Under that promise a *bug* is
+indistinguishable from the failure being absorbed. The generator reached the
+model through `asyncio.run` from inside an already-running loop, raised on every
+single run, returned `None` every time, and nothing anywhere went red — the
+feature was a complete no-op and the suite was green.
+
+The parts were all asserted; the composition was not. Twenty-four assertions
+covered the prompt builder, the validator and the prompt renderer, and none
+covered the one function the caller actually calls — so the only untested line
+was the one holding the `except`.
+
+The rule: **a broad `except` obliges an assertion on the happy path of the thing
+it wraps, driven the way production drives it.** Testing the parts is not a
+substitute, because the swallow is in the seam between them. Where the failure
+depends on the calling context — an event loop, a thread, a transaction — the
+test has to establish that context, or it proves only that the code works
+somewhere production never calls it from. The same trap has a second mouth:
+US-081's `asyncio.run` was copied from US-080, where it is correct *because* it
+runs on a worker thread. A line's correctness can live in its surroundings, and
+copying it moves the line without the reason.
 
 ## Working with an AI pair changes one thing
 

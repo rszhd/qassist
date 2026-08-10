@@ -7,8 +7,10 @@ import { getUserOpenaiKey, resolveRunKey } from '../openaiKey.js';
 import { billingEnabled } from '../billing.js';
 import { runGateFor, retryAfterSeconds } from '../activation.js';
 import { refreshUserConcurrencyCap } from '../concurrency.js';
-import { sessionsForTests } from '../browserSession.js';
+import { sessionsForTests, preambleForRun } from '../browserSession.js';
+import { memoryForTests } from '../testMemoryStore.js';
 import { secretsForTests } from '../testSecrets.js';
+import { resolveForRun } from '../variables.js';
 
 /**
  * The columns a run needs off a saved test, plus the owning project's
@@ -250,7 +252,73 @@ export async function runTestsFromRequest(tests, body = {}, openaiApiKey = null)
     openai_api_key: openaiApiKey,
     sessions: await sessionsForTests(tests),
     storedSecrets: await secretsForTests(tests),
+    // What earlier passing runs of these tests learned (US-081). Pre-resolved
+    // here with the sessions and the secrets, for the same reason: the run
+    // engine is synchronous and every trigger path funnels through this.
+    memory: await memoryForTests(tests),
   });
+}
+
+/**
+ * Everything `createRun` needs off ONE saved test, resolved.
+ *
+ * Shared by the single-test run route and the US-081 memory panel, and that
+ * sharing is the point rather than a convenience. The panel has to show exactly
+ * what the next run would be handed, and the notebook is keyed to a hash of
+ * these resolved inputs — so a panel that assembled its own would drift from the
+ * run path and display advice the agent never got. It is the same lesson
+ * `RUNNABLE_TEST_COLS` carries one layer down, which US-048 learned by watching
+ * one route quietly build its own column list and miss a join.
+ *
+ * Returns `{ error }` for the three resolutions that can refuse — a secret that
+ * will not decrypt, a `{{name}}` with nothing to resolve to, a session blob that
+ * will not open — so the caller decides the status code. A run 400s on those;
+ * the panel degrades instead, because a notebook is an optimisation and must
+ * never be the reason something goes red.
+ * @param {any} test a RUNNABLE_TEST_COLS row
+ * @param {{ start_url?: string, max_steps?: number, trigger?: string,
+ *           variables?: Record<string, string> }} body
+ * @param {string|null} [openaiApiKey] the run key requireAgentKey resolved
+ * @returns {Promise<{ error: string } | { fields: Parameters<typeof import('../runs.js').createRun>[0] }>}
+ */
+export async function runnableFieldsFor(test, body = {}, openaiApiKey = null) {
+  // The stored secrets, decrypted before the synchronous run engine is entered
+  // (US-064) — the same pre-resolve the session blob and the BYOK key get.
+  const secrets = (await secretsForTests([test])).get(test.id) || {};
+  if (secrets.error) return { error: secrets.error };
+  const resolved = resolveForRun({
+    variables: test.variables,
+    overrides: body.variables,
+    stored: secrets.values,
+    goal: test.goal,
+    start_url: body.start_url || test.start_url,
+  });
+  if ('error' in resolved) return { error: resolved.error };
+  const session = (await sessionsForTests([test])).get(test.id) || {};
+  if (session.error) return { error: session.error };
+  return {
+    fields: {
+      goal: resolved.goal,
+      start_url: resolved.start_url,
+      max_steps: body.max_steps != null ? Number(body.max_steps) : test.max_steps,
+      model: test.model,
+      test_id: test.id,
+      trigger: TRIGGERS.has(body.trigger) ? body.trigger : 'api',
+      variables: resolved.variables,
+      secrets: resolved.secrets,
+      openai_api_key: openaiApiKey,
+      allowed_domains: test.allowed_domains,
+      // US-048: which project's fixtures this run may attach. Off the test's
+      // row, never off the request body.
+      project_id: test.project_id,
+      storage_state: session.storageState,
+      session_verify: session.verify,
+      capture_session_id: session.captureSessionId,
+      preamble: preambleForRun(test.initial_actions),
+      // What earlier passing runs of this test learned (US-081).
+      memory: (await memoryForTests([test])).get(test.id) || null,
+    },
+  };
 }
 
 /**

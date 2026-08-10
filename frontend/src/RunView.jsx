@@ -8,7 +8,7 @@ import { api, openReport } from './api.js';
 import ActivityLog from './Activity.jsx';
 import { startCheckout } from './Billing.jsx';
 import SavedTests from './SavedTests.jsx';
-import { TestDialog, RunVarsDialog } from './RunDialogs.jsx';
+import { MemoryPromptDialog, TestDialog, RunVarsDialog } from './RunDialogs.jsx';
 import { HintBox, PauseButton } from './Steering.jsx';
 import { batchSummary, fillTemplate, referencedNames, useProjectList } from './runHelpers.js';
 import { useRun } from './useRun.js';
@@ -41,6 +41,11 @@ export default function RunView({ token, health, keyStatus, visible, needsToken,
   const [runVars, setRunVars] = useState(null);
   const [varValues, setVarValues] = useState({});
   const [savingTest, setSavingTest] = useState(false);
+  // US-081: `{ testId, lessons }` while an edit is offering to clear a notebook.
+  // Its own state rather than a `dialog` mode, because it opens *after* the edit
+  // dialog has closed and the edit is already saved — nothing about it can fail
+  // the save, and nothing about the notebook has changed yet.
+  const [memoryPrompt, setMemoryPrompt] = useState(null);
   const [reportBusy, setReportBusy] = useState(false);
   // The rail opens with the view — the tests are how a run starts, so hiding
   // them behind a strip taxes the common path. What used to make that expensive
@@ -194,13 +199,34 @@ export default function RunView({ token, health, keyStatus, visible, needsToken,
         // opt-in. Scoped server-side to the project this write lands in.
         body.browser_session_id = editing.browser_session_id || null;
       }
-      if (editing.id) await api(`/api/tests/${editing.id}`, { token, method: 'PUT', body });
-      else await api('/api/tests', { token, method: 'POST', body });
+      if (editing.id) {
+        const saved = await api(`/api/tests/${editing.id}`, { token, method: 'PUT', body });
+        if (saved.memory?.changed) {
+          setMemoryPrompt({ testId: editing.id, lessons: saved.memory.lessons });
+        }
+      } else {
+        await api('/api/tests', { token, method: 'POST', body });
+      }
       closeDialog();
       await loadTests();
     } catch (err) {
       run.setError(`Save: ${err.message}`);
     } finally {
+      setSavingTest(false);
+    }
+  }
+
+  // US-081. The edit has landed either way; this only offers to throw away what
+  // the test had learned. Nothing is invalidated by an edit any more, so the
+  // dialog is an offer rather than a consequence — and the default is to keep.
+  async function clearMemoryAfterEdit() {
+    setSavingTest(true);
+    try {
+      await api(`/api/tests/${memoryPrompt.testId}/memory`, { token, method: 'DELETE' });
+    } catch (err) {
+      run.setError(`Run memory: ${err.message}`);
+    } finally {
+      setMemoryPrompt(null);
       setSavingTest(false);
     }
   }
@@ -689,6 +715,7 @@ export default function RunView({ token, health, keyStatus, visible, needsToken,
           sessions={editSessions}
           hasDb={!!health?.db}
           saving={savingTest}
+          token={token}
           onClose={closeDialog}
           onRun={startRun}
           onSave={saveTest}
@@ -708,6 +735,18 @@ export default function RunView({ token, health, keyStatus, visible, needsToken,
           setValues={setVarValues}
           onClose={closeDialog}
           onRun={() => runSavedTest(runVars, varValues)}
+        />
+      )}
+
+      {/* Outside the `dialog` switch: this one opens after the edit dialog has
+          closed and the edit has already saved, so it is not a mode of that
+          flow — it is a question about a side effect of it. */}
+      {memoryPrompt && (
+        <MemoryPromptDialog
+          lessons={memoryPrompt.lessons}
+          saving={savingTest}
+          onClear={clearMemoryAfterEdit}
+          onClose={() => setMemoryPrompt(null)}
         />
       )}
     </>

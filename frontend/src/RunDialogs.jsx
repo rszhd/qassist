@@ -1,5 +1,6 @@
 import { Play, Plus, Trash2 } from 'lucide-react';
 import { Button, Field, IconButton, Modal } from './ui.jsx';
+import RunMemory from './RunMemory.jsx';
 
 /**
  * The one place a run is described. `run` mode fires an ad-hoc run and can
@@ -9,7 +10,8 @@ import { Button, Field, IconButton, Modal } from './ui.jsx';
  */
 export function TestDialog({
   mode, goal, setGoal, startUrl, setStartUrl, editing, setEditing, variables, setVariables,
-  projects, modules, sessions = [], hasDb, saving, onClose, onRun, onSave, onDelete, onSwitchToSave,
+  projects, modules, sessions = [], hasDb, saving, token, onClose, onRun, onSave, onDelete,
+  onSwitchToSave,
 }) {
   const isRun = mode === 'run';
   const ready = startUrl.trim() && goal.trim() && (isRun || editing?.name.trim());
@@ -129,6 +131,17 @@ export function TestDialog({
         </Field>
 
         {!isRun && <VariablesEditor variables={variables} setVariables={setVariables} />}
+
+        {/* Only when editing: a test that does not exist yet has nothing to
+            remember, and the panel would read as a setting to decide before
+            saving — which is the one thing US-081 is not.
+
+            Deliberately NOT gated on `token`. It is empty in both of the modes
+            most people run — a sign-in cookie carries the auth, and an open
+            instance has none — so a gate on it would hide the panel from
+            everyone but a token-configured deployment. `api()` omits the header
+            when it is falsy, which is what every other view relies on. */}
+        {mode === 'edit' && editing?.id && <RunMemory testId={editing.id} token={token} />}
 
         {/* Enter in a text field submits the dialog. */}
         <button type="submit" hidden />
@@ -285,5 +298,41 @@ export function RunVarsDialog({ test, values, setValues, onClose, onRun }) {
         <button type="submit" hidden />
       </form>
     </Modal>
+  );
+}
+
+/**
+ * Offer to throw away what a test learned, after an edit that changed what the
+ * test does (US-081).
+ *
+ * Asked, never assumed, and the default is to keep. The system has no opinion:
+ * an edit does not make the next run cold and nothing here is invalidated
+ * automatically, because every rule that used to do that took notebooks away for
+ * changes that left the app under test where it was. What is left is the one
+ * judgement a person can make and the system cannot — *is this still the same
+ * flow?* — asked at the only moment they have the edit in mind.
+ *
+ * So dismissing it keeps the lessons, and so does ignoring it. Only the button
+ * deletes, and only what it says it deletes.
+ */
+export function MemoryPromptDialog({ lessons, saving, onClear, onClose }) {
+  const what = lessons === 1 ? 'lesson' : 'lessons';
+  return (
+    <Modal
+      title="Clear what this test learned?"
+      description={
+        `You changed what this test does. Its Run memory holds ${lessons} ${what} ` +
+        'that earlier runs worked out, and the next run will still start with them.'
+      }
+      onClose={onClose}
+      footer={
+        <>
+          <Button onClick={onClose} disabled={saving}>Keep {what}</Button>
+          <Button variant="danger" icon={Trash2} onClick={onClear} disabled={saving}>
+            Clear memory
+          </Button>
+        </>
+      }
+    />
   );
 }

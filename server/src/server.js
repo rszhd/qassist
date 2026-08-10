@@ -26,6 +26,7 @@ import { startScheduler } from './scheduler.js';
 import { startDemoReaper } from './demoReaper.js';
 import { runsRouter } from './routes/runs.js';
 import { testsRouter } from './routes/tests.js';
+import { testMemoryRouter } from './routes/testMemory.js';
 import { suitesRouter } from './routes/suites.js';
 import { projectsRouter } from './routes/projects.js';
 import { modulesRouter } from './routes/modules.js';
@@ -158,6 +159,10 @@ app.use('/api/capture', captureRouter());
 app.use('/api/billing', billingRouter({ checkToken }));
 
 app.use('/api/runs', runsRouter({ checkToken, checkTokenOrQuery }));
+// US-081's panel, mounted UNDER /api/tests/:id so it is a property of the test
+// rather than a resource of its own. Before the tests router, because that one
+// owns '/:id' and would answer first.
+app.use('/api/tests/:id/memory', testMemoryRouter({ checkToken }));
 app.use('/api/tests', testsRouter({ checkToken }));
 app.use('/api/suites', suitesRouter({ checkToken }));
 app.use('/api/projects', projectsRouter({ checkToken }));

@@ -34,13 +34,17 @@ import {
   ARTIFACTS_DIR,
   MODEL,
   CAPTURE_HAR,
+  CALCULATE_COST,
   instancePolicy,
 } from './config.js';
 import { checkStartUrl, agentEnvFor } from './navigationPolicy.js';
 import { processTree } from './procMemory.js';
 import { addRun, allRuns, evictLater, getRun, TERMINAL } from './runState.js';
 import { broadcast, setQueuePosition, setScreencast } from './runRelay.js';
-import { captureSession, maybeNotify, persistInsert, persistUpdate } from './runPersistence.js';
+import {
+  captureSession, maybeNotify, persistInsert, persistUpdate, storeLearned,
+} from './runPersistence.js';
+import { memoryFor } from './testMemory.js';
 import { generateReport } from './runReport.js';
 import { startReplay } from './runReplay.js';
 
@@ -116,6 +120,21 @@ function canStart(run) {
   return cap == null || runningForUser(run.user_id) < cap;
 }
 
+/**
+ * What a run of these fields would be given (US-081), without creating one.
+ *
+ * `createRun` and the memory panel both call this, and that sharing is the whole
+ * reason it is a function. The story's rule is that the next run receives exactly
+ * the content the panel shows — so a second assembly is not a tidiness question:
+ * two spellings drift, and the panel then displays a notebook the agent was never
+ * handed. Same lesson as `RUNNABLE_TEST_COLS`, which US-048 learned the other
+ * way round.
+ * @param {Parameters<typeof createRun>[0]} fields
+ */
+export function previewMemory(fields) {
+  return memoryFor({ stored: fields.memory ?? null });
+}
+
 // --- run lifecycle ---
 
 /**
@@ -136,6 +155,7 @@ function canStart(run) {
  *           session_verify?: import('./browserSession.js').SessionMaterial['verify'],
  *           capture_session_id?: string | null,
  *           preamble?: import('./browserSession.js').PreambleAction[],
+ *           memory?: import('./testMemory.js').StoredMemory | null,
  *           schedule_id?: string | null, scheduled_for?: Date | null }} fields
  * @returns {Run | Blocked | Rejected}
  */
@@ -165,6 +185,15 @@ export function createRun(fields) {
     const inFlight = inFlightForUser(uid);
     if (inFlight >= cap) return { rejected: true, cap, inFlight };
   }
+
+  // What this run is given, and what it may write back (US-081). Settled here,
+  // before the run exists, for the reason `storage_state` is: the engine is
+  // synchronous and the stored notebook is a DB read, so the async caller
+  // resolves it and hands it in. A caller that passes nothing gets no advice,
+  // which is a saved test's first run and correct.
+  // An ad-hoc run has no test, so there is nothing to read and nothing to write
+  // it back to. `test_id` is the flag `startRun` and `recordMemory` both read.
+  const memory = fields.test_id ? previewMemory(fields) : { used: false, supplied: null };
 
   const runId = randomUUID();
   /** @type {Run} */
@@ -214,6 +243,13 @@ export function createRun(fields) {
     // The project's deterministic preamble (AC #5), already validated at write
     // time and re-filtered on read.
     preamble: fields.preamble || [],
+    // US-081, both decided by `previewMemory` above off the test's stored
+    // notebook — which the async caller resolved before this synchronous engine
+    // was entered, exactly as the session blob and the stored secrets are.
+    // `memory_supplied` is in-memory only, like the policy: it is derived from
+    // the test's row, and persisting it would be a second copy that can disagree.
+    memory_used: memory.used,
+    memory_supplied: memory.supplied,
     user_id: uid,
     trigger,
     // Which schedule started this and which of its firings (US-069). Only the
@@ -261,6 +297,7 @@ export function createRun(fields) {
  *           openai_api_key?: string|null,
  *           sessions?: Map<string, import('./browserSession.js').SessionMaterial>,
  *           storedSecrets?: Map<string, import('./testSecrets.js').StoredSecrets>,
+ *           memory?: Map<string, import('./testMemory.js').StoredMemory>,
  *           schedule_id?: string|null, scheduled_for?: Date|null }} [opts]
  */
 export function runTests(tests, opts = {}) {
@@ -304,6 +341,8 @@ export function runTests(tests, opts = {}) {
       session_verify: session.verify,
       capture_session_id: session.captureSessionId,
       preamble: preambleForRun(t.initial_actions),
+      // What earlier passing runs of this test learned (US-081).
+      memory: opts.memory?.get(t.id) || null,
       // One slot's members all carry the same pair (US-069), which is what
       // makes a suite schedule's ten runs one mark on the strip instead of ten.
       schedule_id: opts.schedule_id,
@@ -538,6 +577,32 @@ export function stopRun(run) {
   return true;
 }
 
+// What this run leaves in its test's notebook (US-081), decided once the verdict
+// is resolved and called from both terminal branches.
+//
+// Only a pass writes, and a run that did not pass changes nothing at all. An
+// earlier draft marked the notebook suspect on a failure and withheld it from the
+// next run; that was wrong, because the commonest reason a QA test fails is that
+// it found the bug it exists to find, and the cold run it forced would then
+// replace a notebook none of whose lessons had failed.
+//
+// Every passing run contributes whatever help it had — the shape of the write is
+// what stops advice confirming itself, not silence, and `agent/run_memory.py`
+// applied that shape before this row is touched.
+/** @param {Run} run */
+function recordMemory(run) {
+  // An ad-hoc run has no test to remember anything, so it may not write.
+  if (run.status !== 'passed' || !run.test_id) return;
+
+  // A pass that produced nothing usable must not reach the notebook: a vacuous
+  // write would displace real lessons and read as freshly learned. This is also
+  // the settled-test path — the agent skips the generator when its trace met no
+  // incident, so `run.memory` is absent and the row keeps pointing at the run
+  // that actually contributed.
+  const learned = run.memory || {};
+  if (Object.values(learned).some((section) => section?.length)) storeLearned(run, learned);
+}
+
 // End a run that has no process to wait for. The `close` handler's job, minus
 // the slot bookkeeping it does not owe: nothing was spawned, so nothing was
 // counted.
@@ -556,6 +621,14 @@ function finishCancelled(run) {
   evictLater(run.id);
 }
 
+// What the feed says about this run's notebook, or nothing. Silent on a cold run
+// — a first run, or one after Clear — because that is the ordinary state of a
+// test nobody has taught yet, and a line for it would be noise on every run.
+/** @param {Run} run */
+function memoryNote(run) {
+  return run.memory_used ? 'Starting with what earlier runs of this test learned.' : null;
+}
+
 /** @param {string} runId */
 function startRun(runId) {
   const run = getRun(runId);
@@ -565,6 +638,13 @@ function startRun(runId) {
   run.queueEvent = null;
   run.startedAt = Date.now();
   broadcast(run, { type: 'status', status: 'running' });
+  // US-081. One line, before the first step, so somebody watching a run that
+  // behaves oddly can see whether it was working from advice — and, when it was
+  // not, why the advice this test holds is being kept back. Silent when there is
+  // nothing to report: an ad-hoc run and a test that has never learned are the
+  // ordinary cases, and a feed line for either would be noise on every run.
+  const note = memoryNote(run);
+  if (note) broadcast(run, { type: 'progress', message: note });
   persistUpdate(run);
 
   // BYOK (US-005/US-039): the run's resolved key is the only key, and this is
@@ -599,6 +679,21 @@ function startRun(runId) {
     // QA_FIXTURES: the spread below carries the server's own environment, and an
     // unsent variable would inherit whatever this process happens to hold.
     QA_HAR: run.har ? '1' : '0',
+    // US-046. Sent as '1'/'0' for QA_HAR's reason, and with one of its own: the
+    // agent turns this into `BROWSER_USE_CALCULATE_COST` before importing
+    // browser-use, because that library ORs its kwarg with the environment. An
+    // unsent variable would leave the decision to whatever this process holds.
+    QA_CALCULATE_COST: CALCULATE_COST ? '1' : '0',
+    // US-081. Both are *conditionally* set, and that is the difference from
+    // QA_HAR and QA_CALCULATE_COST above: those always send a value because an
+    // unsent variable would inherit the server's own environment. These two are
+    // never in the server's environment, and an ad-hoc run must produce a spawn
+    // identical to today's rather than one carrying an empty notebook. The
+    // `delete` below is what makes the absent case absent rather than `''`.
+    QA_MEMORY: run.memory_supplied ? JSON.stringify(run.memory_supplied) : '',
+    // A saved test always learns; only an ad-hoc run, which has no test to
+    // remember anything, does not.
+    QA_LEARN_MEMORY: run.test_id ? '1' : '',
     BROWSER_USE_MODEL: run.model || MODEL,
     OPENAI_API_KEY: run.openai_api_key,
     ARTIFACTS_DIR,
@@ -610,6 +705,8 @@ function startRun(runId) {
     ...agentEnvFor(run.policy || instancePolicy()),
   };
   if (!run.openai_api_key) delete childEnv.OPENAI_API_KEY;
+  if (!childEnv.QA_MEMORY) delete childEnv.QA_MEMORY;
+  if (!childEnv.QA_LEARN_MEMORY) delete childEnv.QA_LEARN_MEMORY;
 
   // The session's plaintext reaches disk here and only here, in a directory of
   // this run's own — teardown is `rm -rf` on that directory rather than an
@@ -700,6 +797,11 @@ function startRun(runId) {
       if (evt.type === 'recording') {
         // Always arrives before done/error, so the report can link it.
         run.recordingFile = evt.file;
+      } else if (evt.type === 'memory') {
+        // Held, not stored (US-081). Whether this run may write is a question
+        // about the run's *ending* — stopped, edited underneath, or fine — and
+        // none of that is known yet.
+        run.memory = evt.learned;
       } else if (evt.type === 'done') {
         run.result = evt;
         // A stop decides the outcome, the agent does not (US-047). browser-use
@@ -727,10 +829,12 @@ function startRun(runId) {
           const exported = readExportedState(run.id);
           if (exported) captureSession(run, exported);
         }
+        recordMemory(run);
         generateReport(run);
       } else if (evt.type === 'error') {
         run.result = evt;
         run.status = run.cancelling ? 'cancelled' : 'error';
+        recordMemory(run);
         generateReport(run);
       }
       broadcast(run, evt);

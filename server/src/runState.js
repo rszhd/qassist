@@ -34,7 +34,8 @@ import { RUN_TTL_MS } from './config.js';
  * @typedef {{ success?: boolean | null, message?: string,
  *             final_result?: string | null, failure_reason?: string | null,
  *             blocked_url?: string | null, steps?: number,
- *             duration_seconds?: number | null, errors?: string[] }} RunResult
+ *             duration_seconds?: number | null, errors?: string[],
+ *             usage?: import('./runEvents.js').RunUsage | null }} RunResult
  */
 
 /**
@@ -64,6 +65,16 @@ import { RUN_TTL_MS } from './config.js';
  * @property {import('./browserSession.js').SessionMaterial['verify']} session_verify
  *   the expiry check the agent runs on the first step
  * @property {string | null} capture_session_id the session a PASS here refreshes
+ * @property {boolean} memory_used whether learned lessons actually reached the
+ *   prompt. That is what makes the run a non-independent observer, so it is a
+ *   column and not a derived value
+ * @property {Record<string, unknown[]> | null} memory_supplied the notebook
+ *   handed to the agent as QA_MEMORY, in the generator's sections — the one
+ *   value the panel also shows, because there is no memory visible only to the
+ *   model. In-memory only, like the policy: it is derived from the test's row
+ *   and persisting it would be a second copy that can disagree
+ * @property {Record<string, unknown[]>} [memory] the merged notebook the agent's
+ *   generator returned, held until the verdict says whether this run may write
  * @property {import('./browserSession.js').PreambleAction[]} preamble
  *   deterministic actions to run before step 1
  * @property {string | null} user_id

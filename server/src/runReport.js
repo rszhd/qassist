@@ -64,6 +64,12 @@ export function generateReport(run) {
     // that finished alone, and a report silent about it says otherwise.
     hints: hintsOf(run),
     assisted: hintsOf(run).length > 0,
+    // US-046: what the run spent, including the per-model breakdown that stays
+    // out of the row. A run bills against three or four LLMs — the agent, the
+    // judge, page extraction, message compaction — and which of them spent the
+    // money is a run-detail question, not something to widen the table for.
+    // Null when nothing measured it, which is not the same as zero.
+    usage: res.usage ?? null,
     steps: stepsOf(run),
     // US-044: what the browser said while this run was failing. Bounded by the
     // agent's per-step cap, so this stays a section and not an archive — the

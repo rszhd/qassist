@@ -185,6 +185,17 @@ export const RECORDING_FILENAME = 'recording.mp4';
 // ask per run with `har: true`.
 export const HAR_FILENAME = 'network.har';
 export const CAPTURE_HAR = /^(1|true|yes)$/i.test(process.env.CAPTURE_HAR || '');
+// Token usage and estimated cost (US-046). ON by default: since US-039 every
+// run is funded by the user's own key, so what it cost is part of the result
+// rather than an internal metric. The price of that default is one outbound
+// request per container boot — browser-use fetches LiteLLM's pricing table and
+// caches it under $HOME/.cache for a day.
+//
+// CALCULATE_COST=0 is the off switch, and it is a real one: no fetch, no
+// pricing lookup, and no cost on the run. An operator with no egress, or one
+// who simply did not ask for the request, gets tokens only. Tokens cost
+// nothing to collect — browser-use counts them either way.
+export const CALCULATE_COST = !/^(0|false|no)$/i.test(process.env.CALCULATE_COST || '');
 // What generateReport() writes and both the PDF renderer and US-026's steps
 // endpoint read back.
 export const REPORT_DATA_FILENAME = 'report_data.json';

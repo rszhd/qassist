@@ -113,11 +113,35 @@
  * `success` is null when the agent reached no judgement at all.
  * `failure_reason` is null on every ordinary run, which is what keeps a value
  * meaning "a fence fired" rather than "something went wrong".
+ *
+ * `usage` is US-046, authored by `agent/run_cost.py`. Null when there is no
+ * measurement at all — the run crashed before browser-use built its summary.
  * @typedef {{ type: 'done', success: boolean | null, steps: number,
  *             duration_seconds: number | null, final_result: string | null,
  *             errors: string[], urls?: string[],
  *             failure_reason?: string | null,
- *             blocked_url?: string | null }} DoneEvent
+ *             blocked_url?: string | null,
+ *             usage?: RunUsage | null }} DoneEvent
+ */
+
+/**
+ * What a run spent (US-046), flattened by `agent/run_cost.py` — which is this
+ * shape's author, so a field renamed there lands here in the same commit.
+ *
+ * **`total_cost` is null whenever `cost_known` is false, and the two are not
+ * redundant.** browser-use reports `0.0` when costing was off, when the pricing
+ * table never loaded, and when the model has no published price — and a run
+ * that genuinely cost nothing reports the same. Tokens are a measurement in all
+ * four cases; cost is one in exactly one of them. Every reader renders an
+ * unknown cost as unknown, and an aggregate over a set holding one says so
+ * rather than summing what it could price.
+ * @typedef {{ model: string, prompt_tokens: number, completion_tokens: number,
+ *             total_tokens: number, invocations: number,
+ *             cost: number | null, cost_known: boolean }} ModelUsage
+ * @typedef {{ prompt_tokens: number, completion_tokens: number,
+ *             total_tokens: number, entry_count: number,
+ *             total_cost: number | null, cost_known: boolean,
+ *             by_model: ModelUsage[] }} RunUsage
  */
 
 /**
@@ -182,6 +206,27 @@
  */
 
 /**
+ * The notebook this run's generator produced (US-081), authored by
+ * `agent/run_memory.py` — so a section renamed there lands here in the same
+ * commit. Always arrives before `done`, like `recording`, so the store branch
+ * has it when the verdict resolves.
+ *
+ * Already merged against what this run was given: a cold run's is the whole
+ * notebook, an assisted run's is what it was given plus what it found. The
+ * server stores it only if the run then turns out to have been allowed to — the
+ * agent cannot know whether it was stopped, nor whether the test was edited
+ * while it ran.
+ *
+ * Emitted only when the generator ran and its answer differed from what the run
+ * started with. A settled test whose trace met no incident emits nothing, which
+ * is what keeps `learned_at` pointing at the run that contributed.
+ *
+ * `learned` is the generator's three sections, already scrubbed and already
+ * inside its item and character budgets.
+ * @typedef {{ type: 'memory', learned: Record<string, unknown[]> }} MemoryEvent
+ */
+
+/**
  * The server's own, and the last event on the socket. `status` is the resolved
  * terminal status, `code` the child's exit code when there was a child to
  * exit, `demo: true` when a replay ended.
@@ -195,7 +240,7 @@
  * @typedef {StartEvent | FrameEvent | StepEvent | DiagnosticsEvent | BlockedEvent
  *          | PreambleEvent | RecordingEvent | DoneEvent | ErrorEvent | MessageEvent
  *          | StatusEvent | StoppingEvent | PausedEvent | ResumedEvent | HintEvent
- *          | EndEvent} RunEvent
+ *          | MemoryEvent | EndEvent} RunEvent
  */
 
 /**

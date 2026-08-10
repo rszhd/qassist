@@ -37,6 +37,22 @@ const WITH_VARS = {
   module_id: null,
 };
 
+// What a saved test remembers (US-081). Mutable, so a test can put the notebook
+// in doubt without a second stub — restored in its own `finally`.
+const LESSON = {
+  id: 'a1',
+  text: 'Open Billing from the account menu',
+  steps: [4],
+  run_id: 'run-1',
+  learned_at: '2026-08-01T09:00:00.000Z',
+  hinted: false,
+};
+const MEMORY = {
+  learned: { successful_approach: [LESSON], avoid_next_time: [], orientation: [] },
+  supplied: { successful_approach: [LESSON], avoid_next_time: [], orientation: [] },
+  learned_at: '2026-08-01T09:00:00.000Z',
+};
+
 // Records every request so the test can assert whether — and with what body —
 // a run was posted. WebSocket is stubbed because a successful run opens one.
 function stubEnv(withVars = WITH_VARS) {
@@ -46,6 +62,8 @@ function stubEnv(withVars = WITH_VARS) {
     calls.push({ url, method: init.method || 'GET', body: init.body ? JSON.parse(init.body) : undefined });
     let body = {};
     if (url.includes('/run')) body = { runId: 'r1', status: 'queued' };
+    // Before the /api/tests branch — a memory URL starts with it too (US-081).
+    else if (url.includes('/memory')) body = MEMORY;
     else if (url.startsWith('/api/tests')) body = { tests: [PLAIN, withVars] };
     else if (url.startsWith('/api/projects')) body = { projects: [] };
     return Promise.resolve({ ok: true, status: 200, json: async () => body });
@@ -62,11 +80,11 @@ function stubEnv(withVars = WITH_VARS) {
 
 // Inside a router: the view links a started run to its own page, and a bare
 // <Link> outside one throws.
-function renderRunView(health = { db: true }) {
+function renderRunView(health = { db: true }, token = 't') {
   return render(
     <MemoryRouter>
       <RunView
-        token="t"
+        token={token}
         health={health}
         keyStatus={{ set: true, updated_at: null }}
         visible
@@ -581,5 +599,143 @@ describe('RunView steering a live run (US-079)', () => {
 
     await waitFor(() => expect(screen.queryByText('Pause')).toBeNull());
     expect(screen.queryByLabelText('Tell the run what to do')).toBeNull();
+  });
+});
+
+// US-081. The panel was gated on a truthy `token` in the first build and was
+// therefore invisible in both of the modes most people run: a signed-in user
+// authenticates with a cookie and an open instance has no token at all, so
+// `token` is `''` for both. Every other view passes that same empty string to
+// `api()`, which omits the header — so the gate was the only thing reading it as
+// "not authenticated".
+describe('Run memory panel (US-081)', () => {
+  it.each([
+    ['a token instance', 't'],
+    ['a cookie session or an open instance', ''],
+  ])('is reachable when editing a saved test on %s', async (_label, token) => {
+    stubEnv();
+    renderRunView({ db: true }, token);
+    fireEvent.click((await screen.findAllByLabelText('Edit'))[0]);
+    await screen.findByText('Edit test');
+    expect(await screen.findByText('Run memory')).toBeTruthy();
+  });
+
+  it('is not there at all until the test has learned something', async () => {
+    // The feature is automatic and safe to ignore, so a test that has learned
+    // nothing gets no panel — not an empty drawer you open once to find out it
+    // never mattered.
+    stubEnv();
+    const learned = MEMORY.learned;
+    MEMORY.learned = { successful_approach: [], avoid_next_time: [], orientation: [] };
+    try {
+      renderRunView();
+      fireEvent.click((await screen.findAllByLabelText('Edit'))[0]);
+      await screen.findByText('Edit test');
+      expect(screen.queryByText('Run memory')).toBeNull();
+    } finally {
+      MEMORY.learned = learned;
+    }
+  });
+
+  it('stays shut until it is asked for', async () => {
+    // The feature is automatic, so the panel is a heading and nothing else
+    // until someone opens it — no summary line competing with the fields above.
+    stubEnv();
+    renderRunView();
+    fireEvent.click((await screen.findAllByLabelText('Edit'))[0]);
+    await screen.findByText('Edit test');
+    expect(await screen.findByText('Run memory')).toBeTruthy();
+    expect(screen.queryByText('What worked')).toBeNull();
+  });
+
+  it('shows a lesson and offers to remove it, but never to write one', async () => {
+    const calls = stubEnv();
+    renderRunView();
+    fireEvent.click((await screen.findAllByLabelText('Edit'))[0]);
+    await screen.findByText('Edit test');
+    fireEvent.click(await screen.findByText('Run memory'));
+
+    expect(await screen.findByText('Open Billing from the account menu')).toBeTruthy();
+    fireEvent.click(await screen.findByLabelText('Remove this lesson'));
+
+    await waitFor(() =>
+      expect(calls.some((c) => c.method === 'DELETE' && c.url.includes('/lessons/a1'))).toBe(true)
+    );
+    // A lesson means a trace produced it, so there is nothing here that sends
+    // one — the only writes this panel can make are deletions.
+    expect(calls.some((c) => c.url.includes('/memory') && ['PUT', 'POST'].includes(c.method))).toBe(
+      false
+    );
+  });
+
+  it('shows the lessons it is going to hand over, and nothing else', async () => {
+    // There is no state in which a notebook is shown but withheld, so the panel
+    // has nothing to explain — it shows what the next run gets.
+    stubEnv();
+    renderRunView();
+    fireEvent.click((await screen.findAllByLabelText('Edit'))[0]);
+    await screen.findByText('Edit test');
+    fireEvent.click(await screen.findByText('Run memory'));
+    expect(await screen.findByText('Open Billing from the account menu')).toBeTruthy();
+    expect(await screen.findByText('Clear')).toBeTruthy();
+  });
+
+});
+
+// US-081: what an edit offers to do to what the test learned.
+describe('an edit offers to clear what the test learned (US-081)', () => {
+  async function editAndSave(memory) {
+    const calls = stubEnv();
+    const fetchImpl = global.fetch;
+    vi.stubGlobal('fetch', (input, init = {}) => {
+      const url = typeof input === 'string' ? input : input.url;
+      if (url.startsWith('/api/tests/') && (init.method || 'GET') === 'PUT') {
+        calls.push({ url, method: 'PUT' });
+        return Promise.resolve({ ok: true, status: 200, json: async () => ({ memory }) });
+      }
+      return fetchImpl(input, init);
+    });
+    renderRunView();
+    fireEvent.click((await screen.findAllByLabelText('Edit'))[0]);
+    await screen.findByText('Edit test');
+    fireEvent.click(screen.getByText('Save changes'));
+    return calls;
+  }
+
+  it('clears when the person asks it to', async () => {
+    const calls = await editAndSave({ changed: true, lessons: 2 });
+    fireEvent.click(await screen.findByText('Clear memory'));
+    await waitFor(() =>
+      expect(calls.some((c) => c.method === 'DELETE' && c.url.endsWith('/memory'))).toBe(true)
+    );
+  });
+
+  it('keeps them otherwise, and keeping is the default', async () => {
+    // The whole revised rule in one assertion: an edit does not take a notebook
+    // away, it only offers. The Keep button does exactly what dismissing does,
+    // which is nothing at all.
+    const calls = await editAndSave({ changed: true, lessons: 2 });
+    fireEvent.click(await screen.findByText('Keep lessons'));
+    await waitFor(() => expect(screen.queryByText('Clear memory')).toBeNull());
+    expect(calls.some((c) => c.url.includes('/memory') && c.method !== 'GET')).toBe(false);
+  });
+
+  it('deletes nothing when the dialog is merely dismissed', async () => {
+    // Escape, the X and the scrim all land here.
+    const calls = await editAndSave({ changed: true, lessons: 2 });
+    await screen.findByText('Clear memory');
+    fireEvent.click(screen.getByLabelText('Close'));
+    await waitFor(() => expect(screen.queryByText('Clear memory')).toBeNull());
+    // Reads are fine and expected — the panel in the edit dialog fetches one.
+    // What must not happen is a write.
+    expect(calls.some((c) => c.url.includes('/memory') && c.method !== 'GET')).toBe(false);
+  });
+
+  it('says nothing when the edit left the flow alone', async () => {
+    // A rename, a step ceiling, a model. A prompt there would be exactly the
+    // nagging the story refuses.
+    await editAndSave({ changed: false, lessons: 2 });
+    await waitFor(() => expect(screen.queryByText('Edit test')).toBeNull());
+    expect(screen.queryByText('Clear what this test learned?')).toBeNull();
   });
 });

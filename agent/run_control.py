@@ -28,6 +28,13 @@ def quietly(fn) -> None:
         fn()
 
 
+# Whether a person told this run something mid-flight (US-079). Read at the end
+# of the run by US-081's generator, which credits the lesson to the person rather
+# than to the agent: a hint is evidence from outside, and a panel that could not
+# say so would report a discovery somebody handed it.
+hinted = False
+
+
 def apply_hint(agent, text: str) -> None:
     """Append a person's mid-run correction to the agent's own history.
 
@@ -44,4 +51,6 @@ def apply_hint(agent, text: str) -> None:
     whose bus is shut down; firing it here tears down the bus the live loop is
     still using, and replaces the goal we were asked to prove.
     """
+    global hinted
+    hinted = True
     agent._message_manager.add_new_task(text)

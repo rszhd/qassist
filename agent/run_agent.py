@@ -33,7 +33,13 @@ run needs the frames regardless and only gates the emitting.
 Inputs come from environment variables:
   QA_GOAL, QA_START_URL, QA_MAX_STEPS, BROWSER_USE_MODEL, OPENAI_API_KEY
   QA_RUN_ID, ARTIFACTS_DIR (recording + step screenshots)
+  QA_MEMORY / QA_LEARN_MEMORY (US-081: the notebook a previous run of this test
+  left, and whether this run should write one back. Both ABSENT — not empty — on
+  an ad-hoc run, so its spawn is identical to one from before this shipped; see
+  run_memory.py)
   QA_RECORD=0 disables recording (US-002's viewer gating then applies again)
+  QA_CALCULATE_COST=0 disables token-cost estimation, and with it the pricing
+  fetch browser-use would otherwise make (US-046 — token counts are unaffected)
   QA_HAR=1 also writes runs/<runId>/network.har — the full archive beside the
   curated summary, headers and bodies omitted (US-044)
   QA_FIXTURES (JSON array of absolute paths — the only files this run may
@@ -55,7 +61,23 @@ import os
 import secrets as pysecrets
 import sys
 import time
+from datetime import datetime, timezone
 from pathlib import Path
+
+# Cost collection (US-046), and the reason it is set HERE rather than passed as
+# a kwarg alone. `TokenCost.__init__` is
+#
+#     self.include_cost = include_cost or os.getenv('BROWSER_USE_CALCULATE_COST', ...)
+#
+# — an `or`, so `Agent(calculate_cost=False)` does not turn cost off for an
+# operator whose environment happens to hold that variable, and "off means no
+# outbound request at all" would be quietly false. Assigned, not `setdefault`:
+# this is our switch, and the environment does not get a vote. Before the import
+# for the same reason as the two below, plus one of its own — tokens/service.py
+# calls `load_dotenv()` at import, and a value already in os.environ is what
+# stops a stray .env from putting the fetch back.
+CALCULATE_COST = os.environ.get("QA_CALCULATE_COST", "1") != "0"
+os.environ["BROWSER_USE_CALCULATE_COST"] = "true" if CALCULATE_COST else "false"
 
 # Both default to ON in browser-use, and both spend network at interpreter exit
 # on the way to somebody else's servers: posthog registers an atexit that joins
@@ -82,6 +104,8 @@ import exit_watchdog
 import fixtures
 import navigation_policy
 import run_control
+import run_memory
+import run_cost
 import secret_vars
 import step_events
 import browser_session
@@ -133,6 +157,64 @@ def safe(fn, default=None):
         return default
 
 
+async def write_memory(model, trace, goal, sensitive, supplied) -> None:
+    """Derive this run's notebook and offer it to the server, or say nothing.
+
+    Three ways to say nothing, and each is a rule of the story rather than an
+    error path. A run given advice whose trace met no incident does not call the
+    generator at all — the advice worked, and that is the steady state of a
+    settled test. A generator that returns None wrote nothing, which under
+    accumulation is not the same as writing an empty notebook. And an answer
+    equal to what the run was handed is skipped, so the row keeps naming the run
+    that actually contributed rather than the last one that happened to pass.
+
+    Awaited on the agent's own loop, NOT through `asyncio.run` — this is called
+    from inside `main`, so the loop is already running and `asyncio.run` would
+    raise on every run. US-080's extractor may use it only because it runs on a
+    worker thread with a loop of its own. The first build made exactly that
+    mistake and `make_generator`'s `except` swallowed it, so no notebook was ever
+    written and nothing was red.
+    """
+    if not run_memory.should_generate(trace, cold=supplied is None):
+        return
+    learned = await run_memory.make_generator(
+        lambda system, user: ask_llm(model, system, user)
+    )(
+        trace,
+        notebook=supplied,
+        goal=goal,
+        sensitive=sensitive,
+        stamp={
+            "run_id": os.environ.get("QA_RUN_ID"),
+            "learned_at": datetime.now(timezone.utc).isoformat(),
+            # A hint is evidence from outside, and the panel credits the person
+            # rather than the agent for what it led to (US-079).
+            "hinted": run_control.hinted,
+        },
+    )
+    if learned and learned != supplied:
+        emit({"type": "memory", "learned": learned})
+
+
+async def ask_llm(model: str, system: str, user: str) -> str:
+    """One off-agent call on the run's own BYOK provider.
+
+    Shared by US-080's email reader and US-081's memory generator — the same
+    provider that already sees every page screenshot, so neither crosses a new
+    trust boundary.
+
+    Owning the http client is what lets it be closed while the loop it belongs
+    to is still open: `ChatOpenAI` builds an `AsyncOpenAI` per call that nobody
+    closes, so its httpx pool is otherwise torn down later on a dead loop and
+    prints a RuntimeError traceback into the run log (staging run 6984279c).
+    """
+    async with httpx.AsyncClient() as http_client:
+        answer = await ChatOpenAI(model=model, http_client=http_client).ainvoke(
+            [SystemMessage(content=system), UserMessage(content=user)]
+        )
+    return answer.completion
+
+
 def recorder_for(output_path: str) -> SessionRecorder:
     """A recorder for this run, and the encoder it starts on its first frame.
 
@@ -158,6 +240,81 @@ def recorder_for(output_path: str) -> SessionRecorder:
         return svc
 
     return SessionRecorder(output_path, start_service)
+
+
+# US-046: how long the pricing table gets before the run gives up on costing
+# itself. Short on purpose — this is spent before step 1 and comes out of the
+# run's own wall clock, and the answer it buys is an estimate.
+PRICING_TIMEOUT_S = 15
+
+
+async def warm_pricing(service, model: str) -> None:
+    """Load the pricing table before the run, under a bound we control.
+
+    browser-use computes its usage summary on `agent.run()`'s return path
+    (agent/service.py:2644) and again in its finally (:2672), and a pricing
+    lookup inside either can reach the network: a model the LiteLLM table does
+    not know falls through to OpenRouter's catalogue, whose fetch has a 30s
+    ceiling and — because it leaves its cache unset on failure — is retried once
+    per usage entry. Neither call site is anywhere we can wrap. A network that
+    hangs rather than refusing would hold a finished run, and its concurrency
+    slot, for as long as it takes to walk the whole history.
+
+    Doing it here first makes those lookups dictionary reads. Asking for the
+    run's own model is what primes the OpenRouter cache too, which the table
+    load alone does not touch.
+
+    On timeout the service is marked loaded-and-empty BY HAND. `ensure_pricing_loaded`
+    cancelled mid-flight leaves `_initialized` False, and the retry then happens
+    in exactly the place this function exists to keep clear of — so the public
+    call is the route and the two private attributes are the fallback, which is
+    the same bargain US-043 struck with `_cdp_get_storage_state`.
+
+    Never raises. A run must not fail because it could not price itself.
+    """
+    try:
+        await asyncio.wait_for(service.ensure_pricing_loaded(), timeout=PRICING_TIMEOUT_S)
+        await asyncio.wait_for(service.get_model_pricing(model), timeout=PRICING_TIMEOUT_S)
+    except Exception:
+        try:
+            service._pricing_data = {}
+            service._initialized = True
+        except Exception:
+            pass
+        emit({"type": "warn", "message": "pricing unavailable — reporting tokens without cost"})
+
+
+async def priced_models(service, models) -> set[str]:
+    """Which of these model names the pricing table can actually answer for.
+
+    The question `UsageSummary` cannot be asked. Its `total_cost` is 0.0 whether
+    the price was zero, the table was empty or costing was off, so the discriminator
+    has to come from the pricing side — and it has to be a *price*, not a
+    non-zero cost, or a genuinely free model would report as unknown forever.
+
+    Bounded and swallowing, like everything else on this path: a model we cannot
+    resolve is reported as unpriced, which renders as "unknown". Never as zero.
+    """
+    # The same indirection `calculate_cost` applies (tokens/service.py:225): a
+    # registered LLM maps its own model name to the one the pricing table is
+    # keyed by, and asking under the wrong one answers None for a model that has
+    # a perfectly good price.
+    aliases = getattr(service, "_pricing_model_names", None) or {}
+    priced = set()
+    for name in models:
+        try:
+            pricing = await asyncio.wait_for(
+                service.get_model_pricing(aliases.get(name, name)),
+                timeout=PRICING_TIMEOUT_S,
+            )
+        except Exception:
+            continue
+        if pricing is None:
+            continue
+        if pricing.input_cost_per_token is None and pricing.output_cost_per_token is None:
+            continue
+        priced.add(name)
+    return priced
 
 
 async def stdin_control(agent, watch_event: asyncio.Event, stop_event: asyncio.Event) -> None:
@@ -475,20 +632,10 @@ async def main() -> int:
         # wait_for_confirmation's worker thread, so it gets its own event
         # loop and a fresh client per call rather than sharing the agent's,
         # which is bound to the main loop.
-        # `asyncio.run` closes the loop, and ChatOpenAI builds an AsyncOpenAI
-        # per call that nobody closes — so its httpx pool is torn down later,
-        # on a dead loop, and prints a RuntimeError traceback into the run log
-        # (staging run 6984279c). Owning the http client is what lets it be
-        # closed while the loop it belongs to is still open.
-        async def ask(system: str, user: str) -> str:
-            async with httpx.AsyncClient() as http_client:
-                answer = await ChatOpenAI(model=model, http_client=http_client).ainvoke(
-                    [SystemMessage(content=system), UserMessage(content=user)]
-                )
-            return answer.completion
-
+        # `asyncio.run` closes the loop, hence a fresh client per call —
+        # `ask_llm` owns the http client for the reason written there.
         def extractor_invoke(system: str, user: str) -> str:
-            return asyncio.run(ask(system, user))
+            return asyncio.run(ask_llm(model, system, user))
 
         mailbox.extractor = email_extract.make_extractor(extractor_invoke)
         tools = Tools()
@@ -601,6 +748,24 @@ async def main() -> int:
             "just invalidated."
         )
 
+    # What earlier passing runs of this test learned (US-081). Appended here,
+    # after the mailbox block has settled `sensitive`, for the same reason the
+    # diagnostics buffer is built here: the row was written under one set of
+    # secrets and is read under another, so it is scrubbed against what is live
+    # NOW. `to_prompt` also re-applies containment, because a carried lesson is
+    # admitted at generation without being re-checked — a format bump or a hand
+    # edit straight into the database would otherwise reach the prompt uncaged.
+    supplied_memory = None
+    stored_memory = os.environ.get("QA_MEMORY")
+    if stored_memory:
+        try:
+            supplied_memory = json.loads(stored_memory)
+        except ValueError:
+            supplied_memory = None
+        advice = run_memory.to_prompt(supplied_memory, sensitive) if supplied_memory else None
+        if advice:
+            task += f"\n\n{advice}"
+
     # Network/console evidence (US-044). Created here, after the mailbox block
     # has finished deciding what `sensitive` is, so the buffer holds the *same*
     # dict browser-use does — get_email_code adds the fetched code to it mid-run,
@@ -644,8 +809,21 @@ async def main() -> int:
             emit(event)
         return found
 
+    # The trace US-081's generator is grounded in, kept as the steps go by.
+    # Four fields and no more — `thinking` is on the event and deliberately not
+    # here, because chain-of-thought from a finished run is not an observation
+    # about the app. Accumulated rather than re-read from `report_data.json`,
+    # which US-011 retention prunes: a design that learned by re-reading
+    # artifacts would silently stop learning after ARTIFACT_RETENTION_DAYS.
+    trace: list[dict] = []
+
+    def emit_step(event: dict) -> None:
+        if event.get("type") == "step" and os.environ.get("QA_LEARN_MEMORY"):
+            trace.append({k: event.get(k) for k in ("step", "next_goal", "evaluation", "url")})
+        emit(event)
+
     on_step = step_events.callback(
-        emit=emit,
+        emit=emit_step,
         report_blocks=report_blocks,
         flush_diagnostics=flush_diagnostics,
         set_step=diag.set_step,
@@ -715,6 +893,9 @@ async def main() -> int:
         register_new_step_callback=on_step,
         tools=tools,
         sensitive_data=sensitive,
+        # US-046. The kwarg and the environment variable at the top of this file
+        # are one switch expressed twice, because the library ORs them.
+        calculate_cost=CALCULATE_COST,
         # US-048: the whitelist, and the whole of it. Passing None here is what
         # browser-use defaults to, and it means the same "nothing" — but only
         # this spelling says so on purpose.
@@ -825,6 +1006,13 @@ async def main() -> int:
     if mailbox:
         emit({"type": "log", "message": f"email confirmation enabled, test address: {test_address}"})
 
+    # US-046: pay for the pricing table here, where the wait is bounded and the
+    # run has not started, rather than inside agent.run()'s teardown where it is
+    # neither. Free after the first run on this container — the table is cached
+    # under $HOME/.cache for a day.
+    if CALCULATE_COST:
+        await warm_pricing(agent.token_cost_service, model)
+
     stop_event = asyncio.Event()
     watch_event = asyncio.Event()  # set while at least one viewer is attached
     ctl_task = asyncio.create_task(stdin_control(agent, watch_event, stop_event))
@@ -870,6 +1058,31 @@ async def main() -> int:
     elif late_blocks:
         blocked_url = late_blocks[-1]
 
+    # What the run spent (US-046). Built after the recording is finalized and
+    # before any terminal event, so every path out of main() can carry it — an
+    # expired session and a stopped run cost real tokens, and a report that
+    # shows nothing for them understates the bill on exactly the runs someone is
+    # already annoyed about.
+    #
+    # `history` is unbound when the run raised, hence the guard: browser-use
+    # attaches the summary on run()'s return path, so a crash out of it means
+    # there is no summary to read rather than a summary reading zero.
+    usage = None
+    if failure is None and CALCULATE_COST:
+        raw = safe(lambda: history.usage.model_dump())
+        by_model = (raw or {}).get("by_model") or {}
+        usage = run_cost.summarize(
+            raw,
+            enabled=True,
+            priced_models=await priced_models(agent.token_cost_service, by_model),
+        )
+    elif failure is None:
+        # Costing off: tokens are still counted, and saying so is the difference
+        # between "this run was free" and "nobody was measuring".
+        usage = run_cost.summarize(
+            safe(lambda: history.usage.model_dump()), enabled=False, priced_models=set()
+        )
+
     # An expired session is a FAILED run carrying a reason, not a crash and not
     # a goal that was not met (AC #4). `error` would make it a US-012 alert and
     # a red build for something that is merely stale, and an ordinary `failed`
@@ -884,8 +1097,23 @@ async def main() -> int:
             "duration_seconds": round(time.monotonic() - run_started, 1),
             "final_result": expired,
             "errors": [expired],
+            "usage": usage,
         })
         return 0
+
+    # The notebook this run leaves for the next one (US-081), emitted before any
+    # terminal event so the server holds it when the verdict resolves.
+    #
+    # Only when the server asked (`QA_LEARN_MEMORY`) and only on the agent's own
+    # self-reported success — but that is a filter, not the decision. Whether the
+    # run was ALLOWED to write depends on what only the server knows: a stop it
+    # was told about and the agent was not, and whether the test was edited while
+    # this ran. So the agent offers and the server disposes.
+    #
+    # A generator that fails costs nothing: this is an optimisation, and a run
+    # must never end badly because its notebook did not write.
+    if os.environ.get("QA_LEARN_MEMORY") and failure is None and safe(history.is_successful):
+        await write_memory(model, trace, goal, sensitive, supplied_memory)
 
     if failure is not None:
         event = {"type": "error", "message": failure}
@@ -905,6 +1133,7 @@ async def main() -> int:
         "final_result": scrub(safe(history.final_result), sensitive),
         "urls": [scrub(str(u), sensitive) for u in safe(history.urls, []) or []],
         "errors": [scrub(str(e), sensitive) for e in safe(history.errors, []) or [] if e],
+        "usage": usage,
     })
     return 0
 
