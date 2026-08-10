@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { AlertTriangle, Brain, Check, ChevronDown, ChevronRight, Trash2 } from 'lucide-react';
+import { AlertTriangle, Brain, ChevronDown, ChevronRight, Trash2 } from 'lucide-react';
 import { api } from './api.js';
 import { formatWhen } from './status.js';
 import { Button, IconButton, Modal } from './ui.jsx';
@@ -10,8 +10,11 @@ import { Button, IconButton, Modal } from './ui.jsx';
 // Secondary on purpose, and collapsed until asked for. The feature is automatic
 // — it learns, invalidates and relearns with nobody acting — so a panel that
 // announced itself would turn a thing you can ignore into another field to fill
-// in. Shut, it is a heading and nothing else; open it and it says what the next
-// run gets before it shows the lessons.
+// in. Shut, it is a heading and nothing else.
+//
+// Whatever is here IS what the next run is given — there is no state in which a
+// notebook is shown but withheld, because nothing withholds one any more. The
+// only ways it changes are the two buttons and a later passing run.
 //
 // The three sections are the generator's own and the headings are ours: a
 // section this UI has no name for is still shown, because dropping it would
@@ -21,21 +24,6 @@ const HEADINGS = {
   avoid_next_time: 'Avoid next time',
   orientation: 'Orientation',
 };
-
-// Why the next run is not getting what is stored, in the words a person would
-// use. One reason, because one thing stops a notebook applying: the test changed
-// under it. A run that did not pass leaves it alone.
-const WITHHELD = {
-  inputs_changed: 'Set aside after an edit — the next run goes cold and relearns',
-};
-
-/** One line for what the next run gets. */
-function summarize(memory) {
-  if (!memory) return 'Loading…';
-  if (memory.withheld) return WITHHELD[memory.withheld] || 'Held back — the next run goes cold';
-  if (memory.supplied) return 'The next run starts with what earlier runs learned';
-  return 'Nothing learned yet — the next run starts cold';
-}
 
 /** A lesson reads as one sentence whichever section it is in. */
 function lessonText(item) {
@@ -87,15 +75,6 @@ export default function RunMemory({ testId, token }) {
     );
   }
 
-  // The same answer the save-time prompt asks for, offered where a person would
-  // look for it afterwards. Without it, dismissing that prompt — Escape, or a
-  // stray click on the scrim — strands the notebook for good: it is set aside,
-  // the panel says so, and the only route back is to edit the instructions again
-  // so the prompt fires a second time.
-  function keepAnyway() {
-    mutate('Keep', () => api(`/api/tests/${testId}/memory/keep`, { token, method: 'POST' }));
-  }
-
   function clearAll() {
     setConfirming(false);
     mutate('Clear', async () => {
@@ -141,9 +120,6 @@ export default function RunMemory({ testId, token }) {
         <div className="memory-body">
           {failed}
 
-          {/* What the next run gets. */}
-          <p className="field-hint">{summarize(memory)}</p>
-
           {sections.map(([name, items]) => (
             <div key={name} className="memory-section">
               <h4>{HEADINGS[name] || name}</h4>
@@ -187,11 +163,6 @@ export default function RunMemory({ testId, token }) {
           ))}
 
           <div className="memory-foot">
-            {memory?.withheld === 'inputs_changed' && (
-              <Button icon={Check} onClick={keepAnyway} disabled={busy}>
-                These still apply
-              </Button>
-            )}
             <Button variant="ghost" icon={Trash2} onClick={() => setConfirming(true)} disabled={busy}>
               Clear
             </Button>

@@ -1,18 +1,14 @@
 // @ts-check
-// US-081's conditional write, which only a real Postgres can hold up.
+// US-081's notebook write, on a real Postgres.
 //
-// `storeLearned` is an `insert … on conflict do update … where
-// test_memory.fingerprint = $2`. Two runs of one test can be in flight together
-// and a test can be edited while a run is going, so the `where` is what refuses
-// a run that started before the edit: without it the row looks freshly learned
-// while its advice describes an app the test no longer points at, and nothing
-// about that is visible afterwards.
+// What is left here after the conditional write was removed: the upsert itself,
+// the `jsonb` round trip, and the cascade. pg-mem passes all three whether or not
+// they are right — it stores jsonb loosely and its `on conflict do update` is not
+// Postgres's — so the assertions live where the real engine can answer them.
 //
-// pg-mem cannot prove any of it. Its `on conflict do update` accepts the
-// statement and its handling of a WHERE on the conflict target is not
-// Postgres's, so a refusal that never happens still reads green there — which is
-// the exact shape `docs/testing.md` warns about: SQL whose *correctness* needs
-// real database semantics gets a real server.
+// The refusal this file used to exist for is gone with the fingerprint: a run in
+// flight while its test is edited now teaches what it saw, because an edit no
+// longer invalidates anything.
 //
 // Same isolation as `scheduler-postgres.test.js`: a throwaway database, created
 // and dropped here, so these writes cannot reach the caller's data and the real
@@ -82,8 +78,8 @@ const notebook = (text) => ({
   orientation: [],
 });
 
-/** A saved test, and one finished run of it carrying the fingerprint it started with. */
-async function seed(fingerprint) {
+/** A saved test and one finished run of it. */
+async function seed() {
   const testId = randomUUID();
   await pool.query(
     `insert into tests (id, user_id, name, goal, start_url, max_steps)
@@ -92,83 +88,52 @@ async function seed(fingerprint) {
   );
   const runId = randomUUID();
   await pool.query(
-    `insert into runs (id, test_id, user_id, goal, start_url, max_steps, status,
-                       memory_used, memory_fingerprint)
-     values ($1, $2, $3, 'check the invoice', 'https://billing.example.test/', 60, 'passed',
-             false, $4)`,
-    [runId, testId, userId, fingerprint]
+    `insert into runs (id, test_id, user_id, goal, start_url, max_steps, status, memory_used)
+     values ($1, $2, $3, 'check the invoice', 'https://billing.example.test/', 60, 'passed', false)`,
+    [runId, testId, userId]
   );
-  return {
-    id: runId,
-    test_id: testId,
-    memory_fingerprint: fingerprint,
-    persisted: Promise.resolve(),
-  };
+  return { id: runId, test_id: testId, persisted: Promise.resolve() };
 }
 
 const memoryOf = async (testId) =>
   (await pool.query('select * from test_memory where test_id = $1', [testId])).rows[0] || null;
 
-test('a run teaches the inputs it ran with', { skip }, async () => {
+test('a passing run writes its notebook, and a later one replaces it', { skip }, async () => {
   const { rows: where } = await pool.query('select current_database() as db');
   assert.equal(where[0].db, DB_NAME, 'these writes must land in the throwaway database');
 
-  const run = await seed('fingerprint-a');
+  const run = await seed();
   runPersistence.storeLearned(run, notebook('Open Billing from the account menu'));
   await run.persisted;
+  const first = await memoryOf(run.test_id);
+  assert.equal(first.learned.successful_approach[0].text, 'Open Billing from the account menu');
+  assert.ok(first.learned_at, 'and says when');
 
-  const stored = await memoryOf(run.test_id);
-  assert.equal(stored.fingerprint, 'fingerprint-a');
-  assert.equal(stored.learned.successful_approach[0].text, 'Open Billing from the account menu');
-});
-
-test('a run that started before an edit cannot teach the inputs it never ran with', { skip }, async () => {
-  // The sharp edge. The row now belongs to `fingerprint-b`; this run began under
-  // `fingerprint-a` and knows nothing about the change. A blind upsert would
-  // write, and the result would be a freshly-stamped notebook describing an app
-  // the test no longer points at — invisible afterwards, because everything
-  // about the row looks right.
-  const run = await seed('fingerprint-a');
-  runPersistence.storeLearned(run, notebook('Open Billing from the account menu'));
-  await run.persisted;
-
-  await pool.query('update test_memory set fingerprint = $2 where test_id = $1', [
-    run.test_id,
-    'fingerprint-b',
-  ]);
-
+  // The upsert. One row per test, so two runs of one test cannot leave two
+  // notebooks to choose between — the merge that decided what this holds already
+  // happened in `agent/run_memory.py`.
   run.persisted = Promise.resolve();
   runPersistence.storeLearned(run, notebook('Open Billing from the workspace sidebar'));
   await run.persisted;
-
-  const stored = await memoryOf(run.test_id);
-  assert.equal(stored.fingerprint, 'fingerprint-b', 'the row still belongs to the edited test');
-  assert.equal(
-    stored.learned.successful_approach[0].text,
-    'Open Billing from the account menu',
-    'the stale run wrote nothing'
-  );
+  const second = await memoryOf(run.test_id);
+  assert.equal(second.learned.successful_approach[0].text, 'Open Billing from the workspace sidebar');
+  assert.equal((await pool.query('select count(*) from test_memory')).rows[0].count, '1');
 });
 
-test('a refused write is silent, not an error', { skip }, async () => {
-  // Zero rows matched is the intended outcome, not a failure to report: the test
-  // changed under this run, and the next one learns it fresh. A rejection here
-  // would turn an optimisation into a reason a run ends badly.
-  const run = await seed('fingerprint-a');
+test('a lesson survives the jsonb round trip with its provenance', { skip }, async () => {
+  // The panel keys on `id` and the eviction backstop reads `learned_at`, so a
+  // round trip that loses either is a notebook that cannot be edited or trimmed.
+  const run = await seed();
   runPersistence.storeLearned(run, notebook('Open Billing from the account menu'));
   await run.persisted;
-  await pool.query('update test_memory set fingerprint = $2 where test_id = $1', [
-    run.test_id,
-    'fingerprint-b',
-  ]);
-
-  run.persisted = Promise.resolve();
-  runPersistence.storeLearned(run, notebook('something else'));
-  await assert.doesNotReject(() => run.persisted);
+  const [item] = (await memoryOf(run.test_id)).learned.successful_approach;
+  assert.equal(item.id, 'Open');
+  assert.deepEqual(item.steps, [1]);
+  assert.equal(item.run_id, 'r');
 });
 
 test('a deleted test takes its notebook with it', { skip }, async () => {
-  const run = await seed('fingerprint-a');
+  const run = await seed();
   runPersistence.storeLearned(run, notebook('Open Billing from the account menu'));
   await run.persisted;
 

@@ -41,10 +41,10 @@ export default function RunView({ token, health, keyStatus, visible, needsToken,
   const [runVars, setRunVars] = useState(null);
   const [varValues, setVarValues] = useState({});
   const [savingTest, setSavingTest] = useState(false);
-  // US-081: `{ testId, lessons }` while the edit that invalidated a notebook is
-  // waiting on an answer. Its own state rather than a `dialog` mode, because it
-  // opens *after* the edit dialog has closed and the edit is already saved —
-  // nothing about it can fail the save.
+  // US-081: `{ testId, lessons }` while an edit is offering to clear a notebook.
+  // Its own state rather than a `dialog` mode, because it opens *after* the edit
+  // dialog has closed and the edit is already saved — nothing about it can fail
+  // the save, and nothing about the notebook has changed yet.
   const [memoryPrompt, setMemoryPrompt] = useState(null);
   const [reportBusy, setReportBusy] = useState(false);
   // The rail opens with the view — the tests are how a run starts, so hiding
@@ -201,7 +201,7 @@ export default function RunView({ token, health, keyStatus, visible, needsToken,
       }
       if (editing.id) {
         const saved = await api(`/api/tests/${editing.id}`, { token, method: 'PUT', body });
-        if (saved.memory?.invalidated && saved.memory.lessons) {
+        if (saved.memory?.changed) {
           setMemoryPrompt({ testId: editing.id, lessons: saved.memory.lessons });
         }
       } else {
@@ -216,20 +216,13 @@ export default function RunView({ token, health, keyStatus, visible, needsToken,
     }
   }
 
-  // US-081. The edit has landed either way; this only asks what becomes of what
-  // the test had learned. The server decides whether the change moved the
-  // fingerprint, because the fingerprint is the server's — its two inputs are
-  // resolved, and a second hash on this side would agree until it quietly did
-  // not. Silent unless there is both a change and something to lose.
-  const keepMemory = () => answerMemoryPrompt('/memory/keep', 'POST');
-  // Start fresh throws the lessons away now. Dismissing the dialog does not —
-  // see `MemoryPromptDialog` for why the two are different buttons.
-  const discardMemory = () => answerMemoryPrompt('/memory', 'DELETE');
-
-  async function answerMemoryPrompt(path, method) {
+  // US-081. The edit has landed either way; this only offers to throw away what
+  // the test had learned. Nothing is invalidated by an edit any more, so the
+  // dialog is an offer rather than a consequence — and the default is to keep.
+  async function clearMemoryAfterEdit() {
     setSavingTest(true);
     try {
-      await api(`/api/tests/${memoryPrompt.testId}${path}`, { token, method });
+      await api(`/api/tests/${memoryPrompt.testId}/memory`, { token, method: 'DELETE' });
     } catch (err) {
       run.setError(`Run memory: ${err.message}`);
     } finally {
@@ -752,8 +745,7 @@ export default function RunView({ token, health, keyStatus, visible, needsToken,
         <MemoryPromptDialog
           lessons={memoryPrompt.lessons}
           saving={savingTest}
-          onKeep={keepMemory}
-          onDiscard={discardMemory}
+          onClear={clearMemoryAfterEdit}
           onClose={() => setMemoryPrompt(null)}
         />
       )}

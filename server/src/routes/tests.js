@@ -10,7 +10,6 @@ import {
   h, requireDb, requireAgentKey, requireEntitled, withUserCap, respondOverCap,
   RUNNABLE_TEST_COLS, RUNNABLE_TEST_FROM, runnableFieldsFor,
 } from './helpers.js';
-import { previewMemory } from '../runs.js';
 import { memoryOf } from '../testMemoryStore.js';
 import {
   normalizeDeclarations, validateReferences, validateSecretTags, secretWrites,
@@ -20,37 +19,29 @@ import { applySecretWrites, withSecretState } from '../testSecrets.js';
 /** @typedef {import('./helpers.js').AppRequest} AppRequest */
 
 /**
- * Whether this edit stopped the test's notebook applying, and how much is at
- * stake (US-081).
+ * Whether this edit changed what the test *does*, and how much the test has
+ * learned (US-081).
  *
- * Reported by the server because the fingerprint is the server's: its two inputs
- * are *resolved*, and a client that hashed its own would be a second spelling
- * that agrees until it quietly does not. The count is here so the dialog can stay
- * silent when there is nothing to lose — most edits, and every test that has
- * learned nothing.
+ * Nothing acts on this. The notebook is supplied whatever the answer — an edit
+ * no longer makes the next run cold, which is the rule the whole fingerprint
+ * existed to enforce and which went with it. This exists only so the dialog can
+ * offer to clear the lessons, and stay silent when there is nothing to offer.
  *
- * Re-read through `RUNNABLE_TEST_COLS` rather than handed the row this write
- * returned: `COLS` is the test's own columns, and resolving a run needs the
- * project and session joins too. Cheap, and only on an edit.
+ * A plain before-and-after comparison of the two fields a person edits, not a
+ * hash: the question is "did you change what this test does?", which is about
+ * the edit itself and not about anything resolved.
  * @param {string} testId
+ * @param {any} before the row as it was
+ * @param {any} after the row this write returned
  */
-async function memoryAtStake(testId) {
+async function memoryAtStake(testId, before, after) {
   const stored = await memoryOf(testId);
   const lessons = Object.values(stored?.learned || {}).reduce(
     (total, section) => total + (Array.isArray(section) ? section.length : 0),
     0
   );
-  if (!lessons) return { invalidated: false, lessons: 0 };
-  const { rows } = await db().query(
-    `select ${RUNNABLE_TEST_COLS} from ${RUNNABLE_TEST_FROM} where t.id = $1`,
-    [testId]
-  );
-  const resolved = rows.length ? await runnableFieldsFor(rows[0]) : { error: 'not found' };
-  if ('error' in resolved) return { invalidated: false, lessons };
-  return {
-    invalidated: previewMemory(resolved.fields).withheld === 'inputs_changed',
-    lessons,
-  };
+  const changed = before.goal !== after.goal || before.start_url !== after.start_url;
+  return { changed: changed && lessons > 0, lessons };
 }
 
 // A stored secret's ciphertext is deliberately NOT reachable from here: it
@@ -309,7 +300,7 @@ export function testsRouter({ checkToken }) {
       }
       res.json({
         ...(await withSecretState(rows))[0],
-        memory: await memoryAtStake(req.params.id),
+        memory: await memoryAtStake(req.params.id, current.rows[0], rows[0]),
       });
     })
   );

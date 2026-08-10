@@ -50,7 +50,6 @@ const LESSON = {
 const MEMORY = {
   learned: { successful_approach: [LESSON], avoid_next_time: [], orientation: [] },
   supplied: { successful_approach: [LESSON], avoid_next_time: [], orientation: [] },
-  withheld: null,
   learned_at: '2026-08-01T09:00:00.000Z',
 };
 
@@ -669,59 +668,22 @@ describe('Run memory panel (US-081)', () => {
     );
   });
 
-  it('offers to re-apply lessons an edit set aside', async () => {
-    // The save-time prompt is a convenience, not the only chance. Dismissing it
-    // by accident must not strand a notebook, so the answer is also here, where
-    // a person would look for it afterwards.
-    const calls = stubEnv();
-    MEMORY.withheld = 'inputs_changed';
-    MEMORY.supplied = null;
-    try {
-      renderRunView();
-      fireEvent.click((await screen.findAllByLabelText('Edit'))[0]);
-      await screen.findByText('Edit test');
-      fireEvent.click(await screen.findByText('Run memory'));
-      fireEvent.click(await screen.findByText('These still apply'));
-      await waitFor(() =>
-        expect(calls.some((c) => c.method === 'POST' && c.url.endsWith('/memory/keep'))).toBe(true)
-      );
-    } finally {
-      MEMORY.withheld = null;
-      MEMORY.supplied = MEMORY.learned;
-    }
-  });
-
-  it('offers it only when there is something set aside', async () => {
+  it('shows the lessons it is going to hand over, and nothing else', async () => {
+    // There is no state in which a notebook is shown but withheld, so the panel
+    // has nothing to explain — it shows what the next run gets.
     stubEnv();
     renderRunView();
     fireEvent.click((await screen.findAllByLabelText('Edit'))[0]);
     await screen.findByText('Edit test');
     fireEvent.click(await screen.findByText('Run memory'));
+    expect(await screen.findByText('Open Billing from the account menu')).toBeTruthy();
     expect(await screen.findByText('Clear')).toBeTruthy();
-    expect(screen.queryByText('These still apply')).toBeNull();
   });
 
-  it('says what the next run gets once it is open', async () => {
-    stubEnv();
-    MEMORY.withheld = 'inputs_changed';
-    MEMORY.supplied = null;
-    try {
-      renderRunView();
-      fireEvent.click((await screen.findAllByLabelText('Edit'))[0]);
-      await screen.findByText('Edit test');
-      fireEvent.click(await screen.findByText('Run memory'));
-      expect(
-        await screen.findByText('Set aside after an edit — the next run goes cold and relearns')
-      ).toBeTruthy();
-    } finally {
-      MEMORY.withheld = null;
-      MEMORY.supplied = MEMORY.learned;
-    }
-  });
 });
 
-// US-081: what happens to a notebook when the test under it is edited.
-describe('an edit asks about what the test learned (US-081)', () => {
+// US-081: what an edit offers to do to what the test learned.
+describe('an edit offers to clear what the test learned (US-081)', () => {
   async function editAndSave(memory) {
     const calls = stubEnv();
     const fetchImpl = global.fetch;
@@ -740,52 +702,40 @@ describe('an edit asks about what the test learned (US-081)', () => {
     return calls;
   }
 
-  it('keeps the lessons when the person says they still apply', async () => {
-    // The hash knows the instructions changed and never whether that changed the
-    // flow. A typo fix and a test repointed at another app look the same to it,
-    // so the person who made the edit is asked.
-    const calls = await editAndSave({ invalidated: true, lessons: 2 });
-    fireEvent.click(await screen.findByText('Keep lessons'));
-    await waitFor(() =>
-      expect(calls.some((c) => c.method === 'POST' && c.url.endsWith('/memory/keep'))).toBe(true)
-    );
-  });
-
-  it('throws them away when the person starts fresh', async () => {
-    // A button saying "start fresh" should not leave the lessons sitting in the
-    // panel afterwards.
-    const calls = await editAndSave({ invalidated: true, lessons: 2 });
-    fireEvent.click(await screen.findByText('Start fresh'));
+  it('clears when the person asks it to', async () => {
+    const calls = await editAndSave({ changed: true, lessons: 2 });
+    fireEvent.click(await screen.findByText('Clear memory'));
     await waitFor(() =>
       expect(calls.some((c) => c.method === 'DELETE' && c.url.endsWith('/memory'))).toBe(true)
     );
-    expect(calls.some((c) => c.url.endsWith('/memory/keep'))).toBe(false);
+  });
+
+  it('keeps them otherwise, and keeping is the default', async () => {
+    // The whole revised rule in one assertion: an edit does not take a notebook
+    // away, it only offers. The Keep button does exactly what dismissing does,
+    // which is nothing at all.
+    const calls = await editAndSave({ changed: true, lessons: 2 });
+    fireEvent.click(await screen.findByText('Keep lessons'));
+    await waitFor(() => expect(screen.queryByText('Clear memory')).toBeNull());
+    expect(calls.some((c) => c.url.includes('/memory') && c.method !== 'GET')).toBe(false);
   });
 
   it('deletes nothing when the dialog is merely dismissed', async () => {
-    // Escape, the X and the scrim all land here, and throwing away a notebook
-    // because somebody dismissed a dialog is the wrong kind of surprise. The
-    // lessons stay, unused, until the next passing run replaces them.
-    const calls = await editAndSave({ invalidated: true, lessons: 2 });
-    await screen.findByText('Start fresh');
+    // Escape, the X and the scrim all land here.
+    const calls = await editAndSave({ changed: true, lessons: 2 });
+    await screen.findByText('Clear memory');
     fireEvent.click(screen.getByLabelText('Close'));
-    await waitFor(() => expect(screen.queryByText('Start fresh')).toBeNull());
+    await waitFor(() => expect(screen.queryByText('Clear memory')).toBeNull());
     // Reads are fine and expected — the panel in the edit dialog fetches one.
     // What must not happen is a write.
     expect(calls.some((c) => c.url.includes('/memory') && c.method !== 'GET')).toBe(false);
   });
 
   it('says nothing when the edit left the flow alone', async () => {
-    // Most edits — a rename, a step ceiling, the model. A prompt here would be
-    // exactly the nagging the story refuses.
-    await editAndSave({ invalidated: false, lessons: 2 });
+    // A rename, a step ceiling, a model. A prompt there would be exactly the
+    // nagging the story refuses.
+    await editAndSave({ changed: false, lessons: 2 });
     await waitFor(() => expect(screen.queryByText('Edit test')).toBeNull());
-    expect(screen.queryByText('Keep what this test learned?')).toBeNull();
-  });
-
-  it('says nothing when there is nothing to lose', async () => {
-    await editAndSave({ invalidated: true, lessons: 0 });
-    await waitFor(() => expect(screen.queryByText('Edit test')).toBeNull());
-    expect(screen.queryByText('Keep what this test learned?')).toBeNull();
+    expect(screen.queryByText('Clear what this test learned?')).toBeNull();
   });
 });
