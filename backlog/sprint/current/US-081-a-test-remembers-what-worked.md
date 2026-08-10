@@ -9,6 +9,11 @@ instead of rediscovering it from scratch.
   US-046. It is an automatic, on-by-default experiment and must remain safe to
   ignore: learning, invalidation and relearning require no human maintenance,
   while an escape hatch can disable it if measurements regress.
+  **Spike done 2026-08-10** — the invalidation matrix, the state machine, the
+  fingerprint and the module seams are pinned below, and the assertions they
+  describe are drafted and waiting on review. No implementation yet: this is a
+  correctness-critical surface, so the assertion comes first (see the row in
+  [`correctness-critical.md`](../../correctness-critical.md)).
 - **Priority:** P3 in the current sprint. It is US-050's sibling: US-050 makes
   each reasoning step cheaper; this story tries to avoid reasoning paths that
   a previous successful run already showed were unhelpful.
@@ -186,6 +191,171 @@ requires an explicit allowlist.
   and tells the agent to disregard anything contradicted by the fresh page.
 - The memory has a tight item and character budget. More history is not
   automatically better context.
+
+## Spike — what the implementation is written against
+
+Pinned 2026-08-10, before any code. Everything below is a proposal for review;
+the assertion-first surfaces it names are drafted but not yet in `server/test/`
+or `agent/tests/`.
+
+### Where memory is generated, and by whom
+
+**The agent generates it; the server decides whether to keep it.** That is
+US-043's session capture exactly — `run_agent.py` writes the export on every
+step and `runs.js` stores it only on a pass — and the reasons carry over intact:
+
+- The step trace is not in the database. `runs` holds a verdict and counts;
+  `stepsOf(run)` reads the live `run.events` buffer and `report_data.json` is
+  the on-disk copy, which US-011 retention prunes. A design that learns by
+  re-reading artifacts would silently stop learning after
+  `ARTIFACT_RETENTION_DAYS`.
+- `scrub` and the live `sensitive` dict are in the agent. Generating server-side
+  would need a second redaction implementation beside the one
+  `correctness-critical.md` already lists, and two spellings of a redactor is
+  how a secret gets through one of them.
+- The BYOK client is already built there, and the trace crosses no new trust
+  boundary — the same provider has seen every page screenshot.
+
+So: `startRun` sets `QA_MEMORY` (the merged advice, or absent) and
+`QA_LEARN_MEMORY=1` when the run is cold and eligible. The agent emits a
+`memory` event before `done`. The `done` handler in `runs.js` stores it only
+when `run.status === 'passed'`, `run.cancelling` is false, and the test's
+fingerprint still matches the one the run started with.
+
+The grounding input is `stepsOf`'s four fields and nothing else — `step`,
+`next_goal`, `evaluation`, `url`. That is what makes "no selector, no element
+index, no page excerpt" a property of the *input* rather than a filter someone
+has to remember to apply.
+
+### A hinted pass is not a cold pass
+
+US-079 lets a person tell a live run what to do. A run that passed after a hint
+did not discover its approach — someone handed it over. `hintsOf(run).length > 0`
+disqualifies a run from teaching, on the same rule that disqualifies a
+memory-assisted one: only an independently discovered pass may become advice.
+The hint text is the user's writing, so its honest home is a manual item they
+choose to keep, never a learned lesson attributed to the trace.
+
+### Manual items are an input, not a previous run's conclusion
+
+Cold means *no learned items were supplied*. Manual items ride along on every
+run, cold or not, and never make one memory-assisted. Without this the story
+deadlocks: after a model change the learned half is invalidated, the manual half
+survives and is prompted, every subsequent run is therefore memory-assisted, and
+no run may ever teach again — which the story's own "no transition may require
+human intervention" rule forbids.
+
+The cost is that a manual item's wording is part of what a learned item was
+derived under, so **manual text joins the fingerprint** and editing it archives
+the learned half. One cold run per wording tweak, and the alternative is a
+learned memory whose provenance quietly lies.
+
+### The fingerprint
+
+Resolve, canonicalize, hash — SHA-256 over a canonical JSON encoding with
+sorted keys.
+
+| Input | Source | Canonical form |
+|---|---|---|
+| Goal | `resolveForRun` → `resolved.goal` | post-substitution, `<secret>` tags intact |
+| Start URL | `resolved.start_url` | post-substitution, normalized as below |
+| Max steps | `run.max_steps` | integer |
+| Model | `run.model \|\| MODEL` | the **effective** id, never the null |
+| Run variables | `resolved.variables` | non-secret name→value pairs, key-sorted |
+| Secret variables | `resolved.secrets` | **names only**, sorted |
+| Fixtures | `fixturePathsFor(run.project_id)` | sorted basenames |
+| Saved session | `tests.browser_session_id` + that row's `captured_at` | `[id, ISO]`, or null |
+| Preamble | `run.preamble` | the array as stored, keys sorted per action |
+| Navigation policy | `run.policy` | `blockPrivate`, sorted `deniedHosts`, sorted `allowedDomains` |
+| Manual items | the `test_memory` row | the item texts, in order |
+| Format version | constant | integer |
+
+A secret's **value never enters the hash.** Hashing is one-way, but a password
+drawn from a small space is recoverable from a digest, and the fingerprint is a
+column a read endpoint may serve. Nothing useful is lost: rotating a password
+does not change which menu Billing is under.
+
+URL normalization is the storage rule applied to the fingerprint too — scheme
+and host lowercased, default port dropped, query and fragment removed. A run
+pointed at `?utm_source=…` must not read as a different test.
+
+### The invalidation matrix
+
+| Input changes | Learned | Manual | Next run |
+|---|---|---|---|
+| Goal | archived | archived | cold |
+| Start URL | archived | archived | cold |
+| Fixtures | archived | archived | cold |
+| Navigation policy | archived | archived | cold |
+| Typed checks (when they exist) | archived | archived | cold |
+| Format version | archived | archived | cold |
+| Max steps | archived | kept | cold |
+| Model | archived | kept | cold |
+| Run variables | archived | kept | cold |
+| Secret variable *names* | archived | kept | cold |
+| Saved session id or `captured_at` | archived | kept | cold |
+| Preamble | archived | kept | cold |
+| Manual item text | archived | kept | cold |
+| Secret variable *values* | kept | kept | memory-assisted |
+
+Every archive makes the next run cold, because cold is defined as "no learned
+items supplied" and there are none. Asserted per input, not as "some edit
+invalidates".
+
+### The state machine
+
+`empty` → no learned items. Next run cold; manual items still supplied.
+
+`active` → learned items supplied. Reached from a passing cold eligible run
+whose generation produced at least one non-vacuous item. A generation that
+produced nothing usable leaves the state `empty` rather than storing a vacuous
+memory to fill the panel.
+
+`suspect` → learned items withheld, kept visible beside the run that caused it.
+Reached when a run of the test ends `failed`, `error`, `cancelled`, or
+`completed` with a null verdict. The next run is therefore cold by
+construction, and a pass returns the state to `active`, replacing the learned
+items. Nobody reviews or re-enables anything.
+
+**Two failure reasons do not mark suspect:** `session_expired` and
+`navigation_blocked`. Neither is evidence about the flow — the first is a stale
+credential and the second is the fence firing — and treating them as evidence
+would throw away good memory every time a nightly session lapsed.
+
+`archived` → learned and manual moved out of the prompt, recoverable, never
+silently put back. Reached from the first group of the matrix above.
+
+### The write is conditional, and that is the sharp edge
+
+Two runs of one test can be in flight together, and a test can be edited while a
+run is going. The store carries **the fingerprint the run started with** and is
+refused when the test's current fingerprint differs. A blind upsert lets a run
+that started before an edit teach a memory keyed to the post-edit inputs — the
+failure is invisible, because the row looks freshly learned and its advice
+describes an app the test no longer points at.
+
+### The module seams
+
+- `agent/run_memory.py` — the prompt, and the cage around the answer: every item
+  must cite step numbers that exist in the trace, no item may contain a selector,
+  element index, URL query string or entered value, and the item and character
+  budgets are enforced here. Pure stdlib with the LLM call injected as
+  `invoke(system, user) -> str`, exactly as `email_extract.py` does it.
+- `server/src/testMemory.js` — the fingerprint, the matrix classification, the
+  state machine, and the merge of learned + manual into the text the prompt
+  receives. No DB, no spawn, so it is unit-testable whole — `variables.js`'s
+  shape.
+- `db/migrations/021_test_memory.sql` — one disposable row per test.
+
+### Not closable this sprint
+
+The last acceptance criterion is a cold-vs-memory-assisted measurement of
+duration, steps, **cost** and verdict agreement. Cost does not exist yet:
+`Agent(calculate_cost=…)` is unset, `history.usage` is `None`, and that is
+[US-046](US-046-token-usage-and-cost.md) — unscheduled, ~2–3 h.
+Until it lands the story can ship its behaviour and assert everything else, but
+its release gate cannot be evaluated, and a notebook that costs more to write
+than it saves is the outcome this story most needs to be able to detect.
 
 ## Acceptance criteria
 
