@@ -32,8 +32,9 @@ instead of rediscovering it from scratch.
   it.
   **Four decisions came from using it**, and each is recorded beside the rule it
   changed: there is no off switch, a run that does not pass changes nothing, the
-  fingerprint is two inputs rather than eleven, and the budget counts the prompt
-  rather than the row.
+  budget counts the prompt rather than the row, and — the one that removed the
+  most machinery — **only a person takes a notebook away**, which retired the
+  fingerprint, the conditional write and every automatic invalidation with it.
   **The release gate is the remaining work** and is still blocked on US-046
   tier 2 — see "Open: how the release gate measures without a force-cold".
 - **Priority:** P3 in the current sprint. It is US-050's sibling: US-050 makes
@@ -140,10 +141,10 @@ heading. A permanent empty drawer in the edit dialog is a thing you open once to
 find out it never mattered, and the feature's whole claim is that it is safe to
 ignore.
 
-Three controls, all escape hatches rather than routine: **remove a lesson that is
-wrong**; **Clear**, which throws the notebook away without touching run history
-and lets the next run learn it fresh; and **These still apply**, which re-keys a
-notebook an edit set aside. A lesson may be removed and not written — "learned"
+Two controls, both escape hatches rather than routine: **remove a lesson that is
+wrong**, and **Clear**, which throws the notebook away without touching run
+history and lets the next run learn it fresh. A lesson may be removed and not
+written — "learned"
 means a trace produced it, and hand-written advice must not be able to claim
 provenance it does not have.
 
@@ -196,65 +197,42 @@ never erase what an independent run observed.
 
 ### What makes a notebook stop applying
 
-Memory is keyed by test identity plus **one** canonical fingerprint over **two**
-resolved inputs: the **instructions** and the **start URL**. Resolve,
-canonicalize, then hash.
+**A person, and nothing else** (settled 2026-08-10, after four goes at it).
 
-It was eleven — max steps, model, variables, secret names, fixtures, the saved
-session, the preamble, the navigation policy and the format version as well
-(revised 2026-08-10). That asked the wrong question. The hash answers *is this
-still the same flow through the same app?*, and eleven inputs answered *did
-anything about this run change?* — so the model swapped on the box, a session
-re-captured overnight, a fixture added to the project or `ALLOWED_DOMAINS` edited
-in config each wiped every notebook on the instance for a change that left the
-app exactly where it was.
+The story spent most of its life building rules for the system to invalidate its
+own notebooks, and every one of them was removed by the same argument: it took a
+notebook away for a change that left the app under test exactly where it was. In
+order — a four-state machine, a two-group invalidation matrix, a weekly cold
+cadence, a doubt raised by a failing run, an eleven-input fingerprint, and then a
+two-input one.
 
-Two things survive the cut for free, because the goal is hashed
-*post-substitution*: a variable that reaches the instructions still moves the hash
-(`log in as {{role}}` is a different flow for admin and for viewer), and a
-secret's value still never enters it, because `resolveForRun` leaves the literal
-`<secret>name</secret>` marker in the goal rather than the password. What is no
-longer caught is a project preamble edited under the test — the accepted cost,
-and Clear is the answer to it.
+The fingerprint is worth the last word because it went hardest. It hashed the
+resolved instructions and start URL, and an edit that moved it made the next run
+cold. Narrowing it from eleven inputs to two fixed the worst of the collateral —
+a model swapped on the box, a session re-captured overnight — but not the thing
+underneath: **the hash knows *that* the instructions changed and never whether
+that changed the flow.** A typo fixed in the goal and a test repointed at another
+app are the same event to it, and it answered both by throwing the notebook away.
 
-Assert both halves one input at a time: the two that move it, and the nine that
-must not. The second is the half that rots — an input added back by a
-well-meaning reader costs notebooks silently, and a fleet that keeps forgetting
-things has no bar to notice.
+Once an edit no longer withholds, the hash has no reader left, and gating the
+*write* on it instead would have been worse than useless — an edited test could
+never have learned again. So it is gone, and with it `mayStore`, the conditional
+upsert, and `runs.memory_fingerprint`.
 
-One hash and one rule: **it differs, the notebook does not apply.** The lessons
-are not supplied, the run is therefore cold, and its pass replaces them. The old
-lessons stay in the row until then, so "recoverable" costs no extra column and no
-`archived` state. There is no second hash and no two-group matrix — those existed
-only to tell "archive everything" from "archive the learned half, keep the human
-half", and there is no human half.
+**A run is cold in exactly three situations**, and a person caused all three: a
+test's first run, a run after **Clear**, and a run of a test whose last lesson was
+removed by hand. Nothing else. Not an edit, not a failure, not a model change.
 
-Assert each input independently rather than testing only that "some edit"
-invalidates. A fingerprint blind to one resolved input is the story's original
-failure mode: advice about an app the test no longer points at, arriving as a
-plausible verdict nobody disputes.
+**What that costs, stated once so nobody rediscovers it as a bug.** Repoint a
+test's start URL at a different app and its old notebook is still supplied. That
+is the failure the fingerprint was originally built to prevent, and it is now the
+person's call. What is offered instead is the moment the judgement is easiest to
+make: an edit that changes the instructions or the start URL, on a test that has
+lessons, **offers to clear them** — `PUT /api/tests/:id` answers with
+`memory.changed` and `memory.lessons`, and the dialog asks. Nothing acts on that
+answer but the person; keeping is the default, dismissing keeps, and only the
+button deletes.
 
-**A run that does not pass changes nothing** (revised 2026-08-10). An earlier
-draft marked the notebook *suspect*, withheld it, and let the next run's pass
-clear the doubt — on the reasoning that failure is the corrective signal for a
-lesson gone stale.
-
-That was wrong, and the counter-example is the ordinary case: **the commonest
-reason a QA test fails is that it found the bug it exists to find.** Under "cold
-replaces", withholding after a failure means the next pass throws away every
-lesson the notebook holds — to punish a failure none of them caused, at exactly
-the moment the test is doing its job. The mechanism was strongest precisely where
-it should have been silent.
-
-So a failed, cancelled, errored or inconclusive run is a no-op on the notebook:
-nothing is withheld, nothing is stamped, and the next run is still assisted. The
-whole apparatus goes with it — the `suspect_run_id` column, `marksSuspect`, the
-`clearDoubt` write, the list of three reasons that were not evidence about the
-flow, and the panel's link to the accusing run.
-
-What is left for a lesson that really is wrong is the pair of escape hatches the
-story already had: remove that lesson, or Clear. Both are visible, both are
-somebody's decision, and neither costs the other lessons.
 
 ## Storage and containment
 
@@ -294,20 +272,13 @@ tokens or unstable identifiers.
 - Memory is on for every saved test and cannot be turned off. There is no setup,
   approval or review workflow. An ad-hoc run has no test, so it neither reads
   nor writes.
-- The escape hatches are **remove a lesson**, **Clear** and **These still
-  apply**. There is no per-test disable and no per-run force-cold flag: under
-  "cold replaces", forcing cold and clearing were two names for one action, and
-  Clear is the one you can see happen.
-- **An edit that sets the notebook aside offers to keep it, twice.** Once on save
-  — the server says whether the fingerprint moved and how many lessons are at
-  stake, and the dialog asks — and again in the panel, for as long as the
-  notebook is set aside. The second is not a duplicate: the save-time prompt can
-  be dismissed by Escape or a stray click, and without a second route an accident
-  strands the notebook until a pass overwrites it.
-- **Start fresh deletes now; dismissing does not.** The button says what it does,
-  so it should not leave the lessons in the panel afterwards — but the X, Escape
-  and the scrim all mean "not now", and throwing a notebook away because somebody
-  dismissed a dialog is the wrong kind of surprise.
+- The escape hatches are **remove a lesson** and **Clear**. There is no per-test
+  disable and no per-run force-cold flag: under "cold replaces", forcing cold and
+  clearing were two names for one action, and Clear is the one you can see happen.
+- **An edit offers to clear, and offers nothing else.** The dialog appears when
+  the instructions or the start URL changed on a test that has lessons. Keeping
+  is the default, dismissing keeps, and only the button deletes — the notebook is
+  supplied on the next run either way.
 - Run history records whether learned lessons actually reached the agent, which
   is what disqualifies a run from being an independent observer.
 - The run feed says when memory was used or withheld and why.
@@ -382,35 +353,14 @@ to exempt. What is left of the argument is the reason the *shape* of the write
 matters: an assisted run may add and may not erase.
 
 
-### The fingerprint
+### The fingerprint — removed
 
-Resolve, canonicalize, hash — SHA-256 over a canonical JSON encoding with
-sorted keys.
+It was pinned here as eleven resolved inputs, narrowed to two, then dropped
+entirely. The account is under "What makes a notebook stop applying". What
+survives from it is one line of the URL rule, still applied where URLs are
+stored: scheme and host lowercased, default port dropped, query and fragment
+removed, because they carry tokens and unstable ids.
 
-| Input | Source | Canonical form |
-|---|---|---|
-| Instructions | `resolveForRun` → `resolved.goal` | post-substitution, `<secret>` tags intact, trimmed |
-| Start URL | `resolved.start_url` | post-substitution, normalized as below |
-
-
-A secret's **value never enters the hash.** Hashing is one-way, but a password
-drawn from a small space is recoverable from a digest, and the fingerprint is a
-column a read endpoint may serve. Nothing useful is lost: rotating a password
-does not change which menu Billing is under.
-
-**And the person gets the last word.** The hash knows *that* the instructions
-changed and never whether that changed the flow — a typo fixed in the goal and
-the test repointed at another app are the same event to it. So an edit that moves
-the fingerprint on a test that has lessons asks: *do those still apply?* Yes
-re-keys the row to the new inputs and the next run is still helped; anything else,
-including dismissing it, leaves the automatic behaviour. `PUT /api/tests/:id`
-carries the answer (`memory.invalidated`, `memory.lessons`) because the hash is
-the server's — a second spelling on the client agrees until it quietly does not —
-and `POST /api/tests/:id/memory/keep` is the re-key. It never touches a lesson.
-
-URL normalization is the storage rule applied to the fingerprint too — scheme
-and host lowercased, default port dropped, query and fragment removed. A run
-pointed at `?utm_source=…` must not read as a different test.
 
 ### The invalidation matrix, and the state machine
 
@@ -678,7 +628,7 @@ conditional write are unaffected by this decision and their assertions stand.
       earlier run learned — asserted for a hinted run too, since a hint is
       evidence from outside and must reach the next run
 - [x] A **cold** pass REPLACES the notebook, and cold is exactly: a first run, a
-      fingerprint mismatch, and a run after Clear
+      run after Clear, and a run of a test whose last lesson was removed by hand
 - [x] A passing run that met no incident calls no generator and writes nothing;
       the stored `learned_at` and source run still name the run that contributed
 - [x] The item and character cap holds, with the generator's own keep/drop
@@ -686,19 +636,19 @@ conditional write are unaffected by this decision and their assertions stand.
 
 **Invalidation and containment:**
 
-- [x] The two inputs are asserted to move the fingerprint **independently**, and
-      the nine dropped ones are asserted **not** to; a secret's value never
-      enters the hash
-- [x] An edit that moves the fingerprint on a test with lessons offers to keep
-      them; keeping re-keys and rewrites nothing; dismissing leaves the
-      automatic behaviour
-- [x] A fingerprint mismatch supplies nothing, the run is therefore cold, and its
-      pass replaces the notebook — the superseded lessons stay readable until then
+- [x] Nothing about a run or an edit withholds a notebook — asserted as the
+      absence it is, because every rule that used to do so cost a test its
+      lessons for a change that left the app where it was
+- [x] An edit that changes the instructions or start URL on a test with lessons
+      **offers** to clear them; keeping is the default and dismissing keeps
+- [x] An edited test is still handed what it learned; only a person takes a
+      notebook away
 - [x] A run that does not pass leaves the notebook untouched and the run after it
       is still assisted — a test that fails because it found a bug does not lose
       what it learned
-- [x] A run that started before an edit cannot teach a notebook keyed to inputs
-      it never ran with (real Postgres — pg-mem cannot hold the conditional write)
+- [x] The upsert leaves one row per test, and a lesson survives the `jsonb` round
+      trip with its id and provenance intact (real Postgres — pg-mem stores
+      jsonb loosely and its `on conflict` is not Postgres's)
 - [x] Secret scrubbing is asserted both when memory is stored and when it is read
       for a prompt, the second against *today's* secrets
 - [x] Clear empties the notebook and the next run is cold; run history is

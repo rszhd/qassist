@@ -209,31 +209,23 @@ curl http://<host>:8080/api/tests/<testId>/memory \
 # -> {"learned":{"successful_approach":[{"id":"a1b2c3d4e5f6",
 #       "text":"Open Billing from the account menu","steps":[4],
 #       "run_id":"...","learned_at":"...","hinted":false}]},
-#     "supplied":{...},"withheld":null,"learned_at":"..."}
+#     "supplied":{...},"learned_at":"..."}
 ```
 
 `supplied` is **exactly** what the next run is handed, or `null` when it will run
 cold. There is no memory the model sees and this endpoint does not.
 
-`learned` is what is stored. The two differ when the notebook no longer applies,
-and `withheld` says why. There is one reason: `inputs_changed` — the test's
-**instructions** or **start URL** moved under it. Those two are the whole
-fingerprint, so a model change, a re-captured session, a new fixture or an edited
-navigation policy leave a notebook alone. Nothing here needs a human; the next run
-goes cold on its own and its pass replaces the notebook.
+`learned` is what is stored, and `supplied` is what the next run gets. They are
+the same unless the notebook is empty: **nothing withholds a notebook**. An edit
+does not, a failing run does not, a model change does not. Only a person takes
+one away.
 
-When an edit does move it, `PUT /api/tests/<testId>` answers with
-`"memory":{"invalidated":true,"lessons":2}`, and you can say the lessons still
-hold — a typo fixed in the instructions is not a different flow, and only the
-person who made the edit knows which it was:
-
-```bash
-curl -X POST http://<host>:8080/api/tests/<testId>/memory/keep \
-  -H "Authorization: Bearer $WORKER_API_TOKEN"
-```
-
-That re-keys the notebook to the new inputs and changes no lesson. Do nothing and
-the next run relearns.
+An edit that changes the test's **instructions** or **start URL** does offer,
+though, because that is the one judgement a person can make and the system
+cannot — a typo fixed in the instructions is not a different flow. `PUT
+/api/tests/<testId>` answers with `"memory":{"changed":true,"lessons":2}`, and
+the UI asks. Nothing acts on it: keep the lessons, or clear them with the call
+below.
 
 **A run that does not pass changes nothing.** The commonest reason a test fails
 is that it found the bug it exists to find, so a failure is not evidence against

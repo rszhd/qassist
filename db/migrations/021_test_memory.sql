@@ -9,11 +9,12 @@
 -- Inert on the day it lands: no test has a row, and no row means an empty
 -- notebook, which is exactly what every existing test has learned so far.
 --
--- Five columns fewer than the first build's, and the absences are the design.
--- There is no `state`, no `archived`, no `archive_fingerprint`, no `enabled` and
--- nothing recording a run that went wrong: every one was derivable, served a
--- hand-written half of the notebook that was cut, or punished a test for failing.
--- What is left is one hash and one notebook, and only a passing run touches it.
+-- Six columns fewer than the first build's, and the absences are the design.
+-- There is no `state`, no `archived`, no fingerprint of any kind, no `enabled`
+-- and nothing recording a run that went wrong. Each was a rule the system applied
+-- to itself, and each took a notebook away for a change that left the app under
+-- test exactly where it was. What is left is the notebook, and only a passing run
+-- writes it — nothing else takes it away but a person.
 
 create table if not exists test_memory (
   -- One row per test, and the primary key says so. An upsert on conflict is
@@ -21,15 +22,9 @@ create table if not exists test_memory (
   -- produce two rows to choose between.
   test_id uuid primary key references tests(id) on delete cascade,
 
-  -- The canonical hash of every resolved input the lessons were derived under
-  -- (`server/src/testMemory.js`). Two jobs, and both are comparisons rather than
-  -- lookups: a run reads it to decide whether the notebook still applies, and
-  -- the conditional write checks it so a run that started before an edit cannot
-  -- teach the inputs it never ran with.
-  fingerprint text not null,
-  -- Stored beside the fingerprint rather than folded into it alone, so a
-  -- deployment can discard an old learned *shape* deliberately, by query,
-  -- without waiting for each test to be edited into a new fingerprint.
+  -- The shape of `learned`. The one thing that can invalidate a notebook without
+  -- somebody clicking: a deployment discards an old shape deliberately, by
+  -- query, when the generator's sections change under it.
   format_version int not null,
 
   -- The notebook, in the agent's three sections. Provenance is per item — the
@@ -54,6 +49,3 @@ create table if not exists test_memory (
 -- False on every existing row, which is what those runs were: nothing had been
 -- learned yet, so nothing was supplied.
 alter table runs add column if not exists memory_used boolean not null default false;
--- The fingerprint the run started with, which the conditional write compares
--- against. Null on every run from before this shipped.
-alter table runs add column if not exists memory_fingerprint text;

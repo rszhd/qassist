@@ -1,4 +1,4 @@
-import { Brain, Play, Plus, Trash2 } from 'lucide-react';
+import { Play, Plus, Trash2 } from 'lucide-react';
 import { Button, Field, IconButton, Modal } from './ui.jsx';
 import RunMemory from './RunMemory.jsx';
 
@@ -302,42 +302,34 @@ export function RunVarsDialog({ test, values, setValues, onClose, onRun }) {
 }
 
 /**
- * What happens to a test's notebook when the test under it is edited (US-081).
+ * Offer to throw away what a test learned, after an edit that changed what the
+ * test does (US-081).
  *
- * The edit has already landed; this decides one thing only. It is asked rather
- * than decided because the fingerprint knows *that* the instructions changed and
- * never whether that changed the flow — a typo fixed in the goal and the test
- * repointed at another app are the same event to it, and only the person who
- * just made the edit can tell them apart.
+ * Asked, never assumed, and the default is to keep. The system has no opinion:
+ * an edit does not make the next run cold and nothing here is invalidated
+ * automatically, because every rule that used to do that took notebooks away for
+ * changes that left the app under test where it was. What is left is the one
+ * judgement a person can make and the system cannot — *is this still the same
+ * flow?* — asked at the only moment they have the edit in mind.
  *
- * All three answers end with the next run learning the flow again; they differ
- * in what happens to the old lessons. Keep re-keys them and they are supplied as
- * before. Start fresh deletes them now, because a button saying that should not
- * leave them sitting in the panel. Dismissing does neither — they stay, unused,
- * until the next passing run replaces them — which is what makes dismissing the
- * answer you can give by accident.
+ * So dismissing it keeps the lessons, and so does ignoring it. Only the button
+ * deletes, and only what it says it deletes.
  */
-export function MemoryPromptDialog({ lessons, saving, onKeep, onDiscard, onClose }) {
+export function MemoryPromptDialog({ lessons, saving, onClear, onClose }) {
   const what = lessons === 1 ? 'lesson' : 'lessons';
   return (
     <Modal
-      title="Keep what this test learned?"
+      title="Clear what this test learned?"
       description={
         `You changed what this test does. Its Run memory holds ${lessons} ${what} ` +
-        'that earlier runs worked out.'
+        'that earlier runs worked out, and the next run will still start with them.'
       }
       onClose={onClose}
       footer={
         <>
-          {/* Discards now, so the panel does not go on showing lessons the
-              person has just said goodbye to. Deliberately NOT `onClose`: the X,
-              Escape and the scrim all reach that one, and throwing away a
-              notebook because somebody dismissed a dialog is the wrong kind of
-              surprise. Dismissing leaves the automatic behaviour — withheld, and
-              replaced by the next passing run. */}
-          <Button onClick={onDiscard} disabled={saving}>Start fresh</Button>
-          <Button variant="primary" icon={Brain} onClick={onKeep} disabled={saving}>
-            Keep {what}
+          <Button onClick={onClose} disabled={saving}>Keep {what}</Button>
+          <Button variant="danger" icon={Trash2} onClick={onClear} disabled={saving}>
+            Clear memory
           </Button>
         </>
       }

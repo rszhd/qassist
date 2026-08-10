@@ -44,7 +44,7 @@ import { broadcast, setQueuePosition, setScreencast } from './runRelay.js';
 import {
   captureSession, maybeNotify, persistInsert, persistUpdate, storeLearned,
 } from './runPersistence.js';
-import { memoryFor, MEMORY_FORMAT_VERSION } from './testMemory.js';
+import { memoryFor } from './testMemory.js';
 import { generateReport } from './runReport.js';
 import { startReplay } from './runReplay.js';
 
@@ -125,20 +125,14 @@ function canStart(run) {
  *
  * `createRun` and the memory panel both call this, and that sharing is the whole
  * reason it is a function. The story's rule is that the next run receives exactly
- * the content the panel shows — so a second assembly of these inputs is not a
- * tidiness question: two spellings drift, and the panel then displays a notebook
- * the agent was never handed. Same lesson as `RUNNABLE_TEST_COLS`, which US-048
- * learned the other way round.
+ * the content the panel shows — so a second assembly is not a tidiness question:
+ * two spellings drift, and the panel then displays a notebook the agent was never
+ * handed. Same lesson as `RUNNABLE_TEST_COLS`, which US-048 learned the other
+ * way round.
  * @param {Parameters<typeof createRun>[0]} fields
  */
 export function previewMemory(fields) {
-  return memoryFor({
-    stored: fields.memory ?? null,
-    // The resolved instructions and start URL, and nothing else — `fingerprint`
-    // documents why. Both arrive already substituted, so a variable that reaches
-    // either is already in the text.
-    inputs: { goal: fields.goal, start_url: fields.start_url },
-  });
+  return memoryFor({ stored: fields.memory ?? null });
 }
 
 // --- run lifecycle ---
@@ -195,15 +189,11 @@ export function createRun(fields) {
   // What this run is given, and what it may write back (US-081). Settled here,
   // before the run exists, for the reason `storage_state` is: the engine is
   // synchronous and the stored notebook is a DB read, so the async caller
-  // resolves it and hands it in. A caller that passes nothing gets a fingerprint
-  // and no advice — which is a saved test's first run, and correct.
+  // resolves it and hands it in. A caller that passes nothing gets no advice,
+  // which is a saved test's first run and correct.
   // An ad-hoc run has no test, so there is nothing to read and nothing to write
-  // it back to. Skipping the fingerprint entirely is what makes that spawn
-  // identical to one from before this shipped — `memory_fingerprint` is the flag
-  // `startRun` and `recordMemory` both read as "this run has no notebook".
-  const memory = fields.test_id
-    ? previewMemory(fields)
-    : { fingerprint: null, used: false, supplied: null, withheld: null };
+  // it back to. `test_id` is the flag `startRun` and `recordMemory` both read.
+  const memory = fields.test_id ? previewMemory(fields) : { used: false, supplied: null };
 
   const runId = randomUUID();
   /** @type {Run} */
@@ -253,15 +243,13 @@ export function createRun(fields) {
     // The project's deterministic preamble (AC #5), already validated at write
     // time and re-filtered on read.
     preamble: fields.preamble || [],
-    // US-081, all decided by `previewMemory` above off the test's stored
+    // US-081, both decided by `previewMemory` above off the test's stored
     // notebook — which the async caller resolved before this synchronous engine
     // was entered, exactly as the session blob and the stored secrets are.
     // `memory_supplied` is in-memory only, like the policy: it is derived from
     // the test's row, and persisting it would be a second copy that can disagree.
-    memory_fingerprint: memory.fingerprint,
     memory_used: memory.used,
     memory_supplied: memory.supplied,
-    memory_withheld: memory.withheld,
     user_id: uid,
     trigger,
     // Which schedule started this and which of its firings (US-069). Only the
@@ -603,10 +591,8 @@ export function stopRun(run) {
 // applied that shape before this row is touched.
 /** @param {Run} run */
 function recordMemory(run) {
-  // An ad-hoc run has no test to remember anything, and a null fingerprint is a
-  // run that was never offered a notebook — one started before this shipped.
-  // Neither may write.
-  if (run.status !== 'passed' || !run.test_id || !run.memory_fingerprint) return;
+  // An ad-hoc run has no test to remember anything, so it may not write.
+  if (run.status !== 'passed' || !run.test_id) return;
 
   // A pass that produced nothing usable must not reach the notebook: a vacuous
   // write would displace real lessons and read as freshly learned. This is also
@@ -635,14 +621,12 @@ function finishCancelled(run) {
   evictLater(run.id);
 }
 
-// What the feed says about this run's notebook, or nothing.
+// What the feed says about this run's notebook, or nothing. Silent on a cold run
+// — a first run, or one after Clear — because that is the ordinary state of a
+// test nobody has taught yet, and a line for it would be noise on every run.
 /** @param {Run} run */
 function memoryNote(run) {
-  if (run.memory_used) return 'Starting with what earlier runs of this test learned.';
-  if (run.memory_withheld === 'inputs_changed') {
-    return 'Running cold: the test changed, so what it learned before no longer applies.';
-  }
-  return null;
+  return run.memory_used ? 'Starting with what earlier runs of this test learned.' : null;
 }
 
 /** @param {string} runId */
@@ -708,8 +692,8 @@ function startRun(runId) {
     // `delete` below is what makes the absent case absent rather than `''`.
     QA_MEMORY: run.memory_supplied ? JSON.stringify(run.memory_supplied) : '',
     // A saved test always learns; only an ad-hoc run, which has no test to
-    // remember anything, does not. `memory_fingerprint` is null exactly there.
-    QA_LEARN_MEMORY: run.memory_fingerprint ? '1' : '',
+    // remember anything, does not.
+    QA_LEARN_MEMORY: run.test_id ? '1' : '',
     BROWSER_USE_MODEL: run.model || MODEL,
     OPENAI_API_KEY: run.openai_api_key,
     ARTIFACTS_DIR,

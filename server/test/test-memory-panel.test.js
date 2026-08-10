@@ -105,19 +105,10 @@ async function testWithMemory() {
       .expect(201)
   ).body;
 
-  // The fingerprint the row must carry is the one this test's inputs hash to,
-  // and the only honest way to get it is the path a run uses.
-  const { previewMemory } = await import('../src/runs.js');
-  const { runnableFieldsFor } = await import('../src/routes/helpers.js');
-  const { rows } = await pool.query('select * from tests where id = $1', [t.id]);
-  const resolved = await runnableFieldsFor(rows[0]);
-  if ('error' in resolved) throw new Error(`could not resolve the test: ${resolved.error}`);
-  const fingerprint = previewMemory(resolved.fields).fingerprint;
-
   await pool.query(
-    `insert into test_memory (test_id, fingerprint, format_version, learned, learned_at)
-     values ($1, $2, 1, $3, now())`,
-    [t.id, fingerprint, JSON.stringify(NOTEBOOK)]
+    `insert into test_memory (test_id, format_version, learned, learned_at)
+     values ($1, 1, $2, now())`,
+    [t.id, JSON.stringify(NOTEBOOK)]
   );
   return { test: t };
 }
@@ -130,7 +121,6 @@ test('the panel shows what the next run is handed, not a description of it', asy
   const panel = await panelOf(t.id);
   assert.deepEqual(panel.learned, NOTEBOOK);
   assert.deepEqual(panel.supplied, NOTEBOOK, 'the same value the spawn carries');
-  assert.equal(panel.withheld, null);
 });
 
 test('a test that has learned nothing has an empty panel, not an error', async () => {
@@ -143,17 +133,18 @@ test('a test that has learned nothing has an empty panel, not an error', async (
   ).body;
   const panel = await panelOf(t.id);
   assert.deepEqual(panel.learned, {});
-  assert.equal(panel.supplied, null);
-  assert.equal(panel.withheld, null, 'nothing learned yet is not advice being kept back');
+  assert.equal(panel.supplied, null, 'nothing learned yet, so nothing to hand over');
 });
 
-test('an edited test shows its superseded lessons and says they no longer apply', async () => {
-  const { test: t } = await testWithMemory();
-  await pool.query('update tests set goal = $2 where id = $1', [t.id, 'cancel the subscription']);
-  const panel = await panelOf(t.id);
-  assert.equal(panel.withheld, 'inputs_changed');
-  assert.equal(panel.supplied, null);
-  assert.deepEqual(panel.learned, NOTEBOOK, 'readable until a pass replaces them');
+test('an edited test still shows its lessons as what the next run gets', () => {
+  // Nothing about an edit sets a notebook aside any more, so the panel has no
+  // withheld state left to render.
+  return testWithMemory().then(async ({ test: t }) => {
+    await pool.query('update tests set goal = $2 where id = $1', [t.id, 'cancel the subscription']);
+    const panel = await panelOf(t.id);
+    assert.deepEqual(panel.supplied, NOTEBOOK);
+    assert.deepEqual(panel.learned, NOTEBOOK);
+  });
 });
 
 test('removing one wrong lesson leaves the rest standing', async () => {
@@ -188,17 +179,16 @@ test('clearing throws the notebook away and leaves run history alone', async () 
   assert.equal(rows.length, 1, 'a run is evidence and a notebook is a working note');
 });
 
-test('an edit that moves the fingerprint says so, with what is at stake', async () => {
-  // The one thing the client cannot work out for itself: the hash is the
-  // server's, and the panel must never grow a second spelling of it. The count
-  // is there so the dialog can stay quiet when there is nothing to lose.
+test('an edit that changes what the test does says so, with what is at stake', async () => {
+  // Nothing acts on this — the notebook is supplied either way. It exists so the
+  // dialog can OFFER to clear, and stay quiet when there is nothing to offer.
   const { test: t } = await testWithMemory();
   const res = await request(app)
     .put(`/api/tests/${t.id}`)
     .set(auth)
     .send({ goal: 'cancel the subscription instead' })
     .expect(200);
-  assert.equal(res.body.memory.invalidated, true);
+  assert.equal(res.body.memory.changed, true);
   assert.equal(res.body.memory.lessons, 2);
 });
 
@@ -211,7 +201,7 @@ test('an edit that leaves the flow alone says nothing is at stake', async () => 
     .set(auth)
     .send({ name: 'billing, renamed', max_steps: 40 })
     .expect(200);
-  assert.equal(res.body.memory.invalidated, false);
+  assert.equal(res.body.memory.changed, false);
 });
 
 test('a test with nothing learned never has anything at stake', async () => {
@@ -228,31 +218,6 @@ test('a test with nothing learned never has anything at stake', async () => {
     .send({ goal: 'check something else' })
     .expect(200);
   assert.equal(res.body.memory.lessons, 0);
-});
-
-test('keeping the lessons re-keys them to the edited test', async () => {
-  // The person's answer to a question the fingerprint cannot ask: the hash knows
-  // THAT the instructions changed, never whether the lessons still hold. A typo
-  // fixed in the goal and the test repointed at another app look identical to it.
-  const { test: t } = await testWithMemory();
-  await pool.query('update tests set goal = $2 where id = $1', [t.id, 'check it more carefully']);
-  assert.equal((await panelOf(t.id)).withheld, 'inputs_changed');
-
-  const kept = (await request(app).post(`/api/tests/${t.id}/memory/keep`).set(auth).expect(200)).body;
-  assert.equal(kept.withheld, null, 'they apply again');
-  assert.deepEqual(kept.supplied, NOTEBOOK, 'and the next run is handed them');
-  assert.deepEqual(kept.learned, NOTEBOOK, 'unchanged — this re-keys, it does not rewrite');
-});
-
-test('keeping is refused for a test that has learned nothing', async () => {
-  const t = (
-    await request(app)
-      .post('/api/tests')
-      .set(auth)
-      .send({ name: 'nothing to keep', goal: 'check something', start_url: 'https://y.example.test/' })
-      .expect(201)
-  ).body;
-  await request(app).post(`/api/tests/${t.id}/memory/keep`).set(auth).expect(404);
 });
 
 test('there is no way to write a lesson', async () => {
@@ -283,5 +248,4 @@ test("another tenant's notebook is not readable", async () => {
     .delete(`/api/tests/${t.id}/memory/lessons/${LESSON.id}`)
     .set(auth)
     .expect(404);
-  await request(app).post(`/api/tests/${t.id}/memory/keep`).set(auth).expect(404);
 });

@@ -172,15 +172,9 @@ test('a first run is cold, says so in its history, and writes a notebook', async
   assert.ok(!('QA_MEMORY' in first.env), 'nothing learned yet, so no notebook');
   assert.equal(first.env.QA_LEARN_MEMORY, '1', 'and it is told it may write one');
   assert.equal(first.row.memory_used, false);
-  assert.ok(
-    first.row.memory_fingerprint,
-    'a cold run still records what it was keyed to — otherwise history cannot ' +
-      'tell "ran without a notebook" from "predates memory"'
-  );
 
   const learned = await memoryRow(t.id);
   assert.ok(learned, 'the passing run wrote a notebook');
-  assert.equal(learned.fingerprint, first.row.memory_fingerprint, 'keyed to the inputs it ran with');
   assert.deepEqual(learned.learned, NOTEBOOK);
 });
 
@@ -231,24 +225,21 @@ test('a failing run changes nothing, and the next run is still helped', async ()
   assert.ok(next.env.QA_MEMORY, 'and the run after a failure is still given the notebook');
 });
 
-test('an edited test stops being handed the notebook it learned', async () => {
+test('an edited test is still handed what it learned', async () => {
+  // The revised rule. An edit used to make the next run cold, and that took a
+  // notebook away for changes that left the app under test where it was. Now
+  // only a person takes one away.
   const t = await makeTest('billing edited');
   await runTest(t.id);
 
-  // Straight into the row rather than through the edit route: pg-mem cannot run
-  // that route's `nullif`, and what is under test here is the *read-side*
-  // comparison — the run's own fingerprint against the notebook's — not how the
-  // goal came to change.
   await pool.query('update tests set goal = $2 where id = $1', [
     t.id,
     'cancel the subscription instead',
   ]);
 
   const after = await runTest(t.id, { teaches: false });
-  assert.ok(!('QA_MEMORY' in after.env), 'the lessons no longer apply, so nothing is supplied');
-  assert.equal(after.row.memory_used, false);
-  const kept = await memoryRow(t.id);
-  assert.deepEqual(kept.learned, NOTEBOOK, 'superseded, and still readable until a pass replaces it');
+  assert.ok(after.env.QA_MEMORY, 'the lessons still apply until somebody says otherwise');
+  assert.equal(after.row.memory_used, true);
 });
 
 test('the run list serves cold-vs-assisted, which is what the gate compares', async () => {
@@ -282,11 +273,13 @@ test('the feed says when a run is working from advice, and when it is not', asyn
     )
   );
 
-  // Straight into the row: an edit is the one thing that makes a run cold.
-  await pool.query('update tests set goal = $2 where id = $1', [t.id, 'something else entirely']);
+  // Clear is what makes a run cold now, and a cold run says nothing — a first
+  // run of a test nobody has taught is the ordinary case, and a line for it
+  // would be noise on every run.
+  await request(app).delete(`/api/tests/${t.id}/memory`).set(auth).expect(204);
   const cold = await runTest(t.id, { teaches: false });
-  assert.ok(
-    (await messagesOf(cold.runId)).some((m) => m.includes('the test changed')),
-    'and it says why it is cold'
+  assert.equal(
+    (await messagesOf(cold.runId)).some((m) => m.includes('learned')),
+    false
   );
 });

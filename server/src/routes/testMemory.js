@@ -8,52 +8,33 @@
 // a step anybody has to take.
 //
 // The read carries a promise: the panel shows the exact notebook the next run
-// receives, so both come from `previewMemory` over the same resolved inputs
-// `createRun` uses. Anything less and the panel becomes a plausible description
-// of a prompt rather than the prompt.
+// receives, so both go through `memoryFor`. Anything less and the panel becomes
+// a plausible description of a prompt rather than the prompt.
 //
-// No lesson can be written here. "Learned" means a trace produced it, so a body
-// that could add one would let hand-written advice claim provenance it does not
-// have — and the first build proved the alternative costs more than it gives.
-// Two of the three controls are deletions; the third moves the key and never the
-// lessons.
+// Every write here is a deletion. "Learned" means a trace produced it, so a body
+// that could add a lesson would let hand-written advice claim provenance it does
+// not have — and the first build proved the alternative costs more than it gives.
 import express from 'express';
 import { db, currentUserId, isUuid } from '../db.js';
-import { previewMemory } from '../runs.js';
-import { clearMemory, memoryOf, rekeyMemory, removeLesson } from '../testMemoryStore.js';
-import {
-  h, requireDb, RUNNABLE_TEST_COLS, RUNNABLE_TEST_FROM, runnableFieldsFor,
-} from './helpers.js';
+import { memoryFor } from '../testMemory.js';
+import { clearMemory, memoryOf, removeLesson } from '../testMemoryStore.js';
+import { h, requireDb, RUNNABLE_TEST_COLS, RUNNABLE_TEST_FROM } from './helpers.js';
 
 /**
- * The panel's JSON: the row, and the decision over it.
+ * The panel's JSON. `learned` is the row; `supplied` is what the next run gets,
+ * and they are the same thing unless the notebook is empty — the story's "no
+ * hidden memory visible only to the model", made checkable.
  *
- * `supplied` is what the next run is handed, and it is the same value the panel
- * renders — the story's "no hidden memory visible only to the model", made
- * checkable. It differs from `learned` exactly when something changed since the
- * notebook was written, which is the case the panel most needs to explain, and
- * `withheld` is the reason.
- * @param {any} test @param {any} row
+ * Both are returned rather than one, because they were not always equal and the
+ * check is the point: if a rule that withholds a notebook ever comes back, the
+ * panel has to be able to show it.
+ * @param {any} row
  */
-async function shapeMemory(test, row) {
-  const base = {
+function shapeMemory(row) {
+  return {
     learned: row?.learned ?? {},
     learned_at: row?.learned_at ?? null,
-  };
-  const resolved = await runnableFieldsFor(test);
-  // A notebook is an optimisation, so nothing here may fail a request: a secret
-  // that will not decrypt stops a *run*, and it must not also stop someone
-  // reading what their test learned. The stored lessons are still shown; only
-  // the "what the next run gets" preview is withheld, with its reason.
-  if ('error' in resolved) {
-    return { ...base, supplied: null, withheld: null, preview_error: resolved.error };
-  }
-  const preview = previewMemory(resolved.fields);
-  return {
-    ...base,
-    supplied: preview.supplied,
-    withheld: preview.withheld,
-    preview_error: null,
+    supplied: memoryFor({ stored: row }).supplied,
   };
 }
 
@@ -78,13 +59,12 @@ export function testMemoryRouter({ checkToken }) {
     h(async (req, res) => {
       const test = await ownTest(req);
       if (!test) return res.status(404).json({ error: 'not found' });
-      res.json(await shapeMemory(test, await memoryOf(test.id)));
+      res.json(shapeMemory(await memoryOf(test.id)));
     })
   );
 
-  // Remove one lesson that is wrong. The rest of the notebook stands, and the
-  // fingerprint does not move — this is not an edit to what the test means, so
-  // the next run is still assisted by what is left.
+  // Remove one lesson that is wrong. The rest of the notebook stands and is
+  // still supplied; only the last removal leaves a test with nothing to say.
   r.delete(
     '/lessons/:itemId',
     h(async (req, res) => {
@@ -92,23 +72,7 @@ export function testMemoryRouter({ checkToken }) {
       if (!test) return res.status(404).json({ error: 'not found' });
       const saved = await removeLesson(test.id, req.params.itemId);
       if (!saved) return res.status(404).json({ error: 'not found' });
-      res.json(await shapeMemory(test, saved));
-    })
-  );
-
-  // "These lessons still apply." The person's answer to the question the
-  // fingerprint cannot ask — it knows the instructions changed, never whether
-  // that changed the flow. Nothing is written but the key.
-  r.post(
-    '/keep',
-    h(async (req, res) => {
-      const test = await ownTest(req);
-      if (!test) return res.status(404).json({ error: 'not found' });
-      const resolved = await runnableFieldsFor(test);
-      if ('error' in resolved) return res.status(400).json({ error: resolved.error });
-      const saved = await rekeyMemory(test.id, previewMemory(resolved.fields).fingerprint);
-      if (!saved) return res.status(404).json({ error: 'not found' });
-      res.json(await shapeMemory(test, saved));
+      res.json(shapeMemory(saved));
     })
   );
 
