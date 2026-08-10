@@ -23,6 +23,10 @@ if (process.env.QA_ENV_CAPTURE_FILE) {
     'QA_ALLOWED_DOMAINS',
     'QA_FIXTURES',
     'QA_HAR',
+    // US-046 rides it a fourth time: cost collection is the one flag whose
+    // "off" has to mean no outbound request, and the only proof the server's
+    // switch decided that is which value the child was handed.
+    'QA_CALCULATE_COST',
   ];
   fs.writeFileSync(
     process.env.QA_ENV_CAPTURE_FILE,
@@ -80,6 +84,12 @@ const events = [
     duration_seconds: 0.2,
     steps: 1,
     final_result: failed ? 'goal not met (stub)' : 'goal met (stub)',
+    // US-046: whatever the test wants `agent/run_cost.py` to have concluded.
+    // Absent unless asked for, because a run that reports no usage at all is
+    // the normal case for everything that predates the story and has to keep
+    // working — and `undefined` here drops the key, which is the shape the
+    // server must treat as "nobody measured".
+    usage: process.env.QA_STUB_USAGE ? JSON.parse(process.env.QA_STUB_USAGE) : undefined,
   },
 ];
 function emit() {

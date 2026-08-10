@@ -46,6 +46,14 @@ export function persistUpdate(run) {
   if (!db()) return;
   const res = run.result || {};
   const failedOrError = run.status === 'error' || run.status === 'failed';
+  // US-046. `usage` is absent on every event but the agent's `done`, and null
+  // within it when the run crashed before browser-use built a summary — so an
+  // update fired at `queued` or `running` writes nulls, which is what those
+  // rows mean. Cost is written only when it was measured; `cost_known` false
+  // and a number is refused by the row's own check constraint (migration 020),
+  // deliberately, because that pair is the story's whole failure mode.
+  const usage = res.usage || null;
+  const costKnown = !!usage?.cost_known;
   const update = () =>
     db()
       .query(
@@ -59,7 +67,12 @@ export function persistUpdate(run) {
                 finished_at   = $8,
                 report_status = $9,
                 has_recording = $10,
-                failure_reason = $11
+                failure_reason = $11,
+                prompt_tokens     = $12,
+                completion_tokens = $13,
+                total_tokens      = $14,
+                total_cost        = $15,
+                cost_known        = $16
           where id = $1`,
         [
           run.id,
@@ -75,6 +88,11 @@ export function persistUpdate(run) {
           // Null on every ordinary run, which is what keeps a value here
           // meaning "the fence fired" rather than "something went wrong".
           res.failure_reason ?? null,
+          usage?.prompt_tokens ?? null,
+          usage?.completion_tokens ?? null,
+          usage?.total_tokens ?? null,
+          costKnown ? usage.total_cost : null,
+          costKnown,
         ]
       )
       .catch((err) => console.error(`db: update run ${run.id.slice(0, 8)} failed:`, err.message));

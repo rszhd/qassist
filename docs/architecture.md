@@ -571,6 +571,7 @@ Absence of configuration is the off switch. There is no feature-flag table.
 | `AUTH_MODE=demo` | The sandbox: tenants, seeded data, replay, reaper |
 | `MAX_CONCURRENT_PER_USER` | Fair-share admission and draining |
 | `CAPTURE_HAR` | The full network archive on every run |
+| `CALCULATE_COST=0` | Turns off cost estimation *and* its pricing fetch; tokens are still counted |
 | `QA_BLOCK_PRIVATE_NETWORKS=0` | Removes the navigation floor — the escape hatch for testing `localhost` |
 
 Self-host is always free, and that is enforced by the gate being the *absence of

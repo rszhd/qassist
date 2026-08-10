@@ -301,6 +301,36 @@ reached by join — so a run whose test was later deleted keeps its history row
 filter. Once retention prunes `runs/<id>/`, `artifacts_deleted_at` is set and
 the row reports no recording or report while the verdict survives.
 
+### What a run cost
+
+Every run row carries `prompt_tokens`, `completion_tokens`, `total_tokens`,
+`total_cost` and `cost_known`. Tokens and cost are **two separate questions**,
+and the second one has an answer only sometimes:
+
+- `total_tokens` is a measurement whenever it is non-null. Null means nobody
+  counted — a run from before this shipped, or one that crashed before the
+  agent could summarise itself.
+- `total_cost` is an **estimate**, priced from a table browser-use fetches and
+  caches, not from the provider's billing API. It drifts, it does not know
+  negotiated rates, and it is `null` unless `cost_known` is true.
+
+**Never render a null cost as `$0.00`, and never sum a set that contains one
+without saying so.** `cost_known` is false in three unrelated cases — the
+operator set `CALCULATE_COST=0`, the pricing table could not be fetched, or the
+model has no published price — and only a `cost_known: true` zero means the run
+was free. A total over a filtered page that quietly skips the unpriced runs
+looks authoritative and is wrong downwards, which is the direction nobody
+questions.
+
+The per-model breakdown — a run bills against the agent, the judge, page
+extraction and message compaction, each of which may be a different model — is
+in `runs/<id>/report_data.json` under `usage.by_model`, not in the row. Each
+entry carries its own `cost_known`, so an unpriced total can be traced to the
+model that caused it.
+
+`CALCULATE_COST=0` turns the whole thing off, including the pricing fetch.
+Tokens are still counted; they cost nothing to collect.
+
 `schedule_id` narrows to the runs one schedule started. It is the filter to
 reach for when two schedules point at the same target — an hourly smoke and a
 nightly regression on one test are indistinguishable under `test_id` and under

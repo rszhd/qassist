@@ -44,7 +44,9 @@ const MAX_LIMIT = 200;
 const LIST_COLS = `r.id, r.test_id, r.trigger, r.goal, r.start_url, r.status,
   r.success, r.final_result, r.error, r.steps_count, r.created_at, r.started_at,
   r.finished_at, r.report_status, r.has_recording, r.artifacts_deleted_at,
-  r.variables, r.failure_reason, t.name as test_name, t.project_id, t.module_id`;
+  r.variables, r.failure_reason, r.prompt_tokens, r.completion_tokens,
+  r.total_tokens, r.total_cost, r.cost_known,
+  t.name as test_name, t.project_id, t.module_id`;
 
 /**
  * Translate ?test_id/?status/?trigger/?project_id/?since/?until into a WHERE
@@ -159,6 +161,13 @@ function liveRow(run) {
     // US-042: null unless the navigation fence fired, so a reader can tell a
     // confined run from a crashed one without parsing `error`.
     failure_reason: res.failure_reason ?? null,
+    // US-046, in the same shape the row answers in — see shapeRun for why cost
+    // and tokens are two separate questions.
+    prompt_tokens: res.usage?.prompt_tokens ?? null,
+    completion_tokens: res.usage?.completion_tokens ?? null,
+    total_tokens: res.usage?.total_tokens ?? null,
+    total_cost: res.usage?.cost_known ? res.usage.total_cost : null,
+    cost_known: !!res.usage?.cost_known,
   };
 }
 
@@ -172,6 +181,23 @@ function shapeRun(row) {
     ...row,
     has_recording: row.has_recording && !pruned,
     report_status: pruned && row.report_status === 'ready' ? 'none' : row.report_status,
+    // US-046, and the one place a persisted cost becomes JSON. Two conversions,
+    // both load-bearing:
+    //
+    // `numeric` arrives from `pg` as a STRING — that is the driver's default and
+    // the right one, because numeric is arbitrary-precision and a float cannot
+    // hold all of it. Passed through untouched, every client would receive
+    // `"0.041000"` where the live run's own answer is `0.041`, so the same run
+    // would change type when it left the relay and reached the row.
+    //
+    // And an unknown cost is null even if a number somehow reached the column.
+    // The row's check constraint already says so; this says it again at the
+    // boundary, because this is the story's whole failure mode and $0.00
+    // against a run that cost forty cents is the one wrong answer nobody
+    // reports. Tokens are untouched — they are a measurement whatever the
+    // pricing did.
+    total_cost: row.cost_known && row.total_cost != null ? Number(row.total_cost) : null,
+    cost_known: !!row.cost_known,
   };
 }
 

@@ -34,6 +34,8 @@ Inputs come from environment variables:
   QA_GOAL, QA_START_URL, QA_MAX_STEPS, BROWSER_USE_MODEL, OPENAI_API_KEY
   QA_RUN_ID, ARTIFACTS_DIR (recording + step screenshots)
   QA_RECORD=0 disables recording (US-002's viewer gating then applies again)
+  QA_CALCULATE_COST=0 disables token-cost estimation, and with it the pricing
+  fetch browser-use would otherwise make (US-046 — token counts are unaffected)
   QA_HAR=1 also writes runs/<runId>/network.har — the full archive beside the
   curated summary, headers and bodies omitted (US-044)
   QA_FIXTURES (JSON array of absolute paths — the only files this run may
@@ -56,6 +58,21 @@ import secrets as pysecrets
 import sys
 import time
 from pathlib import Path
+
+# Cost collection (US-046), and the reason it is set HERE rather than passed as
+# a kwarg alone. `TokenCost.__init__` is
+#
+#     self.include_cost = include_cost or os.getenv('BROWSER_USE_CALCULATE_COST', ...)
+#
+# — an `or`, so `Agent(calculate_cost=False)` does not turn cost off for an
+# operator whose environment happens to hold that variable, and "off means no
+# outbound request at all" would be quietly false. Assigned, not `setdefault`:
+# this is our switch, and the environment does not get a vote. Before the import
+# for the same reason as the two below, plus one of its own — tokens/service.py
+# calls `load_dotenv()` at import, and a value already in os.environ is what
+# stops a stray .env from putting the fetch back.
+CALCULATE_COST = os.environ.get("QA_CALCULATE_COST", "1") != "0"
+os.environ["BROWSER_USE_CALCULATE_COST"] = "true" if CALCULATE_COST else "false"
 
 # Both default to ON in browser-use, and both spend network at interpreter exit
 # on the way to somebody else's servers: posthog registers an atexit that joins
@@ -82,6 +99,7 @@ import exit_watchdog
 import fixtures
 import navigation_policy
 import run_control
+import run_cost
 import secret_vars
 import step_events
 import browser_session
@@ -158,6 +176,81 @@ def recorder_for(output_path: str) -> SessionRecorder:
         return svc
 
     return SessionRecorder(output_path, start_service)
+
+
+# US-046: how long the pricing table gets before the run gives up on costing
+# itself. Short on purpose — this is spent before step 1 and comes out of the
+# run's own wall clock, and the answer it buys is an estimate.
+PRICING_TIMEOUT_S = 15
+
+
+async def warm_pricing(service, model: str) -> None:
+    """Load the pricing table before the run, under a bound we control.
+
+    browser-use computes its usage summary on `agent.run()`'s return path
+    (agent/service.py:2644) and again in its finally (:2672), and a pricing
+    lookup inside either can reach the network: a model the LiteLLM table does
+    not know falls through to OpenRouter's catalogue, whose fetch has a 30s
+    ceiling and — because it leaves its cache unset on failure — is retried once
+    per usage entry. Neither call site is anywhere we can wrap. A network that
+    hangs rather than refusing would hold a finished run, and its concurrency
+    slot, for as long as it takes to walk the whole history.
+
+    Doing it here first makes those lookups dictionary reads. Asking for the
+    run's own model is what primes the OpenRouter cache too, which the table
+    load alone does not touch.
+
+    On timeout the service is marked loaded-and-empty BY HAND. `ensure_pricing_loaded`
+    cancelled mid-flight leaves `_initialized` False, and the retry then happens
+    in exactly the place this function exists to keep clear of — so the public
+    call is the route and the two private attributes are the fallback, which is
+    the same bargain US-043 struck with `_cdp_get_storage_state`.
+
+    Never raises. A run must not fail because it could not price itself.
+    """
+    try:
+        await asyncio.wait_for(service.ensure_pricing_loaded(), timeout=PRICING_TIMEOUT_S)
+        await asyncio.wait_for(service.get_model_pricing(model), timeout=PRICING_TIMEOUT_S)
+    except Exception:
+        try:
+            service._pricing_data = {}
+            service._initialized = True
+        except Exception:
+            pass
+        emit({"type": "warn", "message": "pricing unavailable — reporting tokens without cost"})
+
+
+async def priced_models(service, models) -> set[str]:
+    """Which of these model names the pricing table can actually answer for.
+
+    The question `UsageSummary` cannot be asked. Its `total_cost` is 0.0 whether
+    the price was zero, the table was empty or costing was off, so the discriminator
+    has to come from the pricing side — and it has to be a *price*, not a
+    non-zero cost, or a genuinely free model would report as unknown forever.
+
+    Bounded and swallowing, like everything else on this path: a model we cannot
+    resolve is reported as unpriced, which renders as "unknown". Never as zero.
+    """
+    # The same indirection `calculate_cost` applies (tokens/service.py:225): a
+    # registered LLM maps its own model name to the one the pricing table is
+    # keyed by, and asking under the wrong one answers None for a model that has
+    # a perfectly good price.
+    aliases = getattr(service, "_pricing_model_names", None) or {}
+    priced = set()
+    for name in models:
+        try:
+            pricing = await asyncio.wait_for(
+                service.get_model_pricing(aliases.get(name, name)),
+                timeout=PRICING_TIMEOUT_S,
+            )
+        except Exception:
+            continue
+        if pricing is None:
+            continue
+        if pricing.input_cost_per_token is None and pricing.output_cost_per_token is None:
+            continue
+        priced.add(name)
+    return priced
 
 
 async def stdin_control(agent, watch_event: asyncio.Event, stop_event: asyncio.Event) -> None:
@@ -715,6 +808,9 @@ async def main() -> int:
         register_new_step_callback=on_step,
         tools=tools,
         sensitive_data=sensitive,
+        # US-046. The kwarg and the environment variable at the top of this file
+        # are one switch expressed twice, because the library ORs them.
+        calculate_cost=CALCULATE_COST,
         # US-048: the whitelist, and the whole of it. Passing None here is what
         # browser-use defaults to, and it means the same "nothing" — but only
         # this spelling says so on purpose.
@@ -825,6 +921,13 @@ async def main() -> int:
     if mailbox:
         emit({"type": "log", "message": f"email confirmation enabled, test address: {test_address}"})
 
+    # US-046: pay for the pricing table here, where the wait is bounded and the
+    # run has not started, rather than inside agent.run()'s teardown where it is
+    # neither. Free after the first run on this container — the table is cached
+    # under $HOME/.cache for a day.
+    if CALCULATE_COST:
+        await warm_pricing(agent.token_cost_service, model)
+
     stop_event = asyncio.Event()
     watch_event = asyncio.Event()  # set while at least one viewer is attached
     ctl_task = asyncio.create_task(stdin_control(agent, watch_event, stop_event))
@@ -870,6 +973,31 @@ async def main() -> int:
     elif late_blocks:
         blocked_url = late_blocks[-1]
 
+    # What the run spent (US-046). Built after the recording is finalized and
+    # before any terminal event, so every path out of main() can carry it — an
+    # expired session and a stopped run cost real tokens, and a report that
+    # shows nothing for them understates the bill on exactly the runs someone is
+    # already annoyed about.
+    #
+    # `history` is unbound when the run raised, hence the guard: browser-use
+    # attaches the summary on run()'s return path, so a crash out of it means
+    # there is no summary to read rather than a summary reading zero.
+    usage = None
+    if failure is None and CALCULATE_COST:
+        raw = safe(lambda: history.usage.model_dump())
+        by_model = (raw or {}).get("by_model") or {}
+        usage = run_cost.summarize(
+            raw,
+            enabled=True,
+            priced_models=await priced_models(agent.token_cost_service, by_model),
+        )
+    elif failure is None:
+        # Costing off: tokens are still counted, and saying so is the difference
+        # between "this run was free" and "nobody was measuring".
+        usage = run_cost.summarize(
+            safe(lambda: history.usage.model_dump()), enabled=False, priced_models=set()
+        )
+
     # An expired session is a FAILED run carrying a reason, not a crash and not
     # a goal that was not met (AC #4). `error` would make it a US-012 alert and
     # a red build for something that is merely stale, and an ordinary `failed`
@@ -884,6 +1012,7 @@ async def main() -> int:
             "duration_seconds": round(time.monotonic() - run_started, 1),
             "final_result": expired,
             "errors": [expired],
+            "usage": usage,
         })
         return 0
 
@@ -905,6 +1034,7 @@ async def main() -> int:
         "final_result": scrub(safe(history.final_result), sensitive),
         "urls": [scrub(str(u), sensitive) for u in safe(history.urls, []) or []],
         "errors": [scrub(str(e), sensitive) for e in safe(history.errors, []) or [] if e],
+        "usage": usage,
     })
     return 0
 

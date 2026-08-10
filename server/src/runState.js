@@ -34,7 +34,8 @@ import { RUN_TTL_MS } from './config.js';
  * @typedef {{ success?: boolean | null, message?: string,
  *             final_result?: string | null, failure_reason?: string | null,
  *             blocked_url?: string | null, steps?: number,
- *             duration_seconds?: number | null, errors?: string[] }} RunResult
+ *             duration_seconds?: number | null, errors?: string[],
+ *             usage?: import('./runEvents.js').RunUsage | null }} RunResult
  */
 
 /**

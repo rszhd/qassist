@@ -34,6 +34,7 @@ import {
   ARTIFACTS_DIR,
   MODEL,
   CAPTURE_HAR,
+  CALCULATE_COST,
   instancePolicy,
 } from './config.js';
 import { checkStartUrl, agentEnvFor } from './navigationPolicy.js';
@@ -599,6 +600,11 @@ function startRun(runId) {
     // QA_FIXTURES: the spread below carries the server's own environment, and an
     // unsent variable would inherit whatever this process happens to hold.
     QA_HAR: run.har ? '1' : '0',
+    // US-046. Sent as '1'/'0' for QA_HAR's reason, and with one of its own: the
+    // agent turns this into `BROWSER_USE_CALCULATE_COST` before importing
+    // browser-use, because that library ORs its kwarg with the environment. An
+    // unsent variable would leave the decision to whatever this process holds.
+    QA_CALCULATE_COST: CALCULATE_COST ? '1' : '0',
     BROWSER_USE_MODEL: run.model || MODEL,
     OPENAI_API_KEY: run.openai_api_key,
     ARTIFACTS_DIR,
