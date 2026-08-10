@@ -58,6 +58,12 @@ rule that decides which of the four test shapes a given check gets:
     other; drop both, as `004` and `011` do (US-047).
   - **`count(*) filter (where …)` answers with the unfiltered count**,
     silently (US-069) — green on a surface whose failures are the point.
+  - **`nullif` does not exist**, so every route using it 500s — which is most of
+    `PUT /api/tests/:id`, where it spells "omitted means unchanged" (US-081).
+    Not a lie but a hole, and worth telling apart: a lie has to be worked around
+    on a real server, a hole can be filled. `test-memory-panel.test.js`
+    registers the two-argument text form, because what that file tests IS the
+    route's answer and poking the row directly would prove nothing about it.
     `row_number() over (…)` and correlated subqueries are rejected loudly,
     which is the harmless kind; it is why the schedules strip trims a
     time-bounded window in JS and `LIST_QUERY` in `routes/schedules.js` uses

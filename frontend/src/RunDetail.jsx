@@ -265,6 +265,17 @@ export default function RunDetail({ run, token, onError, liveSteps, liveDiagnost
       <dd>{run.trigger}</dd>
       <dt>URL</dt>
       <dd title={run.start_url}>{run.start_url}</dd>
+      {/* US-081, and one row rather than a section: whether this run was given
+          what an earlier one learned changes how much its verdict says on its
+          own, and it is the difference between two runs of the same test that a
+          reader is otherwise left to guess at. Shown for every run of a saved
+          test — an ad-hoc run has no notebook and nothing to report. */}
+      {run.test_id && (
+        <>
+          <dt>Memory</dt>
+          <dd>{run.memory_used ? 'Started with what earlier runs learned' : 'Ran cold'}</dd>
+        </>
+      )}
       {/* US-035: the resolved non-secret variables this run used, so a
           failure is attributable to the environment it ran against. Absent
           for a run with no variables — the dl is otherwise unchanged. */}

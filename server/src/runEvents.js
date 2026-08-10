@@ -206,6 +206,27 @@
  */
 
 /**
+ * The notebook this run's generator produced (US-081), authored by
+ * `agent/run_memory.py` — so a section renamed there lands here in the same
+ * commit. Always arrives before `done`, like `recording`, so the store branch
+ * has it when the verdict resolves.
+ *
+ * Already merged against what this run was given: a cold run's is the whole
+ * notebook, an assisted run's is what it was given plus what it found. The
+ * server stores it only if the run then turns out to have been allowed to — the
+ * agent cannot know whether it was stopped, nor whether the test was edited
+ * while it ran.
+ *
+ * Emitted only when the generator ran and its answer differed from what the run
+ * started with. A settled test whose trace met no incident emits nothing, which
+ * is what keeps `learned_at` pointing at the run that contributed.
+ *
+ * `learned` is the generator's three sections, already scrubbed and already
+ * inside its item and character budgets.
+ * @typedef {{ type: 'memory', learned: Record<string, unknown[]> }} MemoryEvent
+ */
+
+/**
  * The server's own, and the last event on the socket. `status` is the resolved
  * terminal status, `code` the child's exit code when there was a child to
  * exit, `demo: true` when a replay ended.
@@ -219,7 +240,7 @@
  * @typedef {StartEvent | FrameEvent | StepEvent | DiagnosticsEvent | BlockedEvent
  *          | PreambleEvent | RecordingEvent | DoneEvent | ErrorEvent | MessageEvent
  *          | StatusEvent | StoppingEvent | PausedEvent | ResumedEvent | HintEvent
- *          | EndEvent} RunEvent
+ *          | MemoryEvent | EndEvent} RunEvent
  */
 
 /**

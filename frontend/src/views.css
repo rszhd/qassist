@@ -458,6 +458,27 @@ a.row-main { color: inherit; text-decoration: none; }
 
 .slug { font-family: var(--mono); }
 
+/* Run memory (US-081), at the foot of the edit dialog. A rule above it and
+   nothing else: the panel is secondary and automatic, so it reads as a footnote
+   to the test rather than a section of it competing with Name and Instructions.
+   Collapsed, it is one row. */
+.memory-panel {
+  border-top: 1px solid var(--border); padding-top: var(--s3);
+  display: flex; flex-direction: column; gap: var(--s2);
+}
+.memory-head { width: 100%; gap: var(--s2); }
+.memory-body { display: flex; flex-direction: column; gap: var(--s4); padding-top: var(--s3); }
+.memory-body > .field-hint { margin: 0; }
+.memory-section { display: flex; flex-direction: column; gap: var(--s2); }
+.memory-section h4 { margin: 0; font-size: var(--t-sm); color: var(--muted); font-weight: 600; }
+.memory-section .list li { align-items: flex-start; }
+/* A lesson is a sentence, not a row label — so it takes the list's weight off
+   and is allowed to wrap. `.row-sub` elsewhere ellipsizes to one line, which
+   would cut a reason off mid-clause here. */
+.memory-section .row-name { font-weight: 400; }
+.memory-section .row-name, .memory-section .row-sub { white-space: normal; overflow: visible; }
+.memory-foot { display: flex; align-items: center; justify-content: flex-end; gap: var(--s2); }
+
 /* ==========================================================================
    8. History & Projects layouts
    ========================================================================== */

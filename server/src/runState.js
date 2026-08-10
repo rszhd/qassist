@@ -65,6 +65,23 @@ import { RUN_TTL_MS } from './config.js';
  * @property {import('./browserSession.js').SessionMaterial['verify']} session_verify
  *   the expiry check the agent runs on the first step
  * @property {string | null} capture_session_id the session a PASS here refreshes
+ * @property {string | null} memory_fingerprint the US-081 fingerprint this run
+ *   STARTED with — what the conditional store is checked against, so a run that
+ *   began before an edit cannot teach the inputs it never ran with. Null on an
+ *   ad-hoc run, which is also what makes it the flag saying this run may neither
+ *   read nor write a notebook
+ * @property {boolean} memory_used whether learned lessons actually reached the
+ *   prompt. That is what makes the run a non-independent observer, so it is a
+ *   column and not a derived value
+ * @property {Record<string, unknown[]> | null} memory_supplied the notebook
+ *   handed to the agent as QA_MEMORY, in the generator's sections — the one
+ *   value the panel also shows, because there is no memory visible only to the
+ *   model. In-memory only, like the policy: it is derived from the test's row
+ *   and persisting it would be a second copy that can disagree
+ * @property {string | null} memory_withheld why nothing was supplied when
+ *   something was there — 'inputs_changed', for the run feed
+ * @property {Record<string, unknown[]>} [memory] the merged notebook the agent's
+ *   generator returned, held until the verdict says whether this run may write
  * @property {import('./browserSession.js').PreambleAction[]} preamble
  *   deterministic actions to run before step 1
  * @property {string | null} user_id

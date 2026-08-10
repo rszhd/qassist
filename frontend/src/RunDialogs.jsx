@@ -1,5 +1,6 @@
-import { Play, Plus, Trash2 } from 'lucide-react';
+import { Brain, Play, Plus, Trash2 } from 'lucide-react';
 import { Button, Field, IconButton, Modal } from './ui.jsx';
+import RunMemory from './RunMemory.jsx';
 
 /**
  * The one place a run is described. `run` mode fires an ad-hoc run and can
@@ -9,7 +10,8 @@ import { Button, Field, IconButton, Modal } from './ui.jsx';
  */
 export function TestDialog({
   mode, goal, setGoal, startUrl, setStartUrl, editing, setEditing, variables, setVariables,
-  projects, modules, sessions = [], hasDb, saving, onClose, onRun, onSave, onDelete, onSwitchToSave,
+  projects, modules, sessions = [], hasDb, saving, token, onClose, onRun, onSave, onDelete,
+  onSwitchToSave,
 }) {
   const isRun = mode === 'run';
   const ready = startUrl.trim() && goal.trim() && (isRun || editing?.name.trim());
@@ -129,6 +131,17 @@ export function TestDialog({
         </Field>
 
         {!isRun && <VariablesEditor variables={variables} setVariables={setVariables} />}
+
+        {/* Only when editing: a test that does not exist yet has nothing to
+            remember, and the panel would read as a setting to decide before
+            saving — which is the one thing US-081 is not.
+
+            Deliberately NOT gated on `token`. It is empty in both of the modes
+            most people run — a sign-in cookie carries the auth, and an open
+            instance has none — so a gate on it would hide the panel from
+            everyone but a token-configured deployment. `api()` omits the header
+            when it is falsy, which is what every other view relies on. */}
+        {mode === 'edit' && editing?.id && <RunMemory testId={editing.id} token={token} />}
 
         {/* Enter in a text field submits the dialog. */}
         <button type="submit" hidden />
@@ -285,5 +298,49 @@ export function RunVarsDialog({ test, values, setValues, onClose, onRun }) {
         <button type="submit" hidden />
       </form>
     </Modal>
+  );
+}
+
+/**
+ * What happens to a test's notebook when the test under it is edited (US-081).
+ *
+ * The edit has already landed; this decides one thing only. It is asked rather
+ * than decided because the fingerprint knows *that* the instructions changed and
+ * never whether that changed the flow — a typo fixed in the goal and the test
+ * repointed at another app are the same event to it, and only the person who
+ * just made the edit can tell them apart.
+ *
+ * All three answers end with the next run learning the flow again; they differ
+ * in what happens to the old lessons. Keep re-keys them and they are supplied as
+ * before. Start fresh deletes them now, because a button saying that should not
+ * leave them sitting in the panel. Dismissing does neither — they stay, unused,
+ * until the next passing run replaces them — which is what makes dismissing the
+ * answer you can give by accident.
+ */
+export function MemoryPromptDialog({ lessons, saving, onKeep, onDiscard, onClose }) {
+  const what = lessons === 1 ? 'lesson' : 'lessons';
+  return (
+    <Modal
+      title="Keep what this test learned?"
+      description={
+        `You changed what this test does. Its Run memory holds ${lessons} ${what} ` +
+        'that earlier runs worked out.'
+      }
+      onClose={onClose}
+      footer={
+        <>
+          {/* Discards now, so the panel does not go on showing lessons the
+              person has just said goodbye to. Deliberately NOT `onClose`: the X,
+              Escape and the scrim all reach that one, and throwing away a
+              notebook because somebody dismissed a dialog is the wrong kind of
+              surprise. Dismissing leaves the automatic behaviour — withheld, and
+              replaced by the next passing run. */}
+          <Button onClick={onDiscard} disabled={saving}>Start fresh</Button>
+          <Button variant="primary" icon={Brain} onClick={onKeep} disabled={saving}>
+            Keep {what}
+          </Button>
+        </>
+      }
+    />
   );
 }

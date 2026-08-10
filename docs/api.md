@@ -195,6 +195,81 @@ an empty override never displaces a stored secret. A required secret with none
 of the three rejects the run with a 400. Why the states are shaped this way is
 argued on [the manual's Variables page](https://docs.qassist.run/variables.html).
 
+### What a test remembers between runs
+
+A saved test keeps a small notebook: what worked, what to avoid next time, and
+where the flow ended. Every passing run adds to it, and a later run is given it
+as fallible advice about a previous pass. It is on by default, cannot be turned
+off, and needs no setup — these endpoints exist to inspect it and to throw it
+away.
+
+```bash
+curl http://<host>:8080/api/tests/<testId>/memory \
+  -H "Authorization: Bearer $WORKER_API_TOKEN"
+# -> {"learned":{"successful_approach":[{"id":"a1b2c3d4e5f6",
+#       "text":"Open Billing from the account menu","steps":[4],
+#       "run_id":"...","learned_at":"...","hinted":false}]},
+#     "supplied":{...},"withheld":null,"learned_at":"..."}
+```
+
+`supplied` is **exactly** what the next run is handed, or `null` when it will run
+cold. There is no memory the model sees and this endpoint does not.
+
+`learned` is what is stored. The two differ when the notebook no longer applies,
+and `withheld` says why. There is one reason: `inputs_changed` — the test's
+**instructions** or **start URL** moved under it. Those two are the whole
+fingerprint, so a model change, a re-captured session, a new fixture or an edited
+navigation policy leave a notebook alone. Nothing here needs a human; the next run
+goes cold on its own and its pass replaces the notebook.
+
+When an edit does move it, `PUT /api/tests/<testId>` answers with
+`"memory":{"invalidated":true,"lessons":2}`, and you can say the lessons still
+hold — a typo fixed in the instructions is not a different flow, and only the
+person who made the edit knows which it was:
+
+```bash
+curl -X POST http://<host>:8080/api/tests/<testId>/memory/keep \
+  -H "Authorization: Bearer $WORKER_API_TOKEN"
+```
+
+That re-keys the notebook to the new inputs and changes no lesson. Do nothing and
+the next run relearns.
+
+**A run that does not pass changes nothing.** The commonest reason a test fails
+is that it found the bug it exists to find, so a failure is not evidence against
+the advice — and making the next run cold would replace a notebook none of whose
+lessons had failed. A wrong lesson is removed, or the notebook is cleared.
+
+Each lesson carries its own provenance: the run that found it, when, and whether
+a person hinted the run that led to it.
+
+Two things a person may do, and both are deletions:
+
+```bash
+# drop one lesson that is wrong
+curl -X DELETE http://<host>:8080/api/tests/<testId>/memory/lessons/<lessonId> \
+  -H "Authorization: Bearer $WORKER_API_TOKEN"
+
+# throw the whole notebook away; run history is untouched and the next run
+# starts as if the test had never learned anything
+curl -X DELETE http://<host>:8080/api/tests/<testId>/memory \
+  -H "Authorization: Bearer $WORKER_API_TOKEN"
+```
+
+A lesson can be removed and **not written**. `learned` means "derived from a
+trace this test produced", so there is no endpoint that adds one — hand-written
+advice must not be able to claim provenance it does not have. Durable
+instructions belong in the test's own **Instructions** field, which is also what
+the verdict is judged against. The notebook is only what a run worked out for
+itself.
+
+Every run says which it was: `memory_used` on a history row is `true` when
+learned lessons reached the agent. A run that was given the notebook may still
+add to it — what stops advice confirming itself is the shape of the write, not
+silence. An assisted run adds what it found, and can only erase a lesson its own
+steps show failing; a cold run, having had no advice, replaces the notebook
+outright.
+
 ## Schedules
 
 `POST /api/schedules` runs any of those four things on a repeating slot. The

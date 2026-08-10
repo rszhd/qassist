@@ -27,6 +27,14 @@ if (process.env.QA_ENV_CAPTURE_FILE) {
     // "off" has to mean no outbound request, and the only proof the server's
     // switch decided that is which value the child was handed.
     'QA_CALCULATE_COST',
+    // US-081 rides it a fifth time, and needs the absent/empty distinction this
+    // file exists for more than any of them: an ad-hoc run's spawn must be
+    // identical to one from before the story shipped, so `QA_MEMORY=""` is a
+    // failure no server-side assertion can see. A key missing from this list is
+    // captured as `undefined`, which JSON.stringify drops — so an assertion
+    // about absence is only real once the key is named here.
+    'QA_MEMORY',
+    'QA_LEARN_MEMORY',
   ];
   fs.writeFileSync(
     process.env.QA_ENV_CAPTURE_FILE,
@@ -74,10 +82,21 @@ const diagnosticEvents =
       ]
     : [];
 
+// US-081: what this run's generator concluded, emitted only when the server told
+// the run it may learn. The stub does not decide eligibility — the server does,
+// and honouring `QA_LEARN_MEMORY` here is what makes the flag's absence provable
+// end to end rather than only at the spawn. Contents come from the test, because
+// what a notebook says is `agent/run_memory.py`'s subject, not this file's.
+const memoryEvents =
+  process.env.QA_LEARN_MEMORY === '1' && process.env.QA_STUB_MEMORY
+    ? [{ type: 'memory', learned: JSON.parse(process.env.QA_STUB_MEMORY) }]
+    : [];
+
 const events = [
   { type: 'step', step: 1, elapsed: 0.1, next_goal: 'open page', evaluation: null, url: process.env.QA_START_URL, screenshot_file: null },
   ...diagnosticEvents,
   { type: 'recording', file: 'recording.mp4', frames: 3 },
+  ...memoryEvents,
   {
     type: 'done',
     success: !failed,

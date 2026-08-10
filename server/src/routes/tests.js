@@ -7,16 +7,51 @@ import { db, currentUserId, isUuid } from '../db.js';
 import { createRun } from '../runs.js';
 import { DEFAULT_MAX_STEPS } from '../config.js';
 import {
-  h, requireDb, requireAgentKey, requireEntitled, withUserCap, respondOverCap, TRIGGERS,
-  RUNNABLE_TEST_COLS, RUNNABLE_TEST_FROM,
+  h, requireDb, requireAgentKey, requireEntitled, withUserCap, respondOverCap,
+  RUNNABLE_TEST_COLS, RUNNABLE_TEST_FROM, runnableFieldsFor,
 } from './helpers.js';
+import { previewMemory } from '../runs.js';
+import { memoryOf } from '../testMemoryStore.js';
 import {
-  normalizeDeclarations, validateReferences, validateSecretTags, resolveForRun, secretWrites,
+  normalizeDeclarations, validateReferences, validateSecretTags, secretWrites,
 } from '../variables.js';
-import { sessionsForTests, preambleForRun } from '../browserSession.js';
-import { applySecretWrites, secretsForTests, withSecretState } from '../testSecrets.js';
+import { applySecretWrites, withSecretState } from '../testSecrets.js';
 
 /** @typedef {import('./helpers.js').AppRequest} AppRequest */
+
+/**
+ * Whether this edit stopped the test's notebook applying, and how much is at
+ * stake (US-081).
+ *
+ * Reported by the server because the fingerprint is the server's: its two inputs
+ * are *resolved*, and a client that hashed its own would be a second spelling
+ * that agrees until it quietly does not. The count is here so the dialog can stay
+ * silent when there is nothing to lose — most edits, and every test that has
+ * learned nothing.
+ *
+ * Re-read through `RUNNABLE_TEST_COLS` rather than handed the row this write
+ * returned: `COLS` is the test's own columns, and resolving a run needs the
+ * project and session joins too. Cheap, and only on an edit.
+ * @param {string} testId
+ */
+async function memoryAtStake(testId) {
+  const stored = await memoryOf(testId);
+  const lessons = Object.values(stored?.learned || {}).reduce(
+    (total, section) => total + (Array.isArray(section) ? section.length : 0),
+    0
+  );
+  if (!lessons) return { invalidated: false, lessons: 0 };
+  const { rows } = await db().query(
+    `select ${RUNNABLE_TEST_COLS} from ${RUNNABLE_TEST_FROM} where t.id = $1`,
+    [testId]
+  );
+  const resolved = rows.length ? await runnableFieldsFor(rows[0]) : { error: 'not found' };
+  if ('error' in resolved) return { invalidated: false, lessons };
+  return {
+    invalidated: previewMemory(resolved.fields).withheld === 'inputs_changed',
+    lessons,
+  };
+}
 
 // A stored secret's ciphertext is deliberately NOT reachable from here: it
 // lives in `test_secrets` (US-064), which nothing that answers a request
@@ -272,7 +307,10 @@ export function testsRouter({ checkToken }) {
       if (variables !== undefined) {
         await applySecretWrites(req.params.id, secretWrites(variables), decl.variables);
       }
-      res.json((await withSecretState(rows))[0]);
+      res.json({
+        ...(await withSecretState(rows))[0],
+        memory: await memoryAtStake(req.params.id),
+      });
     })
   );
 
@@ -311,44 +349,17 @@ export function testsRouter({ checkToken }) {
       );
       if (!rows.length) return res.status(404).json({ error: 'not found' });
       const test = rows[0];
-      const body = /** @type {any} */ (req.body || {});
-      // The stored secrets, decrypted before the synchronous run engine is
-      // entered (US-064) — the same pre-resolve the session blob and the BYOK
-      // key already get, and for the same reason.
-      const secrets = (await secretsForTests([test])).get(test.id) || {};
-      if (secrets.error) return res.status(400).json({ error: secrets.error });
-      const resolved = resolveForRun({
-        variables: test.variables,
-        overrides: body.variables,
-        stored: secrets.values,
-        goal: test.goal,
-        start_url: body.start_url || test.start_url,
-      });
+      // Every resolution a run needs off the test — secrets, {{name}}
+      // substitution, the session blob, the notebook — in the one spelling the
+      // memory panel also reads, so the two can never disagree about what the
+      // next run receives.
+      const resolved = await runnableFieldsFor(
+        test,
+        /** @type {any} */ (req.body || {}),
+        /** @type {AppRequest} */ (req).runOpenaiKey
+      );
       if ('error' in resolved) return res.status(400).json({ error: resolved.error });
-      // The session blob, decrypted before the synchronous run engine is
-      // entered (US-043) — the same pre-resolve requireAgentKey does for the
-      // BYOK key, and the same one runTestsFromRequest does for a batch.
-      const session = (await sessionsForTests([test])).get(test.id) || {};
-      if (session.error) return res.status(400).json({ error: session.error });
-      const run = createRun({
-        goal: resolved.goal,
-        start_url: resolved.start_url,
-        max_steps: body.max_steps != null ? Number(body.max_steps) : test.max_steps,
-        model: test.model,
-        test_id: test.id,
-        trigger: TRIGGERS.has(body.trigger) ? body.trigger : 'api',
-        variables: resolved.variables,
-        secrets: resolved.secrets,
-        openai_api_key: /** @type {AppRequest} */ (req).runOpenaiKey,
-        allowed_domains: test.allowed_domains,
-        // US-048: which project's fixtures this run may attach. Off the test's
-        // row, never off the request body.
-        project_id: test.project_id,
-        storage_state: session.storageState,
-        session_verify: session.verify,
-        capture_session_id: session.captureSessionId,
-        preamble: preambleForRun(test.initial_actions),
-      });
+      const run = createRun(resolved.fields);
       if ('blocked' in run) return res.status(400).json({ error: run.error, reason: run.reason });
       if ('rejected' in run) return respondOverCap(res, run);
       res.json({ runId: run.id, testId: test.id, status: run.status });

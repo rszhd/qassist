@@ -71,7 +71,7 @@ Sprints aren't split along a self-host/hosted-tier line — `sprint/current/` an
 | [US-071](sprint/current/US-071-one-command-deploy.md) | One command deploys a stack, and proves which one it deployed | 📋 Planned — P1 | US-052, US-055, US-056 |
 | [US-077](sprint/current/US-077-test-mail-without-gmail.md) | The test mailbox stops being a Gmail account | 🔨 Tier 1 done 2026-08-09, 2/8 — 51 → 2.7 logins/min | US-013 tier 1, US-007 |
 | [US-046](sprint/current/US-046-token-usage-and-cost.md) | What did that run cost? (token usage + cost) | 🔨 Tier 1 done 2026-08-10, 4/7 — surfaces remain | US-039 |
-| [US-081](sprint/current/US-081-a-test-remembers-what-worked.md) | A test remembers what worked | 📋 Planned — P3 | US-046 |
+| [US-081](sprint/current/US-081-a-test-remembers-what-worked.md) | A test remembers what worked | 🔨 Built 2026-08-10 — release gate open, blocked on US-046 | US-046 |
 
 ### Done
 
@@ -198,7 +198,7 @@ scope.
 
 The desktop track (US-016..019) is on hold; its strategy is in US-016.
 
-US-041, US-049 and US-081 will owe rows in
+US-041 and US-049 will owe rows in
 [`correctness-critical.md`](correctness-critical.md) when the work happens —
 the register's own rule is that a row is added as part of doing the work, not
 speculatively.

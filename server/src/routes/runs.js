@@ -45,7 +45,7 @@ const LIST_COLS = `r.id, r.test_id, r.trigger, r.goal, r.start_url, r.status,
   r.success, r.final_result, r.error, r.steps_count, r.created_at, r.started_at,
   r.finished_at, r.report_status, r.has_recording, r.artifacts_deleted_at,
   r.variables, r.failure_reason, r.prompt_tokens, r.completion_tokens,
-  r.total_tokens, r.total_cost, r.cost_known,
+  r.total_tokens, r.total_cost, r.cost_known, r.memory_used,
   t.name as test_name, t.project_id, t.module_id`;
 
 /**

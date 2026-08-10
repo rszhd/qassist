@@ -33,6 +33,10 @@ run needs the frames regardless and only gates the emitting.
 Inputs come from environment variables:
   QA_GOAL, QA_START_URL, QA_MAX_STEPS, BROWSER_USE_MODEL, OPENAI_API_KEY
   QA_RUN_ID, ARTIFACTS_DIR (recording + step screenshots)
+  QA_MEMORY / QA_LEARN_MEMORY (US-081: the notebook a previous run of this test
+  left, and whether this run should write one back. Both ABSENT — not empty — on
+  an ad-hoc run, so its spawn is identical to one from before this shipped; see
+  run_memory.py)
   QA_RECORD=0 disables recording (US-002's viewer gating then applies again)
   QA_CALCULATE_COST=0 disables token-cost estimation, and with it the pricing
   fetch browser-use would otherwise make (US-046 — token counts are unaffected)
@@ -57,6 +61,7 @@ import os
 import secrets as pysecrets
 import sys
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 # Cost collection (US-046), and the reason it is set HERE rather than passed as
@@ -99,6 +104,7 @@ import exit_watchdog
 import fixtures
 import navigation_policy
 import run_control
+import run_memory
 import run_cost
 import secret_vars
 import step_events
@@ -149,6 +155,64 @@ def safe(fn, default=None):
         return fn()
     except Exception:
         return default
+
+
+async def write_memory(model, trace, goal, sensitive, supplied) -> None:
+    """Derive this run's notebook and offer it to the server, or say nothing.
+
+    Three ways to say nothing, and each is a rule of the story rather than an
+    error path. A run given advice whose trace met no incident does not call the
+    generator at all — the advice worked, and that is the steady state of a
+    settled test. A generator that returns None wrote nothing, which under
+    accumulation is not the same as writing an empty notebook. And an answer
+    equal to what the run was handed is skipped, so the row keeps naming the run
+    that actually contributed rather than the last one that happened to pass.
+
+    Awaited on the agent's own loop, NOT through `asyncio.run` — this is called
+    from inside `main`, so the loop is already running and `asyncio.run` would
+    raise on every run. US-080's extractor may use it only because it runs on a
+    worker thread with a loop of its own. The first build made exactly that
+    mistake and `make_generator`'s `except` swallowed it, so no notebook was ever
+    written and nothing was red.
+    """
+    if not run_memory.should_generate(trace, cold=supplied is None):
+        return
+    learned = await run_memory.make_generator(
+        lambda system, user: ask_llm(model, system, user)
+    )(
+        trace,
+        notebook=supplied,
+        goal=goal,
+        sensitive=sensitive,
+        stamp={
+            "run_id": os.environ.get("QA_RUN_ID"),
+            "learned_at": datetime.now(timezone.utc).isoformat(),
+            # A hint is evidence from outside, and the panel credits the person
+            # rather than the agent for what it led to (US-079).
+            "hinted": run_control.hinted,
+        },
+    )
+    if learned and learned != supplied:
+        emit({"type": "memory", "learned": learned})
+
+
+async def ask_llm(model: str, system: str, user: str) -> str:
+    """One off-agent call on the run's own BYOK provider.
+
+    Shared by US-080's email reader and US-081's memory generator — the same
+    provider that already sees every page screenshot, so neither crosses a new
+    trust boundary.
+
+    Owning the http client is what lets it be closed while the loop it belongs
+    to is still open: `ChatOpenAI` builds an `AsyncOpenAI` per call that nobody
+    closes, so its httpx pool is otherwise torn down later on a dead loop and
+    prints a RuntimeError traceback into the run log (staging run 6984279c).
+    """
+    async with httpx.AsyncClient() as http_client:
+        answer = await ChatOpenAI(model=model, http_client=http_client).ainvoke(
+            [SystemMessage(content=system), UserMessage(content=user)]
+        )
+    return answer.completion
 
 
 def recorder_for(output_path: str) -> SessionRecorder:
@@ -568,20 +632,10 @@ async def main() -> int:
         # wait_for_confirmation's worker thread, so it gets its own event
         # loop and a fresh client per call rather than sharing the agent's,
         # which is bound to the main loop.
-        # `asyncio.run` closes the loop, and ChatOpenAI builds an AsyncOpenAI
-        # per call that nobody closes — so its httpx pool is torn down later,
-        # on a dead loop, and prints a RuntimeError traceback into the run log
-        # (staging run 6984279c). Owning the http client is what lets it be
-        # closed while the loop it belongs to is still open.
-        async def ask(system: str, user: str) -> str:
-            async with httpx.AsyncClient() as http_client:
-                answer = await ChatOpenAI(model=model, http_client=http_client).ainvoke(
-                    [SystemMessage(content=system), UserMessage(content=user)]
-                )
-            return answer.completion
-
+        # `asyncio.run` closes the loop, hence a fresh client per call —
+        # `ask_llm` owns the http client for the reason written there.
         def extractor_invoke(system: str, user: str) -> str:
-            return asyncio.run(ask(system, user))
+            return asyncio.run(ask_llm(model, system, user))
 
         mailbox.extractor = email_extract.make_extractor(extractor_invoke)
         tools = Tools()
@@ -694,6 +748,24 @@ async def main() -> int:
             "just invalidated."
         )
 
+    # What earlier passing runs of this test learned (US-081). Appended here,
+    # after the mailbox block has settled `sensitive`, for the same reason the
+    # diagnostics buffer is built here: the row was written under one set of
+    # secrets and is read under another, so it is scrubbed against what is live
+    # NOW. `to_prompt` also re-applies containment, because a carried lesson is
+    # admitted at generation without being re-checked — a format bump or a hand
+    # edit straight into the database would otherwise reach the prompt uncaged.
+    supplied_memory = None
+    stored_memory = os.environ.get("QA_MEMORY")
+    if stored_memory:
+        try:
+            supplied_memory = json.loads(stored_memory)
+        except ValueError:
+            supplied_memory = None
+        advice = run_memory.to_prompt(supplied_memory, sensitive) if supplied_memory else None
+        if advice:
+            task += f"\n\n{advice}"
+
     # Network/console evidence (US-044). Created here, after the mailbox block
     # has finished deciding what `sensitive` is, so the buffer holds the *same*
     # dict browser-use does — get_email_code adds the fetched code to it mid-run,
@@ -737,8 +809,21 @@ async def main() -> int:
             emit(event)
         return found
 
+    # The trace US-081's generator is grounded in, kept as the steps go by.
+    # Four fields and no more — `thinking` is on the event and deliberately not
+    # here, because chain-of-thought from a finished run is not an observation
+    # about the app. Accumulated rather than re-read from `report_data.json`,
+    # which US-011 retention prunes: a design that learned by re-reading
+    # artifacts would silently stop learning after ARTIFACT_RETENTION_DAYS.
+    trace: list[dict] = []
+
+    def emit_step(event: dict) -> None:
+        if event.get("type") == "step" and os.environ.get("QA_LEARN_MEMORY"):
+            trace.append({k: event.get(k) for k in ("step", "next_goal", "evaluation", "url")})
+        emit(event)
+
     on_step = step_events.callback(
-        emit=emit,
+        emit=emit_step,
         report_blocks=report_blocks,
         flush_diagnostics=flush_diagnostics,
         set_step=diag.set_step,
@@ -1015,6 +1100,20 @@ async def main() -> int:
             "usage": usage,
         })
         return 0
+
+    # The notebook this run leaves for the next one (US-081), emitted before any
+    # terminal event so the server holds it when the verdict resolves.
+    #
+    # Only when the server asked (`QA_LEARN_MEMORY`) and only on the agent's own
+    # self-reported success — but that is a filter, not the decision. Whether the
+    # run was ALLOWED to write depends on what only the server knows: a stop it
+    # was told about and the agent was not, and whether the test was edited while
+    # this ran. So the agent offers and the server disposes.
+    #
+    # A generator that fails costs nothing: this is an optimisation, and a run
+    # must never end badly because its notebook did not write.
+    if os.environ.get("QA_LEARN_MEMORY") and failure is None and safe(history.is_successful):
+        await write_memory(model, trace, goal, sensitive, supplied_memory)
 
     if failure is not None:
         event = {"type": "error", "message": failure}
