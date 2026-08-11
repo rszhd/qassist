@@ -42,6 +42,7 @@ export default function SavedTests({
   running,
   onRun,
   onEdit,
+  onSelect,
   onNew,
   onRunModule,
   suites,
@@ -85,6 +86,7 @@ export default function SavedTests({
       running={running}
       onRun={onRun}
       onEdit={onEdit}
+      onSelect={onSelect}
     />
   );
 
@@ -240,13 +242,23 @@ function Group({ name, muted, count, open, onToggle, action, children }) {
   );
 }
 
-function TestRow({ test: t, active, running, onRun, onEdit }) {
+function TestRow({ test: t, active, running, onRun, onEdit, onSelect }) {
   return (
     <li className={active ? 'active' : ''}>
-      <span className="row-main" title={t.goal}>
+      {/* The row loads the test into the stage without running it, so what a
+          test does can be read before it costs a run. Inert while one is going:
+          the card it writes into is describing the run at that point, and the
+          Run button beside it is disabled for the same reason. */}
+      <button
+        type="button"
+        className="row-main"
+        title={t.goal}
+        onClick={() => onSelect(t)}
+        disabled={running}
+      >
         <span className="row-name">{t.name}</span>
         <span className="row-sub">{t.start_url}</span>
-      </span>
+      </button>
       {/* Run stays visible — it is why the list exists. Edit is a hover/focus
           action so the rail reads as content, not a toolbar; delete is rarer
           still and lives in the edit dialog. */}

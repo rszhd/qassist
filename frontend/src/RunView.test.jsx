@@ -367,7 +367,7 @@ describe('RunView activity leads the run (US-076)', () => {
     // Newest first, so the pulse belongs to the row the log puts at the top —
     // and the row it marks is the one still being worked on, which is why the
     // dot stands in for that row's number rather than sitting beside it.
-    const rows = () => [...container.querySelectorAll('.stage-side .log-item')];
+    const rows = () => [...container.querySelectorAll('.stage-log .log-item')];
     expect(rows()[0].textContent).toContain('Click the login link');
     expect(rows()[0].querySelector('.pulse')).toBeTruthy();
     expect(rows()[0].querySelector('.step-n')).toBeNull();

@@ -121,50 +121,108 @@
    down the page or across the grid beside it. */
 .stage { display: flex; flex-direction: column; gap: var(--s4); }
 
-/* Browser and activity ride side by side, and the split does not reflow when
-   the first step lands: an empty activity panel beats the whole stage moving.
+/* Two rows and two columns: the frame, the activity under it at the frame's own
+   width, and the run's facts beside both. The rail spans the pair, so it is
+   still the flanking column it was — what changed is which content is in it. A
+   step is a sentence and gets the wide track; a verdict, a URL and a button are
+   narrow whatever you give them.
    The frame is the track that does not yield — it holds `--stage-min` and the
-   panel compresses toward `--col-side-min` to pay for it. Grid resolves both
-   mins first and then grows the panel back toward `--col-side` with whatever
-   is left, so the frame is 800px or better everywhere this rule applies. */
+   rail compresses toward `--col-side-min` to pay for it. Grid resolves both
+   mins first and then grows the rail back toward `--col-side` with whatever is
+   left, so the frame is 800px or better everywhere this rule applies. */
 .stage-split {
   display: grid;
   grid-template-columns: minmax(var(--stage-min), 1fr) minmax(var(--col-side-min), var(--col-side));
+  grid-template-areas: "frame side" "log side";
   gap: var(--s4); align-items: start;
 }
-.stage-main { display: flex; flex-direction: column; gap: var(--s4); min-width: 0; }
-/* The panel is as tall as what is in it, not as tall as the row: a log three
-   steps long is three steps tall, and the frame beside it — a 16:9 box that
-   grows a verdict card under it — has no say in that. What bounds it is the
-   viewport, via `--sticky-h`, so a long run fills the screen and then scrolls
-   the log rather than the page. `min-height: 0` on the log is what makes that
-   cap bite; a flex item otherwise refuses to shrink below its content. */
+.stage-main { grid-area: frame; display: flex; flex-direction: column; gap: var(--s4); min-width: 0; }
+/* The rail is as tall as what is in it, not as tall as the two rows it spans.
+   It outlives the frame the way `/runs/<id>`'s does: the log below can scroll
+   for screens, and the verdict and the report button are what you come back up
+   for — so it sticks, bounded by the viewport via `--sticky-h`. */
 .stage-side {
-  min-width: 0;
+  grid-area: side; min-width: 0;
+  position: sticky; top: var(--sticky-top); max-height: var(--sticky-h); overflow-y: auto;
+}
+.stage-log { grid-area: log; min-width: 0; }
+/* `--scroll-cap` is sized for a list sharing a column with other cards. This one
+   has the frame's whole width and is half of what the view is watched for, so it
+   gets more before it scrolls itself — 420px is eight single-line steps. It is
+   the log that scrolls, not the page: the frame above is as tall as its column
+   makes it, so a run's steps must stay one scroll away rather than several. */
+.stage-log .log { max-height: 420px; }
+
+/* Minimizing the tests rail — or having no tests rail at all, which is what an
+   instance with no database is — asks for the biggest live view the screen can
+   give. A 16:9 frame that big stands 500-600px tall, so anything under it starts
+   below the fold, and the log is what you were reading. Bounding the frame does
+   not fix that: it is the one thing "maximize" must not do. What stays on screen
+   beside a tall frame is what sits *beside* it — so the two flanking blocks
+   trade places. The log takes the column and the freed width with it; the facts
+   drop under the frame, where a list of label-value pairs is happy at any width
+   and a pasted paragraph of instructions is happier than it was in a rail.
+   Only here: with the tests rail open there is no width for a readable log
+   beside an 800px frame, and 250px of four-line steps is what this whole
+   arrangement exists to end. The areas carry the swap on their own — both cards
+   keep their names and only their places change. */
+.run-grid:is(.rail-min, .solo) .stage-split {
+  grid-template-columns: minmax(var(--stage-min), 1fr) minmax(var(--col-side-min), 460px);
+  grid-template-areas: "frame log" "side log";
+}
+/* 460 is the log's own ceiling, not a share of whatever is left: past it a step
+   reads as one line either way, and the width is worth more to the frame. At the
+   page's full width that leaves the frame 906px — 510px tall — and gives the log
+   ~400px of text where the rail gave it 236. It pins for the reason the facts
+   used to: it spans both rows, and the frame beside it is what you scroll away
+   from. */
+.run-grid:is(.rail-min, .solo) .stage-log {
   position: sticky; top: var(--sticky-top); max-height: var(--sticky-h);
 }
-.stage-side .log { min-height: 0; max-height: none; }
-/* 1421px: the rail as a full column, beside a frame at `--stage-min` and a
-   panel at `--col-side-min`, needs 300+16+800+16+250 plus the `--s5` gutters —
+.run-grid:is(.rail-min, .solo) .stage-log .log { min-height: 0; max-height: none; }
+.run-grid:is(.rail-min, .solo) .stage-side {
+  position: static; max-height: none; overflow-y: visible;
+}
+/* Under the frame the card is 900px wide, which would stretch three stats to
+   300px each. The fact list has the room for the two columns it is written for,
+   so it keeps them — that is the rail rule below excluding this position. */
+.run-grid:is(.rail-min, .solo) .stage-side .stats { max-width: 460px; }
+
+/* 1421px: the rail as a full column, beside a frame at `--stage-min` and the run
+   rail at `--col-side-min`, needs 300+16+800+16+250 plus the `--s5` gutters —
    1422px of viewport, so this is the last width that cannot hold all three.
-   Below it the panel stacks under the frame rather than the frame dropping
-   below its floor: a narrow screen costs the side-by-side log, never the thing
-   you are watching. Minimizing the rail buys the panel straight back — with a
-   strip in place of the column, three fit again from 1156px. */
+   Below it the run rail stacks under the frame rather than the frame dropping
+   below its floor: a narrow screen costs the side-by-side facts, never the thing
+   you are watching. Stacked it is frame, log, facts at every width that stacks,
+   phone included — the two things a run is watched through stay together, and
+   the facts are the summary you scroll to afterwards. Minimizing the rail buys
+   the column straight back: with a strip in place of it, three fit again from
+   1156px. */
 @media (max-width: 1421px) {
-  .run-grid:not(.rail-min):not(.solo) .stage-split { grid-template-columns: minmax(0, 1fr); }
-  .run-grid:not(.rail-min):not(.solo) .stage-side { position: static; max-height: none; }
-  .run-grid:not(.rail-min):not(.solo) .stage-side .log { max-height: var(--scroll-cap); }
+  .run-grid:not(.rail-min):not(.solo) .stage-split {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "frame" "log" "side";
+  }
+  .run-grid:not(.rail-min):not(.solo) .stage-side {
+    position: static; max-height: none; overflow-y: visible;
+  }
 }
 /* 1155px: even with the rail down to `--rail-strip`, 34+16+800+16+250 and the
    gutters no longer fit, so the Run view gives up its third column whatever the
    rail is doing — it is the only view with three, so it is the first to lose
-   one. Stacked, the panel is no longer stuck to the viewport, so `--scroll-cap`
-   takes over as the bound: without it a long log would run the page down. */
+   one. The minimized-rail selector is repeated because it out-specifies a bare
+   `.stage-split`, and stacking has to win over the widths it sets. */
 @media (max-width: 1155px) {
-  .stage-split { grid-template-columns: minmax(0, 1fr); }
-  .stage-side { position: static; max-height: none; }
-  .stage-side .log { max-height: var(--scroll-cap); }
+  .stage-split,
+  .run-grid:is(.rail-min, .solo) .stage-split {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "frame" "log" "side";
+  }
+  .stage-side { position: static; max-height: none; overflow-y: visible; }
+  /* One stack, so whichever of the two was the pinned column stops being one —
+     the swap above has no column left to put the log in. */
+  .run-grid:is(.rail-min, .solo) .stage-log { position: static; max-height: none; }
+  .run-grid:is(.rail-min, .solo) .stage-log .log { max-height: 420px; }
 }
 
 /* The live view sits in a browser chrome so it reads as a real session and
@@ -191,9 +249,7 @@
    every aspect ratio, and a fixed one letterboxes the difference in black.
    Width always fills the column, height follows — so minimizing the rail
    genuinely makes the live view bigger. min-height carries the empty and
-   starting-up states, which have no frame to measure. (The old height cap
-   existed to keep the activity log above the fold; it sits beside the frame
-   now, so nothing is pushed down.) */
+   starting-up states, which have no frame to measure. */
 /* `width: 100%` is load-bearing below 533px. `--stage-min` keeps the frame far
    wider than that everywhere the Run view claims a column, but a phone has no
    such floor: at 358px the 16/9 ratio wants 201px of height, `min-height`
@@ -215,6 +271,14 @@
    the page with it. Same capture, so it lands on the same ratio. */
 .screen-empty, .detail-screen .screen { aspect-ratio: 16 / 9; }
 .screen img, .screen video { display: block; width: 100%; height: auto; }
+/* The Run view's frame takes its column whole, and no size bound of its own.
+   Two were tried when the activity log moved underneath it, to keep the log's
+   first rows on the same screen, and both cost more than the scroll they saved:
+   a `max-height` on `.screen` shrank the picture inside a full-width chrome, so
+   minimizing the tests rail widened the letterbox instead of the live view; a
+   `max-width` on `.browser` kept the ratio but left the frame short of its own
+   container at the size you minimized the rail to reach. The frame is the thing
+   being watched — it takes the width it is given, and the log is read below it. */
 .replay-note { font-size: var(--t-sm); color: var(--faint); }
 
 .thinking { display: flex; flex-direction: column; align-items: center; gap: var(--s2); color: var(--muted); font-size: var(--t-base); }
@@ -394,6 +458,9 @@ button.diag-step:hover { color: var(--muted); }
 .list li.editing { display: block; background: var(--sunken); padding: var(--s3) var(--s4); }
 .row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--s05); text-align: left; }
 button.row-main { background: transparent; border: 0; padding: 0; color: inherit; font: inherit; cursor: pointer; }
+/* A row the Run view holds shut while a run is going. It keeps its colour — it
+   is content, not a greyed-out control — and only stops offering the click. */
+button.row-main:disabled { cursor: default; }
 /* A row that selects something the URL names is a link, not a button — the
    Projects rail. It keeps the row's own type and colour; only the underline
    has to go. */
@@ -602,9 +669,14 @@ a.row-main { color: inherit; text-decoration: none; }
 .detail-side { position: sticky; top: var(--sticky-top); }
 /* The rail is narrower than the fact list's two columns want, so the facts
    stack there — the URL gets the rail's full width instead of what's left of
-   it. It still truncates to one line, and the `title` carries the whole thing. */
-.detail-side .detail-facts { grid-template-columns: 1fr; gap: var(--s05); }
-.detail-side .detail-facts dt { font-size: var(--t-sm); }
+   it. It still truncates to one line, and the `title` carries the whole thing.
+   The Run view's facts read the same rule while they are in that same column —
+   with the tests rail minimized they move under the frame and take the two
+   columns back, so the selector says which position it is talking about. */
+.detail-side .detail-facts,
+.run-grid:not(.rail-min):not(.solo) .stage-side .detail-facts { grid-template-columns: 1fr; gap: var(--s05); }
+.detail-side .detail-facts dt,
+.run-grid:not(.rail-min):not(.solo) .stage-side .detail-facts dt { font-size: var(--t-sm); }
 /* `--scroll-cap` is sized for a list that shares a column with several other
    cards. The run page's activity log has the reading column mostly to itself
    and is the thing the page is read for, so it gets more than double before it

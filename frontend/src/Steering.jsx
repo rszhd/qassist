@@ -5,8 +5,8 @@ import { Button } from './ui.jsx';
 // The two controls US-079 adds to a live run, shared by the Run view and the
 // live RunDetail so the same run offers the same levers wherever it is being
 // watched. They are separate exports because they belong in different places on
-// the page: the button sits with Stop in the header, the box sits under the
-// activity it is about to change.
+// the page: the button sits with Stop above the activity, the box sits under
+// the activity it is about to change.
 
 /**
  * Hold the run before its next action, or let it go again. Neutral, not

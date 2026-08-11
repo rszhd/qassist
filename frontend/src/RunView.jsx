@@ -7,6 +7,7 @@ import {
 import { api, openReport } from './api.js';
 import ActivityLog from './Activity.jsx';
 import { startCheckout } from './Billing.jsx';
+import GoalBlock from './GoalBlock.jsx';
 import SavedTests from './SavedTests.jsx';
 import { MemoryPromptDialog, TestDialog, RunVarsDialog } from './RunDialogs.jsx';
 import { HintBox, PauseButton } from './Steering.jsx';
@@ -41,6 +42,11 @@ export default function RunView({ token, health, keyStatus, visible, needsToken,
   const [runVars, setRunVars] = useState(null);
   const [varValues, setVarValues] = useState({});
   const [savingTest, setSavingTest] = useState(false);
+  // A test clicked in the rail and loaded into the stage without being run, so
+  // what a test does can be read before it costs a run. Null once a run starts:
+  // from then on `run.activeTestId` is the subject and the card is about the
+  // run, which is the one thing this must not be allowed to contradict.
+  const [loaded, setLoaded] = useState(null);
   // US-081: `{ testId, lessons }` while an edit is offering to clear a notebook.
   // Its own state rather than a `dialog` mode, because it opens *after* the edit
   // dialog has closed and the edit is already saved — nothing about it can fail
@@ -152,6 +158,7 @@ export default function RunView({ token, health, keyStatus, visible, needsToken,
 
   async function startRun() {
     setDialog(null);
+    setLoaded(null);
     run.reset();
     try {
       const { runId: id } = await api('/api/runs', {
@@ -207,6 +214,9 @@ export default function RunView({ token, health, keyStatus, visible, needsToken,
       } else {
         await api('/api/tests', { token, method: 'POST', body });
       }
+      // The edited row is about to be refetched, and what is held here is the
+      // version before the edit — including the name the card is printing.
+      setLoaded(null);
       closeDialog();
       await loadTests();
     } catch (err) {
@@ -252,6 +262,16 @@ export default function RunView({ token, health, keyStatus, visible, needsToken,
     setDialog('edit');
   }
 
+  // Clicking the row rather than its Run button: the same values a run would
+  // resolve, put where a run's would go, and nothing started. The variables get
+  // their defaults filled in, because that is what running it now would use.
+  function loadTest(test) {
+    run.setError(null);
+    setLoaded(test);
+    setGoal(fillTemplate(test.goal, test.variables));
+    setStartUrl(fillTemplate(test.start_url, test.variables));
+  }
+
   // A new test lands in whatever project is being filtered — the least
   // surprising default when you are already working inside one.
   function newTest() {
@@ -265,6 +285,7 @@ export default function RunView({ token, health, keyStatus, visible, needsToken,
     try {
       await api(`/api/tests/${test.id}`, { token, method: 'DELETE' });
       if (editing?.id === test.id) closeDialog();
+      if (loaded?.id === test.id) setLoaded(null);
       if (run.activeTestId === test.id) run.clearActiveTest();
       await loadTests();
     } catch (err) {
@@ -302,6 +323,7 @@ export default function RunView({ token, health, keyStatus, visible, needsToken,
       );
     }
     setDialog(null);
+    setLoaded(null);
     run.reset(test.id);
     setGoal(fillTemplate(test.goal, test.variables, overrides));
     setStartUrl(fillTemplate(test.start_url, test.variables, overrides));
@@ -371,31 +393,18 @@ export default function RunView({ token, health, keyStatus, visible, needsToken,
   const { batch, queued, result, running, stopped, verdict, waiting } = run;
   const verdictTone = stopped ? 'stopped' : verdict ? 'ok' : verdict === false ? 'bad' : '';
 
+  // What the card beside the frame is about: a test loaded off the rail, or
+  // failing that the test the watched run belongs to. The numbers are the run's,
+  // so they only hold while the two agree — load another test after a run and
+  // they describe a test that is not the one named above them.
+  const subject = loaded || tests.find((t) => t.id === run.activeTestId);
+  const runIsSubject = !loaded || loaded.id === run.activeTestId;
+
   return (
     <>
-      <PageHeader
-        title="Run"
-        description="Give the agent a URL and instructions in plain English, then watch it drive a real browser."
-      >
+      <PageHeader title="Run">
         {health?.db && (
           <Button icon={Plus} onClick={newTest} disabled={needsToken}>New test</Button>
-        )}
-        {/* US-047. `danger` colours the click, not the outcome: this interrupts
-            something, and while a run is healthy it is the only red on the page,
-            which is what makes it findable at the moment you want it. The record
-            a stop leaves stays neutral — that is where "a stop is not a failure"
-            has to hold. */}
-        {/* US-079's pause sits beside it and stays neutral for the same reason,
-            from the other side: it interrupts nothing and spends nothing. Only
-            once the run actually holds a slot — a queued run has no process to
-            hold, which is what the route answers 409 to. */}
-        {running && !queued && !run.stopping && (
-          <PauseButton paused={run.paused} onPause={run.pause} onResume={run.resume} />
-        )}
-        {running && (
-          <Button variant="danger" icon={CircleStop} onClick={run.stop} disabled={run.stopping}>
-            {run.stopping ? 'Stopping…' : 'Stop run'}
-          </Button>
         )}
         <Button
           variant="primary"
@@ -501,10 +510,11 @@ export default function RunView({ token, health, keyStatus, visible, needsToken,
                 suites={suites}
                 filter={filter}
                 setFilter={setFilter}
-                activeTestId={run.activeTestId}
+                activeTestId={subject?.id ?? null}
                 running={running}
                 onRun={onRunTest}
                 onEdit={editTest}
+                onSelect={loadTest}
                 onNew={newTest}
                 onRunModule={(m, n) => runBatch('module', m, n)}
                 onRunSuite={(s) => runBatch('suite', s, s.test_ids.length)}
@@ -524,10 +534,15 @@ export default function RunView({ token, health, keyStatus, visible, needsToken,
             </div>
           )}
 
-          {/* Browser left, activity right — the two things you watch during a
-              run stay in one glance. Each column keeps its own height; the
-              split is permanent so nothing reflows the moment the first step
-              lands. */}
+          {/* Frame, then the activity under it at the frame's own width, with
+              the run's facts and controls in the rail beside them. A step
+              sentence is prose and needs a line; a verdict, a URL and a button
+              are each narrow by nature — so the narrow column holds the narrow
+              things. Minimizing the tests rail trades the two: a maximized
+              frame is tall enough that only what is beside it is still on
+              screen, so the log takes the column and the facts go under the
+              frame. `.stage-split` in views.css owns the swap; the frame is
+              never bounded to buy it. */}
           <div className="stage-split">
             <div className="stage-main">
               <div className="browser">
@@ -615,15 +630,6 @@ export default function RunView({ token, health, keyStatus, visible, needsToken,
                     {stopped ? <CircleStop size={15} /> : verdict ? <Check size={15} /> : verdict === false ? <X size={15} /> : null}
                     {stopped ? 'Stopped' : verdict ? 'Passed' : verdict === false ? 'Failed' : 'Done'}
                   </div>
-                  <div className="stats">
-                    <Stat label="Verdict" value={verdict ? 'Pass' : verdict === false ? 'Fail' : '—'}
-                      tone={verdict ? 'ok' : verdict === false ? 'bad' : ''} />
-                    <Stat label="Steps" value={result?.steps ?? '—'} />
-                    <Stat
-                      label="Duration"
-                      value={result?.duration_seconds ? `${Math.round(result.duration_seconds)}s` : '—'}
-                    />
-                  </div>
                   {stopped && (
                     <p className="hint">
                       {result
@@ -635,37 +641,108 @@ export default function RunView({ token, health, keyStatus, visible, needsToken,
                   {result?.errors?.length > 0 && (
                     <ul className="errs">{result.errors.map((er, i) => <li key={i}>{er}</li>)}</ul>
                   )}
-                  {result && (
-                    <div className="verdict-actions">
-                      {/* REPORTS_ENABLED off means no PDF is rendered for any
-                          run on this instance, so the offer goes rather than
-                          becoming a download that 404s. */}
-                      {health?.reports && (
-                        <Button icon={Download} onClick={downloadReport} disabled={reportBusy}>
-                          {reportBusy ? 'Preparing PDF…' : 'PDF report'}
-                        </Button>
-                      )}
-                      {/* The stage shows the run; /runs/<id> holds everything
-                          else about it — the steps, the evidence, the report.
-                          Beside the PDF because it is the same question asked
-                          of the same finished run, pass, fail or stopped.
-                          Navigating there keeps this run alive: the Run view
-                          hides rather than unmounts (see App). */}
-                      <Button as={Link} icon={ExternalLink} to={`/runs/${run.runId}`}>
-                        Full report
-                      </Button>
-                    </div>
-                  )}
                 </div>
               )}
             </div>
 
+            {/* How it went, what it was, then what it was told: the numbers
+                first because they are the answer, the name and the URL under
+                them because they say what the answer is about, and the
+                instructions last because they are the only part that runs long.
+                The buttons are not here: they went to the Activity card, next
+                to the list that prompts them. Before anything has run this
+                reads the form state, which is what the New run dialog will
+                submit. */}
             <aside className="card stage-side">
-              <CardHead title="Activity" count={run.steps.length || undefined} />
+              <div className="stats">
+                <Stat
+                  label="Verdict"
+                  value={runIsSubject && verdict ? 'Pass' : runIsSubject && verdict === false ? 'Fail' : '—'}
+                  tone={runIsSubject && verdict ? 'ok' : runIsSubject && verdict === false ? 'bad' : ''}
+                />
+                {/* Live: the steps arriving are the count until the run reports
+                    its own. */}
+                <Stat label="Steps" value={(runIsSubject && (result?.steps ?? run.steps.length)) || '—'} />
+                <Stat
+                  label="Duration"
+                  value={
+                    runIsSubject && result?.duration_seconds
+                      ? `${Math.round(result.duration_seconds)}s`
+                      : '—'
+                  }
+                />
+              </div>
+
+              <dl className="detail-facts">
+                <dt>Test</dt>
+                <dd>{subject?.name || 'Ad-hoc run'}</dd>
+                <dt>Start URL</dt>
+                <dd title={startUrl}>{startUrl}</dd>
+              </dl>
+
+              {/* What is running, which the stage never showed before: the
+                  frame's URL bar follows the agent, so after the first
+                  navigation nothing on the page said what the run was asked to
+                  do. Keyed on the text: loading another test off the rail
+                  replaces the paragraph, and it should arrive folded. */}
+              <GoalBlock goal={goal} resetKey={goal} />
+            </aside>
+
+            <aside className="card stage-log">
+              {/* The buttons sit with the log because that is where the run is
+                  watched from: Stop is reached for while reading the step that
+                  made you want it, and the two reports answer the last row of
+                  the same list. In the head and pushed to its right end, like
+                  the tests rail's own, so the card's controls stay on one line
+                  whatever the list under them is doing. Full-height buttons, so
+                  they read as the same control they were in the page header —
+                  the head grows from `--ctl-sm` to `--ctl` to hold them. */}
+              <CardHead title="Activity" count={run.steps.length || undefined}>
+                {(running || result) && (
+                  <div className="verdict-actions spacer">
+                    {/* US-047. `danger` colours the click, not the outcome: this
+                        interrupts something, and while a run is healthy it is
+                        the only red on the page, which is what makes it findable
+                        at the moment you want it. The record a stop leaves stays
+                        neutral — that is where "a stop is not a failure" holds.
+                        US-079's pause sits beside it and stays neutral for the
+                        same reason from the other side: it interrupts nothing
+                        and spends nothing. Only once the run actually holds a
+                        slot — a queued run has no process to hold, which is what
+                        the route answers 409 to. */}
+                    {running && !queued && !run.stopping && (
+                      <PauseButton paused={run.paused} onPause={run.pause} onResume={run.resume} />
+                    )}
+                    {running && (
+                      <Button variant="danger" icon={CircleStop} onClick={run.stop} disabled={run.stopping}>
+                        {run.stopping ? 'Stopping…' : 'Stop run'}
+                      </Button>
+                    )}
+                    {/* REPORTS_ENABLED off means no PDF is rendered for any run
+                        on this instance, so the offer goes rather than becoming
+                        a download that 404s. */}
+                    {result && health?.reports && (
+                      <Button icon={Download} onClick={downloadReport} disabled={reportBusy}>
+                        {reportBusy ? 'Preparing PDF…' : 'PDF report'}
+                      </Button>
+                    )}
+                    {/* The stage shows the run; /runs/<id> holds everything else
+                        about it — the steps, the evidence, the report.
+                        Navigating there keeps this run alive: the Run view hides
+                        rather than unmounts (see App). */}
+                    {result && (
+                      <Button as={Link} icon={ExternalLink} to={`/runs/${run.runId}`}>
+                        Full report
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </CardHead>
+
               {/* The one thing a stop has to say that no step row carries: why
-                  it is not instant. The header's button says "Stopping…"; this
-                  says what it is waiting for. No pulse — it explains a wait, it
-                  is not the thing the agent is doing. */}
+                  it is not instant. The button above says "Stopping…"; this says
+                  what it is waiting for. No pulse — it explains a wait, it is
+                  not the thing the agent is doing. */}
               {run.stopping && <p className="hint">Finishing the recording and the report…</p>}
               {/* Above the log rather than below it: the log is newest-first, so
                   what you type lands on the row directly under the box. Offered

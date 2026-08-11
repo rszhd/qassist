@@ -1,11 +1,12 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Activity, AlertTriangle, ChevronDown, ChevronUp, CircleStop, Download, ExternalLink, Info,
+  Activity, AlertTriangle, CircleStop, Download, ExternalLink, Info,
 } from 'lucide-react';
 import { api, openReport } from './api.js';
 import ActivityLog from './Activity.jsx';
 import Diagnostics from './Diagnostics.jsx';
+import GoalBlock from './GoalBlock.jsx';
 import { HintBox, PauseButton } from './Steering.jsx';
 import { Button, CardHead, EmptyState, IconButton, Stat } from './ui.jsx';
 import { formatWhen, formatDuration, statusLabel } from './status.js';
@@ -48,9 +49,6 @@ export default function RunDetail({ run, token, onError, liveSteps, liveDiagnost
   // with them; no findings is the normal case and renders nothing at all.
   const [evidence, setEvidence] = useState({ diagnostics: [], dropped: 0 });
 
-  const [goalOpen, setGoalOpen] = useState(false);
-  const goalRef = useRef(null);
-  const [goalClamped, setGoalClamped] = useState(false);
   const videoRef = useRef(null);
   const frameRef = useRef(null);
 
@@ -61,26 +59,6 @@ export default function RunDetail({ run, token, onError, liveSteps, liveDiagnost
   // evidence arriving over the WebSocket, and refetching would replace a live
   // list with a stale one.
   const { diagnostics, dropped } = liveDiagnostics ?? evidence;
-
-  // Whether the goal actually outgrows its clamp, so a goal that already fits
-  // doesn't get a toggle that does nothing. Only measurable while collapsed —
-  // expanded, scrollHeight and clientHeight are equal by definition, so the
-  // last collapsed answer is the one worth keeping. The observer is what
-  // catches a width change: the detail column narrows at the 900px breakpoint,
-  // and a goal that needed four lines at 440px may need six at 320px.
-  useLayoutEffect(() => {
-    const el = goalRef.current;
-    if (!el || goalOpen) return;
-    const measure = () => setGoalClamped(el.scrollHeight > el.clientHeight + 1);
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [goalOpen, run.goal]);
-
-  // A different run is a different goal — reopening it expanded would show the
-  // new one already unfolded because the last one was.
-  useEffect(() => setGoalOpen(false), [run.id]);
 
   // A pruned run's steps went with its artifacts — the notice below already
   // says so, so don't ask for a 404 to find that out.
@@ -299,23 +277,7 @@ export default function RunDetail({ run, token, onError, liveSteps, liveDiagnost
   // follow the facts. Both label the paragraph — with the step log gone from
   // the panel, the goal and the summary are two grey paragraphs in a row there
   // and nothing but a heading tells which is which.
-  const goal = (
-    <section className="goal-block">
-      <CardHead title="Instructions" />
-      <p ref={goalRef} className={`detail-goal${goalOpen ? ' open' : ''}`}>{run.goal}</p>
-      {goalClamped && (
-        <Button
-          variant="ghost"
-          size="sm"
-          icon={goalOpen ? ChevronUp : ChevronDown}
-          aria-expanded={goalOpen}
-          onClick={() => setGoalOpen((open) => !open)}
-        >
-          {goalOpen ? 'Show less' : 'Read more'}
-        </Button>
-      )}
-    </section>
-  );
+  const goal = <GoalBlock goal={run.goal} resetKey={run.id} />;
 
   // "Summary" rather than "Result": it is the agent's account of what happened,
   // and the rail already answers the pass/fail question under "Verdict". The
