@@ -677,6 +677,13 @@ a.row-main { color: inherit; text-decoration: none; }
 .run-grid:not(.rail-min):not(.solo) .stage-side .detail-facts { grid-template-columns: 1fr; gap: var(--s05); }
 .detail-side .detail-facts dt,
 .run-grid:not(.rail-min):not(.solo) .stage-side .detail-facts dt { font-size: var(--t-sm); }
+/* Stacked, one gap does two jobs: it holds a label to its own value and it
+   separates that pair from the next fact. Tight enough for the first is too
+   tight for the second, and the list reads as one block of alternating lines.
+   So the gap stays tight and the space goes above each label that follows a
+   value — the first has none above it, which is the card's own inset. */
+.detail-side .detail-facts dd + dt,
+.run-grid:not(.rail-min):not(.solo) .stage-side .detail-facts dd + dt { margin-top: var(--s3); }
 /* `--scroll-cap` is sized for a list that shares a column with several other
    cards. The run page's activity log has the reading column mostly to itself
    and is the thing the page is read for, so it gets more than double before it
@@ -857,6 +864,10 @@ a.row-main { color: inherit; text-decoration: none; }
 /* The variables row is the one fact that can hold several values, so it wraps
    into chips rather than truncating to one line like the others. */
 .detail-facts dd.detail-vars { overflow: visible; white-space: normal; display: flex; flex-wrap: wrap; gap: var(--s1); }
+/* The instructions are the other fact that is not one line: a clamped paragraph
+   and its toggle, so the row lets them have their own height instead of
+   ellipsising them into the first line. */
+.detail-facts dd.detail-instructions { overflow: visible; white-space: normal; }
 /* A truncated fact keeps its full value in a `title`, and a touch screen has no
    way to ask for one. The URL is usually the fact worth reading — it is how you
    tell which environment the run was pointed at — so on a phone it wraps rather

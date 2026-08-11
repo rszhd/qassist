@@ -11,7 +11,11 @@ import { Button, CardHead } from './ui.jsx';
 // `resetKey` is what the paragraph is about: a run id, a test id. A different
 // subject is a different goal, and without this the next one opens already
 // unfolded because the last one was.
-export default function GoalBlock({ goal, resetKey }) {
+//
+// `heading` off is for the one caller that is already labelled: inside a fact
+// list the `dt` says "Instructions", and a second heading under it would say it
+// twice.
+export default function GoalBlock({ goal, resetKey, heading = true }) {
   const [open, setOpen] = useState(false);
   const [clamped, setClamped] = useState(false);
   const ref = useRef(null);
@@ -36,7 +40,7 @@ export default function GoalBlock({ goal, resetKey }) {
 
   return (
     <section className="goal-block">
-      <CardHead title="Instructions" />
+      {heading && <CardHead title="Instructions" />}
       <p ref={ref} className={`detail-goal${open ? ' open' : ''}`}>{goal}</p>
       {clamped && (
         <Button

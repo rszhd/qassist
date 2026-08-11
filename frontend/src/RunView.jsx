@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Activity, AlertTriangle, Check, CircleStop, Clock, CreditCard, Download, ExternalLink, KeyRound,
-  Monitor, PanelLeftOpen, Play, Plus, X,
+  FileText, Monitor, PanelLeftOpen, Play, Plus, X,
 } from 'lucide-react';
 import { api, openReport } from './api.js';
 import ActivityLog from './Activity.jsx';
@@ -52,6 +52,10 @@ export default function RunView({ token, health, keyStatus, visible, needsToken,
   // dialog has closed and the edit is already saved — nothing about it can fail
   // the save, and nothing about the notebook has changed yet.
   const [memoryPrompt, setMemoryPrompt] = useState(null);
+  // How many lessons the test on the stage remembers, or null while unknown —
+  // which covers a test with no notebook and a read that failed alike, because
+  // the row says nothing in either case.
+  const [memoryCount, setMemoryCount] = useState(null);
   const [reportBusy, setReportBusy] = useState(false);
   // The rail opens with the view — the tests are how a run starts, so hiding
   // them behind a strip taxes the common path. What used to make that expensive
@@ -388,7 +392,6 @@ export default function RunView({ token, health, keyStatus, visible, needsToken,
     }
   }
 
-  const liveUrl = [...run.steps].reverse().find((s) => s.url)?.url || startUrl;
   const isDemo = health?.auth_mode === 'demo';
   const { batch, queued, result, running, stopped, verdict, waiting } = run;
   const verdictTone = stopped ? 'stopped' : verdict ? 'ok' : verdict === false ? 'bad' : '';
@@ -399,6 +402,40 @@ export default function RunView({ token, health, keyStatus, visible, needsToken,
   // they describe a test that is not the one named above them.
   const subject = loaded || tests.find((t) => t.id === run.activeTestId);
   const runIsSubject = !loaded || loaded.id === run.activeTestId;
+  // With neither, there is nothing for the card beside the stage to describe:
+  // the goal and URL in state are the New run dialog's draft, and three dashed
+  // stats over them read as a run that was made and told nobody anything.
+  const hasSubject = Boolean(subject || run.runId);
+
+  // US-081, and the same count the edit dialog's panel opens onto. Read here
+  // because the notebook is what makes two runs of one test differ, and the
+  // card beside the stage is where that difference is being watched for.
+  // Re-read when a run ends: a passing run is exactly when a test learns
+  // something, so a stale count would be wrong at the one moment it is looked
+  // at. A failed read leaves null, which reads as "no notebook" — this is one
+  // line about an optimisation, not something to put an error on the stage for.
+  const subjectId = subject?.id;
+  useEffect(() => {
+    // Cleared first, so the previous test's count is never shown under this
+    // one's name while the read is in flight.
+    setMemoryCount(null);
+    if (!subjectId || !health?.db) return;
+    let dropped = false;
+    api(`/api/tests/${subjectId}/memory`, { token })
+      .then(({ learned }) => {
+        if (dropped) return;
+        setMemoryCount(Object.values(learned || {}).reduce((n, items) => n + (items?.length || 0), 0));
+      })
+      .catch(() => {});
+    return () => {
+      dropped = true;
+    };
+  }, [subjectId, token, health?.db, result]);
+
+  // Where the agent is, or where it will start. Empty with no subject: the URL
+  // in state is the dialog's draft, and a bar showing it looks like a page the
+  // stage under it failed to draw.
+  const liveUrl = [...run.steps].reverse().find((s) => s.url)?.url || (hasSubject ? startUrl : '');
 
   return (
     <>
@@ -650,42 +687,94 @@ export default function RunView({ token, health, keyStatus, visible, needsToken,
                 them because they say what the answer is about, and the
                 instructions last because they are the only part that runs long.
                 The buttons are not here: they went to the Activity card, next
-                to the list that prompts them. Before anything has run this
-                reads the form state, which is what the New run dialog will
-                submit. */}
+                to the list that prompts them. Each part waits for something to
+                say — the numbers for a finished run, the rest for a test — and
+                with nothing loaded and nothing run the card says it is empty. */}
             <aside className="card stage-side">
-              <div className="stats">
-                <Stat
-                  label="Verdict"
-                  value={runIsSubject && verdict ? 'Pass' : runIsSubject && verdict === false ? 'Fail' : '—'}
-                  tone={runIsSubject && verdict ? 'ok' : runIsSubject && verdict === false ? 'bad' : ''}
-                />
-                {/* Live: the steps arriving are the count until the run reports
-                    its own. */}
-                <Stat label="Steps" value={(runIsSubject && (result?.steps ?? run.steps.length)) || '—'} />
-                <Stat
-                  label="Duration"
-                  value={
-                    runIsSubject && result?.duration_seconds
-                      ? `${Math.round(result.duration_seconds)}s`
-                      : '—'
-                  }
-                />
-              </div>
+              {hasSubject ? (
+                <>
+                  {/* Only once there is an answer to give. A running verdict is
+                      a dash by definition, and the log beside it is already
+                      counting the steps — three empty numbers over the test's
+                      name only take the space the name reads in. A stop still
+                      lands here: it has no verdict, but the count and the
+                      seconds it did spend are the record of it. */}
+                  {runIsSubject && result && (
+                    <div className="stats">
+                      <Stat
+                        label="Verdict"
+                        value={verdict ? 'Pass' : verdict === false ? 'Fail' : '—'}
+                        tone={verdict ? 'ok' : verdict === false ? 'bad' : ''}
+                      />
+                      <Stat label="Steps" value={result.steps ?? run.steps.length} />
+                      <Stat
+                        label="Duration"
+                        value={result.duration_seconds ? `${Math.round(result.duration_seconds)}s` : '—'}
+                      />
+                    </div>
+                  )}
 
-              <dl className="detail-facts">
-                <dt>Test</dt>
-                <dd>{subject?.name || 'Ad-hoc run'}</dd>
-                <dt>Start URL</dt>
-                <dd title={startUrl}>{startUrl}</dd>
-              </dl>
-
-              {/* What is running, which the stage never showed before: the
-                  frame's URL bar follows the agent, so after the first
-                  navigation nothing on the page said what the run was asked to
-                  do. Keyed on the text: loading another test off the rail
-                  replaces the paragraph, and it should arrive folded. */}
-              <GoalBlock goal={goal} resetKey={goal} />
+                  {/* One list, so every label sits the same distance under the
+                      one above it. The instructions used to be a block of their
+                      own beside it, which put a rule and a card gap between two
+                      rows that are the same kind of fact — and read as two lists
+                      that had lost their alignment. */}
+                  <dl className="detail-facts">
+                    <dt>Name</dt>
+                    <dd>{subject?.name || 'Ad-hoc run'}</dd>
+                    <dt>Start URL</dt>
+                    <dd title={startUrl}>{startUrl}</dd>
+                    {/* What is running, which the stage never showed before: the
+                        frame's URL bar follows the agent, so after the first
+                        navigation nothing on the page said what the run was
+                        asked to do. Keyed on the text: loading another test off
+                        the rail replaces the paragraph, and it should arrive
+                        folded. The `dt` is its heading, so it renders without
+                        one of its own. */}
+                    <dt>Instructions</dt>
+                    <dd className="detail-instructions">
+                      <GoalBlock goal={goal} resetKey={goal} heading={false} />
+                    </dd>
+                    {/* The names the goal and the URL above are written against,
+                        so a reader can see what `{{host}}` stood for rather than
+                        only the text it resolved to. These are the test's own
+                        declarations, not one run's overrides — the resolved set
+                        a given run actually used is on /runs/<id>. A secret has
+                        no value to show by design (US-064). Absent when the test
+                        declares none, which is most of them. */}
+                    {subject?.variables?.length > 0 && (
+                      <>
+                        <dt>Variables</dt>
+                        <dd className="detail-vars">
+                          {subject.variables.map((v) => (
+                            <span className="var-chip" key={v.name}>
+                              <b>{v.name}</b>
+                              {v.secret ? ' (secret)' : v.value ? `=${v.value}` : ' (empty)'}
+                            </span>
+                          ))}
+                        </dd>
+                      </>
+                    )}
+                    {/* Absent at zero, like the edit dialog's panel: a test that
+                        has learned nothing is every new test, and a permanent
+                        "Memory 0" makes an automatic thing look like a setting
+                        nobody filled in. The lessons themselves are in the edit
+                        dialog — this only says there are some. */}
+                    {memoryCount > 0 && (
+                      <>
+                        <dt>Memory</dt>
+                        <dd>{memoryCount === 1 ? '1 lesson' : `${memoryCount} lessons`}</dd>
+                      </>
+                    )}
+                  </dl>
+                </>
+              ) : (
+                /* No "New run" button here — the stage beside this card already
+                   offers it, and one empty card should not answer another. */
+                <EmptyState icon={FileText} title="No test selected">
+                  Pick a saved test or start a run, and what it was told appears here.
+                </EmptyState>
+              )}
             </aside>
 
             <aside className="card stage-log">

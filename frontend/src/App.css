@@ -772,8 +772,10 @@ select {
 
 /* A rule inside a card. The card's gap supplies the space above it and this
    supplies the space below, so every divider in the app — this, the run
-   detail's goal and summary — has the same air on both sides. */
-.card > .hint, .goal-block, .run-detail > .result-block {
+   detail's goal and summary — has the same air on both sides.
+   Only for a block that is a section of the card. Nested inside a fact list the
+   goal is one row among several, and a rule across it divides nothing. */
+.card > .hint, .card > .goal-block, .run-detail > .result-block {
   padding-top: var(--s3); border-top: 1px solid var(--border);
 }
 
