@@ -41,6 +41,7 @@ features:
 ### Create reusable tests
 
 - [Saving a test](./saved-tests.md)
+- [What a test remembers](./run-memory.md)
 - [Projects, modules, and suites](./organizing.md)
 - [Variables and secrets](./variables.md)
 - [Files a run can upload](./files.md)

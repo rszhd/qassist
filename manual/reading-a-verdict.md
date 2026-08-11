@@ -1,7 +1,8 @@
 # Reading a verdict
 
-A finished run can give you five things: a status, a summary, its activity, a
-recording, and diagnostics from the page. They answer different questions.
+A finished run can give you a status, a summary, its activity, a recording,
+diagnostics from the page, and usage accounting. They answer different
+questions.
 
 ## The status
 
@@ -54,6 +55,16 @@ main uses:
 
 A run that used a [preamble](./organizing.md#a-preamble-before-the-first-step)
 records it as step 0, so the steps the run is charged for still start at 1.
+
+### Whether the run used memory
+
+For a saved test, the run detail says **Memory: Ran cold** or **Memory: Started
+with what earlier runs learned**. Memory is historical advice rather than a
+replay: the agent still made every decision against the current page. A
+memory-assisted verdict is not the same thing as a person-assisted verdict —
+only a live hint makes the run assisted — but the label helps explain why two
+runs of the same test took different routes. See [What a test
+remembers](./run-memory.md).
 
 ## The recording
 
@@ -140,6 +151,22 @@ Report rendering is an instance setting and is **off by default** on a fresh
 self-hosted install while the renderer is being reworked. Nothing else depends
 on it — the step list and the diagnostics come from elsewhere and are there
 either way.
+
+## Tokens and estimated cost
+
+QAssist records prompt, completion, and total token counts for a run once the
+agent can summarize them. It also records an estimated dollar cost when the
+instance could price every model the run used.
+
+The estimate comes from a cached model-pricing table, not your provider's bill.
+An unavailable price is **unknown**, not `$0.00`; token counts remain usable
+when cost is unknown. Runs from before usage accounting shipped, and runs that
+ended before the agent could summarize itself, may have no counts.
+
+These values are currently exposed in the run API and the self-hosted run data;
+the app does not yet show a cost total. API consumers should check `cost_known`
+before displaying or adding `total_cost`. See [What a run
+cost](https://github.com/rszhd/qassist/blob/main/docs/api.md#what-a-run-cost).
 
 ## Finding a run again
 

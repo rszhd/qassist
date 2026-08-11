@@ -26,6 +26,10 @@ Run it from the Tests list and it behaves exactly like an ad-hoc run: same live
 view, same verdict. The difference is attribution. History can collect this
 test's runs so you can tell whether a failure is new or recurring.
 
+There is one other difference: after a saved test passes, it can remember the
+useful route and the dead ends that run found. Later runs receive that small
+notebook automatically. See [What a test remembers](./run-memory.md).
+
 **The start URL is overridable at run time.** This is what makes one saved test
 cover every environment: the test is saved against production, and CI runs the
 same test against the preview deploy it just built by passing that URL. It is a
@@ -47,6 +51,11 @@ rewritten**: a history row keeps the instructions and the URL it actually ran
 with, copied at the moment it was enqueued. So a run from last Tuesday still
 tells you what was asked of it last Tuesday, even after the test has been
 rewritten twice.
+
+If the test has learned lessons and you change its Instructions or Start URL,
+QAssist asks whether those lessons still apply. Keeping them is the default;
+only **Clear memory** removes them. Grouping, variable, model, and saved-session
+changes leave memory alone.
 
 ## Deleting one
 

@@ -62,6 +62,18 @@ Per-project confinement is not a setting here — it is
 | `FIXTURE_MAX_BYTES` | 10 MB | Per-[file](./files.md) cap. |
 | `FIXTURE_PROJECT_QUOTA_BYTES` | 50 MB | Per-project total. |
 
+## Usage accounting
+
+| Setting | Default | |
+|---|---|---|
+| `CALCULATE_COST` | on | Records an estimated model cost with each run. Set `0` to disable cost estimation and its pricing-table request; prompt, completion, and total tokens are still counted. |
+
+Cost estimation makes a bounded outbound request for a model-pricing table and
+caches it for a day. If the table is unreachable or does not know one of the
+models, the run still completes with token counts and an unknown cost. The
+estimate is not a provider invoice and does not know negotiated rates. See
+[Tokens and estimated cost](./reading-a-verdict.md#tokens-and-estimated-cost).
+
 ## Email
 
 Covered by [Email notifications](./notifications.md).

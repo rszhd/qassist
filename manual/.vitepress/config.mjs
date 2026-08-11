@@ -54,6 +54,7 @@ export default defineConfig({
         text: 'Building a suite',
         items: [
           { text: 'Saving a test', link: '/saved-tests' },
+          { text: 'What a test remembers', link: '/run-memory' },
           { text: 'Projects, modules and suites', link: '/organizing' },
           { text: 'Variables and secrets', link: '/variables' },
           { text: 'Files a run can upload', link: '/files' },

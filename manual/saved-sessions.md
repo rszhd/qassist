@@ -99,6 +99,13 @@ confirmation code or link and type it — for up to three minutes. One mailbox
 serves many signups through plus-addressing (`inbox+qa-<tag>@example.com`) or a
 catch-all domain.
 
+QAssist reads the selected transactional email in context, so a footer postcode
+or phone number is not treated as an OTP merely because it contains digits. A
+code must appear exactly in the email and, when the page exposes the field
+width, must have that length. A confirmation link must be one of the email's
+actual links. If neither can be verified, the run reports that it found nothing
+instead of guessing.
+
 On a self-hosted instance, add the mailbox credentials to `.env` and restart:
 
 ```dotenv
@@ -117,6 +124,11 @@ The fetched code goes through the same structured-output redaction as a
 [secret](./variables.md#secrets): the model uses a placeholder, and QAssist
 strips the real value from the instructions, Activity, diagnostics, and report
 text.
+
+To identify the right code or link, the email subject and body are sent for one
+small model call using the run's OpenAI key and model connection. The body and
+real answer do not enter the browser agent's conversation and are not written
+to Activity, logs, or the report.
 
 ::: warning The mailbox is instance-wide
 There is one slot: no per-project mailbox and no way to give two projects
