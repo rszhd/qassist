@@ -5,11 +5,13 @@ to remember the mistakes it made and the approach that eventually worked,
 **so that** the next run starts with the useful experience of the last one
 instead of rediscovering it from scratch.
 
-- **Status:** 📋 Planned in the current sprint 2026-08-10, queued behind
-  US-046. It is an automatic, on-by-default experiment and must remain safe to
+- **Status:** ✅ **Done 2026-08-12**, 20/21 — **the release gate was dropped, not
+  met** (see "The gate, and why it was dropped"). It is an automatic,
+  on-by-default experiment and must remain safe to
   ignore: learning, invalidation and relearning require no human maintenance,
-  and the whole feature is withdrawn on the release gate's evidence rather than
-  switched off one test at a time.
+  and the whole feature is withdrawn rather than switched off one test at a
+  time. That withdrawal was to be decided on the release gate's evidence; with
+  the gate dropped it is a judgement call instead.
   **Spike done and a full implementation built 2026-08-10 — then set aside the
   same day.** It ran end to end and its 56 tests were green, but it regenerated
   the notebook from scratch on every teaching pass, and that loses exactly the
@@ -20,7 +22,7 @@ instead of rediscovering it from scratch.
   from `git stash` and much of it still applies. This is a correctness-critical
   surface, so the new generator contract is pinned and reviewed before it is
   written (see the row in
-  [`correctness-critical.md`](../../correctness-critical.md)).
+  [`correctness-critical.md`](../../../correctness-critical.md)).
   **Second build done 2026-08-10, except the gate.** The contract was pinned,
   then the assertions, then the code against them. Every acceptance criterion is
   met but the last: migration 021, the two pure modules, the conditional store,
@@ -35,18 +37,19 @@ instead of rediscovering it from scratch.
   budget counts the prompt rather than the row, and — the one that removed the
   most machinery — **only a person takes a notebook away**, which retired the
   fingerprint, the conditional write and every automatic invalidation with it.
-  **The release gate is the remaining work.** US-046 tier 2 landed 2026-08-12,
-  so what a run spent is now recorded and totalled — see "Open: how the release
-  gate measures without a force-cold" for what is left to decide.
+  **The gate was dropped 2026-08-12** and the feature ships unmeasured. Both of
+  its blockers had cleared by then, so this is a decision about whether the
+  measurement was worth its price, not an admission that it was impossible.
 - **Priority:** P3 in the current sprint. It is US-050's sibling: US-050 makes
   each reasoning step cheaper; this story tries to avoid reasoning paths that
   a previous successful run already showed were unhelpful.
 - **Estimate:** ~6–8 h plus benchmarking. Producing a grounded, useful summary
-  is more work than storing URLs; the measurement still decides whether it is
-  worth keeping.
-- **Depends on:** **US-046**, because the deliverable is cost, step and verdict
-  evidence. Uses US-035's resolved variables and complements US-043's saved
-  sessions and fixed project preamble.
+  is more work than storing URLs. The benchmarking was not done — see the gate
+  below — so nothing has decided whether it is worth keeping.
+- **Depends on:** **US-046** for the cost, step and verdict evidence the gate
+  was to weigh. With the gate dropped that dependency went unused, and it is why
+  US-046 was pulled forward. Uses US-035's resolved variables and complements
+  US-043's saved sessions and fixed project preamble.
 
 ## The model: a QA notebook, not a route cache
 
@@ -164,8 +167,8 @@ cleared. A per-test disable was in the first build and is cut: it is a permanent
 answer to a temporary complaint, and it leaves a test in a state nobody revisits
 — quietly excluded from the thing the story exists to measure. Remove the wrong
 lesson, or Clear and let the next run learn it fresh. If advice keeps making a
-flow worse, that is the release gate's verdict on the feature, not a per-test
-preference to store.
+flow worse, that is a verdict on the feature, not a per-test preference to
+store — and with the gate dropped it is one somebody has to notice and act on.
 
 ## Learning: a run may only rewrite what it observed independently
 
@@ -289,18 +292,36 @@ tokens or unstable identifiers.
   context, and the generator's own keep/drop is what prunes — the cap is a
   backstop, not a policy.
 
-### Open: how the release gate measures without a force-cold
+### The gate, and why it was dropped
 
-The last acceptance criterion is a cold-vs-assisted comparison on the same test.
-Dropping `force_cold` means the only way to run cold is to Clear, which destroys
-the notebook the comparison needs — so the two cannot be alternated as written.
+The last acceptance criterion asked for a cold-vs-assisted comparison on one
+test — duration, steps, cost and verdict agreement — and a recommendation
+written here. **It was dropped on 2026-08-12 and the feature ships unmeasured.**
 
-The obvious answer is a diagnostic mode that reads nothing **and writes nothing**,
-leaving the row untouched; it does not violate the principle above, because it
-never rewrites anything. It is deliberately **not** being built now: the gate
-needs [US-046](done/US-046-token-usage-and-cost.md), which landed 2026-08-12 —
-so a cold run and a memory-assisted one can now be compared on what each spent.
-Decide it against that measurement, not before.
+Both things that had blocked it were gone by then, so the record should not read
+as though it could not be done.
+
+The first was cost: two runs cannot be compared on what they spent until a run
+records what it spent, and [US-046](US-046-token-usage-and-cost.md) landed
+that day.
+
+The second was thought to need new code. With no `force_cold`, the only way to
+run cold is Clear, which destroys the notebook the comparison needs — so a
+read-nothing, write-nothing diagnostic mode was sketched above. **It was never
+needed.** `test_memory.test_id` is a primary key, so a *duplicate test* has no
+notebook and its first run is cold by construction, against the same goal and
+the same start URL. Original assisted, copy cold, neither touching the other.
+
+What remained was the price: a handful of real runs against a real site, and
+enough of them to see past the noise of one. That was judged not worth paying
+for a P3 experiment.
+
+**What this costs us.** Memory is on for every saved test and cannot be turned
+off, so nothing in normal use will reveal it if the notebook makes runs worse
+rather than better. The withdrawal path is still the one the story was designed
+around — the feature is removable, not tuneable — and it is now a judgement
+call rather than a reading. If it is ever suspected of hurting, the duplicate-
+test comparison above is the measurement to run, and it needs no code.
 
 
 ## Spike — what the implementation is written against
@@ -589,7 +610,7 @@ because the second build will pass through the same two places.
   raised every time — and `make_generator`'s `except Exception: return None`
   caught it. Nothing was red and no notebook was ever written. The parts were all
   asserted; the composition was not. The general lesson is in
-  [`docs/testing.md`](../../../docs/testing.md) → *A swallow-all `except` hides a
+  [`docs/testing.md`](../../../../docs/testing.md) → *A swallow-all `except` hides a
   programming error behind a promise*.
 
 ### Before the second build
@@ -656,13 +677,15 @@ conditional write are unaffected by this decision and their assertions stand.
 - [x] Clear empties the notebook and the next run is cold; run history is
       unchanged and the run that taught the cleared notebook is still readable
 
-**The gate:**
+**The gate — dropped 2026-08-12, not met:**
 
-- [ ] Cold vs memory-assisted fixture measurements record duration, steps, cost
+- [ ] ~~Cold vs memory-assisted fixture measurements record duration, steps, cost
       and **verdict agreement**, with differing verdicts inspected and a stated
-      recommendation recorded in this file. Needs a way to run cold without
-      destroying the notebook — see "Open: how the release gate measures without
-      a force-cold"
+      recommendation recorded in this file.~~ **Dropped.** Both blockers had
+      cleared and it needed no code — a duplicate test runs cold by
+      construction. The cost was real runs against a real site, and that was
+      judged not worth paying for a P3 experiment. Reasoning and what it costs
+      us: "The gate, and why it was dropped"
 
 
 ## Deliberately not in scope
@@ -678,9 +701,11 @@ conditional write are unaffected by this decision and their assertions stand.
 ## Correctness posture
 
 Memory changes prompt context and can therefore change behavior and verdicts.
-Verdict agreement is its release gate, and a notebook whose inputs have moved is
-never silently supplied to the agent. **This is correctness-critical** and owes a row
-in [`correctness-critical.md`](../../correctness-critical.md) when work starts.
+Verdict agreement was to be its release gate; that gate was dropped, so what
+guards this surface is the assertion set below and nothing downstream of it.
+A notebook whose inputs have moved is never silently supplied to the agent.
+**This is correctness-critical** and owes a row in
+[`correctness-critical.md`](../../../correctness-critical.md) when work starts.
 
 Assertions for grounded provenance, canonical fingerprinting, cold-only
 learning, human-vs-learned precedence, state transitions, secret containment

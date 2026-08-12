@@ -6,7 +6,7 @@ suite of forty tests is a good idea before the invoice tells me.
 
 - **Status:** ✅ **Done 2026-08-12**, 7/7. Tier 1 landed 2026-08-10; tier 2 —
   the three surfaces and the History total — on 2026-08-12. Pulled into the
-  current sprint ahead of [US-081](../US-081-a-test-remembers-what-worked.md),
+  current sprint ahead of [US-081](US-081-a-test-remembers-what-worked.md),
   whose release gate is a cold-vs-memory-assisted cost comparison that cannot be
   evaluated without this. The spike that preceded it was read against the
   installed `browser_use` and turned up a correctness-critical shape the
