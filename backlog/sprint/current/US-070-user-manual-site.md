@@ -23,9 +23,8 @@ round trip and a redeploy of the app.
 this repo. Nothing in it is written for someone who wants to write a goal and
 read a verdict.
 
-What a user gets today is `README.md` and
-[`docs/quickstart.md`](../../../docs/quickstart.md), which cover the first run
-and stop. Everything after it — suites, schedules, variables and secrets, saved
+What a user gets today is `README.md` and `docs/quickstart.md`, which cover the
+first run and stop. Everything after it — suites, schedules, variables and secrets, saved
 sessions, the CI trigger — is documented as commits, story files and API
 reference, or not at all. The README has been absorbing the overflow, which is
 the wrong home for it and the reason it keeps growing.
@@ -232,10 +231,15 @@ second — one an `<http://localhost:8080>` autolink, one an anchor whose slug
 turned an apostrophe into `-s-`. Both fail the build rather than shipping, which
 is what the criterion asked for.
 
-**Two `docs/` pages left for `manual/` rather than being copied.**
-`docs/quickstart.md` and `docs/ci.md` are now pointers: both were written for
-someone *using* QAssist, which is the audience `docs/` is explicitly not for,
-and a second copy is the copy that drifts. The README's configuration table went
+**Two `docs/` pages left for `manual/` rather than being copied, and were then
+deleted.** `docs/quickstart.md` and `docs/ci.md` were both written for someone
+*using* QAssist, which is the audience `docs/` is explicitly not for, and a
+second copy is the copy that drifts. They became pointers here and were removed
+on 2026-08-12, once nothing linked to them any more: a pointer that no document
+points at is a file kept for a reader who cannot arrive. The redirect is not
+lost — the manual's own pages carry the content, and `README.md` and
+`manual/index.md` are the two doors into it.
+The README's configuration table went
 the same way — six rows a fresh install actually turns, and the rest linked —
 which is the same shape it already used for the API section, and is what "stop
 growing" means in practice. Everything that referenced either file by name,

@@ -331,7 +331,8 @@ depends on what, and why the sprint is shaped the way it is.
 - **Secure it before exposing publicly:** always behind HTTPS, always with the token.
 - Some sites (Reddit, Cloudflare-heavy pages) block datacenter IPs and will fail
   from a server — expected, not a bug. When the site is *yours*, allowlist the
-  box: [`docs/waf-allowlisting.md`](docs/waf-allowlisting.md).
+  box: [Testing a site behind
+  Cloudflare](https://docs.qassist.run/cloudflare.html).
 
 ## Contributing
 

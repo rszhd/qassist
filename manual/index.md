@@ -56,6 +56,7 @@ features:
 
 - [Testing behind a login](./saved-sessions.md)
 - [Controlling where a run may go](./navigation-fence.md)
+- [Testing a site behind Cloudflare](./cloudflare.md)
 - [Troubleshooting a run](./troubleshooting.md)
 
 ### Run your own instance

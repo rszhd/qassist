@@ -5,7 +5,7 @@ without ever reaching the app. This is how you let your own tester through.
 
 **There is no QAssist domain to allowlist.** Cloudflare sits in front of *your*
 site and QAssist is the client making the request — nothing about `qassist.run`
-appears in the traffic. What you allowlist is the IP your QAssist box makes
+appears in the traffic. What you allowlist is the IP your QAssist instance makes
 requests from.
 
 This only applies to sites whose WAF you control. Against someone else's site, a
@@ -33,6 +33,9 @@ network, so it leaves via the host's public IP. Don't assume — ask:
 ```sh
 docker compose exec qassist curl -s https://ifconfig.me
 ```
+
+On a hosted instance you cannot run this, and the address is not yours to
+change. Ask your operator which address the runners leave from.
 
 **2. Add the rule.** Cloudflare dashboard → the zone under test → **Security →
 WAF → Tools → IP Access Rules**:
@@ -78,11 +81,13 @@ one hostname is narrower than an account-wide IP allow and is the better tool.
 matching and runs start failing again. Re-check with step 1 before assuming the
 app broke.
 
-**A blocked run still reports as a failed one.** QAssist does not currently
-distinguish "Cloudflare never let us in" from "your signup flow is broken" — a
-challenge page burns the step budget and lands in the report as a **FAIL**. So
-if a run fails against a WAF-protected site, verify the allowlist before you
-believe the verdict.
+::: warning A blocked run still reports as a failed one
+QAssist does not distinguish "Cloudflare never let us in" from "your signup flow
+is broken" — a challenge page burns the step budget and lands in the report as a
+**FAIL**. So if a run fails against a WAF-protected site, verify the allowlist
+before you believe the verdict. The rest of that shape is [When a run goes
+wrong](./troubleshooting.md).
+:::
 
 ## Sources
 

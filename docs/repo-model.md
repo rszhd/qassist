@@ -9,9 +9,8 @@ consistent. The backlog holds *what* we build; this holds *where* it goes.
 **This repo is the product, and it is the only repo for now.** Engine
 (`agent/`), server, frontend, control plane (Postgres, saved tests,
 scheduling, notifications), auth, and even Stripe billing all live here and
-ship open source under **AGPL-3.0-only** — settled 2026-07-23, with
-contributions under a DCO rather than a CLA; the reasoning and the checklist
-are [US-031](../backlog/sprint/current/done/US-031-license-and-public-repo.md).
+ship open source under **AGPL-3.0-only**. Licensing and how to contribute
+under it are [CONTRIBUTING.md](../CONTRIBUTING.md).
 
 The paid hosted tier at qassist.run runs this exact codebase. Billing is
 **env-gated**: with `STRIPE_*` unset — the self-host default — there is no
@@ -77,12 +76,3 @@ Before building anything, ask: **"would a self-hoster want this?"**
   product and prevents scope-smuggling into the private side).
 - Only meaningful with our infrastructure or our billing → private repo
   (or env-gated here, while the private repo doesn't exist).
-
-## Going public — done
-
-The repo is public. The pre-flip checklist that lived here is closed:
-licensing is DCO not CLA, no tracked file names the deployment host, and the
-full git history is scanned by gitleaks — the config and the command to run it
-yourself are in [CONTRIBUTING.md](../CONTRIBUTING.md). The decisions are
-recorded in
-[US-031](../backlog/sprint/current/done/US-031-license-and-public-repo.md).

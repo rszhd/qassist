@@ -45,7 +45,10 @@ that the run ran out of steps before reaching the requested outcome.
 therefore work from your laptop and refuse the same flow from a QAssist server.
 
 When the site is *yours*, allowlist the instance's address at your WAF or CDN.
-When it is not, there is no setting that fixes it.
+On Cloudflare that is an IP Access Rule and not the custom rule you would
+expect — the recipe, and what it costs you, is [Testing a site behind
+Cloudflare](./cloudflare.md). When the site is not yours, there is no setting
+that fixes it.
 
 ## The run wandered and burned steps
 

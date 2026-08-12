@@ -73,6 +73,7 @@ export default defineConfig({
         items: [
           { text: 'Behind your login', link: '/saved-sessions' },
           { text: 'Where a run may go', link: '/navigation-fence' },
+          { text: 'Behind Cloudflare', link: '/cloudflare' },
           { text: 'When a run goes wrong', link: '/troubleshooting' },
         ],
       },
