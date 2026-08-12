@@ -5,7 +5,7 @@ import { api } from './api.js';
 import RunDetail from './RunDetail.jsx';
 import Timeline, { runMarks } from './Timeline.jsx';
 import { Button, CardHead, EmptyState, PageHeader } from './ui.jsx';
-import { statusLabel, formatWhen, formatDuration, formatCost, formatTokens } from './status.js';
+import { statusLabel, formatWhen, formatDuration } from './status.js';
 
 // History (US-011): every run the control plane has kept, filtered and paged
 // off GET /api/runs. The list rows carry everything the detail panel shows
@@ -56,7 +56,7 @@ export default function HistoryView({ token, reports }) {
   const [trigger, setTrigger] = useState('all');
   const [range, setRange] = useState('all');
   const [offset, setOffset] = useState(0);
-  const [data, setData] = useState({ runs: [], total: 0, usage: null });
+  const [data, setData] = useState({ runs: [], total: 0 });
   const [selectedId, setSelectedId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -136,43 +136,6 @@ export default function HistoryView({ token, reports }) {
   const selected = data.runs.find((r) => r.id === selectedId) || null;
   const showing = data.runs.length ? `${offset + 1}–${offset + data.runs.length} of ${data.total}` : '';
 
-  // US-046 tier 2, and the surface the story warns about: this is a sum, so
-  // every way it can be wrong is a plausible number rather than a broken one.
-  //
-  // The server answers for the whole filter set, never the page — so this line
-  // does not move when you press Older, which is the only reading of it that
-  // means anything.
-  //
-  // Two rules it keeps. It never sums a set it could only partly price without
-  // saying so: `priced_runs` against `total` is the disclosure, and it is not
-  // rendered quieter than the figure it qualifies. And it falls back to tokens
-  // rather than to nothing — an instance with `CALCULATE_COST=0`, or one that
-  // never reached the pricing table, still has a real measurement to show.
-  const usage = data.usage;
-  const priced = usage?.priced_runs > 0;
-  const partial = priced && usage.priced_runs < data.total;
-  const total = usage && (usage.total_tokens != null || priced) && (
-    <div className="hist-total">
-      {priced && (
-        <>
-          Est. cost <b>{formatCost(usage.total_cost, true, usage.total_tokens)}</b>
-          {usage.total_tokens != null && ' · '}
-        </>
-      )}
-      {usage.total_tokens != null && <>{formatTokens(usage.total_tokens)} tokens</>}
-      {partial && (
-        <span className="partial">
-          {' '}— {usage.priced_runs} of {data.total} runs priced
-        </span>
-      )}
-      {!priced && (
-        <span className="partial">
-          {' '}— no run in this set could be priced
-        </span>
-      )}
-    </div>
-  );
-
   return (
     <>
       <PageHeader
@@ -224,8 +187,6 @@ export default function HistoryView({ token, reports }) {
               ))}
             </select>
           </div>
-
-          {total}
 
           {/* A schedule filter has no picker to show it — it arrives in the
               URL from a bar on the Schedules strip. Without this the list is

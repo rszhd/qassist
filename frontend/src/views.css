@@ -766,17 +766,6 @@ a.row-main { color: inherit; text-decoration: none; }
    without the chevron overlapping it; narrower and the four filters start
    eliding at full page width. */
 .hist-filters select { flex: 1; min-width: 140px; }
-/* US-046. Directly under the filters, because it is the answer to them: what
-   the set you just narrowed to actually spent. Muted and one line — it is a
-   footnote to the list, not a heading over it. */
-.hist-total {
-  font-size: var(--t-sm); color: var(--muted);
-  font-variant-numeric: tabular-nums;
-}
-.hist-total b { color: var(--text); font-weight: 550; }
-/* The disclosure that a total covers only part of the set. It carries the whole
-   honesty of the number, so it does not get to be quieter than the number. */
-.hist-total .partial { color: var(--text); }
 /* A schedule row carries more than any other row in the app: a target name, a
    type tag, a plain-English recurrence, the next fire time and three actions.
    At 390px that left the name 67px — one word per line — and `.row-tag` does

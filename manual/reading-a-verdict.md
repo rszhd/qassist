@@ -163,15 +163,14 @@ An unavailable price is **unknown**, not `$0.00`; token counts remain usable
 when cost is unknown. Runs from before usage accounting shipped, and runs that
 ended before the agent could summarize itself, may have no counts.
 
-You see the figure in three places. A run's card shows **Est. cost** beside its
-verdict, with the token counts under it. The PDF report carries the same two
-boxes on its cover. And **History totals the runs you have filtered to**, which
-is the number that answers "what did last night cost".
+You see the figure per run. A run's card shows **Est. cost** beside its verdict,
+with the token counts under it, and the PDF report carries the same two boxes on
+its cover. History lists runs; it does not total them.
 
 A run QAssist could not price reads **Unknown**, and its tokens are still shown.
-Where the History total covers only part of the set, it says so — "2 of 3 runs
-priced". A total is never quietly summed over runs it could not price, because a
-figure that is wrong downwards is the one nobody thinks to question.
+
+To total a set of runs, read `usage` off `GET /api/runs` with the filter you
+want. It answers for the whole filtered set, not one page.
 
 API consumers should check `cost_known` before displaying or adding
 `total_cost`. See [What a run
