@@ -159,6 +159,27 @@ describe('RunView run dispatch (US-035)', () => {
     expect(runCalls(calls)[0].url).toContain('/api/tests/vars-1/run');
     expect(runCalls(calls)[0].body.variables).toEqual({ base_url: 'https://prod.example.com' });
   });
+
+  it('shows the overridden value in the run card, and the default again when the test is reloaded', async () => {
+    stubEnv();
+    const { container } = renderRunView();
+    const chips = () => [...container.querySelectorAll('.var-chip')].map((el) => el.textContent);
+
+    fireEvent.click(await screen.findByLabelText('Run "Env test"'));
+    fireEvent.change(screen.getByDisplayValue('https://staging.example.com'), {
+      target: { value: 'https://prod.example.com' },
+    });
+    fireEvent.click(screen.getByText('Run test'));
+
+    await waitFor(() => expect(chips()).toEqual(['base_url=https://prod.example.com']));
+
+    // Loading the test off the rail is about the test again, not the run. The
+    // rail is disabled while a run is live, so the run has to end first.
+    emit({ type: 'done', success: true, steps: 1 });
+    emit({ type: 'end', status: 'passed' });
+    fireEvent.click(screen.getByTitle('Log in at {{base_url}} and reach the dashboard.'));
+    await waitFor(() => expect(chips()).toEqual(['base_url=https://staging.example.com']));
+  });
 });
 
 // US-022: a run refused for want of a subscription is not a failed run. It must

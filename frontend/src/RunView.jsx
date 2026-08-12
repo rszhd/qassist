@@ -42,6 +42,11 @@ export default function RunView({ token, health, keyStatus, visible, needsToken,
   const [variables, setVariables] = useState([]);
   const [runVars, setRunVars] = useState(null);
   const [varValues, setVarValues] = useState({});
+  // `{ testId, values }` — the overrides the watched run was started with, or
+  // null when it ran on the test's own defaults. The saved row keeps the
+  // defaults, so without this the card beside the stage would name values the
+  // run is not using while the goal and URL above it show the ones it is.
+  const [runOverrides, setRunOverrides] = useState(null);
   const [savingTest, setSavingTest] = useState(false);
   // A test clicked in the rail and loaded into the stage without being run, so
   // what a test does can be read before it costs a run. Null once a run starts:
@@ -329,6 +334,7 @@ export default function RunView({ token, health, keyStatus, visible, needsToken,
     }
     setDialog(null);
     setLoaded(null);
+    setRunOverrides(overrides ? { testId: test.id, values: overrides } : null);
     run.reset(test.id);
     setGoal(fillTemplate(test.goal, test.variables, overrides));
     setStartUrl(fillTemplate(test.start_url, test.variables, overrides));
@@ -403,6 +409,15 @@ export default function RunView({ token, health, keyStatus, visible, needsToken,
   // they describe a test that is not the one named above them.
   const subject = loaded || tests.find((t) => t.id === run.activeTestId);
   const runIsSubject = !loaded || loaded.id === run.activeTestId;
+  // The declarations, with the watched run's overrides written over them — the
+  // same substitution the goal and the URL beside them already show. A test
+  // loaded off the rail is back to its defaults, because that is what running
+  // it now would use.
+  const subjectVars = subject?.variables?.map((v) =>
+    !loaded && runOverrides?.testId === subject.id && v.name in runOverrides.values
+      ? { ...v, value: runOverrides.values[v.name] }
+      : v
+  );
   // With neither, there is nothing for the card beside the stage to describe:
   // the goal and URL in state are the New run dialog's draft, and three dashed
   // stats over them read as a run that was made and told nobody anything.
@@ -751,16 +766,15 @@ export default function RunView({ token, health, keyStatus, visible, needsToken,
                     </dd>
                     {/* The names the goal and the URL above are written against,
                         so a reader can see what `{{host}}` stood for rather than
-                        only the text it resolved to. These are the test's own
-                        declarations, not one run's overrides — the resolved set
-                        a given run actually used is on /runs/<id>. A secret has
-                        no value to show by design (US-064). Absent when the test
-                        declares none, which is most of them. */}
-                    {subject?.variables?.length > 0 && (
+                        only the text it resolved to — this run's values, so the
+                        two agree. A secret has no value to show by design
+                        (US-064). Absent when the test declares none, which is
+                        most of them. */}
+                    {subjectVars?.length > 0 && (
                       <>
                         <dt>Variables</dt>
                         <dd className="detail-vars">
-                          {subject.variables.map((v) => (
+                          {subjectVars.map((v) => (
                             <span className="var-chip" key={v.name}>
                               <b>{v.name}</b>
                               {v.secret ? ' (secret)' : v.value ? `=${v.value}` : ' (empty)'}
