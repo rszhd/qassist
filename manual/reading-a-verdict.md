@@ -163,9 +163,18 @@ An unavailable price is **unknown**, not `$0.00`; token counts remain usable
 when cost is unknown. Runs from before usage accounting shipped, and runs that
 ended before the agent could summarize itself, may have no counts.
 
-These values are currently exposed in the run API and the self-hosted run data;
-the app does not yet show a cost total. API consumers should check `cost_known`
-before displaying or adding `total_cost`. See [What a run
+You see the figure in three places. A run's card shows **Est. cost** beside its
+verdict, with the token counts under it. The PDF report carries the same two
+boxes on its cover. And **History totals the runs you have filtered to**, which
+is the number that answers "what did last night cost".
+
+A run QAssist could not price reads **Unknown**, and its tokens are still shown.
+Where the History total covers only part of the set, it says so — "2 of 3 runs
+priced". A total is never quietly summed over runs it could not price, because a
+figure that is wrong downwards is the one nobody thinks to question.
+
+API consumers should check `cost_known` before displaying or adding
+`total_cost`. See [What a run
 cost](https://github.com/rszhd/qassist/blob/main/docs/api.md#what-a-run-cost).
 
 ## Finding a run again

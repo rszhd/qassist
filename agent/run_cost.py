@@ -89,10 +89,13 @@ def summarize(usage, *, enabled: bool, priced_models) -> dict | None:
         "total_tokens": _int(usage.get("total_tokens")),
         "entry_count": _int(usage.get("entry_count")),
         # Read straight from the summary when it is real, and withheld entirely
-        # when it is not. Deliberately NOT recomputed from the per-model lines:
-        # browser-use accumulates cached-read and cache-creation costs into the
-        # total that the per-model `cost` field does not carry, so a sum of the
-        # breakdown would be quietly low.
+        # when it is not. Deliberately NOT recomputed from the per-model lines,
+        # even though today they agree: `UsageSummary.total_cost` and each
+        # `by_model[].cost` are both accumulated from the same per-call
+        # `TokenCostCalculated.total_cost`, uncached prompt + cached read +
+        # cache creation + completion. Summing the breakdown ourselves would
+        # duplicate an accumulation the library owns, and would silently stop
+        # agreeing the day it changes what a per-model line means.
         "total_cost": _float(usage.get("total_cost")) if known else None,
         "cost_known": known,
         "by_model": [

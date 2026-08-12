@@ -35,8 +35,9 @@ instead of rediscovering it from scratch.
   budget counts the prompt rather than the row, and — the one that removed the
   most machinery — **only a person takes a notebook away**, which retired the
   fingerprint, the conditional write and every automatic invalidation with it.
-  **The release gate is the remaining work** and is still blocked on US-046
-  tier 2 — see "Open: how the release gate measures without a force-cold".
+  **The release gate is the remaining work.** US-046 tier 2 landed 2026-08-12,
+  so what a run spent is now recorded and totalled — see "Open: how the release
+  gate measures without a force-cold" for what is left to decide.
 - **Priority:** P3 in the current sprint. It is US-050's sibling: US-050 makes
   each reasoning step cheaper; this story tries to avoid reasoning paths that
   a previous successful run already showed were unhelpful.
@@ -296,9 +297,10 @@ the notebook the comparison needs — so the two cannot be alternated as written
 
 The obvious answer is a diagnostic mode that reads nothing **and writes nothing**,
 leaving the row untouched; it does not violate the principle above, because it
-never rewrites anything. It is deliberately **not** being built now: the gate is
-blocked on [US-046](US-046-token-usage-and-cost.md) and cannot be evaluated yet.
-Decide it when the measurement is actually written, not before.
+never rewrites anything. It is deliberately **not** being built now: the gate
+needs [US-046](done/US-046-token-usage-and-cost.md), which landed 2026-08-12 —
+so a cold run and a memory-assisted one can now be compared on what each spent.
+Decide it against that measurement, not before.
 
 
 ## Spike — what the implementation is written against

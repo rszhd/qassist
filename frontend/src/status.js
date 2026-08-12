@@ -70,3 +70,42 @@ export function formatDuration(startedAt, finishedAt) {
   if (!Number.isFinite(secs) || secs < 0) return '—';
   return secs < 60 ? `${secs}s` : `${Math.floor(secs / 60)}m ${secs % 60}s`;
 }
+
+// A run's cost runs from a few dollars down to fractions of a cent, so a fixed
+// two decimals would print $0.00 over a real charge — this story's failure mode
+// reached by rounding rather than by a missing flag. Three decimals under a
+// dollar, and an amount too small even for those says so instead of collapsing
+// to nothing. A zero here has already been established as a measured one, and a
+// genuinely free model is entitled to read as free.
+function money(cost) {
+  const n = Number(cost);
+  if (!Number.isFinite(n)) return '—';
+  if (n === 0) return '$0.00';
+  if (n >= 1) return `$${n.toFixed(2)}`;
+  return n < 0.001 ? '< $0.001' : `$${n.toFixed(3)}`;
+}
+
+/**
+ * What a run spent (US-046), decided by `cost_known` and never by the number.
+ * browser-use reports 0.0 when costing was switched off, when the pricing table
+ * never loaded and when the model has no published price, so only a known zero
+ * means the run was free.
+ *
+ * The two ways of not knowing are worth separating: 'Unknown' is a run that was
+ * measured and could not be priced, '—' is a run nothing measured — one still
+ * going, or one from before this shipped. Neither is ever '$0.00'.
+ *
+ * @param {number|null|undefined} cost
+ * @param {boolean|undefined} known
+ * @param {number|null|undefined} tokens what the run counted, which is what
+ *   separates "no price" from "no measurement"
+ */
+export function formatCost(cost, known, tokens) {
+  if (known && cost != null) return money(cost);
+  return tokens == null ? '—' : 'Unknown';
+}
+
+/** A token count with the reader's own thousands separator; '—' if uncounted. */
+export function formatTokens(n) {
+  return n == null ? '—' : Number(n).toLocaleString();
+}

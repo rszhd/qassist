@@ -36,9 +36,11 @@ from report_format import (
     diagnostic_detail,
     diagnostic_label,
     esc,
+    fmt_cost,
     fmt_date,
     fmt_duration,
     fmt_occurrences,
+    fmt_tokens,
     group_diagnostics,
 )
 
@@ -135,6 +137,28 @@ def build_html(data: dict) -> str:
         ("DURATION", fmt_duration(data.get("duration_seconds")), "", ""),
         ("MODEL", esc(data.get("model") or "—"), "", ""),
     ]
+
+    # US-046. Two more boxes, and only when the run counted something: on a
+    # report from before this shipped — or one whose agent crashed before it
+    # could summarise itself — there is no number, and a pair of dashes on the
+    # cover of every archived report would be worse than the cover it replaced.
+    #
+    # "EST. COST" carries the qualifier, because a PDF outlives the screen it
+    # was read on and this figure is priced from a table, not from the
+    # provider's bill. Tokens keep their own box whatever the pricing did: on an
+    # unpriced run they are the only measurement there is.
+    usage = data.get("usage") or {}
+    if usage.get("total_tokens") is not None:
+        tokens = (
+            f'{fmt_tokens(usage.get("total_tokens"))}'
+            f'<span class="stat-sub">{fmt_tokens(usage.get("prompt_tokens"))} in'
+            f' · {fmt_tokens(usage.get("completion_tokens"))} out</span>'
+        )
+        stat_items += [
+            ("EST. COST", esc(fmt_cost(usage)), "", ""),
+            ("TOKENS", tokens, "stat-wide", ""),
+        ]
+
     stats_html = "".join(
         f'<div class="stat {box}"><div class="stat-k">{k}</div>'
         f'<div class="stat-v {vcls}">{v}</div></div>'
@@ -384,6 +408,9 @@ def build_html(data: dict) -> str:
     padding: 17px 20px; box-shadow: 0 2px 10px rgba(20,22,26,.04);
   }}
   .stat-url {{ grid-column: 1 / -1; }}
+  /* US-046: the cost box takes one column and the tokens box the other two, so
+     the pair fills its row rather than leaving a hole beside a short number. */
+  .stat-wide {{ grid-column: span 2; }}
   .stat-k {{
     font-family: 'IBM Plex Mono', ui-monospace, monospace;
     font-size: 11px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase;
@@ -393,6 +420,12 @@ def build_html(data: dict) -> str:
   .stat-v.url {{
     font-family: 'IBM Plex Mono', ui-monospace, monospace;
     font-size: 16px; font-weight: 500; color: #14161A; word-break: break-all;
+  }}
+  /* The prompt/completion split rides beside the total rather than under it:
+     it is the same fact at lower resolution, not a second one. */
+  .stat-sub {{
+    font-size: 13px; font-weight: 500; letter-spacing: 0; color: #8A9096;
+    margin-left: 9px;
   }}
 
   .summary {{ margin-bottom: 40px; }}

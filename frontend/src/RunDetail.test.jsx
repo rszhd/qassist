@@ -34,6 +34,10 @@ const run = {
   has_recording: false,
 };
 
+/** The number under one stat label, so an assertion names which stat it means. */
+const statValue = (label) =>
+  screen.getByText(label).closest('.stat').querySelector('.stat-value').textContent;
+
 describe('RunDetail', () => {
   it('renders a finished run from its row without fetching', () => {
     render(
@@ -350,7 +354,72 @@ describe('RunDetail stopping a run (US-047)', () => {
     expect(badge.className).toContain('badge-cancelled');
     expect(screen.queryByText('Pass')).toBeNull();
     expect(screen.queryByText('Fail')).toBeNull();
-    expect(screen.getByText('—')).toBeTruthy();
+    // Named rather than "the dash on the page": US-046 put a second stat on the
+    // row that also dashes when it has nothing, and a bare getByText('—') was
+    // asserting the row's length as much as the verdict.
+    expect(statValue('Verdict')).toBe('—');
     expect(screen.queryByText('Stop run')).toBeNull();
+  });
+});
+
+// US-046 tier 2. The card is the surface a person meets the number on, and the
+// rule it has to keep is one: what the control plane could not price must not
+// leave here looking like a small charge.
+describe('RunDetail cost (US-046)', () => {
+  function renderRun(over) {
+    return render(
+      <MemoryRouter>
+        <RunDetail
+          run={{ ...run, ...over }}
+          token="t"
+          onError={() => {}}
+          liveSteps={[]}
+        />
+      </MemoryRouter>
+    );
+  }
+
+  const priced = {
+    prompt_tokens: 38412,
+    completion_tokens: 2907,
+    total_tokens: 41319,
+    total_cost: 0.0842,
+    cost_known: true,
+  };
+
+  it('shows a priced run under a label that says the figure is an estimate', () => {
+    renderRun(priced);
+    expect(statValue('Est. cost')).toBe('$0.084');
+    expect(screen.getByText('Tokens')).toBeTruthy();
+  });
+
+  it('reads an unpriced run as unknown, and never as zero', () => {
+    renderRun({ ...priced, total_cost: null, cost_known: false });
+    expect(statValue('Est. cost')).toBe('Unknown');
+    expect(screen.queryByText('$0.00')).toBeNull();
+  });
+
+  it('keeps the tokens of a run it could not price, and says why they stand alone', () => {
+    renderRun({ ...priced, total_cost: null, cost_known: false });
+    expect(screen.getByText(/41,319/)).toBeTruthy();
+    expect(screen.getByText(/Counted, but not priced/)).toBeTruthy();
+  });
+
+  it('leaves the note off a run it did price', () => {
+    renderRun(priced);
+    expect(screen.queryByText(/Counted, but not priced/)).toBeNull();
+  });
+
+  it('dashes a run nothing measured and grows no tokens row for it', () => {
+    // Every run from before this shipped. Distinct from "unknown", which is a
+    // measurement that could not be priced.
+    renderRun({});
+    expect(statValue('Est. cost')).toBe('—');
+    expect(screen.queryByText('Tokens')).toBeNull();
+  });
+
+  it('reports a measured zero as free rather than as unknown', () => {
+    renderRun({ ...priced, total_cost: 0, cost_known: true });
+    expect(statValue('Est. cost')).toBe('$0.00');
   });
 });

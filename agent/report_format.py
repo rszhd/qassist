@@ -22,6 +22,54 @@ def fmt_duration(secs) -> str:
     return f"{secs // 60}m {secs % 60}s"
 
 
+def _money(cost) -> str:
+    """A cost that runs from dollars to fractions of a cent, printed honestly.
+
+    A fixed two decimals would round a real charge down to `$0.00`, which is
+    this story's failure mode reached by formatting instead of by a missing
+    flag. Three decimals under a dollar, and an amount smaller than those can
+    hold says so rather than collapsing. A zero reaching here has already been
+    established as measured, and a free model may read as free.
+    """
+    try:
+        n = float(cost)
+    except (TypeError, ValueError):
+        return "—"
+    if n != n or n in (float("inf"), float("-inf")):
+        return "—"
+    if n == 0:
+        return "$0.00"
+    if n >= 1:
+        return f"${n:.2f}"
+    return "< $0.001" if n < 0.001 else f"${n:.3f}"
+
+
+def fmt_cost(usage) -> str:
+    """What the run spent (US-046), decided by `cost_known` and never the number.
+
+    browser-use reports `0.0` when costing was off, when the pricing table never
+    loaded, and when the model has no published price, so only a *known* zero
+    means the run was free. 'Unknown' is a run that was measured and could not
+    be priced; '—' is a run nothing measured. Neither is ever `$0.00`.
+
+    The web app renders the same three answers in `frontend/src/status.js`
+    (`formatCost`) — two renderers, one rule, and a change to the rule belongs
+    in both.
+    """
+    u = usage if isinstance(usage, dict) else {}
+    if u.get("cost_known") is True and u.get("total_cost") is not None:
+        return _money(u.get("total_cost"))
+    return "—" if u.get("total_tokens") is None else "Unknown"
+
+
+def fmt_tokens(n) -> str:
+    """A token count, grouped; '—' when nobody counted."""
+    try:
+        return f"{int(n):,}"
+    except (TypeError, ValueError):
+        return "—"
+
+
 def fmt_date(iso) -> str:
     try:
         dt = datetime.fromisoformat(str(iso).replace("Z", "+00:00")).astimezone(timezone.utc)

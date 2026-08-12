@@ -395,6 +395,31 @@ in `runs/<id>/report_data.json` under `usage.by_model`, not in the row. Each
 entry carries its own `cost_known`, so an unpriced total can be traced to the
 model that caused it.
 
+### The total over a filter set
+
+`GET /api/runs` answers with one `usage` object beside `total`, covering the
+**whole filter set** rather than the page it returned — paging does not move
+it:
+
+```json
+{ "runs": [ ... ], "total": 40, "limit": 25, "offset": 0,
+  "usage": { "total_cost": 1.238412, "priced_runs": 33, "total_tokens": 1284310 } }
+```
+
+`total_cost` sums only the runs whose `cost_known` is true. **`priced_runs`
+against `total` is the disclosure, and a client that renders the figure without
+it is publishing a number it cannot stand behind** — 33 of those 40 runs are in
+the sum and 7 are not, and nothing else on the response says so.
+
+An empty sum is `null`, for cost and for tokens alike, never `0`. So a filter
+set holding no priced run reports `total_cost: null` with `priced_runs: 0`, and
+tokens carry on independently: an instance running `CALCULATE_COST=0` still
+totals what it counted.
+
+Both figures are JSON numbers. `sum()` over `numeric` and over `int` reaches
+`pg` as a string and a bigint-string respectively, and the conversion happens
+before the response.
+
 `CALCULATE_COST=0` turns the whole thing off, including the pricing fetch.
 Tokens are still counted; they cost nothing to collect.
 

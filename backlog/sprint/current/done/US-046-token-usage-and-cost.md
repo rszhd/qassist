@@ -4,13 +4,14 @@
 its token usage and dollar cost, **so that** I can decide whether a nightly
 suite of forty tests is a good idea before the invoice tells me.
 
-- **Status:** 🔨 **Tier 1 done 2026-08-10**, 4/7. Pulled into the current sprint
-  ahead of [US-081](US-081-a-test-remembers-what-worked.md), whose release gate
-  is a cold-vs-memory-assisted cost comparison that cannot be evaluated without
-  this. The spike that preceded it was read against the installed `browser_use`
-  and turned up a correctness-critical shape the original write-up did not have;
-  it is recorded below because it is the reason `cost_known` exists.
-  **Tier 2 — the three surfaces — is the remaining work.**
+- **Status:** ✅ **Done 2026-08-12**, 7/7. Tier 1 landed 2026-08-10; tier 2 —
+  the three surfaces and the History total — on 2026-08-12. Pulled into the
+  current sprint ahead of [US-081](../US-081-a-test-remembers-what-worked.md),
+  whose release gate is a cold-vs-memory-assisted cost comparison that cannot be
+  evaluated without this. The spike that preceded it was read against the
+  installed `browser_use` and turned up a correctness-critical shape the
+  original write-up did not have; it is recorded below because it is the reason
+  `cost_known` exists.
 - **Priority:** P3 when nothing depended on it. Now P2 by dependency: US-081
   and US-050 both deliver a measurement, and neither can be judged until a run
   reports what it cost.
@@ -165,15 +166,15 @@ named volume, and worth *not* pretending the cache is the off switch.
 - [x] Every completed run records prompt/completion/total tokens and an
       estimated cost, with the per-model breakdown available in the run detail
       (row + `usage.by_model` in `report_data.json`)
-- [ ] The estimate is labelled as one wherever it appears; an unknown model
+- [x] The estimate is labelled as one wherever it appears; an unknown model
       renders as unknown, never as zero
 - [x] "Cost unknown" and "cost was zero" are distinguishable end to end — in the
       `done` event, the row, the API and every surface — for all three causes
       the spike names: collection off, pricing unavailable, model unpriced
 - [x] Tokens survive a cost failure: a run whose pricing never loaded still
       reports prompt/completion/total tokens, and reports no cost at all
-- [ ] History shows a total for the current filter set
-- [ ] Pricing lookup failure or an unreachable network degrades to tokens-only —
+- [x] History shows a total for the current filter set
+- [x] Pricing lookup failure or an unreachable network degrades to tokens-only —
       the run still completes and the verdict is unaffected
 - [x] Cost collection can be switched off, and off means no outbound request at
       all (the precondition US-045's local tier depends on) — `CALCULATE_COST=0`,
@@ -219,9 +220,81 @@ the module existed), the agent suite 397/397, `run-cost.test.js` 8/8,
 759/759, and `npm run check` clean. `run_agent.py` import-checked inside
 `qassist:latest`, with the switch proven both ways.
 
-### Tier 2, and what it must not do
+## Tier 2, as built (2026-08-12)
 
-The three surfaces: run detail, the report header column, the History total.
-The aggregate is the one with a trap in it — a total over a page holding one
-unpriced run must say so rather than sum what it could price. Wrong downwards
-is the direction nobody questions.
+**One rule renders in four places, and it is `formatCost`'s:** the flag decides,
+never the number. Three answers, not two — `$0.041`, `Unknown` (measured and not
+priced), `—` (nothing measured). Separating the last two is what stops a run
+from before this story reading as a pricing failure. Money keeps three decimals
+under a dollar and prints `< $0.001` below that, because a fixed 2dp reaches
+`$0.00` over a real charge — the story's failure mode arrived at by formatting
+rather than by a missing flag. The PDF needs the same rule in Python, so
+`report_format.fmt_cost` is its twin and each names the other.
+
+**The surfaces.** Run detail gains an **Est. cost** stat — "Est." in the label,
+not a `≈` on the number, because the label is the part that survives being
+copied into a spreadsheet — and a **Tokens** row that stays on a run whose cost
+came back unknown, which is the run where it is the only number there is. One
+sentence under it makes "Unknown" a finished thought, and deliberately does not
+pick between the three causes: from the browser they are indistinguishable, and
+guessing one sends the reader to the wrong setting. The live Run view's side
+card carries the same stat off the `done` event, since the row may not have
+landed yet. The report cover grows `EST. COST` and `TOKENS`, and only when the
+run counted something — two dashes on every archived report would be worse than
+the cover they replaced.
+
+**The aggregate, which is the piece with the trap.** `GET /api/runs` answers one
+`usage` object — `total_cost`, `priced_runs`, `total_tokens` — over the whole
+filter set, folded **into the existing count query**. That placement is the
+tenant control: lifted into a select of its own, `r.user_id = $n` is the easy
+thing to leave behind, and the leak that follows shows the tenant nothing it can
+point at — their history stays correct while their total holds someone else's
+spend. `case when` rather than `filter (where …)` so pg-mem runs it too.
+
+Two rules the SQL keeps. It branches on `cost_known`, never on the number beside
+it. And **nothing is coalesced**: `sum()` over no priced rows is null, and that
+null is the answer — `coalesce(…, 0)` is how "$0.00" gets printed over a month
+of real spending. The same rule covers tokens, so one sentence describes both.
+
+`priced_runs` exists only to be compared against `total`. Without it a partial
+total has no way to admit it is partial, and History renders "2 of 3 runs
+priced" from exactly that comparison. Both sums convert to numbers at the
+boundary: `sum(numeric)` and `sum(int)` are a string and a bigint-string out of
+`pg`, the same trap `shapeRun` handles a row at a time, one level up and easier
+to miss because the rows beside it are already converted.
+
+### Assertion-first, and what the assertions found
+
+Written and confirmed red before any of the SQL existed — eleven of them, each
+failing only on `body.usage` being undefined, with the seeding, windows, paging
+and filters already proven by the existing tests in the same files.
+
+The tenant case was the one raised as an open question rather than drafted, and
+the answer was to assert it. It lives in `auth-isolation.test.js` because it is
+that file's property in a new shape: every test there asks whether B can reach
+A's **row**, and this asks whether B can reach a **number derived from it**.
+
+Each case in `run-cost.test.js` seeds into its own hour in 2019 and selects it
+with `since`/`until`, so it cannot see the runs the tests above it leave behind
+— and the window doubles as proof that the total answers its filter.
+
+### AC #6, and where its proof is
+
+An unreachable pricing service was proven by hand inside `qassist:latest`: a
+service whose `ensure_pricing_loaded` hangs is bounded at the timeout, left
+loaded-and-empty, warned about, and the run reports its tokens with the cost
+withheld. **Not added to the suite** — `agent/pytest.ini` keeps it to modules
+importing on stdlib alone, and `run_agent` pulls in browser-use. That rule is
+not a formality: the last exception to it failed at collection in CI and took
+the whole suite with it (exit 2, not one red test).
+
+Verified: agent 466/466, server 797/797 with `npm run check` clean, frontend
+153/153, `manual` builds. Both report fixtures re-rendered and looked at —
+`sample_report_data.json` is now the priced cover and
+`broken_page_report_data.json` the unpriced one, so a future cover change can be
+seen both ways without a real run. `sample-report.pdf` re-rendered.
+
+One existing assertion changed: `RunDetail.test.jsx` read a stopped run's
+verdict as `getByText('—')`, which broke when the stats row grew a fourth stat
+that also dashes. It now names the Verdict stat — the behaviour was meant to
+change, and the new assertion is stricter than the one it replaced.

@@ -14,12 +14,40 @@
   "has_recording": true,
   "recording_url": null,
   "generated_at": "2026-07-27T09:41:02.000Z",
+  "usage": {
+    "prompt_tokens": 21877,
+    "completion_tokens": 1644,
+    "total_tokens": 23521,
+    "entry_count": 5,
+    "total_cost": null,
+    "cost_known": false,
+    "by_model": [
+      {
+        "model": "gpt-4.1",
+        "prompt_tokens": 20033,
+        "completion_tokens": 1502,
+        "total_tokens": 21535,
+        "invocations": 4,
+        "cost": 0.0438,
+        "cost_known": true
+      },
+      {
+        "model": "internal/page-extract",
+        "prompt_tokens": 1844,
+        "completion_tokens": 142,
+        "total_tokens": 1986,
+        "invocations": 1,
+        "cost": null,
+        "cost_known": false
+      }
+    ]
+  },
   "steps": [
     {
       "step": 1,
       "elapsed": 3.1,
       "next_goal": "Open the checkout page",
-      "evaluation": "Success — the page loaded",
+      "evaluation": "Success \u2014 the page loaded",
       "url": "http://localhost:8099/broken-page.html",
       "screenshot_file": null
     },
@@ -27,7 +55,7 @@
       "step": 2,
       "elapsed": 11.8,
       "next_goal": "Fill the email field and place the order",
-      "evaluation": "Success — the form was submitted",
+      "evaluation": "Success \u2014 the form was submitted",
       "url": "http://localhost:8099/broken-page.html",
       "screenshot_file": null
     },
@@ -35,7 +63,7 @@
       "step": 3,
       "elapsed": 20.9,
       "next_goal": "Confirm the order confirmation appeared",
-      "evaluation": "Failed — no confirmation number is shown and the status still reads 'Placing order…'",
+      "evaluation": "Failed \u2014 no confirmation number is shown and the status still reads 'Placing order\u2026'",
       "url": "http://localhost:8099/broken-page.html",
       "screenshot_file": null
     }

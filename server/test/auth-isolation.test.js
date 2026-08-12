@@ -183,3 +183,40 @@ test("a user cannot read another user's run, report or recording", async () => {
   await request(app).get(`/api/runs/${runId}/report.pdf`).set(asUser(b)).expect(404);
   await request(app).get(`/api/runs/${runId}/recording`).set(asUser(b)).expect(404);
 });
+
+// US-046 tier 2 adds a new shape to property I. Every isolation test above asks
+// whether B can reach A's ROW; this asks whether B can reach a NUMBER derived
+// from it. The History total is a sum over the same filter set the list uses,
+// and if it is ever lifted out of the count query into a select of its own, the
+// `user_id` clause is the easy thing to leave behind — the list stays correct,
+// nothing 404s, and B's history quietly reports A's spend under B's own heading.
+// It is the only leak in this file that shows the tenant nothing it can point at.
+test("a user's cost total cannot see another user's spend", async () => {
+  const a = await makeUser('a-cost@example.com');
+  const b = await makeUser('b-cost@example.com');
+
+  /** One finished, priced run for a user. */
+  const priced = async (/** @type {string} */ uid, /** @type {number} */ cost) =>
+    pool.query(
+      `insert into runs (id, user_id, trigger, goal, start_url, max_steps, status,
+                         finished_at, total_tokens, total_cost, cost_known)
+       values ($1, $2, 'api', 'g', 'https://a.example.com', 60, 'passed',
+               now(), 1000, $3, true)`,
+      [randomUUID(), uid, cost]
+    );
+
+  await priced(a, 0.25);
+  await priced(a, 0.5);
+  await priced(b, 0.125);
+
+  const aBody = (await request(app).get('/api/runs').set(asUser(a)).expect(200)).body;
+  assert.equal(aBody.usage.total_cost, 0.75, "A's own two runs");
+  assert.equal(aBody.usage.priced_runs, 2);
+
+  // The assertion that matters. 0.875 here is the leak, and it is a plausible
+  // number on a plausible screen — B would have no way to know it is not theirs.
+  const bBody = (await request(app).get('/api/runs').set(asUser(b)).expect(200)).body;
+  assert.equal(bBody.usage.total_cost, 0.125, "B's own run alone");
+  assert.equal(bBody.usage.priced_runs, 1);
+  assert.equal(bBody.usage.total_tokens, 1000, 'tokens are scoped by the same clause');
+});

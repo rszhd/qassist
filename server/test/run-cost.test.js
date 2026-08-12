@@ -35,6 +35,7 @@ let app;
 let artifactsDir;
 /** @type {any} */
 let pool;
+let userId = '';
 
 before(async () => {
   artifactsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'qassist-cost-test-'));
@@ -61,7 +62,8 @@ before(async () => {
   const { runMigrations, initDb, getOperatorUserId } = await import('../src/db.js');
   await runMigrations(pool, { skipIndexes: true });
   await initDb(pool);
-  await seedStoredKey(pool, /** @type {string} */ (getOperatorUserId()));
+  userId = /** @type {string} */ (getOperatorUserId());
+  await seedStoredKey(pool, userId);
   ({ app } = await import('../src/server.js'));
 });
 
@@ -206,4 +208,176 @@ test('the cost switch reaches the child, because off has to mean no request', as
   } finally {
     delete process.env.QA_ENV_CAPTURE_FILE;
   }
+});
+
+// ── The History total (tier 2) ───────────────────────────────────────────────
+//
+// Everything above asks whether ONE run's cost is real. This asks whether a SUM
+// of them is, and it fails worse: a total that quietly drops the runs it could
+// not price is wrong DOWNWARDS, reads as authoritative, and is the figure
+// somebody reconciles against an invoice before deciding the product lies. The
+// story's own note on this tier is "the aggregate is the one with a trap in it".
+//
+// The contract under test — `GET /api/runs` gains one object beside `total`:
+//
+//     "usage": { "total_cost": 1.238412, "priced_runs": 33, "total_tokens": 1284310 }
+//
+// and three rules hold over it. It covers the whole FILTER SET, never the page.
+// `total_cost` branches on `cost_known`, never on the number beside it. And an
+// empty sum is `null` — for cost and for tokens alike — because `coalesce(…, 0)`
+// is how "$0.00 across 40 runs" gets printed. `priced_runs` is what lets the UI
+// say a total is partial; without it there is nothing to compare against
+// `total`, and a partial total has no way to admit it.
+//
+// Two rules are NOT here, because pg-mem cannot fail them: the JSON type of
+// `sum(numeric)` and whether the accumulation is exact. Both are in
+// `run-cost-postgres.test.js`, against a real server.
+//
+// Seeding is a direct insert into `runs`, and every case takes its own hour in
+// 2019 so the aggregate it asks for cannot see the runs the tests above left
+// behind. That window is a `?since`/`?until` filter, so each case also proves
+// the aggregate answers the filter it was given.
+const WINDOW_BASE = Date.UTC(2019, 0, 1);
+let windowCount = 0;
+
+/** A fresh, private hour to seed runs into, as the filter that selects them. */
+function nextWindow() {
+  const start = new Date(WINDOW_BASE + windowCount++ * 3600e3);
+  const end = new Date(start.getTime() + 3600e3);
+  return {
+    start,
+    end,
+    query: `since=${start.toISOString()}&until=${end.toISOString()}`,
+  };
+}
+
+/**
+ * One finished run in a window, with the cost columns stated outright — the
+ * agent path is proven above, and what this half is about is the SQL.
+ * @param {{start: Date}} window
+ * @param {{ tokens?: number|null, cost?: number|null, known?: boolean }} usage
+ */
+async function seedRun(window, { tokens = null, cost = null, known = false }) {
+  const id = randomUUID();
+  await pool.query(
+    `insert into runs (id, user_id, trigger, goal, start_url, max_steps, status,
+                       created_at, finished_at, prompt_tokens, completion_tokens,
+                       total_tokens, total_cost, cost_known)
+     values ($1, $2, 'api', 'g', 'https://shop.example.test/', 60, 'passed',
+             $3, $3, $4, $5, $6, $7, $8)`,
+    [
+      id, userId, new Date(window.start.getTime() + 60e3).toISOString(),
+      tokens === null ? null : Math.round(tokens * 0.9),
+      tokens === null ? null : Math.round(tokens * 0.1),
+      tokens, cost, known,
+    ]
+  );
+  return id;
+}
+
+/** @param {{query: string}} window */
+async function history(window, extra = '') {
+  const { body } = await request(app)
+    .get(`/api/runs?${window.query}${extra}`)
+    .set(auth)
+    .expect(200);
+  return body;
+}
+
+test('the total covers the filter set, not the page it returned', async () => {
+  // The question is "what did last night cost", and last night is forty runs
+  // over two pages. A total that changes when you press Older is not that
+  // number, and nothing on the screen would say which page it belonged to.
+  const w = nextWindow();
+  for (const cost of [0.25, 0.5, 0.125]) await seedRun(w, { tokens: 1000, cost, known: true });
+
+  const firstPage = await history(w, '&limit=1');
+  assert.equal(firstPage.runs.length, 1, 'one row was asked for');
+  assert.equal(firstPage.total, 3);
+  assert.equal(firstPage.usage.total_cost, 0.875, 'all three, not the one returned');
+
+  const lastPage = await history(w, '&limit=1&offset=2');
+  assert.deepEqual(lastPage.usage, firstPage.usage, 'paging must not move the total');
+});
+
+test('an unpriced run is kept out of the total and disclosed in the count', async () => {
+  // The trap itself. Two runs can be priced and one cannot, and the honest
+  // answer is not the sum of the two — it is the sum of the two, said out loud
+  // to be the sum of two out of three.
+  const w = nextWindow();
+  await seedRun(w, { tokens: 1000, cost: 0.25, known: true });
+  await seedRun(w, { tokens: 1000, cost: 0.5, known: true });
+  await seedRun(w, { tokens: 1000, cost: null, known: false });
+
+  const body = await history(w);
+  assert.equal(body.usage.total_cost, 0.75);
+  assert.equal(body.usage.priced_runs, 2);
+  assert.equal(body.total, 3, 'the disclosure is priced_runs against total');
+});
+
+test('a set with nothing priced reports no cost at all, never zero', async () => {
+  // What `CALCULATE_COST=0` looks like from History, and what an instance that
+  // never reached the pricing table looks like. `coalesce(sum(...), 0)` here
+  // prints "$0.00" over a month of real spending.
+  const w = nextWindow();
+  await seedRun(w, { tokens: 1000, cost: null, known: false });
+  await seedRun(w, { tokens: 2000, cost: null, known: false });
+
+  const body = await history(w);
+  assert.equal(body.usage.total_cost, null, 'null, never 0');
+  assert.equal(body.usage.priced_runs, 0);
+});
+
+test('tokens total independently of cost, so an unpriced set still says something', async () => {
+  // Tokens are a measurement whatever the pricing did. This is the degradation
+  // AC #6 promises, seen from the aggregate: cost goes quiet, tokens do not.
+  const w = nextWindow();
+  await seedRun(w, { tokens: 1000, cost: null, known: false });
+  await seedRun(w, { tokens: 2000, cost: null, known: false });
+
+  const body = await history(w);
+  assert.equal(body.usage.total_tokens, 3000);
+});
+
+test('a set nothing measured reports null tokens as well as null cost', async () => {
+  // Every run from before this story. An empty sum is null on both columns —
+  // one rule, not two — because "0 tokens" claims a measurement that says the
+  // runs used no model, and they used one.
+  const w = nextWindow();
+  await seedRun(w, {});
+  await seedRun(w, {});
+
+  const body = await history(w);
+  assert.equal(body.total, 2, 'the runs are there; only their numbers are not');
+  assert.equal(body.usage.total_tokens, null);
+  assert.equal(body.usage.total_cost, null);
+  assert.equal(body.usage.priced_runs, 0);
+});
+
+test('the total answers the filter it was given, not the whole history', async () => {
+  // A total that ignores the filter is the wrong number under the right heading
+  // — and it is the reading people take away, because the filter is what they
+  // just set.
+  const cheap = nextWindow();
+  await seedRun(cheap, { tokens: 1000, cost: 0.25, known: true });
+  const dear = nextWindow();
+  await seedRun(dear, { tokens: 8000, cost: 2, known: true });
+
+  assert.equal((await history(cheap)).usage.total_cost, 0.25);
+  assert.equal((await history(dear)).usage.total_cost, 2);
+  assert.equal((await history(dear)).usage.total_tokens, 8000);
+});
+
+test('a status filter narrows the total with the list it belongs to', async () => {
+  // The filter people actually reach for. `status` is a different clause from
+  // `since`, so it is worth one case that the aggregate carries the whole WHERE
+  // and not only the parts the window happened to exercise.
+  const w = nextWindow();
+  await seedRun(w, { tokens: 1000, cost: 0.25, known: true });
+  const failed = await seedRun(w, { tokens: 1000, cost: 0.5, known: true });
+  await pool.query(`update runs set status = 'failed' where id = $1`, [failed]);
+
+  const body = await history(w, '&status=failed');
+  assert.equal(body.total, 1);
+  assert.equal(body.usage.total_cost, 0.5);
 });

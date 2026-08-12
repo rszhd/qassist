@@ -70,13 +70,13 @@ Sprints aren't split along a self-host/hosted-tier line — `sprint/current/` an
 | [US-070](sprint/current/US-070-user-manual-site.md) | A user manual, published without an image build (`docs.qassist.run`) | 🔨 **Live** 2026-08-05, 9/11 — follows `main` since 2026-08-06 | US-007, US-055 |
 | [US-071](sprint/current/US-071-one-command-deploy.md) | One command deploys a stack, and proves which one it deployed | 📋 Planned — P1 | US-052, US-055, US-056 |
 | [US-077](sprint/current/US-077-test-mail-without-gmail.md) | The test mailbox stops being a Gmail account | 🔨 Tier 1 done 2026-08-09, 2/8 — 51 → 2.7 logins/min | US-013 tier 1, US-007 |
-| [US-046](sprint/current/US-046-token-usage-and-cost.md) | What did that run cost? (token usage + cost) | 🔨 Tier 1 done 2026-08-10, 4/7 — surfaces remain | US-039 |
-| [US-081](sprint/current/US-081-a-test-remembers-what-worked.md) | A test remembers what worked | 🔨 Built 2026-08-10 — release gate open, blocked on US-046 | US-046 |
+| [US-081](sprint/current/US-081-a-test-remembers-what-worked.md) | A test remembers what worked | 🔨 Built 2026-08-10 — release gate open, US-046 now unblocks it | US-046 |
 
 ### Done
 
 | ID | Story | Status | Depends on |
 |---|---|---|---|
+| [US-046](sprint/current/done/US-046-token-usage-and-cost.md) | What did that run cost? (token usage + cost) | ✅ **Done** 2026-08-12, 7/7 | US-039 |
 | [US-080](sprint/current/done/US-080-llm-email-code-extraction.md) | The confirmation email is read by an LLM, and its answer is verified | ✅ **Done** 2026-08-10, 6/6 | US-013 tier 1, US-039 |
 | [US-079](sprint/current/done/US-079-pause-a-run-and-tell-it-what-to-do.md) | Pause a run, and tell it what to do | ✅ **Done** 2026-08-10, 8/8 | US-047, US-076 |
 | [US-078](sprint/current/done/US-078-recording-clock-and-diagnostic-seek.md) | The recording's clock, said out loud, and a diagnostic that jumps to it | ✅ **Done** 2026-08-09, 6/6 | US-076, US-044 |

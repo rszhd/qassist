@@ -282,8 +282,28 @@ export function runsRouter({ checkToken, checkTokenOrQuery }) {
         ? `${filters.where} and r.user_id = $${params.length}`
         : `where r.user_id = $${params.length}`;
       const from = 'from runs r left join tests t on t.id = r.test_id';
+      // US-046 tier 2: what the whole filter set spent, in the same query as the
+      // count and over the same WHERE — which is what keeps it scoped to the
+      // caller. Lifted into a select of its own, the `user_id` clause is the
+      // easy thing to leave behind, and the leak that follows shows the tenant
+      // nothing it can point at: their history stays correct and their total
+      // quietly holds somebody else's spend.
+      //
+      // `case when` rather than `filter (where ...)` so pg-mem can run it too;
+      // the aggregate's behaviour is worth testing in the fast suite, and only
+      // its type and its arithmetic need a real server.
+      //
+      // The cost sums the rows the FLAG vouches for, never the rows with a
+      // number in them — the whole story in one clause. And nothing is
+      // coalesced: `sum()` over no priced rows is null, and that null is the
+      // answer. `coalesce(…, 0)` here is how "$0.00" gets printed over a month
+      // of real spending.
       const { rows: totals } = await db().query(
-        `select count(*)::int as total ${from} ${where}`,
+        `select count(*)::int                                  as total,
+                sum(case when r.cost_known then r.total_cost end) as cost,
+                count(case when r.cost_known then 1 end)::int  as priced_runs,
+                sum(r.total_tokens)                            as tokens
+           ${from} ${where}`,
         params
       );
       const { rows } = await db().query(
@@ -297,6 +317,20 @@ export function runsRouter({ checkToken, checkTokenOrQuery }) {
         total: totals[0].total,
         limit: paging.limit,
         offset: paging.offset,
+        // Both sums cross the boundary as numbers: `sum(numeric)` and
+        // `sum(int)` are a string and a bigint-string out of `pg`, the same
+        // trap shapeRun handles a row at a time, one level up and easier to
+        // miss because the rows beside it are already converted.
+        //
+        // `priced_runs` against `total` is the only thing that lets a reader
+        // see a partial total for what it is. Without it a set holding one
+        // unpriced run reports an authoritative-looking figure that is wrong
+        // downwards — the direction nobody questions.
+        usage: {
+          total_cost: totals[0].cost == null ? null : Number(totals[0].cost),
+          priced_runs: totals[0].priced_runs,
+          total_tokens: totals[0].tokens == null ? null : Number(totals[0].tokens),
+        },
       });
     })
   );

@@ -23,6 +23,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import request from 'supertest';
 import pg from 'pg';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -33,6 +34,8 @@ const CONNECTION =
   'postgres://qassist:qassist@localhost:5433/qassist';
 const DB_NAME = `qassist_cost_test_${randomUUID().replace(/-/g, '').slice(0, 12)}`;
 
+/** @type {import('express').Express} */
+let app;
 /** @type {pg.Pool | null} */
 let pool = null;
 /** @type {boolean | string} */
@@ -64,6 +67,7 @@ before(async () => {
   await initDb(pool);
   const { rows } = await pool.query('select id from users limit 1');
   userId = rows[0].id;
+  ({ app } = await import('../src/server.js'));
 });
 
 after(async () => {
@@ -137,4 +141,87 @@ test('the unmeasured pair is legal, because it is what every old row is', { skip
   const { rows } = await pool.query('select total_cost, cost_known from runs where id = $1', [id]);
   assert.equal(rows[0].total_cost, null);
   assert.equal(rows[0].cost_known, false);
+});
+
+// ── The History total (tier 2) ───────────────────────────────────────────────
+//
+// Its behaviour is pinned next door in `run-cost.test.js`. What is here is the
+// half pg-mem would wave through: `sum(numeric)` is a STRING out of `pg` for
+// the same reason a single `total_cost` is, and money that accumulates in a
+// double drifts on the third addition. Both produce a total that is very nearly
+// right, which is the only kind of wrong this story is about.
+
+/** Insert a finished run into one window, with the cost columns stated. */
+async function insertAt(when, tokens, cost, known) {
+  const id = randomUUID();
+  await pool.query(
+    `insert into runs (id, user_id, trigger, goal, start_url, max_steps, status,
+                       created_at, finished_at, total_tokens, total_cost, cost_known)
+     values ($1, $2, 'api', 'g', 'https://shop.example.test/', 60, 'passed',
+             $3, $3, $4, $5, $6)`,
+    [id, userId, when.toISOString(), tokens, cost, known]
+  );
+  return id;
+}
+
+/** A private hour to seed into, expressed as the filter that selects it. */
+let hour = 0;
+function nextWindow() {
+  const start = new Date(Date.UTC(2019, 0, 1) + hour++ * 3600e3);
+  return {
+    at: new Date(start.getTime() + 60e3),
+    query:
+      `since=${start.toISOString()}` +
+      `&until=${new Date(start.getTime() + 3600e3).toISOString()}`,
+  };
+}
+
+async function history(window) {
+  const { body } = await request(app)
+    .get(`/api/runs?${window.query}`)
+    .set({ Authorization: 'Bearer test-token' })
+    .expect(200);
+  return body;
+}
+
+test('the History total leaves as a number, not the string sum(numeric) returns', { skip }, async () => {
+  // The same trap `shapeRun` already handles for one row, one level up and easy
+  // to miss because the row beside it is already converted. Untouched, the
+  // total reaches the browser as "0.750000" and `total.toFixed(2)` throws — or
+  // worse, a client adding it to something else concatenates.
+  const w = nextWindow();
+  await insertAt(w.at, 1000, 0.25, true);
+  await insertAt(w.at, 1000, 0.5, true);
+
+  const body = await history(w);
+  assert.equal(typeof body.usage.total_cost, 'number', 'a string here is the bug');
+  assert.equal(body.usage.total_cost, 0.75);
+  assert.equal(typeof body.usage.priced_runs, 'number');
+});
+
+test('the total accumulates exactly, where a float would drift', { skip }, async () => {
+  // Three tenths of a dollar. In float8 this sum is 0.30000000000000004, and
+  // that is what `numeric` on the column is for — asserted through the API,
+  // because the column being numeric proves nothing if the sum is cast on the
+  // way out. A nightly suite adds forty of these every night.
+  const w = nextWindow();
+  for (let i = 0; i < 3; i++) await insertAt(w.at, 1000, 0.1, true);
+
+  const body = await history(w);
+  assert.equal(body.usage.total_cost, 0.3);
+  assert.equal(body.usage.priced_runs, 3);
+});
+
+test('an all-unpriced set sums to null through a real driver too', { skip }, async () => {
+  // `sum()` over no rows is null in Postgres, and the whole rule is that it
+  // must stay null. pg-mem agrees today; this is the one that will still be
+  // true if it stops agreeing.
+  const w = nextWindow();
+  await insertAt(w.at, 1000, null, false);
+  await insertAt(w.at, 2000, null, false);
+
+  const body = await history(w);
+  assert.equal(body.usage.total_cost, null);
+  assert.equal(body.usage.priced_runs, 0);
+  assert.equal(body.usage.total_tokens, 3000, 'tokens do not go quiet with cost');
 });
