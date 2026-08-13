@@ -55,9 +55,9 @@ export default function Onboarding({ email, token, keyStatus, onReloadKey, billi
   const keyDone = !!keyStatus?.set;
   const paid = !!billing?.entitled;
   // US-054: the account has paid and is waiting for the operator to add the
-  // capacity it just bought. Rendered only while it is true — an instance with
-  // no activation window never sends it, so the checklist is three steps there
-  // exactly as it was.
+  // capacity it just bought. It replaces the checklist rather than extending it
+  // — nothing is being asked of them any more, so a list of asks is the wrong
+  // screen. An instance with no activation window never sends it.
   const waiting = !!billing?.activation_pending;
   const readyBy = waiting ? formatDeadline(billing?.activation_deadline) : null;
 
@@ -114,80 +114,76 @@ export default function Onboarding({ email, token, keyStatus, onReloadKey, billi
           QAssist
         </div>
         <div className="auth-body">
-          <p className="auth-lead">Two things before your first run</p>
-          <p className="auth-sub">
-            Runs drive a real browser on your own OpenAI key, so the model cost stays yours and the
-            browser time is what this instance bills for.
-          </p>
+          {waiting ? (
+            <>
+              <p className="auth-lead">Preparing your workspace</p>
+              <p className="auth-sub">
+                A run drives a real browser on this instance, so we add capacity for your account
+                before your first one.{' '}
+                {readyBy ? (
+                  <>
+                    Ready by <strong>{readyBy}</strong> — we'll email you.
+                  </>
+                ) : (
+                  <>We'll email you the moment it's ready.</>
+                )}
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="auth-lead">Two things before your first run</p>
+              <p className="auth-sub">
+                Your OpenAI key pays for the model. The subscription pays for the browser time on
+                this instance.
+              </p>
 
-          <ol className="onboard-steps">
-            <Step index={1} title="Signed in" state="done">
-              <span className="onboard-step-note">{email}</span>
-            </Step>
-
-            <Step index={2} title="Add your OpenAI key" state={keyDone ? 'done' : 'active'}>
-              <span className="onboard-step-note">
-                Stored encrypted and never shown again. Model cost and rate limits stay on your
-                OpenAI account.
-              </span>
-              <OpenaiKey token={token} status={keyStatus} onReload={onReloadKey} bare />
-            </Step>
-
-            <Step
-              index={3}
-              title="Subscribe"
-              state={paid ? 'done' : keyDone ? 'active' : 'locked'}
-            >
-              {!keyDone && (
-                <span className="onboard-step-note">
-                  Available once your key is stored — a subscription is no use without one.
-                </span>
-              )}
-              {keyDone && !paid && (
-                <>
+              <ol className="onboard-steps">
+                <Step index={1} title="Add your OpenAI key" state={keyDone ? 'done' : 'active'}>
                   <span className="onboard-step-note">
-                    {confirming
-                      ? 'Payment received. Confirming with Stripe — this usually takes a few seconds.'
-                      : returned === 'cancelled'
-                        ? 'Checkout was cancelled. Nothing was charged.'
-                        : billing?.status
-                          ? 'Your subscription has lapsed. Resubscribe to start running tests again.'
-                          : 'Card details are taken by Stripe — we never see them.'}
+                    Stored encrypted and never shown again.
                   </span>
-                  <div className="onboard-actions">
-                    <Button variant="primary" size="sm" disabled={busy || confirming} onClick={subscribe}>
-                      {confirming ? 'Confirming…' : billing?.status ? 'Resubscribe' : 'Subscribe'}
-                    </Button>
-                    {/* The way out of a dead card must not sit behind the
-                        paywall it would clear. */}
-                    {billing?.manageable && (
-                      <Button variant="secondary" size="sm" disabled={busy} onClick={manage}>
-                        Manage billing
-                      </Button>
-                    )}
-                  </div>
-                </>
-              )}
-            </Step>
+                  <OpenaiKey token={token} status={keyStatus} onReload={onReloadKey} bare />
+                </Step>
 
-            {/* US-054. A wait that was promised is an onboarding step; the same
-                wait discovered as a queued run that never starts is a refund. */}
-            {waiting && (
-              <Step index={4} title="Preparing your workspace" state="active">
-                <span className="onboard-step-note">
-                  A run drives a real browser on this instance, so we add capacity for your account
-                  before your first one.{' '}
-                  {readyBy ? (
-                    <>
-                      Ready by <strong>{readyBy}</strong> — we'll email you.
-                    </>
-                  ) : (
-                    <>We'll email you the moment it's ready.</>
+                <Step
+                  index={2}
+                  title="Subscribe"
+                  state={paid ? 'done' : keyDone ? 'active' : 'locked'}
+                >
+                  {!keyDone && (
+                    <span className="onboard-step-note">
+                      Available once your key is stored — a subscription is no use without one.
+                    </span>
                   )}
-                </span>
-              </Step>
-            )}
-          </ol>
+                  {keyDone && !paid && (
+                    <>
+                      <span className="onboard-step-note">
+                        {confirming
+                          ? 'Payment received. Confirming with Stripe — this usually takes a few seconds.'
+                          : returned === 'cancelled'
+                            ? 'Checkout was cancelled. Nothing was charged.'
+                            : billing?.status
+                              ? 'Your subscription has lapsed. Resubscribe to start running tests again.'
+                              : 'Card details are taken by Stripe — we never see them.'}
+                      </span>
+                      <div className="onboard-actions">
+                        <Button variant="primary" size="sm" disabled={busy || confirming} onClick={subscribe}>
+                          {confirming ? 'Confirming…' : billing?.status ? 'Resubscribe' : 'Subscribe'}
+                        </Button>
+                        {/* The way out of a dead card must not sit behind the
+                            paywall it would clear. */}
+                        {billing?.manageable && (
+                          <Button variant="secondary" size="sm" disabled={busy} onClick={manage}>
+                            Manage billing
+                          </Button>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </Step>
+              </ol>
+            </>
+          )}
 
           {error && <p className="auth-error">{error}</p>}
 

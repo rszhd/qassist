@@ -89,3 +89,11 @@ that cannot reach OpenAI, which is its own story and its own assertion.
       that has a Stripe customer
 - [x] `STRIPE_*` unset: no wall, no `/api/billing` request, Run view unchanged
 - [x] Returning from Checkout shows a confirming state, not a second Subscribe
+
+## Changed after shipping
+
+**2026-08-13 — step 1 is gone and the checklist is two steps.** "Signed in"
+asked nothing of the reader and could not be anything but green, so it spent a
+numbered row on a fact the footer already states as *signed in as <email>*. The
+lead has said "two things" throughout; now the list agrees with it. The
+acceptance criteria above still hold with step 3 read as the subscription step.
