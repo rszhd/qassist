@@ -12,6 +12,12 @@ suite of forty tests is a good idea before the invoice tells me.
   installed `browser_use` and turned up a correctness-critical shape the
   original write-up did not have; it is recorded below because it is the reason
   `cost_known` exists.
+  **The dollar figure came off the frontend on 2026-08-13**, both stats, because
+  the arithmetic behind it had never been checked against a provider's bill.
+  Everything under it still runs — collection, storage, the API, the report —
+  and [US-082](../../../unscheduled/US-082-trust-the-cost-estimate.md) is what
+  proves the number and puts the stats back. Read the criteria below as met by
+  what shipped, not as a description of the UI today.
 - **Priority:** P3 when nothing depended on it. Now P2 by dependency: US-081
   and US-050 both deliver a measurement, and neither can be judged until a run
   reports what it cost.

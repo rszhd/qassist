@@ -95,6 +95,10 @@ function money(cost) {
  * measured and could not be priced, '—' is a run nothing measured — one still
  * going, or one from before this shipped. Neither is ever '$0.00'.
  *
+ * No view calls this today: the estimate is off the UI until the arithmetic
+ * behind it is trusted. The API still carries the figure, so putting the stat
+ * back is one line in RunView and RunDetail.
+ *
  * @param {number|null|undefined} cost
  * @param {boolean|undefined} known
  * @param {number|null|undefined} tokens what the run counted, which is what

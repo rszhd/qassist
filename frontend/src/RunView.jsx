@@ -13,7 +13,6 @@ import { MemoryPromptDialog, TestDialog, RunVarsDialog } from './RunDialogs.jsx'
 import { HintBox, PauseButton } from './Steering.jsx';
 import { batchSummary, fillTemplate, referencedNames, useProjectList } from './runHelpers.js';
 import { useRun } from './useRun.js';
-import { formatCost } from './status.js';
 import { Button, CardHead, EmptyState, PageHeader, Stat } from './ui.jsx';
 
 // The default view: the live stage is the page, with the saved-test rail
@@ -726,19 +725,6 @@ export default function RunView({ token, health, keyStatus, visible, needsToken,
                       <Stat
                         label="Duration"
                         value={result.duration_seconds ? `${Math.round(result.duration_seconds)}s` : '—'}
-                      />
-                      {/* US-046, straight off the `done` event rather than a
-                          row: this card is showing a run that has only just
-                          ended, and the row for it may not have landed yet.
-                          Same wording as History's, and the same rule — the
-                          flag decides, never the number. */}
-                      <Stat
-                        label="Est. cost"
-                        value={formatCost(
-                          result.usage?.total_cost,
-                          result.usage?.cost_known,
-                          result.usage?.total_tokens
-                        )}
                       />
                     </div>
                   )}

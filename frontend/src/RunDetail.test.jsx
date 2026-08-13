@@ -362,10 +362,10 @@ describe('RunDetail stopping a run (US-047)', () => {
   });
 });
 
-// US-046 tier 2. The card is the surface a person meets the number on, and the
-// rule it has to keep is one: what the control plane could not price must not
-// leave here looking like a small charge.
-describe('RunDetail cost (US-046)', () => {
+// US-046 tier 2, reduced to tokens: the priced figure is withheld until the
+// arithmetic behind it is trusted, so the rule the card keeps now is that a run
+// reports what it counted and never what it may have charged.
+describe('RunDetail usage (US-046)', () => {
   function renderRun(over) {
     return render(
       <MemoryRouter>
@@ -387,39 +387,22 @@ describe('RunDetail cost (US-046)', () => {
     cost_known: true,
   };
 
-  it('shows a priced run under a label that says the figure is an estimate', () => {
+  it('shows what a run counted, in and out', () => {
     renderRun(priced);
-    expect(statValue('Est. cost')).toBe('$0.084');
     expect(screen.getByText('Tokens')).toBeTruthy();
-  });
-
-  it('reads an unpriced run as unknown, and never as zero', () => {
-    renderRun({ ...priced, total_cost: null, cost_known: false });
-    expect(statValue('Est. cost')).toBe('Unknown');
-    expect(screen.queryByText('$0.00')).toBeNull();
-  });
-
-  it('keeps the tokens of a run it could not price, and says why they stand alone', () => {
-    renderRun({ ...priced, total_cost: null, cost_known: false });
     expect(screen.getByText(/41,319/)).toBeTruthy();
-    expect(screen.getByText(/Counted, but not priced/)).toBeTruthy();
+    expect(screen.getByText(/38,412 in · 2,907 out/)).toBeTruthy();
   });
 
-  it('leaves the note off a run it did price', () => {
+  it('names no price, on a run the control plane did price', () => {
     renderRun(priced);
-    expect(screen.queryByText(/Counted, but not priced/)).toBeNull();
+    expect(screen.queryByText('Est. cost')).toBeNull();
+    expect(screen.queryByText(/\$0\.08/)).toBeNull();
   });
 
-  it('dashes a run nothing measured and grows no tokens row for it', () => {
-    // Every run from before this shipped. Distinct from "unknown", which is a
-    // measurement that could not be priced.
+  it('grows no tokens row for a run nothing measured', () => {
+    // Every run from before this shipped.
     renderRun({});
-    expect(statValue('Est. cost')).toBe('—');
     expect(screen.queryByText('Tokens')).toBeNull();
-  });
-
-  it('reports a measured zero as free rather than as unknown', () => {
-    renderRun({ ...priced, total_cost: 0, cost_known: true });
-    expect(statValue('Est. cost')).toBe('$0.00');
   });
 });

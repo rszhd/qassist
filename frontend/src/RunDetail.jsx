@@ -9,7 +9,7 @@ import Diagnostics from './Diagnostics.jsx';
 import GoalBlock from './GoalBlock.jsx';
 import { HintBox, PauseButton } from './Steering.jsx';
 import { Button, CardHead, EmptyState, IconButton, Stat } from './ui.jsx';
-import { formatWhen, formatDuration, formatCost, formatTokens, statusLabel } from './status.js';
+import { formatWhen, formatDuration, formatTokens, statusLabel } from './status.js';
 
 // One past run, rendered mostly from the row the history list already has.
 // What it fetches: the PDF as a blob (it needs the bearer header), the
@@ -232,15 +232,6 @@ export default function RunDetail({ run, token, onError, liveSteps, liveDiagnost
       />
       <Stat label="Steps" value={run.steps_count ?? '—'} />
       <Stat label="Duration" value={formatDuration(run.started_at, run.finished_at)} />
-      {/* US-046. "Est." is in the label rather than a symbol on the number,
-          because this is priced from a table browser-use fetches and not from
-          the provider's bill — it drifts, and it knows nothing about negotiated
-          rates. The label is the only place that can say so once the figure is
-          copied into a spreadsheet. */}
-      <Stat
-        label="Est. cost"
-        value={formatCost(run.total_cost, run.cost_known, run.total_tokens)}
-      />
     </div>
   );
 
@@ -263,17 +254,10 @@ export default function RunDetail({ run, token, onError, liveSteps, liveDiagnost
           <dd>{run.memory_used ? 'Started with what earlier runs learned' : 'Ran cold'}</dd>
         </>
       )}
-      {/* US-046. Tokens are a measurement whatever the pricing did, so they get
-          a row of their own and keep it on a run whose cost came back unknown —
-          which is the run where they are the only number there is. Absent when
-          nothing counted at all: a run still going, or one from before this
-          shipped, and an "Unknown" stat above it already says as much.
-
-          The note is what makes the stat's "Unknown" a finished sentence. It
-          does not pick between the three reasons — collection off, no pricing
-          table, no published price for the model — because from here they are
-          not distinguishable, and guessing one would send a reader to the wrong
-          setting. */}
+      {/* US-046. Tokens are a measurement whatever the pricing did, and with the
+          cost estimate withheld they are the whole of what a run reports it
+          spent. Absent when nothing counted at all: a run still going, or one
+          from before this shipped. */}
       {run.total_tokens != null && (
         <>
           <dt>Tokens</dt>
@@ -283,12 +267,6 @@ export default function RunDetail({ run, token, onError, liveSteps, liveDiagnost
             <span className="row-sub">
               ({formatTokens(run.prompt_tokens)} in · {formatTokens(run.completion_tokens)} out)
             </span>
-            {!run.cost_known && (
-              <div className="row-sub">
-                Counted, but not priced — cost collection is off, or the pricing table
-                had no rate for this run's model.
-              </div>
-            )}
           </dd>
         </>
       )}
