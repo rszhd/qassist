@@ -11,6 +11,7 @@ import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import request from 'supertest';
 import { newDb, DataType } from 'pg-mem';
+import { byteaPool, registerDecode } from './stored-key.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -22,6 +23,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export async function createDemoHarness({ maxTenants, ipMax, trustProxy } = {}) {
   process.env.AUTH_MODE = 'demo';
   process.env.SESSION_SECRET = 'demo-session-secret-0123456789';
+  // A boot requirement since US-039, so the real server never runs without it —
+  // and the seed stores a session blob and a secret variable's value through it.
+  process.env.KEY_ENCRYPTION_SECRET = 'test-key-encryption-secret-0123456789';
   delete process.env.AUTH_ENABLED;
   delete process.env.WORKER_API_TOKEN;
   process.env.PYTHON_BIN = process.execPath;
@@ -46,8 +50,10 @@ export async function createDemoHarness({ maxTenants, ipMax, trustProxy } = {}) 
       impure: true,
     });
   });
-  const { Pool } = mem.adapters.createPg();
-  const pool = new Pool();
+  // The seed stores a session blob and a secret variable's value, both bytea.
+  // pg-mem cannot round-trip a bytea parameter — see helpers/stored-key.js.
+  registerDecode(mem);
+  const pool = byteaPool(mem);
 
   const { runMigrations, initDb } = await import('../../src/db.js');
   await runMigrations(pool, { skipIndexes: true });

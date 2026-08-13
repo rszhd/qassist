@@ -81,6 +81,19 @@ There is **no seed step**. The seeding is per visitor and happens on the first
 request; `POST /api/demo/session` is the one unauthenticated endpoint, and it is
 what mints and populates a tenant.
 
+The dataset it writes is `server/src/demoSeed.js`, and it is the file a new
+story is most likely to leave behind. **A feature whose panel is empty until a
+row exists is not in the demo** — it reads as missing from the product, which is
+the one thing this deployment exists to prevent. So a story that stores anything
+adds its rows there, and `demo-sandbox.test.js` counts them so the omission is a
+red test rather than a quiet gap.
+
+`KEY_ENCRYPTION_SECRET` is load-bearing for the seed, not only for BYOK: the
+saved session and the secret variable it writes are encrypted through it. The
+server already refuses to boot without one (US-039), so this is a note about
+where a wrong value shows up — rotate it and every existing tenant's session
+stops decrypting.
+
 ## Verifying it
 
 ```sh

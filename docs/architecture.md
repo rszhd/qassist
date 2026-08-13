@@ -138,7 +138,7 @@ Engines (`server/src/`):
 | [`mail.js`](../server/src/mail.js) | The transport. One POST to Resend. |
 | [`notify.js`](../server/src/notify.js) | Who hears about a finished run, and whether. |
 | [`mailTemplate.js`](../server/src/mailTemplate.js) | The single layout every send site fills in. |
-| [`demo.js`](../server/src/demo.js) / [`demoTenant.js`](../server/src/demoTenant.js) / [`demoReaper.js`](../server/src/demoReaper.js) | The sandbox: fixtures, per-visitor tenants, expiry. |
+| [`demo.js`](../server/src/demo.js) / [`demoTenant.js`](../server/src/demoTenant.js) / [`demoSeed.js`](../server/src/demoSeed.js) / [`demoReaper.js`](../server/src/demoReaper.js) | The sandbox: fixtures, per-visitor tenants, the dataset they are seeded with, expiry. |
 | [`procMemory.js`](../server/src/procMemory.js) | PSS over a run's process tree. |
 
 Routes (`server/src/routes/`) are the HTTP surface and nothing else:

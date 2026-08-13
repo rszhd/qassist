@@ -67,6 +67,9 @@ before(async () => {
   artifactsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'qassist-reaper-'));
   process.env.AUTH_MODE = 'demo';
   process.env.SESSION_SECRET = 'demo-session-secret-0123456789';
+  // A boot requirement since US-039, so the real server never runs without it —
+  // and the seed stores a session blob and a secret variable's value through it.
+  process.env.KEY_ENCRYPTION_SECRET = 'test-key-encryption-secret-0123456789';
   process.env.ARTIFACTS_DIR = artifactsDir;
 
   const { initDb } = await import('../src/db.js');
@@ -99,12 +102,47 @@ async function makeRunDirs(userId) {
 
 const count = async (sql, params) => (await pool.query(sql, params)).rows[0].n;
 
+/** The ids of the rows a tenant owns through a project or a test, not directly. */
+async function ownedIds(userId) {
+  const of = async (sql) => (await pool.query(sql, [userId])).rows.map((r) => r.id);
+  return {
+    browser_sessions: await of(
+      'select s.id from browser_sessions s join projects p on p.id = s.project_id where p.user_id = $1'
+    ),
+    test_secrets: await of(
+      'select t.id from test_secrets x join tests t on t.id = x.test_id where t.user_id = $1'
+    ),
+    test_memory: await of(
+      'select t.id from test_memory m join tests t on t.id = m.test_id where t.user_id = $1'
+    ),
+  };
+}
+
+/** Whether those rows all survived the sweep, or all went, asserted per table. */
+async function assertOwned(owned, { survive }) {
+  for (const [table, ids] of Object.entries(owned)) {
+    assert.ok(ids.length >= 1, `the seed wrote a ${table} row to reap`);
+    const key = table === 'test_secrets' || table === 'test_memory' ? 'test_id' : 'id';
+    assert.equal(
+      await count(`select count(*)::int n from ${table} where ${key} = any($1)`, [ids]),
+      survive ? ids.length : 0,
+      `${table} rows ${survive ? 'survive' : 'are gone'}`
+    );
+  }
+}
+
 // --- P: an expired tenant leaves nothing behind ---
 
 test('reaps an expired tenant completely — every table and every artifact dir', { skip }, async () => {
   const { userId } = await provisionTenant({ now: 0 }); // expires 1970 + TTL → already past
   const runIds = await makeRunDirs(userId);
   assert.ok(runIds.length >= 1, 'the seed wrote runs to reap');
+  // The four tables the seed reaches that carry no user_id of their own: they
+  // hang off a project or a test, so their ids have to be taken before the reap
+  // or there is nothing left to ask about. A tenant's saved session is the one
+  // that matters most — it is a live credential, and a leaked row is a demo
+  // visitor's browser state surviving the visitor.
+  const owned = await ownedIds(userId);
 
   const res = await reapDemoTenants({ now: Date.now() });
   assert.ok(res.users >= 1 && res.runs >= runIds.length, 'reaper reports what it removed');
@@ -120,6 +158,7 @@ test('reaps an expired tenant completely — every table and every artifact dir'
   for (const id of runIds) {
     assert.equal(fs.existsSync(path.join(artifactsDir, id)), false, `dir for ${id} removed`);
   }
+  await assertOwned(owned, { survive: false });
 });
 
 // --- L: live and normal users are untouched ---
@@ -127,6 +166,7 @@ test('reaps an expired tenant completely — every table and every artifact dir'
 test('leaves a live demo tenant and a normal user untouched', { skip }, async () => {
   const live = await provisionTenant({ now: Date.now() }); // expiry in the future
   const liveRuns = await makeRunDirs(live.userId);
+  const liveOwned = await ownedIds(live.userId);
 
   const { rows: nu } = await pool.query(
     "insert into users (email) values ($1) returning id",
@@ -146,6 +186,7 @@ test('leaves a live demo tenant and a normal user untouched', { skip }, async ()
   assert.equal(await count('select count(*)::int n from users where id=$1', [live.userId]), 1, 'live tenant survives');
   assert.ok(await count('select count(*)::int n from runs where user_id=$1', [live.userId]) >= 1);
   for (const id of liveRuns) assert.equal(fs.existsSync(path.join(artifactsDir, id)), true);
+  await assertOwned(liveOwned, { survive: true });
 
   assert.equal(await count('select count(*)::int n from users where id=$1', [normalId]), 1, 'normal user survives');
   assert.equal(await count('select count(*)::int n from runs where id=$1', [normalRun]), 1);

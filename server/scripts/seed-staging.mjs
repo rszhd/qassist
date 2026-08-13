@@ -21,7 +21,7 @@
 // The email is required rather than defaulted: defaulting it to OPERATOR_EMAIL
 // is what would make a mistyped `-p` seed production's operator account.
 import pg from 'pg';
-import { seedTenant } from '../src/demoTenant.js';
+import { seedTenant } from '../src/demoSeed.js';
 
 const email = process.argv[2];
 if (!email || !email.includes('@')) {
