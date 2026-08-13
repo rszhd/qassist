@@ -184,7 +184,7 @@ describe('Onboarding wall (US-053)', () => {
     expect(await screen.findByText(/No OpenAI key stored/)).toBeTruthy();
   });
 
-  it('keeps a paid account behind a fourth step until it has capacity (US-054)', async () => {
+  it('keeps a paid account waiting until it has capacity (US-054)', async () => {
     const deadline = new Date('2026-07-27T14:20:00Z');
     stubApi({
       keySet: true,
@@ -219,7 +219,7 @@ describe('Onboarding wall (US-053)', () => {
     expect(screen.getByText(/we'll email you/i)).toBeTruthy();
   });
 
-  it('shows no fourth step on a billing instance with no activation window', async () => {
+  it('shows no wait on a billing instance with no activation window', async () => {
     // The server simply omits the field. An instance that already charges must
     // not grow a wall because we shipped this.
     stubApi({

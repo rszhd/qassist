@@ -184,3 +184,12 @@ literally.
       through test-mode Checkout, `npm run activate` listed it with 20h 46m
       left, the grant over SSH dropped the wall in the open tab, both mails
       arrived for real, and the next run started
+
+## Changed after shipping
+
+**2026-08-13 — pending is its own screen, not a fourth step.** The list is a
+list of asks, and once the money has cleared nothing more is being asked of the
+customer; leaving the wait as a row left two completed asks above it to read
+past. It now replaces the checklist with the same words and the same deadline.
+Everything the server does is unchanged — the flag, the gate, the mails, and an
+instance with no `ACTIVATION_SLA_HOURS` still sends nothing and shows nothing.
