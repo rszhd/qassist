@@ -6,7 +6,7 @@ the other stacks: [`DEPLOY.md`](../../DEPLOY.md).
 ## First-time setup
 
 **1. DNS.** An `A` record for `app.qassist.run` → the box's public IP. Add the
-`staging.qassist.run`, `demo.qassist.run` and `preview.qassist.run` records in
+`staging.qassist.run` and `demo.qassist.run` records in
 the same sitting even if those stacks come later — they cost nothing now and
 save a second trip to the panel. The apex is not one of them: it points wherever
 the landing page is hosted, which is not here.
@@ -59,8 +59,8 @@ app knows it is on HTTPS — what makes the session cookie `Secure`.
 alone. Subtract anything else living on it, and subtract every other stack that
 borrows from the same RAM. A 4 vCPU / 8 GB box already running an unrelated
 database lands at **3 for production and 1 for staging**, not the 9 the rule
-alone would suggest — and standing [preview](preview.md) up as well means that 3
-comes down, because a fourth app container brings a fourth Postgres with it.
+alone would suggest — and any further app stack brings a Postgres of its own
+with it, so production's 3 comes down to pay for it.
 
 The gap between 9 and 3 is the point: the 0.7 is a measured peak from a single
 page with no LLM in the loop (US-024), so the rule is a ceiling to size *down*

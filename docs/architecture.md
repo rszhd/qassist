@@ -596,8 +596,8 @@ published port), `proxy`, `release` (a pinned published image, no build), and
 never learns which deployment it is serving — [`DEPLOY.md`](../DEPLOY.md) owns
 the box layout and why.
 
-**Promotion is `dev → staging → main`**, with `preview` a force-pushable spur
-off the side — nothing merges out of it. CI runs on a PR into `dev` and on
+**Promotion is `dev → staging → main`**, and nothing is deployed off the side
+of it. CI runs on a PR into `dev` and on
 pushes to `staging`/`main`, not on a push to `dev`, so a local `npm test`
 after touching `server/src/` is load-bearing. The chain, its reasons and the
 per-stack runbooks: [`DEPLOY.md`](../DEPLOY.md) and

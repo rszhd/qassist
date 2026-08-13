@@ -84,12 +84,9 @@ Two rules that come up most often:
 concern; if you found two things, that's two PRs.
 
 From there the change is promoted rather than merged straight out: **dev →
-staging → main**, with `preview` a force-pushable spur off the side — a
-maintainer's tool for a quick live look, never a step in the path a
-contribution takes. The mechanics are
-[`docs/deploy/staging.md`](docs/deploy/staging.md#promoting-staging-to-production)
-and [`docs/deploy/preview.md`](docs/deploy/preview.md); as a contributor you
-only need `dev`.
+staging → main**. The mechanics are
+[`docs/deploy/staging.md`](docs/deploy/staging.md#promoting-staging-to-production);
+as a contributor you only need `dev`.
 
 Note that CI runs on your **pull request**, not on pushes to `dev`. Run the
 suites yourself before opening one — which ones, for what, is

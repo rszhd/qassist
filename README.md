@@ -312,8 +312,8 @@ The runbook — DNS, the `.env` values the overlay reads, verifying the
 WebSocket, deploying a new tag, and the certificate store — is
 [`DEPLOY.md`](DEPLOY.md). It also covers the hosted deployments this repo drives,
 each of which is those same two compose files with a different project name and
-env file: production, staging, the demo sandbox, and a preview environment. The
-promotion chain (**dev → staging → main**) and preview's place beside it are
+env file: production, staging and the demo sandbox. The promotion chain
+(**dev → staging → main**) is
 [`docs/deploy/staging.md`](docs/deploy/staging.md).
 
 ## Roadmap

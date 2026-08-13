@@ -24,8 +24,8 @@ on:
     # `dev` was dropped in US-055. The gates are staging.yml and release.yml,
     # both of which `uses: ./.github/workflows/ci.yml` before publishing
     # anything, so an image whose tests never ran stays impossible either way —
-    # the `dev` run was informational, about a branch that takes WIP pushes and
-    # feeds a force-pushable `preview` spur. The tradeoff, stated rather than
+    # the `dev` run was informational, about a branch that takes WIP pushes.
+    # The tradeoff, stated rather than
     # discovered: a broken test is now found at merge-to-`staging` time, which
     # is the slow round trip, so local `npm test` stops being optional.
     branches: [main]

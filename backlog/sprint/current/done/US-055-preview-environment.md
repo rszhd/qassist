@@ -5,7 +5,16 @@ force-push to a `preview` branch, built on the box itself, **so that** looking a
 a change live costs a minute instead of a staging round trip — and staging stays
 free to be the thing that replicates production.
 
-- **Status:** ✅ **Done 2026-07-26 — 9/9, live at `https://preview.qassist.run`** on
+- **Status:** 🗑️ **Removed 2026-08-13.** The environment is gone: no
+  `preview.qassist.run`, no `preview` branch, no `qassist-preview` stack, and the
+  runbook and `.env.preview.example` are deleted. What this story bought — a live
+  look at an unmerged change without a staging round trip — is now the local
+  stack, and the box is back to three app stacks. The record below stands as the
+  account of what was built and what it measured; the two findings that outlived
+  it are the CI-on-`dev` change (still in force) and the build-cache measurement
+  (`docker image prune` reclaims nothing; `buildx prune --max-used-space` is the
+  one that works).
+- **Was:** ✅ **Done 2026-07-26 — 9/9, live at `https://preview.qassist.run`** on
   its own Let's Encrypt certificate, `noindex, nofollow`, `billing:false`, its
   own `qassist-preview_pgdata`, built on the box from a `qassist:preview` tag
   that no registry has ever held. The loop was exercised three times end to end
@@ -63,8 +72,8 @@ free to be the thing that replicates production.
 
   Repo half, for the record:
   `.env.preview.example` exists and says why it is looser rather than only what
-  differs; the runbook carries the
-  [Preview](../../../../docs/deploy/preview.md) section
+  differs; the runbook carries the Preview section (`docs/deploy/preview.md`,
+  deleted 2026-08-13)
   with its three costs, the build-and-`up -d` loop, the running-commit check and
   the "what preview must not become" boundary; `CLAUDE.md`, `CONTRIBUTING.md`
   and `README.md` all describe preview as a spur rather than a stage. `ci.yml`

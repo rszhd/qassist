@@ -184,15 +184,14 @@ box keeps running last week's build. The version tag hid this; `:staging` does
 not.
 
 **`--policy always` is not decoration, and a bare `pull` rebuilds the same trap
-one layer in.** `docker-compose.prod.yml` sets `pull_policy: missing` — it is
-there for [preview](preview.md), which must find the image the box just built and
-never reach for a registry — and Compose applies that policy to the explicit
-`pull` subcommand too, not only to the implicit pull inside `up`. So the bare
-command prints `Skipped - Image is already present locally` and exits 0, and the
-box stays on the previous build having reported success twice. The flag
-overrides the policy for one invocation, which is the right shape here: the
-setting belongs to preview and is correct there, so this is staging opting out
-rather than the file being wrong (seen on this box 2026-07-27).
+one layer in.** `docker-compose.prod.yml` sets `pull_policy: missing` so that no
+deploy ever fetches an image behind the operator's back, and Compose applies that
+policy to the explicit `pull` subcommand too, not only to the implicit pull
+inside `up`. So the bare command prints `Skipped - Image is already present
+locally` and exits 0, and the box stays on the previous build having reported
+success twice. The flag overrides the policy for one invocation, which is the
+right shape here: an immutable version pin wants `missing`, and staging's mutable
+tag is the one case that opts out (seen on this box 2026-07-27).
 
 So confirm what you actually got, by digest and not by tag:
 

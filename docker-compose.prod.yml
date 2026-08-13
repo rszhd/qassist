@@ -34,6 +34,10 @@ services:
     # A server that never sees the source (US-032): drop the base file's build
     # context so `up` pulls a released tag rather than compiling Chromium.
     build: !reset null
+    # An immutable `:x.y.z` pin never needs re-fetching, so a deploy never pulls
+    # unasked. It also applies to an explicit `docker compose pull`, which is why
+    # staging's mutable `:staging` tag needs `--policy always` — see
+    # docs/deploy/staging.md.
     pull_policy: missing
     # US-007's "8080 is not published": the base file's host mapping is removed
     # rather than firewalled. Compose merges list fields by appending, so

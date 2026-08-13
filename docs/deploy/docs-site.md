@@ -3,9 +3,8 @@
 The user manual, built from `manual/` on `main` and served as static files.
 Orientation and the other stacks: [`DEPLOY.md`](../../DEPLOY.md).
 
-It is a **spur off the promotion chain, like preview** — nothing merges out of
-it and nothing waits on it. Preview exists because staging's bill is the wrong
-price for a live look; this exists because prose should not also cost an image.
+It is a **spur off the promotion chain** — nothing merges out of it and nothing
+waits on it. It exists because prose should not also cost an image build.
 
 **A push to `main` touching `manual/**` is live within one poll interval**, with
 no image build and no registry round trip: the promotion is the whole cost, and
@@ -15,8 +14,8 @@ at what a branch renders as — is [published by hand](#publishing-by-hand).
 The trade, stated: a page goes public when it is promoted rather than when it is
 written, so `main` and the site are the same thing and a half-written page on
 `dev` is not a public page. If the promotion ever becomes the reason the writing
-does not get done, `DOCS_BRANCH` at a `docs` ref you force-push to — preview's
-shape — buys the fast cadence back and costs no other change.
+does not get done, `DOCS_BRANCH` at a `docs` ref you force-push to buys the fast
+cadence back and costs no other change.
 
 ## What it is
 
@@ -43,9 +42,8 @@ So improving what a publish does is a commit that takes effect on the next poll
 [`staging.md`](staging.md) rules out `git pull` in a cron because `~/qassist` is
 **shared**: it holds every stack's compose and env files, so moving it changes
 what `demo` and the proxy would get on their next `up -d`. The builder's clone
-lives in a volume no other stack reads — the same reason US-055 gave preview
-`~/qassist-preview`. **The rule is about the shared checkout, not about
-automation.**
+lives in a volume no other stack reads. **The rule is about the shared checkout,
+not about automation.**
 
 ## What it costs
 
@@ -247,8 +245,7 @@ Markdown *in the repo*; the two are not the same check and both run.
 - **Not the contributor tree.** `docs/` stays where it is and stays out of the
   site. A page useful to both audiences is written for the user in `manual/` and
   linked from `docs/`, never copied into both.
-- **Not a gate.** Nothing merges out of it and nothing waits on it, for the same
-  reason preview is a spur.
+- **Not a gate.** Nothing merges out of it and nothing waits on it.
 
 ## Deferred, not dead: the offline copy
 
