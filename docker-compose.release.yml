@@ -19,7 +19,7 @@ services:
     # Pinned, not `:latest`. A self-hoster should know which version is
     # running, and a tag that changes under you is not a release. The image is
     # public — no docker login needed.
-    image: ghcr.io/rszhd/qassist:0.5.2
+    image: ghcr.io/rszhd/qassist:0.6.0
     ports:
       - "8080:8080"
     # Optional, so a missing .env surfaces in the UI as "what's not configured"
